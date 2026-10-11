@@ -1,5 +1,6 @@
 /** Narrow native contracts used only by frame adapters. Methods use Lua self. */
 export interface WowTexture {
+	SetTexture(fileId: number | undefined): void;
 	SetAllPoints(): void;
 	SetColorTexture(
 		red: number,

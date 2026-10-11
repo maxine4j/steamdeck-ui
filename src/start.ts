@@ -1,12 +1,19 @@
+import type { IInventoryClient } from "./clients/inventory-client";
 import type { IEventBus } from "./events/types";
 import { BagsModule } from "./modules/bags/bags-module";
+import { BagsPanel } from "./modules/bags/bags-panel";
+import { BuiltInBags } from "./modules/bags/built-in-bags";
 import { ModuleManager } from "./modules/module-manager";
 import { Frame } from "./ui/components/frame";
+import { FrameSuppression } from "./ui/components/frame-suppression";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
-import { Panel } from "./ui/panel/panel";
 import { PanelContainer } from "./ui/panel/panel-container";
 import { UIOrchestrator } from "./ui/ui-orchestrator";
-export function startSteamDeckUI(factory: FrameFactory, events: IEventBus) {
+export function startSteamDeckUI(
+	factory: FrameFactory,
+	events: IEventBus,
+	inventory: IInventoryClient,
+) {
 	const pool = new FramePoolManager(factory);
 	const ui = new UIOrchestrator(
 		(position) =>
@@ -16,10 +23,23 @@ export function startSteamDeckUI(factory: FrameFactory, events: IEventBus) {
 				new Frame(`container-${position}`, pool),
 			),
 	);
-	const panel = new Panel("bags", "Bags", new Frame("bags-frame", pool));
+	const panel = new BagsPanel(
+		"bags",
+		"Bags",
+		new Frame("bags-frame", pool),
+		pool,
+	);
 	ui.registerPanel(panel);
 	const modules = new ModuleManager();
-	modules.register(new BagsModule(ui));
+	modules.register(
+		new BagsModule(
+			ui,
+			events,
+			inventory,
+			panel,
+			new BuiltInBags(new FrameSuppression(pool), events),
+		),
+	);
 	const login = () => modules.start();
 	events.subscribe("PLAYER_LOGIN", login);
 	return {

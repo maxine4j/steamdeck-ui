@@ -13,7 +13,10 @@ export class UIOrchestrator implements IUIOrchestrator {
 		private readonly createContainer: (
 			position: DockPosition,
 		) => PanelContainer,
-	) {}
+	) {
+		this.getContainer("left");
+		this.getContainer("right");
+	}
 	getContainer(position: DockPosition): PanelContainer {
 		let container = this.containers.get(position);
 		if (!container) {

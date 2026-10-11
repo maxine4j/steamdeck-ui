@@ -25135,16 +25135,16 @@ declare namespace C_ConsoleScriptCollection {
     }
 }
 interface ContainerItemInfo {
-    iconFileId: number;
+    iconFileID: number;
     stackCount: number;
     isLocked: boolean;
-    quality: number;
+    quality: number | undefined;
     isReadable: boolean;
     hasLoot: boolean;
     hyperlink: string;
     isFiltered: boolean;
     hasNoValue: boolean;
-    itemId: number;
+    itemID: number;
     isBound: boolean;
     itemName: string;
 }
@@ -25274,9 +25274,9 @@ declare namespace C_Container {
     /**
      * @param {number} [containerIndex]
      * @param {number} [slotIndex]
-     * @returns {number} containerInfo
+     * @returns {ContainerItemInfo | undefined} containerInfo
      */
-    function GetContainerItemInfo(containerIndex: number, slotIndex: number): number;
+    function GetContainerItemInfo(containerIndex: number, slotIndex: number): ContainerItemInfo | undefined;
 
     /**
      * @param {number} [containerIndex]
@@ -25488,16 +25488,16 @@ declare namespace C_Container {
 }
 declare namespace C_Container {
     interface ContainerItemInfo {
-        iconFileId: number;
+        iconFileID: number;
         stackCount: number;
         isLocked: boolean;
-        quality: number;
+        quality: number | undefined;
         isReadable: boolean;
         hasLoot: boolean;
         hyperlink: string;
         isFiltered: boolean;
         hasNoValue: boolean;
-        itemId: number;
+        itemID: number;
         isBound: boolean;
         itemName: string;
     }

@@ -32,6 +32,7 @@ export class FramePoolManager implements IFramePoolManager {
 	release(type: FrameType, frame: WowFrame): void {
 		if (this.leased.get(frame) !== type) return;
 		frame.Hide();
+		this.backgrounds.get(frame)?.SetTexture(undefined);
 		this.backgrounds.get(frame)?.SetColorTexture(0, 0, 0, 0);
 		frame.ClearAllPoints();
 		frame.SetSize(0, 0);

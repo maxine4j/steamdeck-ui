@@ -20,11 +20,38 @@ export class Frame implements IUIComponent {
 		height: number,
 		point = "CENTER",
 		parent?: Frame,
+		x = 0,
+		y = 0,
 	): void {
 		const native = this.acquire();
 		native.ClearAllPoints();
 		native.SetSize(width, height);
-		native.SetPoint(point, parent?.acquire(), point, 0, 0);
+		native.SetPoint(point, parent?.acquire(), point, x, y);
+	}
+	dock(position: "left" | "right" | "fullscreen", width: number): void {
+		const native = this.acquire();
+		native.ClearAllPoints();
+		native.SetSize(position === "fullscreen" ? 0 : width, 0);
+		const edge = position === "right" ? "RIGHT" : "LEFT";
+		native.SetPoint(`TOP${edge}`, undefined, `TOP${edge}`, 0, 0);
+		native.SetPoint(
+			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
+			undefined,
+			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
+			0,
+			0,
+		);
+	}
+	fill(parent: Frame): void {
+		this.setParent(parent);
+		const native = this.acquire();
+		native.ClearAllPoints();
+		native.SetPoint("TOPLEFT", parent.acquire(), "TOPLEFT", 0, 0);
+		native.SetPoint("BOTTOMRIGHT", parent.acquire(), "BOTTOMRIGHT", 0, 0);
+	}
+	setIcon(iconFileId: number): void {
+		this.acquire();
+		this.texture?.SetTexture(iconFileId);
 	}
 	setBlackBackground(): void {
 		this.acquire();

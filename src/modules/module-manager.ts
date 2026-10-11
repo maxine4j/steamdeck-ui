@@ -10,7 +10,10 @@ export class ModuleManager {
 	}
 	start(): void {
 		if (this.started) return;
-		for (const module of this.modules.values()) module.initialize();
+		for (const module of this.modules.values()) {
+			module.disableBuiltIn();
+			module.initialize();
+		}
 		this.started = true;
 	}
 	stop(): void {

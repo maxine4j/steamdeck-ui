@@ -6,18 +6,12 @@ export class PanelContainer implements IPanelContainer {
 		public readonly id: string,
 		public readonly position: DockPosition,
 		private readonly frame: Frame,
-	) {}
+	) {
+		this.frame.dock(position, 500);
+	}
 	pushPanel(panel: IPanel): void {
 		this.panels.at(-1)?.onUnmount();
-		this.frame.layout(
-			420,
-			560,
-			this.position === "left"
-				? "LEFT"
-				: this.position === "right"
-					? "RIGHT"
-					: "CENTER",
-		);
+		this.frame.dock(this.position, 500);
 		this.frame.show();
 		this.panels.push(panel);
 		panel.onMount(this.frame);
