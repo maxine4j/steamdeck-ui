@@ -76,7 +76,12 @@ export function groupItems(
 		}
 	}
 	return [...groups.entries()]
-		.sort((a, b) => a[0] - b[0])
+		.sort((a, b) => {
+			if (mode === "category") return a[0] - b[0];
+			if (a[0] === 999) return 1;
+			if (b[0] === 999) return -1;
+			return b[0] - a[0];
+		})
 		.map((entry) => {
 			entry[1].items.sort((a, b) => {
 				if (a.itemId !== b.itemId) return a.itemId - b.itemId;

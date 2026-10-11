@@ -29,6 +29,7 @@ const itemSpacing = 46;
 const categoryWidth = 226;
 const categorySpacing = 234;
 export class BagsPanel implements IPanel {
+	readonly icon = 133633;
 	private readonly icons: { border: Frame; icon: Frame }[] = [];
 	private readonly headers: Frame[] = [];
 	private readonly toggle: Frame;
@@ -74,6 +75,9 @@ export class BagsPanel implements IPanel {
 		});
 		this.toggle.show();
 		this.viewport.inset(this.frame, 16, 58, 16, 48);
+		this.viewport.onSizeChanged(() => {
+			if (this.mounted) this.render();
+		});
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.viewport.show();
@@ -172,7 +176,7 @@ export class BagsPanel implements IPanel {
 				rowHeight = 0;
 			}
 		});
-		this.content.layout(460, Math.max(1, y), "TOPLEFT", this.viewport);
+		this.content.layoutVerticallyCentered(460, Math.max(1, y), this.viewport);
 		this.viewport.clampScroll();
 		this.content.setLabel(
 			"empty",

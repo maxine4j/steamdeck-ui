@@ -8,6 +8,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	const layout = vi.spyOn(Frame.prototype, "layout");
 	const labels: { text: string }[] = [];
 	const colors = vi.fn();
+	let viewportHeight = 600;
 	let click: (() => void) | undefined;
 	const handlers: Map<string, (frame: unknown, button: string) => void>[] = [];
 	const factory = {
@@ -24,6 +25,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 				ClearAllPoints: vi.fn(),
 				SetPoint: vi.fn(),
 				SetSize: vi.fn(),
+				GetHeight: () => viewportHeight,
 				CreateTexture: () => ({
 					SetAllPoints: vi.fn(),
 					SetTexture: vi.fn(),
@@ -173,7 +175,29 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		[226, 24, "TOPLEFT", expect.any(Frame), 0, -134],
 	]);
 	expect(positions("bags-content")).toEqual([
-		[460, 222, "TOPLEFT", expect.any(Frame)],
+		[460, 222, "TOPLEFT", expect.any(Frame), 0, -189],
+	]);
+	viewportHeight = 100;
+	handlers
+		.find((scripts) => scripts.has("OnSizeChanged"))
+		?.get("OnSizeChanged")?.(undefined, "");
+	expect(positions("bags-content").at(-1)).toEqual([
+		460,
+		222,
+		"TOPLEFT",
+		expect.any(Frame),
+		0,
+		-0,
+	]);
+	viewportHeight = 600;
+	panel.setItems([cloth]);
+	expect(positions("bags-content").at(-1)).toEqual([
+		460,
+		88,
+		"TOPLEFT",
+		expect.any(Frame),
+		0,
+		-256,
 	]);
 	panel.destroy();
 	expect(

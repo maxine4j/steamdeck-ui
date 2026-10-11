@@ -3,6 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { IUIComponent } from "./types";
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
+	private docked = false;
 	private texture?: WowTexture;
 	private readonly labels = new Map<string, WowFontString>();
 	constructor(
@@ -34,8 +35,21 @@ export class Frame implements IUIComponent {
 		native.SetSize(width, height);
 		native.SetPoint(point, parent?.acquire(), point, x, y);
 	}
+	layoutVerticallyCentered(width: number, height: number, parent: Frame): void {
+		const native = parent.acquire() as WowFrame & { GetHeight(): number };
+		const offset = Math.max(0, (native.GetHeight() - height) / 2);
+		this.layout(width, height, "TOPLEFT", parent, 0, -offset);
+	}
+	onSizeChanged(callback?: (this: void) => void): void {
+		const native = this.acquire() as WowFrame & {
+			SetScript(script: "OnSizeChanged", handler?: (this: void) => void): void;
+		};
+		native.SetScript("OnSizeChanged", callback);
+	}
 	dock(position: "left" | "right" | "fullscreen", width: number): void {
 		const native = this.acquire();
+		native.SetFrameStrata("DIALOG");
+		this.docked = true;
 		native.ClearAllPoints();
 		native.SetSize(position === "fullscreen" ? 0 : width, 0);
 		const edge = position === "right" ? "RIGHT" : "LEFT";
@@ -193,6 +207,7 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
 		this.texture?.SetColorTexture(0, 0, 0, 0);
@@ -211,6 +226,10 @@ export class Frame implements IUIComponent {
 			this.native.EnableMouseWheel(false);
 			this.native.SetVerticalScroll(0);
 			this.native.SetScrollChild(undefined);
+		}
+		if (this.docked) {
+			this.native.SetFrameStrata("PARENT");
+			this.docked = false;
 		}
 		this.pool.release(this.frameType, this.native);
 		this.native = undefined;

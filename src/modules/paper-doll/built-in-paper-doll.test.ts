@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { EventBus } from "../../events/event-bus";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { BuiltInPaperDoll } from "./built-in-paper-doll";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -18,7 +18,7 @@ it("retains native bindings, restores other character tabs and gates permanent h
 		}),
 	);
 	const suppression = { suppress: vi.fn(), restore: vi.fn() };
-	const events = new EventBus();
+	const events = createTestEventBus();
 	const changed = vi.fn();
 	events.subscribe("CHARACTER_VISIBILITY_CHANGED", changed);
 	const adapter = new BuiltInPaperDoll(suppression, events);

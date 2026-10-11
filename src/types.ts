@@ -33,6 +33,7 @@ export interface WowFrame {
 	Show(): void;
 	Hide(): void;
 	SetParent(parent?: WowFrame): void;
+	SetFrameStrata(strata: "PARENT" | "DIALOG"): void;
 	ClearAllPoints(): void;
 	SetPoint(
 		point: string,

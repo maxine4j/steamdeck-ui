@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { EventBus } from "../../events/event-bus";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { BuiltInBags } from "./built-in-bags";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -23,7 +23,7 @@ it("suppresses all Retail bag frames and bridges existing bindings only while en
 	);
 	vi.stubGlobal("hooksecurefunc", hook);
 	const frames = { suppress: vi.fn(), restore: vi.fn() };
-	const events = new EventBus();
+	const events = createTestEventBus();
 	const visibility = vi.fn();
 	events.subscribe("BAG_VISIBILITY_CHANGED", visibility);
 	const bags = new BuiltInBags(frames, events);

@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { WowEventFrame } from "../types";
 import { WowEventBus } from "./wow-event-bus";
+import { createTestEventBus } from "./test-event-bus";
 
 it("forwards native login events through the hidden event frame", () => {
 	let dispatch: (
@@ -69,4 +70,50 @@ it("forwards native login events through the hidden event frame", () => {
 	expect(model).toHaveBeenCalledOnce();
 	dispatch(frame, "PLAYER_EQUIPMENT_CHANGED", 1, true);
 	expect(equipment).toHaveBeenCalledOnce();
+	const reputation = vi.fn(),
+		titles = vi.fn();
+	bus.subscribe("REPUTATION_CHANGED", reputation);
+	bus.subscribe("TITLES_CHANGED", titles);
+	for (const event of [
+		"UPDATE_FACTION",
+		"MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
+		"MAJOR_FACTION_UNLOCKED",
+		"QUEST_LOG_UPDATE",
+	])
+		dispatch(frame, event);
+	expect(reputation).toHaveBeenCalledTimes(4);
+	dispatch(frame, "KNOWN_TITLES_UPDATE");
+	dispatch(frame, "UNIT_NAME_UPDATE", "target");
+	expect(titles).toHaveBeenCalledOnce();
+	dispatch(frame, "UNIT_NAME_UPDATE", "player");
+	expect(titles).toHaveBeenCalledTimes(2);
+});
+
+it("deduplicates subscriptions and removes unsubscribed handlers", () => {
+	const bus = createTestEventBus();
+	const handler = vi.fn();
+	bus.subscribe("PLAYER_LOGIN", handler);
+	bus.subscribe("PLAYER_LOGIN", handler);
+	bus.emit("PLAYER_LOGIN");
+	expect(handler).toHaveBeenCalledOnce();
+	bus.unsubscribe("PLAYER_LOGIN", handler);
+	bus.emit("PLAYER_LOGIN");
+	expect(handler).toHaveBeenCalledOnce();
+});
+
+it("finishes dispatching its snapshot when subscriptions change", () => {
+	const bus = createTestEventBus();
+	const later = vi.fn();
+	const removed = vi.fn();
+	bus.subscribe("PLAYER_LOGIN", () => {
+		bus.unsubscribe("PLAYER_LOGIN", removed);
+		bus.subscribe("PLAYER_LOGIN", later);
+	});
+	bus.subscribe("PLAYER_LOGIN", removed);
+	bus.emit("PLAYER_LOGIN");
+	expect(removed).toHaveBeenCalledOnce();
+	expect(later).not.toHaveBeenCalled();
+	bus.emit("PLAYER_LOGIN");
+	expect(removed).toHaveBeenCalledOnce();
+	expect(later).toHaveBeenCalledOnce();
 });

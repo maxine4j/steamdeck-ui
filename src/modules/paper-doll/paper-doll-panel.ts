@@ -24,6 +24,7 @@ const qualityColors: readonly (readonly [number, number, number])[] = [
 export class PaperDollPanel implements IPanel {
 	readonly id = "paper-doll";
 	readonly title = "Character";
+	readonly icon = 135906;
 	private mounted = false;
 	private equipment: readonly EquipmentSlot[] = [];
 	private stats: readonly CharacterStat[] = [];
@@ -32,6 +33,7 @@ export class PaperDollPanel implements IPanel {
 	private readonly statRows: Frame[] = [];
 	private readonly preview: Frame;
 	private readonly closeButton: Frame;
+	private readonly content: Frame;
 	constructor(
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
@@ -39,6 +41,7 @@ export class PaperDollPanel implements IPanel {
 	) {
 		this.preview = new Frame("character-model", pool, "PlayerModel");
 		this.closeButton = new Frame("character-close", pool, "Button");
+		this.content = new Frame("character-content", pool);
 	}
 	setEquipment(equipment: readonly EquipmentSlot[]): void {
 		this.equipment = equipment;
@@ -57,6 +60,11 @@ export class PaperDollPanel implements IPanel {
 		this.frame.fill(parent);
 		this.frame.setBlackBackground();
 		this.frame.show();
+		this.content.setParent(this.frame);
+		this.content.show();
+		this.frame.onSizeChanged(() => {
+			if (this.mounted) this.layoutContent();
+		});
 		this.closeButton.setParent(this.frame);
 		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
 		this.closeButton.setLabel("close", "X");
@@ -64,8 +72,8 @@ export class PaperDollPanel implements IPanel {
 			if (this.mounted) this.actions.close();
 		});
 		this.closeButton.show();
-		this.preview.setParent(this.frame);
-		this.preview.layout(332, 364, "TOPLEFT", this.frame, 84, -40);
+		this.preview.setParent(this.content);
+		this.preview.layout(332, 364, "TOPLEFT", this.content, 84, 0);
 		this.preview.show();
 		this.mounted = true;
 		this.refreshPreview();
@@ -100,9 +108,9 @@ export class PaperDollPanel implements IPanel {
 				this.slots.push(cell);
 			}
 			const x = index < 8 ? 16 : index < 16 ? 438 : index === 16 ? 202 : 254;
-			const y = index < 16 ? 40 + (index % 8) * 46 : 414;
-			cell.border.setParent(this.frame);
-			cell.border.layout(44, 44, "TOPLEFT", this.frame, x, -y);
+			const y = index < 16 ? (index % 8) * 46 : 374;
+			cell.border.setParent(this.content);
+			cell.border.layout(44, 44, "TOPLEFT", this.content, x, -y);
 			cell.border.setColor(
 				...(qualityColors.at(slot.quality) ?? ([1, 1, 1] as const)),
 			);
@@ -133,6 +141,7 @@ export class PaperDollPanel implements IPanel {
 			this.slots.at(i)?.border.hide();
 			this.slots.at(i)?.button.hide();
 		}
+		this.layoutContent();
 	}
 	private renderStats(): void {
 		this.stats.forEach((stat, index) => {
@@ -141,14 +150,14 @@ export class PaperDollPanel implements IPanel {
 				row = new Frame(`character-stat-${index}`, this.pool);
 				this.statRows.push(row);
 			}
-			row.setParent(this.frame);
+			row.setParent(this.content);
 			row.layout(
 				226,
 				26,
 				"TOPLEFT",
-				this.frame,
+				this.content,
 				16 + (index % 2) * 242,
-				-476 - Math.floor(index / 2) * 28,
+				-436 - Math.floor(index / 2) * 28,
 			);
 			row.setLabel("label", stat.label, "LEFT", 0, 0, 13);
 			row.setLabel("value", stat.value, "RIGHT", 0, 0, 13);
@@ -156,6 +165,16 @@ export class PaperDollPanel implements IPanel {
 		});
 		for (let i = this.stats.length; i < this.statRows.length; i++)
 			this.statRows.at(i)?.hide();
+		this.layoutContent();
+	}
+	private layoutContent(): void {
+		const height =
+			this.stats.length > 0
+				? 436 + (Math.ceil(this.stats.length / 2) - 1) * 28 + 26
+				: this.equipment.length > 16
+					? 418
+					: 364;
+		this.content.layoutVerticallyCentered(500, height, this.frame);
 	}
 	onUnmount(): void {
 		this.mounted = false;
@@ -184,6 +203,7 @@ export class PaperDollPanel implements IPanel {
 		this.statRows.length = 0;
 		this.preview.destroy();
 		this.closeButton.destroy();
+		this.content.destroy();
 		this.frame.destroy();
 	}
 }

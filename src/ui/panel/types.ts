@@ -6,6 +6,7 @@ export type DockPosition = "left" | "right" | "fullscreen";
 export interface IPanel {
 	id: string;
 	title: string;
+	readonly icon?: number;
 
 	// Lifecycle hooks
 	onMount(parentComponent: IUIComponent): void;
@@ -18,6 +19,7 @@ export interface IPanel {
 export interface IPanelContainer {
 	id: string;
 	position: DockPosition;
+	registerPanel(panel: IPanel): void;
 
 	pushPanel(panel: IPanel): void;
 	popPanel(): void;

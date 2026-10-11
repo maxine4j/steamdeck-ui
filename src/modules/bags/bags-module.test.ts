@@ -1,9 +1,9 @@
 import { expect, it, vi } from "vitest";
-import { EventBus } from "../../events/event-bus";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { BagsModule } from "./bags-module";
 
 it("starts closed, follows native bag visibility, and restores built-in bags on shutdown", () => {
-	const events = new EventBus();
+	const events = createTestEventBus();
 	const ui = {
 		openPanel: vi.fn(),
 		closePanel: vi.fn(),

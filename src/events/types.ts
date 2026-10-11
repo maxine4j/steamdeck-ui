@@ -9,6 +9,10 @@ export type ApplicationEvent =
 	| "CHARACTER_VISIBILITY_CHANGED"
 	| "CHARACTER_STATS_CHANGED"
 	| "CHARACTER_MODEL_CHANGED"
+	| "REPUTATION_CHANGED"
+	| "REPUTATION_VISIBILITY_CHANGED"
+	| "TITLES_CHANGED"
+	| "TITLES_OPEN"
 	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventHandler = () => void;
 export interface IEventBus {

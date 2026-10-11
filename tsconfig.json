@@ -8,7 +8,7 @@
 		"types": ["lua-types/5.1", "./src/wow.d.ts"],
 		"strict": true
 	},
-	"exclude": ["node_modules", ".libraries", "dist", "src/**/*.test.ts"],
+	"exclude": ["node_modules", ".libraries", "dist", "src/**/*.test.ts", "src/events/test-event-bus.ts"],
 	"tstl": {
 		"luaTarget": "5.1",
 		"buildMode": "default",

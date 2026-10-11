@@ -7,6 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("fits equipment around a character model with stats below, reuses controls and routes slot actions", () => {
 	const natives: ReturnType<typeof createNative>[] = [];
+	let panelHeight = 800;
 	function createNative() {
 		const handlers = new Map<
 			string,
@@ -22,6 +23,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 			ClearAllPoints: vi.fn(),
 			SetPoint: vi.fn(),
 			SetSize: vi.fn(),
+			GetHeight: () => panelHeight,
 			SetScript: (
 				name: string,
 				handler?: (frame: unknown, button: string) => void,
@@ -88,7 +90,40 @@ it("fits equipment around a character model with stats below, reuses controls an
 	expect(model.SetUnit).toHaveBeenCalledWith("player");
 	const row = natives.find((native) => native.texts.includes("Haste"));
 	if (!row) throw new Error("Missing stats row");
-	expect(row.SetPoint.mock.calls.at(-1)?.at(4)).toBe(-476);
+	expect(row.SetPoint.mock.calls.at(-1)?.at(4)).toBe(-436);
+	const content = natives.find((native) =>
+		native.SetSize.mock.calls.some(
+			([width, height]) => width === 500 && height === 462,
+		),
+	);
+	expect(content?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		expect.anything(),
+		"TOPLEFT",
+		0,
+		-169,
+	);
+	panel.setStats(
+		Array.from({ length: 6 }, () => ({ label: "Stat", value: "1" })),
+	);
+	expect(content?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		expect.anything(),
+		"TOPLEFT",
+		0,
+		-141,
+	);
+	panelHeight = 1000;
+	natives
+		.find((native) => native.handlers.has("OnSizeChanged"))
+		?.handlers.get("OnSizeChanged")?.(undefined, "");
+	expect(content?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		expect.anything(),
+		"TOPLEFT",
+		0,
+		-241,
+	);
 	const equipmentButtons = natives.filter((native) =>
 		native.handlers.has("OnDragStart"),
 	);
