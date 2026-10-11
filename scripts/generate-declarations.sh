@@ -11,6 +11,7 @@ if [ ! -d "$REPO_DIR" ]; then
     echo "✅ '$REPO_DIR' does not exist. cloning repository..."
     git clone "$REPO_URL" "$REPO_DIR"
     rm -rf "$REPO_DIR/.git"
+    rm -rf "$REPO_DIR/biome.json"
 else
     echo "✅ '$REPO_DIR' already exists"
 fi

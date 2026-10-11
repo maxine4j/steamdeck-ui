@@ -1,13 +1,7 @@
-## Interface: 100007
+## Interface: 120100
 ## Title: SteamDeck
 ## Notes: All in one SteamDeck support
 ## Author: Maxine
 ## Version: 0.0.1
 
-src/main.lua
-src/panels.lua
-src/cursor.lua
-src/tabs/bags.lua
-src/tabs/equipment.lua
-src/tabs/reputation.lua
-src/tabs/currencies.lua
+main.lua

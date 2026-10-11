@@ -1,4 +1,6 @@
+export type ApplicationEvent = "PLAYER_LOGIN";
+export type EventHandler = () => void;
 export interface IEventBus {
-    subscribe<T>(eventName: string, handler: (payload: T) => void): void;
-    unsubscribe(eventName: string, handler: Function): void;
+	subscribe(event: ApplicationEvent, handler: EventHandler): void;
+	unsubscribe(event: ApplicationEvent, handler: EventHandler): void;
 }

@@ -1,21 +1,44 @@
-/**
- * Minimal representation of WoW's native Frame object.
- * Adjust or extend if using @wartoshika/wow-declarations or your own WoW types.
- */
+/** Narrow native contracts used only by frame adapters. Methods use Lua self. */
+export interface WowTexture {
+	SetAllPoints(): void;
+	SetColorTexture(
+		red: number,
+		green: number,
+		blue: number,
+		alpha: number,
+	): void;
+}
 export interface WowFrame {
-  Show: () => void;
-  Hide: () => void;
-  IsShown: () => boolean;
-  SetParent: (parent: WowFrame) => void;
-  ClearAllPoints: () => void;
-  SetPoint: (point: string, relativeTo?: WowFrame, relativePoint?: string, x?: number, y?: number) => void;
-  SetSize: (width: number, height: number) => void;
-  // Frame hooks and script handlers
-  SetScript: (scriptType: string, handler?: (...args: any[]) => void) => void;
+	Show(): void;
+	Hide(): void;
+	SetParent(parent?: WowFrame): void;
+	ClearAllPoints(): void;
+	SetPoint(
+		point: string,
+		relativeTo?: WowFrame,
+		relativePoint?: string,
+		x?: number,
+		y?: number,
+	): void;
+	SetSize(width: number, height: number): void;
+	CreateTexture(name?: string, layer?: string): WowTexture;
 }
 
-// The pool that handles CreateFrame.
-export interface IFramePoolManager {
-    acquire(frameType: "Button" | "Frame" | "StatusBar"): any;
-    release(frameType: string, frame: any): void;
+export interface WowEventFrame extends WowFrame {
+	RegisterEvent(event: string): void;
+	SetScript(
+		script: "OnEvent",
+		handler: (this: void, frame: WowEventFrame, event: string) => void,
+	): void;
+}
+
+/** UI-object APIs are absent from the generated game API declarations. */
+declare global {
+	const UIParent: WowFrame;
+	function CreateFrame(
+		this: void,
+		type: string,
+		name?: string,
+		parent?: WowFrame,
+	): WowEventFrame;
 }

@@ -10,7 +10,7 @@ WoW API declarations are generated with `yarn setup`, which runs `scripts/genera
 
 The architecture has four strict layers:
 
-1. **Component library (hardware layer):** The only layer allowed to call WoW's `CreateFrame` API or otherwise manipulate WoW UI frames directly. It owns frame pooling.
+1. **Component library:** The only layer allowed to call WoW's `CreateFrame` API or otherwise manipulate WoW UI frames directly. It owns frame pooling.
 2. **Navigation manager (input layer):** Routes controller D-pad input across the active panels' logical navigation graphs.
 3. **Panel system (view layer):** Reusable, domain-agnostic panels and containers composed from component-library controls.
 4. **Module system (business layer):** Independent feature domains such as Bags and Paper Doll. Modules own domain logic and request presentation through panels.

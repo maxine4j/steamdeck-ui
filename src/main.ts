@@ -1,8 +1,7 @@
-// entrypoint for the addon, this file should strictly contain start scripts to bootstrap and inject dependencies
+import { WowEventBus } from "./events/wow-event-bus";
+import { startSteamDeckUI } from "./start";
+import { WowFrameFactory } from "./ui/wow-frame-factory";
 
-
-const main = () => {
-
-}
-
-main();
+const frameFactory = new WowFrameFactory();
+const events = new WowEventBus(frameFactory);
+startSteamDeckUI(frameFactory, events);
