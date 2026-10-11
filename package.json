@@ -2,14 +2,19 @@
   "name": "steamdeck-ui",
   "packageManager": "yarn@4.6.0",
   "scripts": {
-    "setup": "bash ./scripts/generate-declarations.sh",
+    "setup": "./scripts/generate-declarations.sh",
     "typecheck": "tsc --noEmit",
-    "build": "tstl",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:lua": "tstl",
+    "build": "./scripts/build-addon.sh",
     "dev": "tstl --watch"
   },
   "devDependencies": {
     "lua-types": "^2.14.1",
     "typescript": "6.0.2",
-    "typescript-to-lua": "^1.37.1"
+    "typescript-to-lua": "^1.37.1",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
   }
 }

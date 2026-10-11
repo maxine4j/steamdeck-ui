@@ -11,7 +11,12 @@
     ],
     "strict": true
   },
+  "exclude": ["node_modules", ".libraries", "dist", "src/**/*.test.ts"],
   "tstl": {
-    "luaTarget": "5.1"
+    "luaTarget": "5.1",
+    "buildMode": "default",
+    "luaBundle": "./dist/main.lua",
+    "luaBundleEntry": "./src/main.ts",
+    "sourceMapTraceback": true
   }
 }
