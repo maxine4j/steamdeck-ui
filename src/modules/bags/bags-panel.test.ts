@@ -5,6 +5,7 @@ import { FramePoolManager } from "../../ui/frame-pool-manager";
 import { BagsPanel } from "./bags-panel";
 
 it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
+	const layout = vi.spyOn(Frame.prototype, "layout");
 	const labels: { text: string }[] = [];
 	const colors = vi.fn();
 	let click: (() => void) | undefined;
@@ -139,6 +140,41 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	itemScripts.at(0)?.get("OnClick")?.(undefined, "RightButton");
 	expect(actions.useItem).toHaveBeenLastCalledWith({ ...cloth, count: 1 });
 	expect(texts()).not.toContain("453");
+	click?.();
+	layout.mockClear();
+	panel.setItems([
+		...Array.from({ length: 6 }, (_, index) => ({
+			...gear,
+			itemId: 100 + index,
+		})),
+		cloth,
+		{ ...cloth, itemId: 200, category: "Consumables" },
+	]);
+	const positions = (id: string) =>
+		layout.mock.calls.filter(
+			(_, index) => layout.mock.contexts.at(index)?.id === id,
+		);
+	expect(positions("bags-header-0")).toEqual([
+		[226, 24, "TOPLEFT", expect.any(Frame), 0, -0],
+	]);
+	expect(positions("bags-header-1")).toEqual([
+		[226, 24, "TOPLEFT", expect.any(Frame), 234, -0],
+	]);
+	expect(positions("bags-border-4")).toEqual([
+		[42, 42, "TOPLEFT", expect.any(Frame), 184, -28],
+	]);
+	expect(positions("bags-border-5")).toEqual([
+		[42, 42, "TOPLEFT", expect.any(Frame), 0, -74],
+	]);
+	expect(positions("bags-border-6")).toEqual([
+		[42, 42, "TOPLEFT", expect.any(Frame), 234, -28],
+	]);
+	expect(positions("bags-header-2")).toEqual([
+		[226, 24, "TOPLEFT", expect.any(Frame), 0, -134],
+	]);
+	expect(positions("bags-content")).toEqual([
+		[460, 222, "TOPLEFT", expect.any(Frame)],
+	]);
 	panel.destroy();
 	expect(
 		itemScripts.every(
@@ -146,4 +182,5 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		),
 	).toBe(true);
 	expect(labels.every((label) => label.text === "")).toBe(true);
+	layout.mockRestore();
 });

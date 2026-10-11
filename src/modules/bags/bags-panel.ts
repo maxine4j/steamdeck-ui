@@ -24,6 +24,10 @@ const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0, 0.8, 1],
 	[0, 0.8, 1],
 ];
+const itemsPerRow = 5;
+const itemSpacing = 46;
+const categoryWidth = 226;
+const categorySpacing = 234;
 export class BagsPanel implements IPanel {
 	private readonly icons: { border: Frame; icon: Frame }[] = [];
 	private readonly headers: Frame[] = [];
@@ -95,18 +99,19 @@ export class BagsPanel implements IPanel {
 		);
 		const groups = groupItems(this.items, this.mode);
 		let y = 0;
+		let rowHeight = 0;
 		let index = 0;
 		groups.forEach((group, groupIndex) => {
+			const x = (groupIndex % 2) * categorySpacing;
 			let header = this.headers.at(groupIndex);
 			if (!header) {
 				header = new Frame(`${this.id}-header-${groupIndex}`, this.pool);
 				this.headers.push(header);
 			}
 			header.setParent(this.content);
-			header.layout(460, 24, "TOPLEFT", this.content, 0, -y);
-			header.setLabel("title", group.label, "LEFT", 0, 0, 15, 460);
+			header.layout(categoryWidth, 24, "TOPLEFT", this.content, x, -y);
+			header.setLabel("title", group.label, "LEFT", 0, 0, 15, categoryWidth);
 			header.show();
-			y += 28;
 			group.items.forEach((item, itemIndex) => {
 				let cell = this.icons.at(index);
 				if (!cell) {
@@ -122,8 +127,8 @@ export class BagsPanel implements IPanel {
 					42,
 					"TOPLEFT",
 					this.content,
-					(itemIndex % 10) * 46,
-					-y - Math.floor(itemIndex / 10) * 46,
+					x + (itemIndex % itemsPerRow) * itemSpacing,
+					-y - 28 - Math.floor(itemIndex / itemsPerRow) * itemSpacing,
 				);
 				const color = qualityColors.at(item.quality) ?? ([1, 1, 1] as const);
 				cell.border.setColor(...color);
@@ -158,7 +163,14 @@ export class BagsPanel implements IPanel {
 				cell.icon.show();
 				index++;
 			});
-			y += Math.ceil(group.items.length / 10) * 46 + 14;
+			rowHeight = Math.max(
+				rowHeight,
+				28 + Math.ceil(group.items.length / itemsPerRow) * itemSpacing + 14,
+			);
+			if (groupIndex % 2 === 1 || groupIndex === groups.length - 1) {
+				y += rowHeight;
+				rowHeight = 0;
+			}
 		});
 		this.content.layout(460, Math.max(1, y), "TOPLEFT", this.viewport);
 		this.viewport.clampScroll();
