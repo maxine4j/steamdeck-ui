@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TypeScriptToLua/TypeScriptToLua/master/tsconfig-schema.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "6.0",
+    "types": [
+        "lua-types/5.1",
+        "./src/wow.d.ts",
+    ],
+    "strict": true
+  },
+  "tstl": {
+    "luaTarget": "5.1"
+  }
+}
