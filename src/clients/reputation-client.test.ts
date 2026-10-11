@@ -48,7 +48,13 @@ it("displays friendship, renown and pending paragon progress", () => {
 });
 it("converts faction progress and routes header expansion and watched reputation safely", () => {
 	const data = [
-		{ factionID: 0, name: "Expansion", isHeader: true, isCollapsed: true },
+		{
+			factionID: 0,
+			name: "Expansion",
+			isHeader: true,
+			isCollapsed: true,
+			isChild: false,
+		},
 		{
 			factionID: 42,
 			name: "Faction",
@@ -57,6 +63,7 @@ it("converts faction progress and routes header expansion and watched reputation
 			currentReactionThreshold: 3000,
 			nextReactionThreshold: 9000,
 			isWatched: true,
+			isChild: true,
 		},
 	];
 	const api = {
@@ -77,6 +84,7 @@ it("converts faction progress and routes header expansion and watched reputation
 		standing: "Friendly",
 		progress: "1500 / 6000",
 		watched: true,
+		child: true,
 	});
 	const header = rows.at(0),
 		faction = rows.at(1);

@@ -12,6 +12,8 @@ export class Frame implements IUIComponent {
 		private readonly frameType:
 			| "Frame"
 			| "Button"
+			| "SecureButton"
+			| "EditBox"
 			| "ScrollFrame"
 			| "PlayerModel" = "Frame",
 	) {}
@@ -119,6 +121,7 @@ export class Frame implements IUIComponent {
 	setIcon(iconFileId: number): void {
 		this.acquire();
 		this.texture?.SetTexture(iconFileId);
+		this.texture?.SetTexCoord(0.07, 0.93, 0.07, 0.93);
 	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")
@@ -183,12 +186,63 @@ export class Frame implements IUIComponent {
 		native.RegisterForClicks("LeftButtonUp", "RightButtonUp");
 		native.SetScript("OnClick", (_frame, button) => callback(button));
 	}
+	setSpell(spell?: number): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Spell requires a secure button");
+		if (InCombatLockdown()) return;
+		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string | number): void;
+		};
+		native.RegisterForClicks("AnyUp", "AnyDown");
+		native.SetAttribute("type", spell ? "spell" : undefined);
+		native.SetAttribute("spell", spell);
+	}
+	click(): void {
+		(this.acquire() as WowFrame & { Click(): void }).Click();
+	}
+	configureInput(change?: (this: void, text: string) => void): void {
+		if (this.frameType !== "EditBox")
+			throw new Error("Input requires an edit box");
+		const native = this.acquire() as WowFrame & {
+			SetAutoFocus(value: boolean): void;
+			SetFontObject(name: string): void;
+			SetTextInsets(
+				left: number,
+				right: number,
+				top: number,
+				bottom: number,
+			): void;
+			GetText(): string;
+			SetText(text: string): void;
+			SetFocus(): void;
+			ClearFocus(): void;
+			SetScript(script: string, handler?: (this: void) => void): void;
+		};
+		native.SetAutoFocus(false);
+		native.SetFontObject("GameFontHighlight");
+		native.SetTextInsets(8, 8, 0, 0);
+		native.SetScript(
+			"OnTextChanged",
+			change ? () => change(native.GetText()) : undefined,
+		);
+		native.SetScript("OnEscapePressed", () => native.ClearFocus());
+		native.SetScript("OnEnterPressed", () => native.ClearFocus());
+	}
+	focusInput(): void {
+		(this.acquire() as WowFrame & { SetFocus(): void }).SetFocus();
+	}
 	onDragStart(callback: (this: void) => void): void {
 		if (this.frameType !== "Button")
 			throw new Error("Drag handlers require a button");
 		const native = this.acquire();
 		native.RegisterForDrag("LeftButton");
 		native.SetScript("OnDragStart", () => callback());
+	}
+	onReceiveDrag(callback: (this: void) => void): void {
+		const native = this.acquire() as WowFrame & {
+			SetScript(script: "OnReceiveDrag", handler?: (this: void) => void): void;
+		};
+		native.SetScript("OnReceiveDrag", callback);
 	}
 	setBlackBackground(): void {
 		this.acquire();
@@ -207,6 +261,19 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.frameType === "EditBox") {
+			this.configureInput();
+			const input = this.native as WowFrame & {
+				SetText(text: string): void;
+				ClearFocus(): void;
+				SetScript(script: string, handler?: (this: void) => void): void;
+			};
+			input.SetText("");
+			input.ClearFocus();
+			input.SetScript("OnEscapePressed", undefined);
+			input.SetScript("OnEnterPressed", undefined);
+		}
+		if (this.frameType === "SecureButton") this.setSpell();
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
@@ -216,6 +283,14 @@ export class Frame implements IUIComponent {
 		this.native.SetScript("OnEnter", undefined);
 		this.native.SetScript("OnLeave", undefined);
 		if (this.frameType === "Button") {
+			(
+				this.native as WowFrame & {
+					SetScript(
+						script: "OnReceiveDrag",
+						handler?: (this: void) => void,
+					): void;
+				}
+			).SetScript("OnReceiveDrag", undefined);
 			this.native.SetScript("OnClick", undefined);
 			this.native.SetScript("OnDragStart", undefined);
 			this.native.RegisterForClicks("LeftButtonUp");

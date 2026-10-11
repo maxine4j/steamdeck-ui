@@ -14,7 +14,9 @@ export class TitlesPanel implements IPanel {
 		private readonly client: ITitlesClient,
 		close: () => void,
 	) {
-		this.list = new ScrollList(this.id, pool, this.title, close);
+		this.list = new ScrollList(this.id, pool, this.title, close, {
+			padding: 30,
+		});
 	}
 	refresh(): void {
 		this.list.setRows(

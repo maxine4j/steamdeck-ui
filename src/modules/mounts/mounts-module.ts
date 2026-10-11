@@ -1,0 +1,31 @@
+import type { IEventBus } from "../../events/types";
+import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
+import type { IModule } from "../types";
+import type { IBuiltInMounts } from "./built-in-mounts";
+export class MountsModule implements IModule {
+	readonly id = "mounts";
+	private readonly refresh = () => this.view.refresh();
+	private readonly sync = () => {
+		if (this.native.isOpen()) this.ui.openPanel(this.id, "left");
+		else this.ui.closePanel("left", this.id);
+	};
+	constructor(
+		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
+		private readonly events: IEventBus,
+		private readonly view: { refresh(): void },
+		private readonly native: IBuiltInMounts,
+	) {}
+	disableBuiltIn(): void {
+		this.native.disable();
+	}
+	initialize(): void {
+		this.events.subscribe("MOUNTS_CHANGED", this.refresh);
+		this.events.subscribe("MOUNTS_VISIBILITY_CHANGED", this.sync);
+		if (this.native.isOpen()) this.sync();
+	}
+	shutdown(): void {
+		this.events.unsubscribe("MOUNTS_CHANGED", this.refresh);
+		this.events.unsubscribe("MOUNTS_VISIBILITY_CHANGED", this.sync);
+		this.native.restore();
+	}
+}

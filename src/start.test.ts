@@ -17,6 +17,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetAllPoints: vi.fn(),
 				SetColorTexture: vi.fn(),
 				SetTexture: vi.fn(),
+				SetTexCoord: vi.fn(),
 			};
 			const frame = {
 				CreateFontString: () => ({
@@ -75,6 +76,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		vi.stubGlobal(name, builtIns.at(index));
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
+	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
+	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("CollectionsJournal", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("ToggleCharacter", vi.fn());
 	vi.stubGlobal("CharacterFrame", {
 		GetParent: () => nativeParent,
@@ -137,6 +144,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		character,
 		reputation,
 		titles,
+		{
+			getMounts: () => [],
+			getCount: () => ({ collected: 0, total: 0 }),
+			search: vi.fn(),
+			getFilters: () => [],
+			toggleFilter: vi.fn(),
+			toggleFavourite: vi.fn(),
+			getEquipment: () => ({ icon: 134400, label: "Empty" }),
+			applyEquipment: vi.fn(),
+			getUtilitySpells: () => ({ favourite: 150544, flight: 1 }),
+		},
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);

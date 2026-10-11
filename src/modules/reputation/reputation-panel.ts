@@ -14,13 +14,23 @@ export class ReputationPanel implements IPanel {
 		private readonly client: IReputationClient,
 		close: () => void,
 	) {
-		this.list = new ScrollList(this.id, pool, this.title, close);
+		this.list = new ScrollList(this.id, pool, this.title, close, {
+			padding: 20,
+		});
 	}
 	refresh(): void {
 		this.list.setRows(
 			this.client.getReputations().map((reputation) => ({
 				id: `reputation-${reputation.index}`,
 				label: `${reputation.header ? (reputation.collapsed ? "+ " : "− ") : ""}${reputation.name}`,
+				fontSize: reputation.header ? (reputation.child ? 16 : 18) : 14,
+				indent: reputation.header
+					? reputation.child
+						? 16
+						: 0
+					: reputation.child
+						? 32
+						: 16,
 				detail: `${reputation.standing} ${reputation.progress}${reputation.watched ? " • Watched" : ""}`,
 				tooltip: reputation.description,
 				selected: reputation.watched,

@@ -13,6 +13,8 @@ export type ApplicationEvent =
 	| "REPUTATION_VISIBILITY_CHANGED"
 	| "TITLES_CHANGED"
 	| "TITLES_OPEN"
+	| "MOUNTS_CHANGED"
+	| "MOUNTS_VISIBILITY_CHANGED"
 	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventHandler = () => void;
 export interface IEventBus {

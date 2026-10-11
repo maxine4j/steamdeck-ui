@@ -1,5 +1,6 @@
 import type { ICharacterClient } from "./clients/character-client";
 import type { IInventoryClient } from "./clients/inventory-client";
+import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IEventBus } from "./events/types";
@@ -7,6 +8,9 @@ import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
 import { ModuleManager } from "./modules/module-manager";
+import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
+import { MountsModule } from "./modules/mounts/mounts-module";
+import { MountsPanel } from "./modules/mounts/mounts-panel";
 import { BuiltInPaperDoll } from "./modules/paper-doll/built-in-paper-doll";
 import { PaperDollModule } from "./modules/paper-doll/paper-doll-module";
 import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
@@ -28,6 +32,7 @@ export function startSteamDeckUI(
 	character: ICharacterClient,
 	reputation: IReputationClient,
 	titles: ITitlesClient,
+	mounts: IMountsClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const characterSuppression = new FrameSuppression(pool);
@@ -55,6 +60,12 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
+	const builtInMounts = new BuiltInMounts(new FrameSuppression(pool), events);
+	const mountsPanel = new MountsPanel(pool, mounts, () => {
+		builtInMounts.close();
+		ui.closePanel("left", "mounts");
+	});
+	modules.register(new MountsModule(ui, events, mountsPanel, builtInMounts));
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),
 		pool,
@@ -78,6 +89,7 @@ export function startSteamDeckUI(
 	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
+	ui.registerPanel(mountsPanel, "left");
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
 	);
@@ -105,6 +117,7 @@ export function startSteamDeckUI(
 			paperDoll.destroy();
 			reputationPanel.destroy();
 			titlesPanel.destroy();
+			mountsPanel.destroy();
 		},
 	};
 }

@@ -30,6 +30,15 @@ const reputationEvents = [
 	"QUEST_LOG_UPDATE",
 ];
 const titleEvents = ["KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE"];
+const mountEvents = [
+	"COMPANION_LEARNED",
+	"COMPANION_UNLEARNED",
+	"COMPANION_UPDATE",
+	"MOUNT_JOURNAL_USABILITY_CHANGED",
+	"MOUNT_JOURNAL_SEARCH_UPDATED",
+	"MOUNT_EQUIPMENT_APPLY_RESULT",
+	"PLAYER_REGEN_ENABLED",
+];
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {
 	private readonly handlers = new Map<ApplicationEvent, EventHandler[]>();
@@ -68,9 +77,11 @@ export class WowEventBus implements IEventBus {
 			...characterUnitEvents,
 			...reputationEvents,
 			...titleEvents,
+			...mountEvents,
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
+			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");
 			if (
 				event === "KNOWN_TITLES_UPDATE" ||

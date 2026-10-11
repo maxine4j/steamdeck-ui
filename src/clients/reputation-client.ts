@@ -4,6 +4,7 @@ export interface Reputation {
 	readonly name: string;
 	readonly description: string;
 	readonly header: boolean;
+	readonly child: boolean;
 	readonly collapsed: boolean;
 	readonly watched: boolean;
 	readonly standing: string;
@@ -95,6 +96,7 @@ export class ReputationClient implements IReputationClient {
 				name: data.name,
 				description: data.description ?? "",
 				header: data.isHeader,
+				child: data.isChild === true,
 				collapsed: data.isCollapsed,
 				watched: data.isWatched,
 				standing: data.isHeader && !data.isHeaderWithRep ? "" : standing,

@@ -1,5 +1,6 @@
 import { CharacterClient } from "./clients/character-client";
 import { InventoryClient } from "./clients/inventory-client";
+import { MountsClient } from "./clients/mounts-client";
 import { ReputationClient } from "./clients/reputation-client";
 import { TitlesClient } from "./clients/titles-client";
 import { WowEventBus } from "./events/wow-event-bus";
@@ -19,4 +20,5 @@ startSteamDeckUI(
 	character,
 	reputation,
 	titles,
+	new MountsClient(),
 );

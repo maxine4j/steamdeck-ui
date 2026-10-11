@@ -1,5 +1,6 @@
 /** Narrow native contracts used only by frame adapters. Methods use Lua self. */
 export interface WowTexture {
+	SetTexCoord(left: number, right: number, top: number, bottom: number): void;
 	SetTexture(fileId: number | undefined): void;
 	SetAllPoints(): void;
 	SetColorTexture(
@@ -84,6 +85,8 @@ export interface WowEventFrame extends WowFrame {
 
 /** UI-object APIs are absent from the generated game API declarations. */
 declare global {
+	// Secure-frame guard is a global in the addon environment.
+	function InCombatLockdown(this: void): boolean;
 	const UIParent: WowFrame;
 	const GameTooltip: {
 		SetOwner(owner: WowFrame, anchor: string): void;
@@ -97,5 +100,6 @@ declare global {
 		type: string,
 		name?: string,
 		parent?: WowFrame,
+		template?: string,
 	): WowEventFrame;
 }

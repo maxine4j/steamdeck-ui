@@ -36,7 +36,7 @@ export class PanelContainer implements IPanelContainer {
 		const createTab = this.createTab;
 		if (!createTab || this.position === "fullscreen") return;
 		const edge = this.position === "left" ? "RIGHT" : "LEFT";
-		const x = this.position === "left" ? 48 : -48;
+		const x = this.position === "left" ? 44 : -44;
 		this.panels.forEach((panel, index) => {
 			let tab = this.tabs.at(index);
 			if (!tab) {
@@ -48,19 +48,12 @@ export class PanelContainer implements IPanelContainer {
 			}
 			const y = ((this.panels.length - 1) / 2 - index) * 48;
 			tab.border.setParent(this.frame);
-			tab.border.layout(
-				44,
-				44,
-				edge,
-				this.frame,
-				x + (this.position === "left" ? 2 : -2),
-				y,
-			);
+			tab.border.layout(44, 44, edge, this.frame, x, y);
 			const color: readonly [number, number, number] =
 				this.stack.at(-1)?.id === panel.id ? [1, 0.82, 0] : [0.2, 0.2, 0.2];
 			tab.border.setColor(...color);
-			tab.button.setParent(this.frame);
-			tab.button.layout(40, 40, edge, this.frame, x, y);
+			tab.button.setParent(tab.border);
+			tab.button.layout(40, 40, "CENTER", tab.border);
 			tab.button.setIcon(panel.icon ?? 134400);
 			tab.button.setTooltip(panel.title);
 			tab.button.onClick((button) => {

@@ -2,6 +2,8 @@ import type { WowFrame, WowTexture } from "../types";
 export type FrameType =
 	| "Frame"
 	| "Button"
+	| "SecureButton"
+	| "EditBox"
 	| "StatusBar"
 	| "ScrollFrame"
 	| "PlayerModel";
@@ -38,6 +40,7 @@ export class FramePoolManager implements IFramePoolManager {
 		if (this.leased.get(frame) !== type) return;
 		frame.Hide();
 		this.backgrounds.get(frame)?.SetTexture(undefined);
+		this.backgrounds.get(frame)?.SetTexCoord(0, 1, 0, 1);
 		this.backgrounds.get(frame)?.SetColorTexture(0, 0, 0, 0);
 		frame.ClearAllPoints();
 		frame.SetSize(0, 0);

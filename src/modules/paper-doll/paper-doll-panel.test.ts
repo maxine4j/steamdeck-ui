@@ -46,6 +46,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 			CreateTexture: () => ({
 				SetAllPoints: vi.fn(),
 				SetTexture: vi.fn(),
+				SetTexCoord: vi.fn(),
 				SetColorTexture: vi.fn(),
 			}),
 			CreateFontString: () => ({
