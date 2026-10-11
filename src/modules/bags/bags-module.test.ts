@@ -10,13 +10,23 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 		registerPanel: vi.fn(),
 		getContainer: vi.fn(),
 	};
-	const inventory = { getItems: vi.fn(() => []), isOpen: vi.fn(() => false) };
-	const view = { setItems: vi.fn() };
+	const inventory = {
+		getItems: vi.fn(() => []),
+		getMoney: vi.fn(() => 12345),
+		isOpen: vi.fn(() => false),
+	};
+	const view = { setItems: vi.fn(), setMoney: vi.fn() };
 	const builtIn = { disable: vi.fn(), restore: vi.fn() };
 	const module = new BagsModule(ui, events, inventory, view, builtIn);
 	module.disableBuiltIn();
 	module.initialize();
 	expect(builtIn.disable).toHaveBeenCalledOnce();
+	expect(view.setMoney).toHaveBeenLastCalledWith(12345);
+	inventory.getMoney.mockReturnValue(67890);
+	events.emit("PLAYER_MONEY");
+	expect(view.setMoney).toHaveBeenLastCalledWith(67890);
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	expect(inventory.getItems).toHaveBeenCalledTimes(2);
 	expect(ui.openPanel).not.toHaveBeenCalled();
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");

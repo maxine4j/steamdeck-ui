@@ -5,7 +5,7 @@ import type { WowFrame, WowTexture } from "./types";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("docks full-height side containers and refreshes a centered, pooled one-bag grid", () => {
+it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
 	const factory = {
@@ -16,6 +16,20 @@ it("docks full-height side containers and refreshes a centered, pooled one-bag g
 				SetTexture: vi.fn(),
 			};
 			const frame = {
+				CreateFontString: () => ({
+					SetText: vi.fn(),
+					SetPoint: vi.fn(),
+					ClearAllPoints: vi.fn(),
+					SetFont: vi.fn(),
+					SetJustifyH: vi.fn(),
+					SetWidth: vi.fn(),
+				}),
+				SetScript: vi.fn(),
+				EnableMouseWheel: vi.fn(),
+				SetScrollChild: vi.fn(),
+				GetVerticalScroll: () => 0,
+				GetVerticalScrollRange: () => 0,
+				SetVerticalScroll: vi.fn(),
 				Show: vi.fn(),
 				Hide: vi.fn(),
 				SetParent: vi.fn(),
@@ -48,9 +62,19 @@ it("docks full-height side containers and refreshes a centered, pooled one-bag g
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
 	const inventory = {
+		getMoney: vi.fn(() => 12345),
 		isOpen: vi.fn(() => false),
 		getItems: vi.fn(() => [
-			{ bagId: 0, slotId: 2, itemId: 42, iconFileId: 123 },
+			{
+				bagId: 0,
+				slotId: 2,
+				itemId: 42,
+				iconFileId: 123,
+				count: 1,
+				quality: 3,
+				category: "Equipment" as const,
+				stackable: false,
+			},
 		]),
 	};
 	const app = startSteamDeckUI(factory, events, inventory);
@@ -94,7 +118,7 @@ it("docks full-height side containers and refreshes a centered, pooled one-bag g
 	expect(textures.at(-1)?.SetTexture).toHaveBeenCalledWith(123);
 	expect(frames.at(-1)?.SetPoint).toHaveBeenCalledWith(
 		"CENTER",
-		frames.at(3),
+		frames.at(-2),
 		"CENTER",
 		0,
 		0,

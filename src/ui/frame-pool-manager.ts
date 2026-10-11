@@ -1,5 +1,5 @@
 import type { WowFrame, WowTexture } from "../types";
-export type FrameType = "Frame" | "Button" | "StatusBar";
+export type FrameType = "Frame" | "Button" | "StatusBar" | "ScrollFrame";
 export interface FrameFactory {
 	createFrame(type: FrameType): WowFrame;
 }

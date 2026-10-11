@@ -8,12 +8,17 @@ import type { IModule } from "../types";
 import type { IBuiltInBags } from "./built-in-bags";
 export interface BagsView {
 	setItems(items: readonly InventoryItem[]): void;
+	setMoney(copper: number): void;
 }
 export class BagsModule implements IModule {
 	readonly id = "bags";
 	private open = false;
-	private readonly refresh = () =>
+	private readonly refresh = () => {
 		this.view.setItems(this.inventory.getItems());
+		this.refreshMoney();
+	};
+	private readonly refreshMoney = () =>
+		this.view.setMoney(this.inventory.getMoney());
 	private readonly syncVisibility = () => {
 		const open = this.inventory.isOpen();
 		if (open === this.open) return;
@@ -35,6 +40,8 @@ export class BagsModule implements IModule {
 	}
 	initialize(): void {
 		this.events.subscribe("BAG_UPDATE_DELAYED", this.refresh);
+		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
+		this.events.subscribe("PLAYER_MONEY", this.refreshMoney);
 		this.events.subscribe("BAG_VISIBILITY_CHANGED", this.syncVisibility);
 		this.events.subscribe("BAG_OPEN", this.syncVisibility);
 		this.events.subscribe("BAG_CLOSED", this.syncVisibility);
@@ -43,6 +50,8 @@ export class BagsModule implements IModule {
 	}
 	shutdown(): void {
 		this.events.unsubscribe("BAG_UPDATE_DELAYED", this.refresh);
+		this.events.unsubscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
+		this.events.unsubscribe("PLAYER_MONEY", this.refreshMoney);
 		this.events.unsubscribe("BAG_VISIBILITY_CHANGED", this.syncVisibility);
 		this.events.unsubscribe("BAG_OPEN", this.syncVisibility);
 		this.events.unsubscribe("BAG_CLOSED", this.syncVisibility);

@@ -41,4 +41,11 @@ it("forwards native login events through the hidden event frame", () => {
 	dispatch(frame, "BAG_CLOSED");
 	expect(opened).toHaveBeenCalledOnce();
 	expect(closed).toHaveBeenCalledOnce();
+	for (const event of ["PLAYER_MONEY", "ITEM_DATA_LOAD_RESULT"] as const) {
+		const handler = vi.fn();
+		bus.subscribe(event, handler);
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+		expect(handler).toHaveBeenCalledOnce();
+	}
 });

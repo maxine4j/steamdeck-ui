@@ -14,12 +14,16 @@ export class WowEventBus extends EventBus {
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
 		this.frame.RegisterEvent("BAG_OPEN");
 		this.frame.RegisterEvent("BAG_CLOSED");
+		this.frame.RegisterEvent("PLAYER_MONEY");
+		this.frame.RegisterEvent("ITEM_DATA_LOAD_RESULT");
 		this.frame.SetScript("OnEvent", (_frame, event) => {
 			if (
 				event === "PLAYER_LOGIN" ||
 				event === "BAG_UPDATE_DELAYED" ||
 				event === "BAG_OPEN" ||
-				event === "BAG_CLOSED"
+				event === "BAG_CLOSED" ||
+				event === "PLAYER_MONEY" ||
+				event === "ITEM_DATA_LOAD_RESULT"
 			)
 				this.emit(event);
 		});

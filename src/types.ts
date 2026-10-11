@@ -10,6 +10,21 @@ export interface WowTexture {
 	): void;
 }
 export interface WowFrame {
+	CreateFontString(
+		name?: string,
+		layer?: string,
+		template?: string,
+	): WowFontString;
+	SetScript(script: "OnClick", handler?: (this: void) => void): void;
+	SetScript(
+		script: "OnMouseWheel",
+		handler?: (this: void, frame: WowFrame, delta: number) => void,
+	): void;
+	EnableMouseWheel(enabled: boolean): void;
+	SetScrollChild(child?: WowFrame): void;
+	GetVerticalScroll(): number;
+	GetVerticalScrollRange(): number;
+	SetVerticalScroll(offset: number): void;
 	Show(): void;
 	Hide(): void;
 	SetParent(parent?: WowFrame): void;
@@ -25,11 +40,31 @@ export interface WowFrame {
 	CreateTexture(name?: string, layer?: string): WowTexture;
 }
 
+export interface WowFontString {
+	SetText(text: string): void;
+	SetPoint(
+		point: string,
+		relativeTo: WowFrame,
+		relativePoint: string,
+		x: number,
+		y: number,
+	): void;
+	ClearAllPoints(): void;
+	SetFont(path: string, size: number, flags: string): void;
+	SetJustifyH(justify: string): void;
+	SetWidth(width: number): void;
+}
+
 export interface WowEventFrame extends WowFrame {
 	RegisterEvent(event: string): void;
 	SetScript(
 		script: "OnEvent",
 		handler: (this: void, frame: WowEventFrame, event: string) => void,
+	): void;
+	SetScript(script: "OnClick", handler?: (this: void) => void): void;
+	SetScript(
+		script: "OnMouseWheel",
+		handler?: (this: void, frame: WowFrame, delta: number) => void,
 	): void;
 }
 
