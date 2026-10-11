@@ -14,6 +14,7 @@
 		"buildMode": "default",
 		"luaBundle": "./dist/main.lua",
 		"luaBundleEntry": "./src/main.ts",
-		"sourceMapTraceback": false
+		"sourceMapTraceback": false,
+		"noImplicitSelf": true,
 	}
 }
