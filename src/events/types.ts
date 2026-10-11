@@ -5,7 +5,11 @@ export type ApplicationEvent =
 	| "ITEM_DATA_LOAD_RESULT"
 	| "BAG_VISIBILITY_CHANGED"
 	| "BAG_OPEN"
-	| "BAG_CLOSED";
+	| "BAG_CLOSED"
+	| "CHARACTER_VISIBILITY_CHANGED"
+	| "CHARACTER_STATS_CHANGED"
+	| "CHARACTER_MODEL_CHANGED"
+	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventHandler = () => void;
 export interface IEventBus {
 	emit(event: ApplicationEvent): void;

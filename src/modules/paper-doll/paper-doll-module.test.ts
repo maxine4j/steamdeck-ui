@@ -1,0 +1,41 @@
+import { expect, it, vi } from "vitest";
+import { EventBus } from "../../events/event-bus";
+import { PaperDollModule } from "./paper-doll-module";
+
+it("refreshes equipment and stats, mirrors native visibility on the left and restores on shutdown", () => {
+	const events = new EventBus();
+	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
+	const character = {
+		isOpen: vi.fn(() => false),
+		getEquipment: vi.fn(() => []),
+		getStats: vi.fn(() => []),
+		close: vi.fn(),
+	};
+	const view = {
+		setEquipment: vi.fn(),
+		setStats: vi.fn(),
+		refreshPreview: vi.fn(),
+	};
+	const builtIn = { disable: vi.fn(), restore: vi.fn() };
+	const module = new PaperDollModule(ui, events, character, view, builtIn);
+	module.disableBuiltIn();
+	module.initialize();
+	expect(builtIn.disable).toHaveBeenCalledOnce();
+	character.isOpen.mockReturnValue(true);
+	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("paper-doll", "left");
+	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(ui.openPanel).toHaveBeenCalledOnce();
+	events.emit("PLAYER_EQUIPMENT_CHANGED");
+	expect(character.getEquipment).toHaveBeenCalledTimes(2);
+	expect(view.refreshPreview).toHaveBeenCalledTimes(2);
+	events.emit("CHARACTER_STATS_CHANGED");
+	expect(character.getStats).toHaveBeenCalledTimes(3);
+	character.isOpen.mockReturnValue(false);
+	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("left");
+	module.shutdown();
+	events.emit("PLAYER_EQUIPMENT_CHANGED");
+	expect(character.getEquipment).toHaveBeenCalledTimes(2);
+	expect(builtIn.restore).toHaveBeenCalledOnce();
+});

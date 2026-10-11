@@ -8,7 +8,11 @@ export class Frame implements IUIComponent {
 	constructor(
 		public readonly id: string,
 		private readonly pool: IFramePoolManager,
-		private readonly frameType: "Frame" | "Button" | "ScrollFrame" = "Frame",
+		private readonly frameType:
+			| "Frame"
+			| "Button"
+			| "ScrollFrame"
+			| "PlayerModel" = "Frame",
 	) {}
 	private acquire(): WowFrame {
 		if (!this.native) {
@@ -102,9 +106,33 @@ export class Frame implements IUIComponent {
 		this.acquire();
 		this.texture?.SetTexture(iconFileId);
 	}
+	setModelUnit(unit: string): void {
+		if (this.frameType !== "PlayerModel")
+			throw new Error("Model requires a PlayerModel frame");
+		const model = this.acquire() as WowFrame & {
+			SetUnit(unit: string): void;
+			SetPortraitZoom(zoom: number): void;
+			SetCamDistanceScale(scale: number): void;
+			SetFacing(facing: number): void;
+		};
+		model.SetUnit(unit);
+		model.SetPortraitZoom(0);
+		model.SetCamDistanceScale(1);
+		model.SetFacing(0);
+	}
 	setColor(red: number, green: number, blue: number, alpha = 1): void {
 		this.acquire();
 		this.texture?.SetColorTexture(red, green, blue, alpha);
+	}
+	setTooltip(text: string, hyperlink?: string): void {
+		const native = this.acquire();
+		native.SetScript("OnEnter", () => {
+			GameTooltip.SetOwner(native, "ANCHOR_RIGHT");
+			if (hyperlink) GameTooltip.SetHyperlink(hyperlink);
+			else GameTooltip.SetText(text);
+			GameTooltip.Show();
+		});
+		native.SetScript("OnLeave", () => GameTooltip.Hide());
 	}
 	setLabel(
 		key: string,
@@ -165,9 +193,13 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.frameType === "PlayerModel")
+			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
 		this.texture?.SetColorTexture(0, 0, 0, 0);
 		for (const label of this.labels.values()) label.SetText("");
 		this.labels.clear();
+		this.native.SetScript("OnEnter", undefined);
+		this.native.SetScript("OnLeave", undefined);
 		if (this.frameType === "Button") {
 			this.native.SetScript("OnClick", undefined);
 			this.native.SetScript("OnDragStart", undefined);

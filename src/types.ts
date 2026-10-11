@@ -16,7 +16,7 @@ export interface WowFrame {
 		template?: string,
 	): WowFontString;
 	SetScript(
-		script: "OnClick" | "OnDragStart",
+		script: "OnClick" | "OnDragStart" | "OnEnter" | "OnLeave",
 		handler?: (this: void, frame: WowFrame, button: string) => void,
 	): void;
 	SetScript(
@@ -64,10 +64,15 @@ export interface WowEventFrame extends WowFrame {
 	RegisterEvent(event: string): void;
 	SetScript(
 		script: "OnEvent",
-		handler: (this: void, frame: WowEventFrame, event: string) => void,
+		handler: (
+			this: void,
+			frame: WowEventFrame,
+			event: string,
+			...args: unknown[]
+		) => void,
 	): void;
 	SetScript(
-		script: "OnClick" | "OnDragStart",
+		script: "OnClick" | "OnDragStart" | "OnEnter" | "OnLeave",
 		handler?: (this: void, frame: WowFrame, button: string) => void,
 	): void;
 	SetScript(
@@ -79,6 +84,13 @@ export interface WowEventFrame extends WowFrame {
 /** UI-object APIs are absent from the generated game API declarations. */
 declare global {
 	const UIParent: WowFrame;
+	const GameTooltip: {
+		SetOwner(owner: WowFrame, anchor: string): void;
+		SetHyperlink(link: string): void;
+		SetText(text: string): void;
+		Show(): void;
+		Hide(): void;
+	};
 	function CreateFrame(
 		this: void,
 		type: string,

@@ -3,7 +3,11 @@ import type { WowEventFrame } from "../types";
 import { WowEventBus } from "./wow-event-bus";
 
 it("forwards native login events through the hidden event frame", () => {
-	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	let dispatch: (
+		frame: WowEventFrame,
+		event: string,
+		...args: unknown[]
+	) => void = () => {};
 	const frame: WowEventFrame = {
 		Hide: vi.fn(),
 		Show: vi.fn(),
@@ -48,4 +52,21 @@ it("forwards native login events through the hidden event frame", () => {
 		dispatch(frame, event);
 		expect(handler).toHaveBeenCalledOnce();
 	}
+	const stats = vi.fn();
+	const model = vi.fn();
+	const equipment = vi.fn();
+	bus.subscribe("CHARACTER_STATS_CHANGED", stats);
+	bus.subscribe("CHARACTER_MODEL_CHANGED", model);
+	bus.subscribe("PLAYER_EQUIPMENT_CHANGED", equipment);
+	dispatch(frame, "UNIT_STATS", "target");
+	expect(stats).not.toHaveBeenCalled();
+	dispatch(frame, "UNIT_STATS", "player");
+	dispatch(frame, "COMBAT_RATING_UPDATE");
+	expect(stats).toHaveBeenCalledTimes(2);
+	dispatch(frame, "UNIT_MODEL_CHANGED", "target");
+	expect(model).not.toHaveBeenCalled();
+	dispatch(frame, "UNIT_MODEL_CHANGED", "player");
+	expect(model).toHaveBeenCalledOnce();
+	dispatch(frame, "PLAYER_EQUIPMENT_CHANGED", 1, true);
+	expect(equipment).toHaveBeenCalledOnce();
 });

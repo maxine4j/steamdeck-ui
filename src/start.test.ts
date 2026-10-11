@@ -38,6 +38,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				ClearAllPoints: vi.fn(),
 				SetPoint: vi.fn(),
 				SetSize: vi.fn(),
+				SetUnit: vi.fn(),
+				SetPortraitZoom: vi.fn(),
+				SetCamDistanceScale: vi.fn(),
+				SetFacing: vi.fn(),
+				ClearModel: vi.fn(),
 				CreateTexture: () => texture,
 			};
 			frames.push(frame);
@@ -63,6 +68,22 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		vi.stubGlobal(name, builtIns.at(index));
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
+	vi.stubGlobal("CharacterFrame", {
+		GetParent: () => nativeParent,
+		SetParent: vi.fn(),
+		IsShown: () => false,
+		activeSubframe: "PaperDollFrame",
+	});
+	const character = {
+		open: vi.fn(),
+		toggle: vi.fn(),
+		isOpen: vi.fn(() => false),
+		getEquipment: vi.fn(() => []),
+		getStats: vi.fn(() => []),
+		pickup: vi.fn(),
+		use: vi.fn(),
+		close: vi.fn(),
+	};
 	const inventory = {
 		useItem: vi.fn(),
 		pickupItem: vi.fn(),
@@ -81,7 +102,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			},
 		]),
 	};
-	const app = startSteamDeckUI(factory, events, inventory);
+	const app = startSteamDeckUI(factory, events, inventory, character);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
@@ -128,15 +149,29 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 	);
 	const count = frames.length;
+	const bagIcon = frames.at(-1);
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	expect(frames).toHaveLength(count);
+	const rightFrame = frames.at(1);
+	if (!rightFrame) throw new Error("Missing right container");
+	const rightHides = vi.mocked(rightFrame.Hide).mock.calls.length;
+	character.isOpen.mockReturnValue(true);
+	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(character.getEquipment).toHaveBeenCalledOnce();
+	expect(frames.at(0)?.Show).toHaveBeenCalled();
+	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
+	character.isOpen.mockReturnValue(false);
+	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(frames.at(0)?.Hide).toHaveBeenCalled();
+	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
+	const withPaperDoll = frames.length;
 	app.ui.closePanel("right");
 	app.ui.openPanel("bags", "right");
-	expect(frames).toHaveLength(count);
+	expect(frames).toHaveLength(withPaperDoll);
 	inventory.getItems.mockReturnValue([]);
 	events.emit("BAG_UPDATE_DELAYED");
-	expect(frames.at(-1)?.Hide).toHaveBeenCalled();
+	expect(bagIcon?.Hide).toHaveBeenCalled();
 	app.stop();
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(inventory.getItems).toHaveBeenCalledTimes(4);
