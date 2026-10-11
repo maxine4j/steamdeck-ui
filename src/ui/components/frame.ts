@@ -134,10 +134,19 @@ export class Frame implements IUIComponent {
 		label.SetWidth(width);
 		label.SetText(text);
 	}
-	onClick(callback: (this: void) => void): void {
+	onClick(callback: (this: void, button: string) => void): void {
 		if (this.frameType !== "Button")
 			throw new Error("Click handlers require a button");
-		this.acquire().SetScript("OnClick", callback);
+		const native = this.acquire();
+		native.RegisterForClicks("LeftButtonUp", "RightButtonUp");
+		native.SetScript("OnClick", (_frame, button) => callback(button));
+	}
+	onDragStart(callback: (this: void) => void): void {
+		if (this.frameType !== "Button")
+			throw new Error("Drag handlers require a button");
+		const native = this.acquire();
+		native.RegisterForDrag("LeftButton");
+		native.SetScript("OnDragStart", () => callback());
 	}
 	setBlackBackground(): void {
 		this.acquire();
@@ -159,8 +168,12 @@ export class Frame implements IUIComponent {
 		this.texture?.SetColorTexture(0, 0, 0, 0);
 		for (const label of this.labels.values()) label.SetText("");
 		this.labels.clear();
-		if (this.frameType === "Button")
+		if (this.frameType === "Button") {
 			this.native.SetScript("OnClick", undefined);
+			this.native.SetScript("OnDragStart", undefined);
+			this.native.RegisterForClicks("LeftButtonUp");
+			this.native.RegisterForDrag();
+		}
 		if (this.frameType === "ScrollFrame") {
 			this.native.SetScript("OnMouseWheel", undefined);
 			this.native.EnableMouseWheel(false);

@@ -1,4 +1,7 @@
-import type { InventoryItem } from "../../clients/inventory-client";
+import type {
+	IInventoryActions,
+	InventoryItem,
+} from "../../clients/inventory-client";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -36,6 +39,7 @@ export class BagsPanel implements IPanel {
 		public readonly title: string,
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
+		private readonly actions: IInventoryActions,
 	) {
 		this.toggle = new Frame(`${id}-group-toggle`, pool, "Button");
 		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
@@ -58,7 +62,8 @@ export class BagsPanel implements IPanel {
 		this.toggle.setParent(this.frame);
 		this.toggle.layout(180, 30, "TOPLEFT", this.frame, 16, -16);
 		this.toggle.setColor(0.15, 0.18, 0.24);
-		this.toggle.onClick(() => {
+		this.toggle.onClick((button) => {
+			if (button !== "LeftButton") return;
 			this.mode = this.mode === "category" ? "expansion" : "category";
 			this.viewport.resetScroll();
 			this.render();
@@ -107,7 +112,7 @@ export class BagsPanel implements IPanel {
 				if (!cell) {
 					cell = {
 						border: new Frame(`${this.id}-border-${index}`, this.pool),
-						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
+						icon: new Frame(`${this.id}-icon-${index}`, this.pool, "Button"),
 					};
 					this.icons.push(cell);
 				}
@@ -125,6 +130,14 @@ export class BagsPanel implements IPanel {
 				cell.icon.setParent(cell.border);
 				cell.icon.layout(38, 38, "CENTER", cell.border);
 				cell.icon.setIcon(item.iconFileId);
+				const source = item.sources.at(0);
+				cell.icon.onClick((button) => {
+					if (this.mounted && source && button === "RightButton")
+						this.actions.useItem(source);
+				});
+				cell.icon.onDragStart(() => {
+					if (this.mounted && source) this.actions.pickupItem(source);
+				});
 				cell.icon.setLabel(
 					"count",
 					item.count > 1 ? commaNumber(item.count) : "",

@@ -28,6 +28,7 @@ export function startSteamDeckUI(
 		"Bags",
 		new Frame("bags-frame", pool),
 		pool,
+		inventory,
 	);
 	ui.registerPanel(panel);
 	const modules = new ModuleManager();

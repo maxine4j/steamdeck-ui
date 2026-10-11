@@ -25,6 +25,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 					SetWidth: vi.fn(),
 				}),
 				SetScript: vi.fn(),
+				RegisterForClicks: vi.fn(),
+				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
 				SetScrollChild: vi.fn(),
 				GetVerticalScroll: () => 0,
@@ -62,6 +64,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
 	const inventory = {
+		useItem: vi.fn(),
+		pickupItem: vi.fn(),
 		getMoney: vi.fn(() => 12345),
 		isOpen: vi.fn(() => false),
 		getItems: vi.fn(() => [

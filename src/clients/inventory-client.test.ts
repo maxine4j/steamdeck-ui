@@ -3,6 +3,43 @@ import { InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("uses and picks up one real stack, leaving world deletion to the native cursor", () => {
+	const use = vi.fn();
+	const pickup = vi.fn();
+	const info = vi.fn(() => ({
+		itemID: 42,
+		hyperlink: "item:42",
+		isLocked: false,
+	}));
+	vi.stubGlobal("C_Container", {
+		GetContainerItemInfo: info,
+		UseContainerItem: use,
+		PickupContainerItem: pickup,
+	});
+	const cursor = vi.fn(() => false);
+	vi.stubGlobal("CursorHasItem", cursor);
+	const deleteCursor = vi.fn();
+	vi.stubGlobal("DeleteCursorItem", deleteCursor);
+	const item = { bagId: 5, slotId: 3, itemId: 42, hyperlink: "item:42" };
+	const client = new InventoryClient();
+	client.useItem(item);
+	client.pickupItem(item);
+	expect(use).toHaveBeenCalledExactlyOnceWith(5, 3);
+	expect(pickup).toHaveBeenCalledExactlyOnceWith(5, 3);
+	expect(deleteCursor).not.toHaveBeenCalled();
+	cursor.mockReturnValue(true);
+	client.pickupItem(item);
+	info.mockReturnValue({ itemID: 43, hyperlink: "item:43", isLocked: false });
+	client.useItem(item);
+	cursor.mockReturnValue(false);
+	client.pickupItem(item);
+	info.mockReturnValue({ itemID: 42, hyperlink: "item:42", isLocked: true });
+	client.useItem(item);
+	client.pickupItem(item);
+	expect(use).toHaveBeenCalledOnce();
+	expect(pickup).toHaveBeenCalledOnce();
+});
+
 it("reports any open carried bag, including the reagent bag, and excludes banks", () => {
 	const isBagOpen = vi.fn((bagId: number) => bagId === 5);
 	vi.stubGlobal("IsBagOpen", isBagOpen);

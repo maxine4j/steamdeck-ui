@@ -11,6 +11,8 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 		getContainer: vi.fn(),
 	};
 	const inventory = {
+		useItem: vi.fn(),
+		pickupItem: vi.fn(),
 		getItems: vi.fn(() => []),
 		getMoney: vi.fn(() => 12345),
 		isOpen: vi.fn(() => false),

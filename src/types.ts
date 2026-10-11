@@ -15,11 +15,16 @@ export interface WowFrame {
 		layer?: string,
 		template?: string,
 	): WowFontString;
-	SetScript(script: "OnClick", handler?: (this: void) => void): void;
+	SetScript(
+		script: "OnClick" | "OnDragStart",
+		handler?: (this: void, frame: WowFrame, button: string) => void,
+	): void;
 	SetScript(
 		script: "OnMouseWheel",
 		handler?: (this: void, frame: WowFrame, delta: number) => void,
 	): void;
+	RegisterForClicks(...buttons: string[]): void;
+	RegisterForDrag(...buttons: string[]): void;
 	EnableMouseWheel(enabled: boolean): void;
 	SetScrollChild(child?: WowFrame): void;
 	GetVerticalScroll(): number;
@@ -61,7 +66,10 @@ export interface WowEventFrame extends WowFrame {
 		script: "OnEvent",
 		handler: (this: void, frame: WowEventFrame, event: string) => void,
 	): void;
-	SetScript(script: "OnClick", handler?: (this: void) => void): void;
+	SetScript(
+		script: "OnClick" | "OnDragStart",
+		handler?: (this: void, frame: WowFrame, button: string) => void,
+	): void;
 	SetScript(
 		script: "OnMouseWheel",
 		handler?: (this: void, frame: WowFrame, delta: number) => void,

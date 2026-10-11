@@ -19,7 +19,15 @@ export type ItemCategory =
 	| "Recipes"
 	| "Junk"
 	| "Miscellaneous";
-export interface IInventoryClient {
+export type InventorySlot = Pick<
+	InventoryItem,
+	"bagId" | "slotId" | "itemId" | "hyperlink"
+>;
+export interface IInventoryActions {
+	useItem(item: InventorySlot): void;
+	pickupItem(item: InventorySlot): void;
+}
+export interface IInventoryClient extends IInventoryActions {
 	getItems(): InventoryItem[];
 	getMoney(): number;
 	isOpen(): boolean;
@@ -28,6 +36,31 @@ export class InventoryClient implements IInventoryClient {
 	// Retail backpack, four equipped bags, and reagent bag; excludes banks.
 	private readonly bagIds = [0, 1, 2, 3, 4, 5];
 	private readonly requestedItems = new Set<number>();
+	private isCurrentUnlockedSlot(item: InventorySlot): boolean {
+		if (!this.bagIds.includes(item.bagId) || item.slotId < 1) return false;
+		const current = C_Container.GetContainerItemInfo(item.bagId, item.slotId);
+		return (
+			current !== undefined &&
+			!current.isLocked &&
+			current.itemID === item.itemId &&
+			(item.hyperlink === undefined || current.hyperlink === item.hyperlink)
+		);
+	}
+	useItem(item: InventorySlot): void {
+		if (!this.isCurrentUnlockedSlot(item)) return;
+		// The generated signature incorrectly requires optional trailing arguments.
+		const use = C_Container.UseContainerItem as unknown as (
+			this: void,
+			bag: number,
+			slot: number,
+		) => void;
+		use(item.bagId, item.slotId);
+	}
+	pickupItem(item: InventorySlot): void {
+		if (CursorHasItem() || !this.isCurrentUnlockedSlot(item)) return;
+		// Pick up exactly one physical stack. The world drop owns deletion confirmation.
+		C_Container.PickupContainerItem(item.bagId, item.slotId);
+	}
 	getMoney(): number {
 		return GetMoney();
 	}
