@@ -178,6 +178,52 @@ it("renders complete instance tooltips, scales long content to fit and resets po
 		expect(decoration.SetAlpha).toHaveBeenLastCalledWith(1);
 });
 
+it("retains the tooltip owner when first attaching to a hidden modal window", () => {
+	let owner: WowFrame | undefined;
+	let shown = false;
+	const window = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const native = {
+		IsEmbedded: false,
+		NineSlice: { SetAlpha: vi.fn() },
+		TopOverlay: { SetAlpha: vi.fn() },
+		BottomOverlay: { SetAlpha: vi.fn() },
+		Hide: () => {
+			shown = false;
+			owner = undefined;
+		},
+		Show: () => {
+			shown = true;
+		},
+		SetOwner: (frame: WowFrame) => {
+			owner = frame;
+			shown = true;
+		},
+		// Reparenting a shown native tooltip under a hidden window invokes OnHide.
+		SetParent: () => {
+			if (shown) native.Hide();
+		},
+		SetHyperlink: vi.fn(),
+		ClearLines: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		GetWidth: () => 200,
+		GetHeight: () => 300,
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const pool = new FramePoolManager({
+		createFrame: (type) => (type === "GameTooltip" ? native : window),
+	});
+	const tooltip = new Frame("details", pool, "GameTooltip");
+	tooltip.showItemTooltip(new Frame("window", pool), 42, 500, 500);
+	expect(owner).toBe(window);
+	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42");
+});
+
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {
 	let scroll = 0;
 	const native = {

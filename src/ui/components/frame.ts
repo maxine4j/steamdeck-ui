@@ -342,9 +342,10 @@ export class Frame implements IUIComponent {
 		native.TopOverlay.SetAlpha(0);
 		native.BottomOverlay.SetAlpha(0);
 		native.SetScale(1);
-		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
 		this.setParent(parent);
 		this.setModalLayer();
+		// Reparenting under a hidden modal can clear ownership through OnHide.
+		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
 		native.ClearLines();
 		native.SetHyperlink(typeof item === "number" ? `item:${item}` : item);
 		native.Show();
