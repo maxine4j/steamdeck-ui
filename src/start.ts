@@ -66,7 +66,7 @@ export function startSteamDeckUI(
 	currency: ICurrencyClient,
 ) {
 	const pool = new FramePoolManager(factory);
-	const itemTooltip = new ItemTooltip(pool);
+	const itemTooltip = new ItemTooltip(pool, events);
 	const navigation = new NavigationManager(
 		events,
 		(active) => controller.setActive(active),

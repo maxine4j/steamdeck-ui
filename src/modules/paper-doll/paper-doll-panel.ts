@@ -48,6 +48,7 @@ export class PaperDollPanel implements IPanel {
 	readonly title = "Equipment";
 	readonly icon = 133127;
 	private mounted = false;
+	private navigationChanged?: () => void;
 	private equipmentDirty = true;
 	private statsDirty = true;
 	private previewDirty = true;
@@ -114,7 +115,13 @@ export class PaperDollPanel implements IPanel {
 	setEquipment(equipment: readonly EquipmentSlot[]): void {
 		this.equipment = equipment;
 		this.equipmentDirty = true;
-		if (this.mounted) this.renderEquipment();
+		if (this.mounted) {
+			this.renderEquipment();
+			this.navigationChanged?.();
+		}
+	}
+	setNavigationChanged(callback?: () => void): void {
+		this.navigationChanged = callback;
 	}
 	setStats(stats: readonly CharacterStat[]): void {
 		this.stats = stats;

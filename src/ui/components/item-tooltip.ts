@@ -1,7 +1,8 @@
+import type { ApplicationEvent, IEventBus } from "../../events/types";
 import type { WowFrame } from "../../types";
 import type { FrameType, IFramePoolManager } from "../frame-pool-manager";
 
-interface NativeTooltip extends WowFrame {
+type NativeTooltip = WowFrame & {
 	SetOwner(owner: WowFrame, anchor: string): void;
 	SetHyperlink(link: string): void;
 	ClearLines(): void;
@@ -12,7 +13,13 @@ interface NativeTooltip extends WowFrame {
 	GetHeight(): number;
 	shoppingTooltips?: NativeTooltip[];
 	suppressAutomaticCompareItem?: boolean;
-}
+	shouldRefreshData?: boolean;
+	RefreshData(): void;
+	SetScript(
+		script: "OnUpdate",
+		handler?: (this: void, frame: WowFrame, elapsed: number) => void,
+	): void;
+};
 
 /** UI helpers are not part of the generated game API surface. */
 declare global {
@@ -22,8 +29,24 @@ declare global {
 /** Non-interactive item details for the currently focused navigation node. */
 export class ItemTooltip {
 	private tooltips: NativeTooltip[] = [];
-	constructor(private readonly pool: IFramePoolManager) {}
+	private item?: string | number;
+	private elapsed = 0;
+	private layoutKey?: string;
+	private readonly refresh = () => this.setItem(this.item);
+	private readonly refreshEvents: ApplicationEvent[] = [
+		"PLAYER_EQUIPMENT_CHANGED",
+		"ITEM_DATA_LOAD_RESULT",
+	];
+	constructor(
+		private readonly pool: IFramePoolManager,
+		private readonly events: IEventBus,
+	) {
+		for (const event of this.refreshEvents)
+			events.subscribe(event, this.refresh);
+	}
 	setItem(item: string | number | undefined): void {
+		this.item = item;
+		this.layoutKey = undefined;
 		for (const tooltip of this.tooltips) tooltip.Hide();
 		if (item === undefined) return;
 		if (this.tooltips.length === 0) {
@@ -47,6 +70,17 @@ export class ItemTooltip {
 			tooltip.SetScale(1);
 		}
 		main.shoppingTooltips = this.tooltips.slice(1);
+		main.SetScript("OnUpdate", (_frame, elapsed) => {
+			this.elapsed += elapsed;
+			if (this.elapsed < 0.2) return;
+			this.elapsed = 0;
+			if (main.shouldRefreshData) {
+				main.RefreshData();
+				GameTooltip_ShowCompareItem(main);
+				this.layoutKey = undefined;
+			}
+			this.layout();
+		});
 		main.SetOwner(UIParent, "ANCHOR_NONE");
 		main.suppressAutomaticCompareItem = true;
 		main.ClearAllPoints();
@@ -63,6 +97,9 @@ export class ItemTooltip {
 			GetHeight(): number;
 		};
 		const visible = this.tooltips.filter((tooltip) => tooltip.IsShown());
+		const key = `${screen.GetWidth()}:${screen.GetHeight()}:${visible.map((tooltip) => `${tooltip.GetWidth()}x${tooltip.GetHeight()}`).join(",")}`;
+		if (key === this.layoutKey) return;
+		this.layoutKey = key;
 		const width =
 			visible.reduce((sum, tooltip) => sum + tooltip.GetWidth(), 0) +
 			Math.max(0, visible.length - 1) * 8;
@@ -89,10 +126,14 @@ export class ItemTooltip {
 		}
 	}
 	destroy(): void {
+		for (const event of this.refreshEvents)
+			this.events.unsubscribe(event, this.refresh);
 		this.setItem(undefined);
 		this.tooltips.forEach((tooltip, index) => {
 			tooltip.ClearLines();
 			tooltip.SetScale(1);
+			tooltip.SetScript("OnUpdate", undefined);
+			tooltip.SetFrameStrata("PARENT");
 			tooltip.shoppingTooltips = undefined;
 			tooltip.suppressAutomaticCompareItem = false;
 			const type: FrameType = index === 0 ? "GameTooltip" : "ShoppingTooltip";

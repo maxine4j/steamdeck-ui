@@ -104,6 +104,18 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
 	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toBe("item:42");
+	const navigationChanged = vi.fn();
+	panel.setNavigationChanged(navigationChanged);
+	panel.setEquipment(
+		equipment.map((slot, index) =>
+			index === 0 ? { ...slot, hyperlink: "item:43:bonus" } : slot,
+		),
+	);
+	expect(navigationChanged).toHaveBeenCalledOnce();
+	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toBe(
+		"item:43:bonus",
+	);
+	panel.setEquipment(equipment);
 	const details = natives.filter((native) =>
 		native.texts.includes("|cffffffff150|r"),
 	);
