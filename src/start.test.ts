@@ -115,7 +115,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	].forEach((name, index) => {
 		vi.stubGlobal(name, builtIns.at(index));
 	});
-	vi.stubGlobal("hooksecurefunc", vi.fn());
+	const characterHooks: (() => void)[] = [];
+	vi.stubGlobal(
+		"hooksecurefunc",
+		vi.fn((...args: unknown[]) =>
+			characterHooks.push(args.at(-1) as () => void),
+		),
+	);
 	vi.stubGlobal("HideUIPanel", vi.fn());
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
@@ -131,10 +137,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		HookScript: vi.fn(),
 	});
 	vi.stubGlobal("ToggleCharacter", vi.fn());
+	let characterShown = false;
 	vi.stubGlobal("CharacterFrame", {
 		GetParent: () => nativeParent,
 		SetParent: vi.fn(),
-		IsShown: () => false,
+		IsShown: () => characterShown,
 		activeSubframe: "PaperDollFrame",
 	});
 	const character = {
@@ -407,7 +414,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	if (!rightFrame) throw new Error("Missing right container");
 	const rightHides = vi.mocked(rightFrame.Hide).mock.calls.length;
 	character.isOpen.mockReturnValue(true);
-	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	characterShown = true;
+	for (const hook of characterHooks) hook();
 	expect(character.getEquipment).toHaveBeenCalledOnce();
 	expect(
 		textures.filter((texture) =>
@@ -468,7 +476,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	clickTab(133127);
 	expect(frames).toHaveLength(withTabs);
 	character.isOpen.mockReturnValue(false);
-	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	characterShown = false;
+	for (const hook of characterHooks) hook();
 	expect(frames.at(0)?.Hide).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	const withPaperDoll = frames.length;

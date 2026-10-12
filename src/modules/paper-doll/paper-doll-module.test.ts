@@ -23,7 +23,11 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 		setStats: vi.fn(),
 		refreshPreview: vi.fn(),
 	};
-	const builtIn = { disable: vi.fn(), restore: vi.fn() };
+	const builtIn = {
+		disable: vi.fn(),
+		restore: vi.fn(),
+		isOpen: () => character.isOpen(),
+	};
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -77,7 +81,7 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 	events.emit("CHARACTER_IDENTITY_CHANGED");
 	flush();
 	expect(character.getIdentity).toHaveBeenCalledTimes(2);
-	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("left");
+	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("left", "paper-doll");
 	character.isOpen.mockReturnValue(true);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
 	expect(character.getIdentity).toHaveBeenCalledTimes(3);

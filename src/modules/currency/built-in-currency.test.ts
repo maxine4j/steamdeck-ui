@@ -16,14 +16,14 @@ it("suppresses currency and preserves character tab transitions, then disables h
 	const changed = vi.fn();
 	events.subscribe("CURRENCY_VISIBILITY_CHANGED", changed);
 	const client = new CharacterFrameClient(suppression, events);
-	client.enable("ReputationFrame", "REPUTATION_VISIBILITY_CHANGED");
+	client.enable("ReputationFrame", "REPUTATION_VISIBILITY_CHANGED", "left");
 	const native = new BuiltInCurrency(client);
 	native.disable();
 	expect(native.isOpen()).toBe(true);
 	expect(suppression.suppress).toHaveBeenCalledWith([frame]);
 	frame.activeSubframe = "ReputationFrame";
 	for (const hook of hooks) hook();
-	expect(native.isOpen()).toBe(false);
+	expect(native.isOpen()).toBe(true);
 	expect(suppression.restore).not.toHaveBeenCalled();
 	native.restore();
 	client.disable("ReputationFrame");

@@ -65,21 +65,21 @@ export class PaperDollModule implements IModule {
 		this.task.invalidate();
 	};
 	private readonly syncVisibility = () => {
-		const open = this.character.isOpen();
+		const open = this.builtIn.isOpen();
 		if (open === this.open) return;
 		this.open = open;
 		this.task.setActive(open);
 		if (open) {
 			this.update();
 			this.ui.openPanel(this.id, "left");
-		} else this.ui.closePanel("left");
+		} else this.ui.closePanel("left", this.id);
 	};
 	constructor(
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
 		private readonly character: Pick<
 			ICharacterClient,
-			"isOpen" | "getEquipment" | "getStats" | "getIdentity"
+			"getEquipment" | "getStats" | "getIdentity"
 		>,
 		private readonly view: PaperDollView,
 		private readonly builtIn: IBuiltInPaperDoll,
@@ -110,7 +110,7 @@ export class PaperDollModule implements IModule {
 		this.events.unsubscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.unsubscribe("CHARACTER_STATS_CHANGED", this.refreshStats);
 		this.events.unsubscribe("CHARACTER_MODEL_CHANGED", this.refreshPreview);
-		if (this.open) this.ui.closePanel("left");
+		if (this.open) this.ui.closePanel("left", this.id);
 		this.open = false;
 		this.builtIn.restore();
 	}

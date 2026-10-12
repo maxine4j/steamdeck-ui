@@ -179,7 +179,11 @@ export function startSteamDeckUI(
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),
 		pool,
-		character,
+		{
+			close: () => characterFrame.close("PaperDollFrame"),
+			pickup: (slot) => character.pickup(slot),
+			use: (slot) => character.use(slot),
+		},
 	);
 	ui.registerPanel(paperDoll, "left");
 	modules.register(

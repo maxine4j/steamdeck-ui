@@ -7,7 +7,7 @@ export interface IBuiltInCurrency {
 export class BuiltInCurrency implements IBuiltInCurrency {
 	constructor(private readonly client: ICharacterFrameClient) {}
 	disable(): void {
-		this.client.enable("TokenFrame", "CURRENCY_VISIBILITY_CHANGED");
+		this.client.enable("TokenFrame", "CURRENCY_VISIBILITY_CHANGED", "right");
 	}
 	restore(): void {
 		this.client.disable("TokenFrame");
@@ -19,6 +19,6 @@ export class BuiltInCurrency implements IBuiltInCurrency {
 		this.client.open("TokenFrame");
 	}
 	close(): void {
-		this.client.close();
+		this.client.close("TokenFrame");
 	}
 }

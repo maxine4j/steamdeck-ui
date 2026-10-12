@@ -8,7 +8,11 @@ export interface IBuiltInReputation {
 export class BuiltInReputation implements IBuiltInReputation {
 	constructor(private readonly client: ICharacterFrameClient) {}
 	disable(): void {
-		this.client.enable("ReputationFrame", "REPUTATION_VISIBILITY_CHANGED");
+		this.client.enable(
+			"ReputationFrame",
+			"REPUTATION_VISIBILITY_CHANGED",
+			"left",
+		);
 	}
 	restore(): void {
 		this.client.disable("ReputationFrame");
@@ -23,6 +27,6 @@ export class BuiltInReputation implements IBuiltInReputation {
 		this.client.open("ReputationFrame");
 	}
 	close(): void {
-		this.client.close();
+		this.client.close("ReputationFrame");
 	}
 }
