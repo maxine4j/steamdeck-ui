@@ -6,6 +6,7 @@ export interface DungeonList {
 	readonly label: string;
 }
 export interface DungeonChoice {
+	readonly difficulty: "normal" | "heroic";
 	readonly id: number;
 	readonly name: string;
 	readonly available: boolean;
@@ -111,8 +112,15 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 				continue;
 			const [available, playerAvailable, hide] = IsLFGDungeonJoinable(id);
 			if (!playerAvailable && hide) continue;
-			const [name] = GetLFGDungeonInfo(id);
-			choices.push({ id, name, available, checked: checked[id] === true });
+			const [name, , subtype, , , , , , , , , difficulty] =
+				GetLFGDungeonInfo(id);
+			choices.push({
+				id,
+				name,
+				available,
+				checked: checked[id] === true,
+				difficulty: subtype === 2 || difficulty === 2 ? "heroic" : "normal",
+			});
 		}
 		return choices;
 	}

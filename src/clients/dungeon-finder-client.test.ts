@@ -104,6 +104,20 @@ function setupChoices() {
 	vi.stubGlobal("LFGDungeonList_SetDungeonEnabled", vi.fn());
 }
 
+it("classifies specific choices using Blizzard dungeon difficulty", () => {
+	setupChoices();
+	vi.stubGlobal("GetLFGDungeonInfo", (id: number) => [
+		`Dungeon ${id}`,
+		1,
+		id === 10 ? 2 : 1,
+	]);
+	const choices = new DungeonFinderClient().getDungeonChoices("specific");
+	expect(choices.map((choice) => choice.difficulty)).toEqual([
+		"heroic",
+		"normal",
+	]);
+});
+
 it("discovers specific and follower choices dynamically, excluding headers and hidden entries", () => {
 	setupChoices();
 	const client = new DungeonFinderClient();
@@ -112,11 +126,29 @@ it("discovers specific and follower choices dynamically, excluding headers and h
 		"specific",
 	]);
 	expect(client.getDungeonChoices("specific")).toEqual([
-		{ id: 10, name: "Dungeon 10", available: true, checked: true },
-		{ id: 12, name: "Dungeon 12", available: false, checked: false },
+		{
+			id: 10,
+			name: "Dungeon 10",
+			available: true,
+			checked: true,
+			difficulty: "normal",
+		},
+		{
+			id: 12,
+			name: "Dungeon 12",
+			available: false,
+			checked: false,
+			difficulty: "normal",
+		},
 	]);
 	expect(client.getDungeonChoices("follower")).toEqual([
-		{ id: 11, name: "Dungeon 11", available: true, checked: true },
+		{
+			id: 11,
+			name: "Dungeon 11",
+			available: true,
+			checked: true,
+			difficulty: "normal",
+		},
 	]);
 });
 
