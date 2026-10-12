@@ -224,7 +224,7 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	expect(rows.find((row) => row.id === "list-specific")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		background: [0.05, 0.25, 0.5],
-		searching: true,
+		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		enabled: true,
 	});
 	rows.find((row) => row.id === "dungeon-3")?.activate();

@@ -51,6 +51,14 @@ const roleControls: readonly {
 	},
 ];
 
+const searchingEye = {
+	atlas: "groupfinder-eye-flipbook-searching",
+	rows: 8,
+	columns: 11,
+	frames: 80,
+	duration: 2,
+};
+
 export class DungeonFinderPanel implements IPanel {
 	readonly id = "dungeon-finder";
 	readonly title = "Dungeon Finder";
@@ -114,7 +122,8 @@ export class DungeonFinderPanel implements IPanel {
 					enabled: queued ? selected === dungeon.id : dungeon.available,
 					background:
 						queued && selected === dungeon.id ? [0.05, 0.25, 0.5] : undefined,
-					searching: queued && selected === dungeon.id,
+					animatedIcon:
+						queued && selected === dungeon.id ? searchingEye : undefined,
 					height: 32,
 					tooltip:
 						queued && selected === dungeon.id ? "Leave Queue" : dungeon.name,
@@ -156,7 +165,7 @@ export class DungeonFinderPanel implements IPanel {
 				enabled: !queued || selected === list.id,
 				background:
 					queued && selected === list.id ? [0.05, 0.25, 0.5] : undefined,
-				searching: queued && selected === list.id,
+				animatedIcon: queued && selected === list.id ? searchingEye : undefined,
 				marginBottom: 20,
 				activate: () => {
 					if (
@@ -242,7 +251,7 @@ export class DungeonFinderPanel implements IPanel {
 				? this.client.getSelected() === page
 				: choices.some((dungeon) => dungeon.checked && dungeon.available),
 			background: queued ? [0.05, 0.25, 0.5] : [0.3, 0.22, 0.06],
-			searching: queued,
+			animatedIcon: queued ? searchingEye : undefined,
 			activate: () => {
 				if (!this.mounted || this.page !== page) return;
 				if (this.client.isQueued()) {
