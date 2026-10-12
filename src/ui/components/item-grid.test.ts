@@ -6,6 +6,7 @@ import { ItemGrid } from "./item-grid";
 const { layouts } = vi.hoisted(() => ({
 	layouts: new Map<string, ReturnType<typeof vi.fn>>(),
 }));
+const { reveals } = vi.hoisted(() => ({ reveals: vi.fn() }));
 vi.mock("./frame", () => ({
 	Frame: class {
 		constructor(readonly id: string) {
@@ -24,6 +25,7 @@ vi.mock("./frame", () => ({
 		inset = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
+		revealVerticalRange = reveals;
 	},
 }));
 
@@ -71,4 +73,28 @@ it("lays out two columns under group headers, routes actions and reuses cells", 
 	expect(grid.getNavGrid()).toEqual([]);
 	grid.mount(new Frame("parent", pool));
 	expect(layouts.size).toBe(count);
+});
+
+it("reveals focused tiles across vertically stacked groups and resolves their tooltips", () => {
+	reveals.mockClear();
+	const pool = {} as IFramePoolManager;
+	const grid = new ItemGrid("pages", pool);
+	grid.setGroups(
+		[1, 2].map((page) => ({
+			id: `${page}`,
+			label: `Page ${page}`,
+			items: Array.from({ length: 10 }, (_, index) => ({
+				id: `${page}-${index}`,
+				name: "Item",
+				icon: 1,
+				hyperlink: `item:${page}-${index}`,
+				activate: vi.fn(),
+			})),
+		})),
+	);
+	grid.mount(new Frame("parent", pool));
+	const node = grid.getNavGrid().at(5)?.at(0);
+	node?.onFocus();
+	expect(reveals).toHaveBeenCalledWith(398, 458, 740);
+	expect(node?.tooltipItem?.()).toBe("item:2-0");
 });
