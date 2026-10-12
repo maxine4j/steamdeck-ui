@@ -389,6 +389,11 @@ it.each(["specific", "follower"] as const)(
 			expect(
 				choices.filter((row) => row.heading).map((row) => row.label),
 			).toEqual(["Heroic", "Normal"]);
+		else
+			expect(choices.at(0)).toMatchObject({
+				label: "Follower Dungeons",
+				heading: true,
+			});
 		panel.onBack();
 		callbacks.shift()?.();
 		expect(

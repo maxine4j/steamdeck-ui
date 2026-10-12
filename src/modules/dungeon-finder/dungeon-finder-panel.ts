@@ -200,6 +200,13 @@ export class DungeonFinderPanel implements IPanel {
 				: choices;
 		const rows: ListRow[] = [];
 		let difficulty: string | undefined;
+		if (page === "follower" && choices.length > 0)
+			rows.push({
+				id: "difficulty-follower",
+				label: "Follower Dungeons",
+				heading: true,
+				activate: () => {},
+			});
 		ordered.forEach((dungeon, index) => {
 			if (page === "specific" && difficulty !== dungeon.difficulty) {
 				difficulty = dungeon.difficulty;

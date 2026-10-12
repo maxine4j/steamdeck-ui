@@ -390,6 +390,21 @@ it("renders checkbox rows and excludes disabled choices while reusing rows for o
 		{ id: "locked", label: "Locked", checked: false, enabled: false, activate },
 	]);
 	list.mount(new Frame("checkbox-parent", pool));
+	expect(
+		frames.get("checkbox-row-0")?.setButtonBackground,
+	).not.toHaveBeenCalled();
+	expect(frames.get("checkbox-row-0")?.setColor).toHaveBeenLastCalledWith(
+		0,
+		0,
+		0,
+		0,
+	);
+	expect(
+		frames.get("checkbox-checkbox-0")?.setAtlasBackground,
+	).toHaveBeenCalledWith("checkbox-minimal");
+	expect(
+		frames.get("checkbox-check-0")?.setAtlasBackground,
+	).toHaveBeenCalledWith("checkmark-minimal");
 	expect(frames.get("checkbox-check-0")?.show).toHaveBeenCalledOnce();
 	expect(frames.get("checkbox-check-1")?.hide).toHaveBeenCalledOnce();
 	frames.get("checkbox-row-1")?.onClick.mock.lastCall?.at(0)("LeftButton");
@@ -403,6 +418,9 @@ it("renders checkbox rows and excludes disabled choices while reusing rows for o
 	list.getNavGrid().at(0)?.at(0)?.onInteract();
 	expect(activate).toHaveBeenCalledOnce();
 	list.setRows([{ id: "back", label: "Back", activate }]);
+	expect(
+		frames.get("checkbox-row-0")?.setButtonBackground,
+	).toHaveBeenLastCalledWith(false);
 	expect(frames.get("checkbox-checkbox-0")?.hide).toHaveBeenCalled();
 	list.setRows([
 		{ id: "first", label: "First", activate },

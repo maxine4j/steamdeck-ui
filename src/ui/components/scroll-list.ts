@@ -349,20 +349,16 @@ export class ScrollList {
 					}
 					button.checkbox.setParent(button.frame);
 					button.checkbox.layout(
-						18,
-						18,
+						21,
+						20.3,
 						"TOPLEFT",
 						button.frame,
 						checkboxLeft,
-						-6,
+						-(rowHeight - 20.3) / 2,
 					);
-					button.checkbox.setColor(0.03, 0.03, 0.03);
-					button.checkbox.setBorder([0.7, 0.65, 0.5, 1]);
+					button.checkbox.setAtlasBackground("checkbox-minimal");
 					button.check.fill(button.checkbox);
-					button.check.setLabel(
-						"check",
-						"|TInterface\\Buttons\\UI-CheckBox-Check:22:22|t",
-					);
+					button.check.setAtlasBackground("checkmark-minimal");
 					button.checkbox.show();
 					if (row.checked) button.check.show();
 					else button.check.hide();
@@ -524,7 +520,7 @@ export class ScrollList {
 		const row = this.rows.at(index);
 		const frame = this.buttons.at(index)?.frame;
 		frame?.setFocused(false);
-		if (row?.heading) {
+		if (row?.heading || row?.checked !== undefined) {
 			frame?.setColor(0, 0, 0, 0);
 			return;
 		}
