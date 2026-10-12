@@ -38,6 +38,9 @@ it("renders category hierarchy and currency icons, routes Y options, and caches 
 	] as Currency[];
 	const client = {
 		getCurrencies: vi.fn(() => rows),
+		load: vi.fn((callback: (rows: Currency[]) => void) =>
+			scheduler.nextFrame(() => callback(rows)),
+		),
 		toggleHeader: vi.fn(),
 	} as unknown as ICurrencyClient;
 	const options = { open: vi.fn(), close: vi.fn(), transferResult: vi.fn() };
@@ -71,5 +74,74 @@ it("renders category hierarchy and currency icons, routes Y options, and caches 
 	expect(options.close).toHaveBeenCalled();
 	panel.onMount({} as IUIComponent);
 	while (pending.length) pending.shift()?.();
-	expect(client.getCurrencies).toHaveBeenCalledOnce();
+	expect(client.getCurrencies).not.toHaveBeenCalled();
+	expect(client.load).toHaveBeenCalledOnce();
+});
+
+it("coalesces event bursts, cancels partial loads, ignores stale results and defers hidden invalidation", () => {
+	setRows.mockClear();
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const callbacks: ((rows: Currency[]) => void)[] = [];
+	const cancels: ReturnType<typeof vi.fn>[] = [];
+	const load = vi.fn((callback: (rows: Currency[]) => void) => {
+		callbacks.push(callback);
+		const cancel = vi.fn();
+		cancels.push(cancel);
+		return cancel;
+	});
+	const panel = new CurrencyPanel(
+		{} as IFramePoolManager,
+		{ load } as unknown as ICurrencyClient,
+		{ open: vi.fn(), close: vi.fn(), transferResult: vi.fn() },
+		vi.fn(),
+		scheduler,
+	);
+	const parent = {} as IUIComponent;
+	panel.onMount(parent);
+	pending.shift()?.();
+	expect(load).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	expect(cancels.at(0)).toHaveBeenCalledOnce();
+	const publications = setRows.mock.calls.length;
+	callbacks.at(0)?.([]);
+	expect(setRows).toHaveBeenCalledTimes(publications);
+	panel.onMount(parent);
+	pending.shift()?.();
+	expect(load).toHaveBeenCalledTimes(2);
+	panel.refresh();
+	panel.refresh();
+	panel.refresh();
+	while (pending.length) pending.shift()?.();
+	expect(load).toHaveBeenCalledTimes(3);
+	expect(cancels.at(1)).toHaveBeenCalledOnce();
+	const beforeStale = setRows.mock.calls.length;
+	callbacks.at(1)?.([]);
+	expect(setRows).toHaveBeenCalledTimes(beforeStale);
+	callbacks.at(2)?.([]);
+	expect(setRows).toHaveBeenLastCalledWith([]);
+	panel.onUnmount();
+	panel.onMount(parent);
+	while (pending.length) pending.shift()?.();
+	expect(load).toHaveBeenCalledTimes(3);
+	panel.onUnmount();
+	panel.refresh();
+	panel.refresh();
+	while (pending.length) pending.shift()?.();
+	expect(load).toHaveBeenCalledTimes(3);
+	panel.onMount(parent);
+	pending.shift()?.();
+	expect(load).toHaveBeenCalledTimes(4);
+	panel.destroy();
+	expect(cancels.at(3)).toHaveBeenCalledOnce();
 });

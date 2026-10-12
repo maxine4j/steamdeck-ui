@@ -13,6 +13,7 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 	};
 	const client: ICurrencyClient = {
 		getCurrencies: () => [],
+		load: vi.fn(),
 		toggleHeader: vi.fn(),
 		setWatched: vi.fn(() => true),
 		setUnused: vi.fn(),

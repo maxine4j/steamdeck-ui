@@ -254,6 +254,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		{
 			getCurrencies: () => [],
+			load: (callback) => {
+				callback([]);
+				return vi.fn();
+			},
 			toggleHeader: vi.fn(),
 			setWatched: () => true,
 			setUnused: vi.fn(),

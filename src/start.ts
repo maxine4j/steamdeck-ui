@@ -1,5 +1,6 @@
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
+import { CharacterFrameClient } from "./clients/character-frame-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { ICurrencyClient } from "./clients/currency-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
@@ -70,8 +71,9 @@ export function startSteamDeckUI(
 	const itemModal = new Modal("item-actions", pool, navigation, events);
 	const itemMenu = new ItemActionMenu(itemModal, inventory);
 	const characterSuppression = new FrameSuppression(pool);
-	const builtInReputation = new BuiltInReputation(characterSuppression, events);
-	const builtInCurrency = new BuiltInCurrency(characterSuppression, events);
+	const characterFrame = new CharacterFrameClient(characterSuppression, events);
+	const builtInReputation = new BuiltInReputation(characterFrame);
+	const builtInCurrency = new BuiltInCurrency(characterFrame);
 	const currencyModal = new Modal("currency-options", pool, navigation, events);
 	const builtInTalents = new BuiltInTalents(new FrameSuppression(pool), events);
 	const builtInDungeonFinder = new BuiltInDungeonFinder(
@@ -172,7 +174,7 @@ export function startSteamDeckUI(
 			events,
 			character,
 			paperDoll,
-			new BuiltInPaperDoll(characterSuppression, events),
+			new BuiltInPaperDoll(characterFrame),
 			scheduler,
 		),
 	);

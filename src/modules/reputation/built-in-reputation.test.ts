@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { CharacterFrameClient } from "../../clients/character-frame-client";
 import { createTestEventBus } from "../../events/test-event-bus";
 import { BuiltInPaperDoll } from "../paper-doll/built-in-paper-doll";
 import { BuiltInReputation } from "./built-in-reputation";
@@ -16,8 +17,9 @@ it("shares suppression with Paper Doll across native subframes and disables perm
 	const events = createTestEventBus();
 	const visibility = vi.fn();
 	events.subscribe("REPUTATION_VISIBILITY_CHANGED", visibility);
-	const paper = new BuiltInPaperDoll(suppression, events);
-	const reputation = new BuiltInReputation(suppression, events);
+	const client = new CharacterFrameClient(suppression, events);
+	const paper = new BuiltInPaperDoll(client);
+	const reputation = new BuiltInReputation(client);
 	paper.disable();
 	reputation.disable();
 	native.activeSubframe = "ReputationFrame";

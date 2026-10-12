@@ -1,3 +1,5 @@
+import type { ITaskScheduler } from "./task-scheduler";
+
 export interface Currency {
 	readonly index: number;
 	readonly id: number;
@@ -22,6 +24,7 @@ export interface CurrencySource {
 }
 export interface ICurrencyClient {
 	getCurrencies(): Currency[];
+	load(callback: (currencies: Currency[]) => void): () => void;
 	toggleHeader(currency: Currency): void;
 	setWatched(id: number, watched: boolean): boolean;
 	setUnused(id: number, unused: boolean): void;
@@ -51,44 +54,66 @@ const infoFor = (id: number) =>
 		) => NativeCurrency | undefined
 	)(id);
 export class CurrencyClient implements ICurrencyClient {
+	constructor(private readonly scheduler: ITaskScheduler) {}
+	load(callback: (currencies: Currency[]) => void): () => void {
+		const rows: Currency[] = [];
+		let index = 1;
+		let count: number | undefined;
+		let cancelled = false;
+		const step = () => {
+			if (cancelled) return;
+			count ??= C_CurrencyInfo.GetCurrencyListSize();
+			const end = Math.min(count, index + 19);
+			while (index <= end) {
+				const row = this.currencyAt(index++);
+				if (row) rows.push(row);
+			}
+			if (index <= count) cancel = this.scheduler.nextFrame(step);
+			else callback(rows);
+		};
+		let cancel = this.scheduler.nextFrame(step);
+		return () => {
+			cancelled = true;
+			cancel();
+		};
+	}
 	getCurrencies(): Currency[] {
 		const rows: Currency[] = [];
-		for (
-			let index = 1;
-			index <= C_CurrencyInfo.GetCurrencyListSize();
-			index++
-		) {
-			const data = infoAt(index);
-			if (!data) continue;
-			rows.push({
-				index,
-				id: data.currencyID ?? 0,
-				name: data.name,
-				description: data.description ?? "",
-				header: !!data.isHeader,
-				expanded: !!data.isHeaderExpanded,
-				depth: data.currencyListDepth ?? 0,
-				icon: data.isHeader ? undefined : data.iconFileID,
-				quantity: data.quantity ?? 0,
-				maximum: data.maxQuantity ?? 0,
-				watched: !!data.isShowInBackpack,
-				unused: !!data.isTypeUnused,
-				discovered: !!data.discovered,
-				accountWide: !!data.isAccountWide,
-				transferable: !!data.isAccountTransferable,
-			});
+		const count = C_CurrencyInfo.GetCurrencyListSize();
+		for (let index = 1; index <= count; index++) {
+			const row = this.currencyAt(index);
+			if (row) rows.push(row);
 		}
 		return rows;
+	}
+	private currencyAt(index: number): Currency | undefined {
+		const data = infoAt(index);
+		if (!data) return undefined;
+		return {
+			index,
+			id: data.currencyID ?? 0,
+			name: data.name,
+			description: data.description ?? "",
+			header: !!data.isHeader,
+			expanded: !!data.isHeaderExpanded,
+			depth: data.currencyListDepth ?? 0,
+			icon: data.isHeader ? undefined : data.iconFileID,
+			quantity: data.quantity ?? 0,
+			maximum: data.maxQuantity ?? 0,
+			watched: !!data.isShowInBackpack,
+			unused: !!data.isTypeUnused,
+			discovered: !!data.discovered,
+			accountWide: !!data.isAccountWide,
+			transferable: !!data.isAccountTransferable,
+		};
 	}
 	toggleHeader(currency: Currency): void {
 		C_CurrencyInfo.ExpandCurrencyList(currency.index, !currency.expanded);
 	}
 	setWatched(id: number, watched: boolean): boolean {
-		const currency = this.getCurrencies().find(
-			(row) => !row.header && row.id === id,
-		);
+		const currency = infoFor(id);
 		if (!currency?.discovered) return false;
-		if (watched && !currency.watched) {
+		if (watched && !currency.isShowInBackpack) {
 			let occupied = 0;
 			const maximum = BackpackTokenFrame.GetMaxTokensWatched();
 			for (let index = 1; index <= maximum; index++)
@@ -103,10 +128,14 @@ export class CurrencyClient implements ICurrencyClient {
 		return true;
 	}
 	setUnused(id: number, unused: boolean): void {
-		const row = this.getCurrencies().find(
-			(currency) => !currency.header && currency.id === id,
-		);
-		if (row) C_CurrencyInfo.SetCurrencyUnused(row.index, unused);
+		const count = C_CurrencyInfo.GetCurrencyListSize();
+		for (let index = 1; index <= count; index++) {
+			const currency = infoAt(index);
+			if (currency && !currency.isHeader && currency.currencyID === id) {
+				C_CurrencyInfo.SetCurrencyUnused(index, unused);
+				return;
+			}
+		}
 	}
 	requestSources(): void {
 		C_CurrencyInfo.RequestCurrencyDataForAccountCharacters();

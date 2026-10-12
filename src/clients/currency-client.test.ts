@@ -2,6 +2,18 @@ import { afterEach, expect, it, vi } from "vitest";
 import { CurrencyClient } from "./currency-client";
 
 afterEach(() => vi.unstubAllGlobals());
+const pending: (() => void)[] = [];
+const scheduler = {
+	nextFrame: (callback: () => void) => {
+		let cancelled = false;
+		pending.push(() => {
+			if (!cancelled) callback();
+		});
+		return () => {
+			cancelled = true;
+		};
+	},
+};
 function setup() {
 	const rows = [
 		{
@@ -23,7 +35,7 @@ function setup() {
 		},
 	];
 	const api = {
-		GetCurrencyListSize: () => rows.length,
+		GetCurrencyListSize: vi.fn(() => rows.length),
 		GetCurrencyListInfo: (index: number) => rows.at(index - 1),
 		GetCurrencyInfo: () => rows.at(1),
 		ExpandCurrencyList: vi.fn(),
@@ -52,14 +64,14 @@ function setup() {
 }
 it("preserves category depth, icons and stable currency IDs", () => {
 	setup();
-	expect(new CurrencyClient().getCurrencies()).toMatchObject([
+	expect(new CurrencyClient(scheduler).getCurrencies()).toMatchObject([
 		{ name: "Expansion", header: true, depth: 0, expanded: true },
 		{ id: 42, icon: 123, depth: 1, quantity: 20 },
 	]);
 });
 it("caps transfers against source balance, weekly and total limits and revalidates submission", () => {
 	const api = setup();
-	const client = new CurrencyClient();
+	const client = new CurrencyClient(scheduler);
 	expect(client.getSources(42)).toEqual([
 		{ guid: "Player-other", name: "Alt-Realm", maximum: 5 },
 	]);
@@ -78,6 +90,30 @@ it("refuses new watches when all backpack slots are occupied", () => {
 	api.GetBackpackCurrencyInfo = vi.fn(() => ({
 		currencyTypesID: 9,
 	})) as unknown as typeof api.GetBackpackCurrencyInfo;
-	expect(new CurrencyClient().setWatched(42, true)).toBe(false);
+	expect(new CurrencyClient(scheduler).setWatched(42, true)).toBe(false);
 	expect(api.SetCurrencyBackpackByID).not.toHaveBeenCalled();
+});
+
+it("reads size once and bounds enumeration to twenty lookups per frame, cancelling the latest continuation", () => {
+	pending.length = 0;
+	const api = setup();
+	api.GetCurrencyListSize.mockReturnValue(55);
+	const lookup = vi.fn(api.GetCurrencyListInfo);
+	api.GetCurrencyListInfo = lookup;
+	const complete = vi.fn();
+	const cancel = new CurrencyClient(scheduler).load(complete);
+	expect(lookup).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(lookup).toHaveBeenCalledTimes(20);
+	pending.shift()?.();
+	expect(lookup).toHaveBeenCalledTimes(40);
+	expect(api.GetCurrencyListSize).toHaveBeenCalledOnce();
+	cancel();
+	pending.shift()?.();
+	expect(lookup).toHaveBeenCalledTimes(40);
+	expect(complete).not.toHaveBeenCalled();
+	new CurrencyClient(scheduler).load(complete);
+	while (pending.length) pending.shift()?.();
+	expect(lookup).toHaveBeenCalledTimes(95);
+	expect(complete).toHaveBeenCalledOnce();
 });

@@ -1,4 +1,4 @@
-import type { ICurrencyClient } from "../../clients/currency-client";
+import type { Currency, ICurrencyClient } from "../../clients/currency-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
@@ -14,6 +14,10 @@ export class CurrencyPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
+	private active = false;
+	private dirty = true;
+	private generation = 0;
+	private cancelLoad?: () => void;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: ICurrencyClient,
@@ -24,7 +28,7 @@ export class CurrencyPanel implements IPanel {
 		close: () => void,
 		scheduler: ITaskScheduler,
 	) {
-		this.update = new DeferredRefresh(scheduler, () => this.render());
+		this.update = new DeferredRefresh(scheduler, () => this.load());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 20,
 			scheduler,
@@ -32,6 +36,10 @@ export class CurrencyPanel implements IPanel {
 		});
 	}
 	refresh(): void {
+		this.dirty = true;
+		this.generation++;
+		this.cancelLoad?.();
+		this.cancelLoad = undefined;
 		this.update.invalidate();
 	}
 	closeOptions(): void {
@@ -40,9 +48,26 @@ export class CurrencyPanel implements IPanel {
 	transferResult(success: boolean): void {
 		this.options.transferResult(success);
 	}
-	private render(): void {
+	private load(): void {
+		const generation = ++this.generation;
+		this.list.setRows([
+			{
+				id: "currency-loading",
+				label: "Loading currencies…",
+				heading: true,
+				activate: () => {},
+			},
+		]);
+		this.cancelLoad = this.client.load((currencies) => {
+			if (!this.active || generation !== this.generation) return;
+			this.cancelLoad = undefined;
+			this.dirty = false;
+			this.render(currencies);
+		});
+	}
+	private render(currencies: readonly Currency[]): void {
 		this.list.setRows(
-			this.client.getCurrencies().map((currency) => ({
+			currencies.map((currency) => ({
 				id: currency.header
 					? `currency-category-${currency.index}`
 					: `currency-${currency.id}`,
@@ -72,10 +97,16 @@ export class CurrencyPanel implements IPanel {
 		);
 	}
 	onMount(parent: IUIComponent): void {
+		this.active = true;
 		this.list.mount(parent);
+		if (this.dirty) this.update.invalidate();
 		this.update.setActive(true);
 	}
 	onUnmount(): void {
+		this.active = false;
+		this.generation++;
+		this.cancelLoad?.();
+		this.cancelLoad = undefined;
 		this.closeOptions();
 		this.update.setActive(false);
 		this.list.unmount();
@@ -87,8 +118,7 @@ export class CurrencyPanel implements IPanel {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {
-		this.closeOptions();
-		this.update.setActive(false);
+		this.onUnmount();
 		this.list.destroy();
 	}
 }

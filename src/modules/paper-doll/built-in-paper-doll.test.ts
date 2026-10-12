@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { CharacterFrameClient } from "../../clients/character-frame-client";
 import { createTestEventBus } from "../../events/test-event-bus";
 import { BuiltInPaperDoll } from "./built-in-paper-doll";
 
@@ -21,7 +22,9 @@ it("retains native bindings, restores other character tabs and gates permanent h
 	const events = createTestEventBus();
 	const changed = vi.fn();
 	events.subscribe("CHARACTER_VISIBILITY_CHANGED", changed);
-	const adapter = new BuiltInPaperDoll(suppression, events);
+	const adapter = new BuiltInPaperDoll(
+		new CharacterFrameClient(suppression, events),
+	);
 	adapter.disable();
 	expect(suppression.suppress).toHaveBeenCalledWith([frame]);
 	frame.activeSubframe = "ReputationFrame";

@@ -39,5 +39,5 @@ startSteamDeckUI(
 	scheduler,
 	new TalentsClient(),
 	new DungeonFinderClient(),
-	new CurrencyClient(),
+	new CurrencyClient(scheduler),
 );
