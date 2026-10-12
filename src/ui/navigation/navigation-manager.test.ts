@@ -10,6 +10,21 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("routes B to the active panel and gives modal cancellation priority", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const back = vi.fn();
+	manager.registerGrid("finder", [[node("dungeon")]], { onCancel: back });
+	manager.setActiveGrid("finder");
+	events.emit("NAV_CANCEL");
+	expect(back).toHaveBeenCalledOnce();
+	const cancel = vi.fn();
+	manager.pushModal("modal", [[node("confirm")]], cancel);
+	events.emit("NAV_CANCEL");
+	expect(cancel).toHaveBeenCalledOnce();
+	expect(back).toHaveBeenCalledOnce();
+});
+
 it("publishes focused item changes, refreshes stable nodes and clears during modals and shutdown", () => {
 	const changed = vi.fn();
 	const manager = new NavigationManager(

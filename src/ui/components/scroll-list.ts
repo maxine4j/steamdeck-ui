@@ -1,7 +1,7 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
-import { Frame } from "./frame";
+import { type AnimatedAtlas, Frame } from "./frame";
 import type { IUIComponent } from "./types";
 
 export interface ListRow {
@@ -16,6 +16,7 @@ export interface ListRow {
 	readonly trailingLabel?: string;
 	readonly tooltip?: string;
 	readonly selected?: boolean;
+	readonly animatedIcon?: AnimatedAtlas;
 	readonly checked?: boolean;
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
@@ -43,6 +44,8 @@ export class ScrollList {
 		secondary: Frame;
 		checkbox?: Frame;
 		check?: Frame;
+		animation?: Frame;
+		animatedFocus?: boolean;
 		dimmed: boolean;
 		secondaryNav: INavigable;
 		nav: INavigable;
@@ -141,6 +144,9 @@ export class ScrollList {
 			});
 		if (this.dirty) this.render();
 		else {
+			this.buttons.forEach((button, index) => {
+				if (this.rows.at(index)?.animatedIcon) button.animation?.show();
+			});
 			if (this.options.verticallyCentered) this.layoutContent();
 			this.scroll.clampScroll();
 		}
@@ -249,10 +255,22 @@ export class ScrollList {
 						nav: {
 							navId: row.id,
 							onFocus: () => {
-								frame.setColor(0.3, 0.25, 0);
+								if (this.rows.at(index)?.animatedIcon) {
+									this.style(index);
+									frame.setBorder([1, 0.82, 0, 1]);
+									const control = this.buttons.at(index);
+									if (control) control.animatedFocus = true;
+								} else frame.setColor(0.3, 0.25, 0);
 								this.reveal(index);
 							},
-							onBlur: () => this.style(index),
+							onBlur: () => {
+								const control = this.buttons.at(index);
+								if (control?.animatedFocus) {
+									frame.setBorder([0, 0, 0, 0]);
+									control.animatedFocus = false;
+								}
+								this.style(index);
+							},
 							onContext: () => {
 								if (this.isReady(index)) this.rows.at(index)?.context?.();
 							},
@@ -270,6 +288,23 @@ export class ScrollList {
 				button.frame.setParent(this.content);
 				const rowHeight =
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
+				if (row.animatedIcon) {
+					button.animation ??= new Frame(
+						`${this.id}-animation-${index}`,
+						this.pool,
+					);
+					button.animation.setParent(button.frame);
+					const size = Math.min(32, rowHeight - 4);
+					button.animation.layout(size, size, "RIGHT", button.frame, -8, 0);
+					button.animation.setAnimatedAtlas(row.animatedIcon);
+					button.animation.show();
+				} else {
+					button.animation?.hide();
+					if (button.animatedFocus) {
+						button.frame.setBorder([0, 0, 0, 0]);
+						button.animatedFocus = false;
+					}
+				}
 				const iconSize = Math.min(36, rowHeight - 12);
 				button.icon.setParent(button.frame);
 				if (row.icon !== undefined) {
@@ -331,7 +366,12 @@ export class ScrollList {
 					button.frame.setOpacity(dimmed ? 0.35 : 1);
 				button.dimmed = dimmed;
 				const textWidth =
-					rowWidth - indent - textLeft - 8 - (row.secondary ? 48 : 0);
+					rowWidth -
+					indent -
+					textLeft -
+					8 -
+					(row.secondary ? 48 : 0) -
+					(row.animatedIcon ? 40 : 0);
 				const trailingWidth = row.trailingLabel
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
@@ -439,8 +479,14 @@ export class ScrollList {
 				this.style(index);
 				button.frame.show();
 			});
-			for (let index = Math.max(start, this.rows.length); index < end; index++)
+			for (
+				let index = Math.max(start, this.rows.length);
+				index < end;
+				index++
+			) {
+				this.buttons.at(index)?.animation?.hide();
 				this.buttons.at(index)?.frame.hide();
+			}
 			this.renderedRows = Math.min(end, this.rows.length);
 			cursor = end;
 			if (cursor < total && this.options.scheduler)
@@ -489,6 +535,7 @@ export class ScrollList {
 		);
 	}
 	unmount(): void {
+		for (const button of this.buttons) button.animation?.hide();
 		this.mounted = false;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
@@ -541,6 +588,7 @@ export class ScrollList {
 	destroy(): void {
 		this.unmount();
 		for (const button of this.buttons) {
+			button.animation?.destroy();
 			button.check?.destroy();
 			button.checkbox?.destroy();
 			button.progress.destroy();

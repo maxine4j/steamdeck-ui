@@ -24,13 +24,15 @@ export class IconCheckbox implements INavigable {
 		this.check = new Frame(`${navId}-check`, pool);
 		this.nav = this.button.navigationNode(navId, () => this.onInteract());
 	}
-	mount(parent: Frame, x: number, top: number): void {
+	mount(parent: Frame, x: number, top: number, showLabel = true): void {
 		this.button.setParent(parent);
-		this.button.layout(96, 100, "TOPLEFT", parent, x, -top);
+		this.button.layout(96, showLabel ? 100 : 54, "TOPLEFT", parent, x, -top);
 		this.artwork.setParent(this.button);
 		this.artwork.layout(32, 32, "TOP", this.button, 0, -10);
 		this.artwork.setLabel("icon", this.icon, "CENTER", 0, 0, 12);
-		this.button.setLabel("label", this.label, "BOTTOM", 0, 0, 12, 96);
+		if (showLabel)
+			this.button.setLabel("label", this.label, "BOTTOM", 0, 0, 12, 96);
+		this.button.setTooltip(this.label);
 		this.box.setParent(this.artwork);
 		this.box.layout(14, 14, "BOTTOMRIGHT", this.artwork, 2, -2);
 		this.box.setColor(0.03, 0.03, 0.03);

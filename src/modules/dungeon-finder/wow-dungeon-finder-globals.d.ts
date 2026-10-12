@@ -7,6 +7,9 @@ type FinderFrame = WowFrame & {
 };
 
 declare global {
+	const LFGEnabledList:
+		| Record<number, boolean | number | undefined>
+		| undefined;
 	// Legacy finder APIs are absent from the generated Blizzard documentation.
 	function GetLFDChoiceOrder(this: void): number[];
 	function GetLFDChoiceEnabledState(

@@ -5,6 +5,63 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reuses a looping atlas animation and stops it before releasing its frame", () => {
+	const flipbook = {
+		SetDuration: vi.fn(),
+		SetOrder: vi.fn(),
+		SetFlipBookRows: vi.fn(),
+		SetFlipBookColumns: vi.fn(),
+		SetFlipBookFrames: vi.fn(),
+	};
+	const group = {
+		CreateAnimation: vi.fn(() => flipbook),
+		SetLooping: vi.fn(),
+		Play: vi.fn(),
+		Stop: vi.fn(),
+		IsPlaying: () => false,
+	};
+	const texture = {
+		SetAllPoints: vi.fn(),
+		SetTexture: vi.fn(),
+		SetTexCoord: vi.fn(),
+		SetColorTexture: vi.fn(),
+		SetAtlas: vi.fn(),
+		CreateAnimationGroup: vi.fn(() => group),
+	};
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetParent: vi.fn(),
+		SetScript: vi.fn(),
+		CreateTexture: () => texture,
+	};
+	const frame = new Frame(
+		"animated",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	const atlas = {
+		atlas: "test-atlas",
+		rows: 8,
+		columns: 11,
+		frames: 80,
+		duration: 2,
+	};
+	frame.setAnimatedAtlas(atlas);
+	frame.setAnimatedAtlas(atlas);
+	expect(texture.CreateAnimationGroup).toHaveBeenCalledOnce();
+	expect(flipbook.SetFlipBookFrames).toHaveBeenCalledWith(80);
+	expect(group.SetLooping).toHaveBeenCalledWith("REPEAT");
+	frame.show();
+	expect(group.Play).toHaveBeenCalled();
+	group.Stop.mockClear();
+	frame.hide();
+	expect(group.Stop).toHaveBeenCalled();
+	frame.destroy();
+	expect(group.Stop).toHaveBeenCalledTimes(2);
+});
+
 it("passes item cooldowns through to a pooled native cooldown and clears it on release", () => {
 	const native = {
 		Hide: vi.fn(),

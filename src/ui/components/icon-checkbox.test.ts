@@ -30,6 +30,7 @@ vi.mock("./frame", () => ({
 		setBorder = vi.fn();
 		setColor = vi.fn();
 		setOpacity = vi.fn();
+		setTooltip = vi.fn();
 		constructor(id: string) {
 			frames.set(id, this);
 		}
@@ -38,6 +39,21 @@ vi.mock("./frame", () => ({
 		}
 	},
 }));
+
+it("supports icon-only controls with equal padding around the artwork", () => {
+	const pool = {} as IFramePoolManager;
+	const control = new IconCheckbox("icon-only", pool, "Tank", "icon", vi.fn());
+	control.mount(new Frame("parent", pool), 30, 70, false);
+	expect(frames.get("icon-only")?.layout).toHaveBeenCalledWith(
+		96,
+		54,
+		"TOPLEFT",
+		expect.anything(),
+		30,
+		-70,
+	);
+	expect(frames.get("icon-only")?.setLabel).not.toHaveBeenCalled();
+});
 
 it("keeps artwork compact with a checkbox over its bottom-right corner", () => {
 	const pool = {} as IFramePoolManager;

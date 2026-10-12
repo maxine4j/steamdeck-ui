@@ -696,7 +696,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());
 	app.ui.openPanel("bags", "right");
 	flush();
-	clickTab(237538);
+	clickTab(1100023);
 	expect(PVEFrame_ShowFrame).toHaveBeenCalledWith(
 		"GroupFinderFrame",
 		LFDParentFrame,

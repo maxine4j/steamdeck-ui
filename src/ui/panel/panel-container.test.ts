@@ -4,6 +4,44 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it("forwards B to the current panel after switching tabs", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const frame = {
+		onClose: vi.fn(),
+		dock: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"right",
+		"right",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+	);
+	const first = vi.fn();
+	const second = vi.fn();
+	const panel = (id: string, onBack: () => void) => ({
+		id,
+		title: id,
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+		onBack,
+	});
+	container.swapPanel(panel("first", first));
+	container.focus();
+	events.emit("NAV_CANCEL");
+	expect(first).toHaveBeenCalledOnce();
+	container.swapPanel(panel("second", second));
+	events.emit("NAV_CANCEL");
+	expect(second).toHaveBeenCalledOnce();
+	expect(first).toHaveBeenCalledOnce();
+});
+
 it("notifies content when its container closes but not when tabs switch", () => {
 	let hide = () => {};
 	const frame = {
