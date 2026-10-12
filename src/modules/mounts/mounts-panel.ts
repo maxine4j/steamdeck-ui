@@ -13,6 +13,7 @@ const columns = 10;
 const spacing = 46;
 interface MountCell {
 	readonly border: Frame;
+	readonly favourite: Frame;
 	readonly icon: Frame;
 }
 
@@ -312,6 +313,7 @@ export class MountsPanel implements IPanel {
 					if (!cell) {
 						cell = {
 							border: new Frame(`mounts-border-${slot}`, this.pool),
+							favourite: new Frame(`mounts-favourite-${slot}`, this.pool),
 							icon: new Frame(`mounts-icon-${slot}`, this.pool, "Button"),
 						};
 						this.cells.push(cell);
@@ -326,11 +328,15 @@ export class MountsPanel implements IPanel {
 						-cellTop,
 					);
 					if (!mount.collected) cell.border.setColor(0.12, 0.12, 0.12);
-					else if (mount.favourite) cell.border.setColor(1, 0.82, 0);
 					else cell.border.setColor(0.3, 0.34, 0.42);
 					cell.icon.setParent(cell.border);
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(mount.icon);
+					cell.favourite.setParent(cell.icon);
+					cell.favourite.layout(20, 20, "TOPLEFT", cell.icon, -6, 6);
+					cell.favourite.setAtlasBackground("PetJournal-FavoritesIcon");
+					if (mount.collected && mount.favourite) cell.favourite.show();
+					else cell.favourite.hide();
 					cell.icon.setOpacity(mount.collected ? 1 : 0.2);
 					cell.icon.setTooltip(
 						mount.name,
@@ -580,6 +586,7 @@ export class MountsPanel implements IPanel {
 		this.favouriteOverrides.clear();
 		for (const cell of this.cells) {
 			cell.icon.destroy();
+			cell.favourite.destroy();
 			cell.border.destroy();
 		}
 		for (const header of this.headers) header.destroy();

@@ -12,6 +12,7 @@ const columns = 10;
 const spacing = 46;
 interface ToyCell {
 	readonly border: Frame;
+	readonly favourite: Frame;
 	readonly icon: Frame;
 	readonly cooldown: Frame;
 }
@@ -182,6 +183,7 @@ export class ToysPanel implements IPanel {
 					if (!cell) {
 						cell = {
 							border: new Frame(`toys-border-${cellIndex}`, this.pool),
+							favourite: new Frame(`toys-favourite-${cellIndex}`, this.pool),
 							icon: new Frame(
 								`toys-icon-${cellIndex}`,
 								this.pool,
@@ -205,11 +207,15 @@ export class ToysPanel implements IPanel {
 						-cellTop,
 					);
 					if (!toy.collected) cell.border.setColor(0.12, 0.12, 0.12);
-					else if (toy.favourite) cell.border.setColor(1, 0.82, 0);
 					else cell.border.setColor(0.3, 0.34, 0.42);
 					cell.icon.setParent(cell.border);
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(toy.icon);
+					cell.favourite.setParent(cell.icon);
+					cell.favourite.layout(20, 20, "TOPLEFT", cell.icon, -6, 6);
+					cell.favourite.setAtlasBackground("collections-icon-favorites");
+					if (toy.collected && toy.favourite) cell.favourite.show();
+					else cell.favourite.hide();
 					cell.icon.setOpacity(toy.collected ? 1 : 0.2);
 					cell.icon.setToy(toy.collected ? toy.id : undefined);
 					cell.cooldown.fill(cell.icon);
@@ -349,6 +355,7 @@ export class ToysPanel implements IPanel {
 		for (const cell of this.cells) {
 			cell.cooldown.destroy();
 			cell.icon.destroy();
+			cell.favourite.destroy();
 			cell.border.destroy();
 		}
 		for (const header of this.headers) header.destroy();

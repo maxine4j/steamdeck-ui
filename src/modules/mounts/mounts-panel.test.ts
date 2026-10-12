@@ -5,6 +5,33 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { MountsPanel } from "./mounts-panel";
 
 afterEach(() => vi.restoreAllMocks());
+it("shows Blizzard's favourite star and clears it when a cell is reused", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([mount(1, true)]);
+	expect(Frame.prototype.setAtlasBackground).toHaveBeenCalledWith(
+		"PetJournal-FavoritesIcon",
+	);
+	const star = vi
+		.mocked(Frame.prototype.setAtlasBackground)
+		.mock.contexts.at(0);
+	expect(vi.mocked(Frame.prototype.show).mock.contexts).toContain(star);
+	const colors = vi.mocked(Frame.prototype.setColor);
+	expect(
+		colors.mock.calls.filter((_, index) =>
+			colors.mock.contexts.at(index)?.id.startsWith("mounts-border-"),
+		),
+	).toEqual([
+		[0.3, 0.34, 0.42],
+		[0.3, 0.34, 0.42],
+	]);
+	panel.refresh();
+	vi.mocked(Frame.prototype.hide).mockClear();
+	publish([mount(1)]);
+	expect(vi.mocked(Frame.prototype.hide).mock.contexts).toContain(star);
+	panel.destroy();
+	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).toContain(star);
+});
 const mount = (id: number, favourite = false): Mount => ({
 	id,
 	index: id,
@@ -32,6 +59,7 @@ function setup() {
 		"setScrollContent",
 		"clampScroll",
 		"setIcon",
+		"setAtlasBackground",
 		"setOpacity",
 		"setTooltip",
 		"setLabel",
