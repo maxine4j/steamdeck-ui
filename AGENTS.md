@@ -43,3 +43,7 @@ Follow test-driven development: **red, green, refactor**.
 Test observable behaviour and architectural seams such as modules, clients, and the event bus. **Never write unit tests for TypeScript types**; rely on the compiler and `yarn typecheck` for type correctness.
 
 Before handing off a change, run the focused tests available for the changed behaviour and `yarn typecheck`. Always run `yarn build` after making changes for the user so the addon is built and ready for them to test. If the build fails, report the blocker explicitly.
+
+## Code reference
+
+You can find a few reference AddOns developed by other people under the .libraries directory, including ConsolePort, BetterBags, and the full official blizzard ui under wow-ui-source. Please use these as reference while working but remember we're writing TypeScript code and they are in lua.
