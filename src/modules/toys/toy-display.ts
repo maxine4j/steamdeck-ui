@@ -1,6 +1,7 @@
 import type { Toy } from "../../clients/toys-client";
 
 export interface ToyGroup {
+	readonly id: number;
 	readonly label: string;
 	readonly toys: Toy[];
 }
@@ -22,21 +23,24 @@ const expansions = [
 export function groupToys(toys: readonly Toy[]): ToyGroup[] {
 	const groups = new Map<number, ToyGroup>();
 	for (const toy of toys) {
-		const key = toy.favourite ? -1 : (toy.expansionId ?? -2);
-		let group = groups.get(key);
-		if (!group) {
-			group = {
-				label:
-					key === -1
-						? "Favourites"
-						: key === -2
-							? "Unknown expansion"
-							: (expansions.at(key) ?? `Expansion ${key}`),
-				toys: [],
-			};
-			groups.set(key, group);
+		const expansion = toy.expansionId ?? -2;
+		for (const key of toy.favourite ? [-1, expansion] : [expansion]) {
+			let group = groups.get(key);
+			if (!group) {
+				group = {
+					id: key,
+					label:
+						key === -1
+							? "Favourites"
+							: key === -2
+								? "Unknown expansion"
+								: (expansions.at(key) ?? `Expansion ${key}`),
+					toys: [],
+				};
+				groups.set(key, group);
+			}
+			group.toys.push(toy);
 		}
-		group.toys.push(toy);
 	}
 	return [...groups.entries()]
 		.sort(([a], [b]) => {

@@ -2,6 +2,7 @@ import type { IEventBus } from "../../events/types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { NavGrid } from "../navigation/types";
 import { Frame } from "./frame";
+import type { TooltipContent } from "./tooltip-content";
 
 export interface ModalOption {
 	readonly id: string;
@@ -14,7 +15,7 @@ export interface IModal {
 	open(
 		title: string,
 		options: readonly ModalOption[],
-		tooltipItem?: string | number,
+		tooltipItem?: TooltipContent,
 		titleAlignment?: "left" | "right",
 	): void;
 	close(): void;
@@ -49,7 +50,7 @@ export class Modal implements IModal {
 	open(
 		title: string,
 		options: readonly ModalOption[],
-		tooltipItem?: string | number,
+		tooltipItem?: TooltipContent,
 		titleAlignment: "left" | "right" = "right",
 	): void {
 		this.backdrop.modalBackdrop();

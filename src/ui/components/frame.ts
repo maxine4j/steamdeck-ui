@@ -2,18 +2,24 @@ import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
+import {
+	setTooltipContent,
+	type TooltipContent,
+	type TooltipDataFrame,
+} from "./tooltip-content";
 import type { IUIComponent } from "./types";
 
-type ItemTooltipFrame = WowFrame & {
-	SetOwner(owner: WowFrame, anchor: string): void;
-	SetHyperlink(link: string): void;
-	ClearLines(): void;
-	SetScale(scale: number): void;
-	IsEmbedded: boolean;
-	NineSlice: { SetAlpha(alpha: number): void };
-	TopOverlay: { SetAlpha(alpha: number): void };
-	BottomOverlay: { SetAlpha(alpha: number): void };
-};
+type ItemTooltipFrame = WowFrame &
+	TooltipDataFrame & {
+		SetOwner(owner: WowFrame, anchor: string): void;
+		SetHyperlink(link: string): void;
+		ClearLines(): void;
+		SetScale(scale: number): void;
+		IsEmbedded: boolean;
+		NineSlice: { SetAlpha(alpha: number): void };
+		TopOverlay: { SetAlpha(alpha: number): void };
+		BottomOverlay: { SetAlpha(alpha: number): void };
+	};
 
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
@@ -337,7 +343,7 @@ export class Frame implements IUIComponent {
 	/** Render the complete native tooltip without borrowing the global hover tooltip. */
 	showItemTooltip(
 		parent: Frame,
-		item: string | number,
+		item: TooltipContent,
 		maxWidth: number,
 		maxHeight: number,
 	): { width: number; height: number } {
@@ -355,7 +361,7 @@ export class Frame implements IUIComponent {
 		// Reparenting under a hidden modal can clear ownership through OnHide.
 		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
 		native.ClearLines();
-		native.SetHyperlink(typeof item === "number" ? `item:${item}` : item);
+		setTooltipContent(native, item);
 		native.Show();
 		const size = this.getSize();
 		const scale = Math.min(
@@ -445,9 +451,11 @@ export class Frame implements IUIComponent {
 			throw new Error("Toy requires a secure button");
 		if (InCombatLockdown()) return;
 		const native = this.acquire() as WowFrame & {
-			SetAttribute(name: string, value?: string | number): void;
+			SetAttribute(name: string, value?: string | number | boolean): void;
 		};
-		native.RegisterForClicks("AnyUp", "AnyDown");
+		// Controller dispatch uses Click() on release; do not inherit the action-bar CVar.
+		native.RegisterForClicks("AnyUp");
+		native.SetAttribute("useOnKeyDown", toy ? false : undefined);
 		native.SetAttribute("type", toy ? "toy" : undefined);
 		native.SetAttribute("toy", toy);
 	}

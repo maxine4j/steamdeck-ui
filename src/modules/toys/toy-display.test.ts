@@ -11,7 +11,7 @@ const toy = (id: number, expansionId?: number, favourite = false): Toy => ({
 	expansionId,
 });
 
-it("puts favourites together first, then newest expansions, with no duplicate toys", () => {
+it("keeps favourites in quick access and their expansion groups", () => {
 	const groups = groupToys([
 		toy(1, 0, true),
 		toy(2, 11, true),
@@ -22,14 +22,16 @@ it("puts favourites together first, then newest expansions, with no duplicate to
 	]);
 	expect(groups.map((group) => group.label)).toEqual([
 		"Favourites",
+		"Midnight",
 		"The War Within",
 		"Classic",
 		"Unknown expansion",
 	]);
 	expect(groups.map((group) => group.toys.map((toy) => toy.id))).toEqual([
 		[1, 2],
+		[2],
 		[4, 6],
-		[3],
+		[1, 3],
 		[5],
 	]);
 });
@@ -44,6 +46,7 @@ it("omits empty groups and sorts toys by name with deterministic ID ties", () =>
 		]),
 	).toEqual([
 		{
+			id: 12,
 			label: "Expansion 12",
 			toys: [
 				{ ...toy(1, 12), name: "A" },

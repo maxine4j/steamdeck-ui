@@ -23,7 +23,9 @@ it("opens the bags-style tooltip modal with secure use and favourite actions", (
 	const refresh = vi.fn();
 	const menu = new ToyActionMenu(modal, client, refresh);
 	menu.open(toy);
-	expect(modal.open).toHaveBeenCalledWith("Toy actions", expect.any(Array), 42);
+	expect(modal.open).toHaveBeenCalledWith("Toy actions", expect.any(Array), {
+		toy: 42,
+	});
 	expect(options.map((option) => option.label)).toEqual([
 		"Use",
 		"Favourite",
