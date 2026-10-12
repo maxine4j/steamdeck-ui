@@ -25,40 +25,49 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 		SetTexCoord: vi.fn(),
 	};
 	const label = { SetText: vi.fn(), SetFont: vi.fn(), SetPoint: vi.fn() };
-	const makeFrame = () => ({
-		Hide: vi.fn(),
-		Show: vi.fn(),
-		SetParent: vi.fn(),
-		SetSize: vi.fn(),
-		SetPoint: vi.fn((_point: string, relativeTo: unknown) => {
-			if (!relativeTo)
-				throw new Error(
-					"Root buttons require an explicit anchor outside their child family",
-				);
-		}),
-		ClearAllPoints: vi.fn(),
-		CreateTexture: () => texture,
-		CreateFontString: () => label,
-		GetName: () => "SecureSlot",
-		GetAttribute: () => action,
-		SetAttribute: vi.fn((name: string, value?: number) => {
-			if (name === "action") action = value;
-			changed(undefined, name);
-		}),
-		RegisterForClicks: vi.fn(),
-		SetScript: vi.fn((script: string, handler: typeof changed) => {
-			if (script === "OnAttributeChanged") changed = handler;
-		}),
-		HookScript: vi.fn((script: string, handler: typeof changed) => {
-			if (script === "OnAttributeChanged") changed = handler;
-		}),
-		SetCooldownFromDurationObject: vi.fn(),
-		SetCountdownFormatter: vi.fn(),
-		SetHideCountdownNumbers: vi.fn(),
-		SetDrawEdge: vi.fn(),
-		SetDrawSwipe: vi.fn(),
-		Clear: vi.fn(),
-	});
+	const makeFrame = () => {
+		// CooldownFrameTemplate starts with anchors to its original parent.
+		const anchors = new Map<string, unknown>([
+			["TOPLEFT", UIParent],
+			["BOTTOMRIGHT", UIParent],
+		]);
+		return {
+			anchors,
+			Hide: vi.fn(),
+			Show: vi.fn(),
+			SetParent: vi.fn(),
+			SetSize: vi.fn(),
+			SetPoint: vi.fn((_point: string, relativeTo: unknown) => {
+				if (!relativeTo)
+					throw new Error(
+						"Root buttons require an explicit anchor outside their child family",
+					);
+				anchors.set(_point, relativeTo);
+			}),
+			ClearAllPoints: vi.fn(() => anchors.clear()),
+			CreateTexture: () => texture,
+			CreateFontString: () => label,
+			GetName: () => "SecureSlot",
+			GetAttribute: () => action,
+			SetAttribute: vi.fn((name: string, value?: number) => {
+				if (name === "action") action = value;
+				changed(undefined, name);
+			}),
+			RegisterForClicks: vi.fn(),
+			SetScript: vi.fn((script: string, handler: typeof changed) => {
+				if (script === "OnAttributeChanged") changed = handler;
+			}),
+			HookScript: vi.fn((script: string, handler: typeof changed) => {
+				if (script === "OnAttributeChanged") changed = handler;
+			}),
+			SetCooldownFromDurationObject: vi.fn(),
+			SetCountdownFormatter: vi.fn(),
+			SetHideCountdownNumbers: vi.fn(),
+			SetDrawEdge: vi.fn(),
+			SetDrawSwipe: vi.fn(),
+			Clear: vi.fn(),
+		};
+	};
 	const frames = [makeFrame(), makeFrame(), makeFrame()];
 	const create = vi.fn(() => frames.at(create.mock.calls.length - 1));
 	const pool = new FramePoolManager({ createFrame: create });
@@ -67,6 +76,16 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	vi.stubGlobal("RegisterStateDriver", register);
 	vi.stubGlobal("UnregisterStateDriver", unregister);
 	const button = new SecureSlotButton(pool);
+	const expectButtonAnchors = () => {
+		for (const cooldown of frames.slice(1)) {
+			expect(cooldown.SetParent).toHaveBeenLastCalledWith(frames.at(0));
+			expect([...cooldown.anchors]).toEqual([
+				["TOPLEFT", frames.at(0)],
+				["BOTTOMRIGHT", frames.at(0)],
+			]);
+		}
+	};
+	expectButtonAnchors();
 	const duration = {},
 		recharge = {};
 	const read = vi.fn((slot: number) => ({
@@ -161,5 +180,6 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("type", undefined);
 	expect(frames.at(1)?.Clear).toHaveBeenCalledTimes(3);
 	new SecureSlotButton(pool);
+	expectButtonAnchors();
 	expect(create).toHaveBeenCalledTimes(3);
 });

@@ -6,6 +6,7 @@ it.each(["left", "right"] as const)(
 	"keeps %s tabs flush against the container while switching panels",
 	(position) => {
 		const frame = {
+			onClose: vi.fn(),
 			dock: vi.fn(),
 			show: vi.fn(),
 			hide: vi.fn(),
@@ -91,5 +92,43 @@ it.each(["left", "right"] as const)(
 		container.swapPanel(first);
 		expect(buttons).toHaveLength(2);
 		container.clear();
+	},
+);
+
+it.each(["left", "right", "fullscreen"] as const)(
+	"closes the entire %s container through the shared frame close handler and can reopen",
+	(position) => {
+		const onClose = vi.fn();
+		const frame = {
+			dock: vi.fn(),
+			onClose,
+			show: vi.fn(),
+			hide: vi.fn(),
+			destroy: vi.fn(),
+		} as unknown as Frame;
+		const container = new PanelContainer(position, position, frame);
+		const first = {
+			id: "first",
+			title: "First",
+			onMount: vi.fn(),
+			onUnmount: vi.fn(),
+			getNavGrid: () => [],
+		};
+		const second = {
+			...first,
+			id: "second",
+			onMount: vi.fn(),
+			onUnmount: vi.fn(),
+		};
+		container.pushPanel(first);
+		container.pushPanel(second);
+		onClose.mock.calls.at(-1)?.at(0)();
+		expect(container.activePanelId).toBeUndefined();
+		expect(second.onUnmount).toHaveBeenCalledOnce();
+		expect(first.onUnmount).toHaveBeenCalledOnce();
+		container.swapPanel(second);
+		expect(second.onMount).toHaveBeenCalledTimes(2);
+		container.popPanel();
+		expect(container.activePanelId).toBeUndefined();
 	},
 );

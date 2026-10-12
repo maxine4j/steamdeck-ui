@@ -15,6 +15,15 @@ export class PanelContainer implements IPanelContainer {
 		private readonly onTabSelected?: (panel: IPanel) => void,
 	) {
 		this.frame.dock(position, 500);
+		this.frame.onClose(() => {
+			const active = this.stack.at(-1);
+			this.stack.length = 0;
+			active?.onUnmount();
+			for (const tab of this.tabs) {
+				tab.button.hide();
+				tab.border.hide();
+			}
+		});
 	}
 	registerPanel(panel: IPanel): void {
 		if (this.panels.some((existing) => existing.id === panel.id)) return;

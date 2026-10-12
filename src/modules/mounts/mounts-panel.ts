@@ -29,12 +29,11 @@ export class MountsPanel implements IPanel {
 		this.filters = new Dropdown("mounts-filters", pool);
 		this.footer = new Frame("mounts-footer", pool);
 		this.equipment = new Frame("mounts-equipment", pool, "Button");
-		this.favourite = new Frame("mounts-random", pool, "SecureButton");
+		this.favourite = new Frame("mounts-random", pool, "Button");
 		this.flight = new Frame("mounts-flight", pool, "SecureButton");
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			top: 112,
 			bottom: 116,
-			secure: true,
 			background: false,
 		});
 	}
@@ -49,9 +48,11 @@ export class MountsPanel implements IPanel {
 					: !mount.usable
 						? "Unavailable here"
 						: "",
-				spell: mount.collected && mount.usable ? mount.spell : undefined,
 				selected: mount.favourite,
-				activate: () => {},
+				activate: () => {
+					if (this.mounted && mount.collected && mount.usable)
+						this.client.summon(mount.id);
+				},
 				secondary: mount.collected
 					? {
 							label: mount.favourite ? "*" : "+",
@@ -87,7 +88,6 @@ export class MountsPanel implements IPanel {
 		this.equipment.setIcon(equipment.icon);
 		this.equipment.setTooltip(equipment.label, equipment.link);
 		const spells = this.client.getUtilitySpells();
-		this.favourite.setSpell(spells.favourite);
 		this.flight.setSpell(spells.flight);
 	}
 	onMount(parent: IUIComponent): void {
@@ -134,6 +134,12 @@ export class MountsPanel implements IPanel {
 		});
 		this.favourite.setIcon(413588);
 		this.favourite.setTooltip("Summon a random favourite mount");
+		this.favourite.onClick((button) => {
+			if (this.mounted && button === "LeftButton") this.client.summon(0);
+		});
+		this.favourite.onDragStart(() => {
+			if (this.mounted) this.client.pickupRandom();
+		});
 		this.flight.setIcon(4640497);
 		this.flight.setTooltip("Switch flight style");
 		const applyEquipment = () => {

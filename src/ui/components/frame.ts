@@ -5,6 +5,7 @@ import type { IUIComponent } from "./types";
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private docked = false;
+	private closeName?: string;
 	private texture?: WowTexture;
 	private readonly labels = new Map<string, WowFontString>();
 	constructor(
@@ -48,6 +49,19 @@ export class Frame implements IUIComponent {
 			SetScript(script: "OnSizeChanged", handler?: (this: void) => void): void;
 		};
 		native.SetScript("OnSizeChanged", callback);
+	}
+	/** Use the standard Escape-close registry; OnHide also keeps owner state in sync. */
+	onClose(callback: (this: void) => void): void {
+		const native = this.acquire() as WowFrame & {
+			SetScript(script: "OnHide", handler?: (this: void) => void): void;
+		};
+		if (!this.closeName) {
+			this.closeName = `SteamDeckUIClose-${this.id}`;
+			(_G as unknown as Record<string, WowFrame | undefined>)[this.closeName] =
+				native;
+			UISpecialFrames.push(this.closeName);
+		}
+		native.SetScript("OnHide", callback);
 	}
 	dock(position: "left" | "right" | "fullscreen", width: number): void {
 		const native = this.acquire();
@@ -265,6 +279,18 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.closeName) {
+			(
+				this.native as WowFrame & {
+					SetScript(script: "OnHide", handler?: (this: void) => void): void;
+				}
+			).SetScript("OnHide", undefined);
+			const index = UISpecialFrames.indexOf(this.closeName);
+			if (index >= 0) UISpecialFrames.splice(index, 1);
+			(_G as unknown as Record<string, WowFrame | undefined>)[this.closeName] =
+				undefined;
+			this.closeName = undefined;
+		}
 		if (this.frameType === "EditBox") {
 			this.configureInput();
 			const input = this.native as WowFrame & {

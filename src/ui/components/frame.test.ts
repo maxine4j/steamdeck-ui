@@ -5,6 +5,44 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("registers Escape closing once and removes its handler and global alias before pooled reuse", () => {
+	const globals: Record<string, unknown> = {};
+	const specialFrames: string[] = [];
+	vi.stubGlobal("_G", globals);
+	vi.stubGlobal("UISpecialFrames", specialFrames);
+	const scripts = new Map<string, (() => void) | undefined>();
+	const native = {
+		Hide: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetParent: vi.fn(),
+		SetScript: (script: string, handler?: () => void) =>
+			scripts.set(script, handler),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	} as unknown as WowFrame;
+	const pool = new FramePoolManager({ createFrame: () => native });
+	const frame = new Frame("escape-test", pool);
+	const close = vi.fn();
+	frame.onClose(close);
+	frame.onClose(close);
+	expect(specialFrames).toHaveLength(1);
+	expect(globals[specialFrames.at(0) ?? ""]).toBe(native);
+	scripts.get("OnHide")?.();
+	expect(close).toHaveBeenCalledOnce();
+	frame.destroy();
+	expect(specialFrames).toEqual([]);
+	expect(Object.values(globals).filter((value) => value !== undefined)).toEqual(
+		[],
+	);
+	expect(scripts.get("OnHide")).toBeUndefined();
+	expect(pool.acquire("Frame")).toBe(native);
+});
+
 it("configures secure spells through the global combat guard and leaves attributes unchanged in combat", () => {
 	const combat = vi.fn(() => false);
 	vi.stubGlobal("InCombatLockdown", combat);

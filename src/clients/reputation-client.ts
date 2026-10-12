@@ -4,11 +4,16 @@ export interface Reputation {
 	readonly name: string;
 	readonly description: string;
 	readonly header: boolean;
+	readonly hasReputation: boolean;
 	readonly child: boolean;
 	readonly collapsed: boolean;
 	readonly watched: boolean;
 	readonly standing: string;
 	readonly progress: string;
+	readonly reaction: number;
+	readonly current: number;
+	readonly maximum: number;
+	readonly maxed: boolean;
 }
 export interface IReputationClient {
 	getReputations(): Reputation[];
@@ -39,10 +44,13 @@ export class ReputationClient implements IReputationClient {
 		for (let index = 1; index <= C_Reputation.GetNumFactions(); index++) {
 			const data = factionAt(index);
 			if (!data) continue;
+			const hasReputation = !data.isHeader || data.isHeaderWithRep === true;
 			let standing = standings.at(data.reaction - 1) ?? "";
 			let current = data.currentStanding - data.currentReactionThreshold;
 			let maximum = data.nextReactionThreshold - data.currentReactionThreshold;
-			if (!data.isHeader || data.isHeaderWithRep) {
+			let maxed = data.reaction === 8;
+			let reaction = data.reaction;
+			if (hasReputation) {
 				const friendship = (
 					C_GossipInfo.GetFriendshipReputation as unknown as (
 						this: void,
@@ -58,6 +66,8 @@ export class ReputationClient implements IReputationClient {
 						| undefined
 				)(data.factionID);
 				if (friendship && friendship.friendshipFactionID > 0) {
+					maxed = !friendship.nextThreshold;
+					reaction = 5;
 					standing = friendship.reaction;
 					current = friendship.standing - friendship.reactionThreshold;
 					maximum =
@@ -77,12 +87,15 @@ export class ReputationClient implements IReputationClient {
 							| undefined
 					)(data.factionID);
 					if (major) {
+						maxed = C_MajorFactions.HasMaximumRenown(data.factionID);
+						reaction = 5;
 						standing = `Renown ${major.renownLevel}`;
 						current = major.renownReputationEarned;
 						maximum = major.renownLevelThreshold;
 					}
 				}
 				if (C_Reputation.IsFactionParagonForCurrentPlayer(data.factionID)) {
+					maxed = true;
 					const [value, threshold, , pending] =
 						C_Reputation.GetFactionParagonInfo(data.factionID);
 					standing = pending ? "Paragon — Reward available" : "Paragon";
@@ -96,11 +109,19 @@ export class ReputationClient implements IReputationClient {
 				name: data.name,
 				description: data.description ?? "",
 				header: data.isHeader,
+				hasReputation,
 				child: data.isChild === true,
 				collapsed: data.isCollapsed,
 				watched: data.isWatched,
-				standing: data.isHeader && !data.isHeaderWithRep ? "" : standing,
-				progress: maximum > 0 ? `${Math.max(0, current)} / ${maximum}` : "",
+				standing: hasReputation ? standing : "",
+				progress:
+					hasReputation && maximum > 0
+						? `${Math.max(0, current)} / ${maximum}`
+						: "",
+				reaction,
+				current: hasReputation ? Math.max(0, current) : 0,
+				maximum: hasReputation ? Math.max(0, maximum) : 0,
+				maxed: hasReputation && maxed,
 			});
 		}
 		return rows;

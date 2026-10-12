@@ -6,6 +6,8 @@ import type { WowFrame, WowTexture } from "./types";
 afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
+	vi.stubGlobal("_G", {});
+	vi.stubGlobal("UISpecialFrames", []);
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
 	const labels: string[][] = [];
@@ -146,6 +148,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		titles,
 		{
 			getMounts: () => [],
+			summon: vi.fn(),
+			pickupRandom: vi.fn(),
 			getCount: () => ({ collected: 0, total: 0 }),
 			search: vi.fn(),
 			getFilters: () => [],

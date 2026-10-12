@@ -15,6 +15,7 @@ const { frames } = vi.hoisted(() => ({
 			click: ReturnType<typeof vi.fn>;
 			destroy: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
+			onDragStart: ReturnType<typeof vi.fn>;
 			configureInput: ReturnType<typeof vi.fn>;
 			inset: ReturnType<typeof vi.fn>;
 		}
@@ -33,6 +34,7 @@ vi.mock("../../ui/components/frame", () => ({
 		destroy = vi.fn();
 		onReceiveDrag = vi.fn();
 		onClick = vi.fn();
+		onDragStart = vi.fn();
 		configureInput = vi.fn();
 		inset = vi.fn();
 		setParent = vi.fn();
@@ -61,6 +63,26 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 				usable: true,
 				favourite: true,
 			},
+			{
+				id: 43,
+				index: 2,
+				name: "Unavailable",
+				spell: 124,
+				icon: 456,
+				collected: true,
+				usable: false,
+				favourite: false,
+			},
+			{
+				id: 44,
+				index: 3,
+				name: "Uncollected",
+				spell: 125,
+				icon: 456,
+				collected: false,
+				usable: true,
+				favourite: false,
+			},
 		],
 		getCount: () => ({ collected: 10, total: 50 }),
 		search: vi.fn(),
@@ -72,6 +94,8 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 		getEquipment: () => ({ icon: 789, label: "Equipment", link: "item:1" }),
 		applyEquipment: vi.fn(),
 		getUtilitySpells: () => ({ favourite: 150544, flight: 460002 }),
+		summon: vi.fn(),
+		pickupRandom: vi.fn(),
 	};
 	const pool = {} as IFramePoolManager;
 	const panel = new MountsPanel(pool, client, vi.fn());
@@ -89,7 +113,20 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 	expect(frames.get("mounts-row-0")?.setLabel.mock.calls.at(0)?.at(1)).toBe(
 		"Horse",
 	);
-	expect(frames.get("mounts-row-0")?.setSpell).toHaveBeenCalledWith(123);
+	const clickMount = frames
+		.get("mounts-row-0")
+		?.onClick.mock.calls.at(-1)
+		?.at(0) as (button: string) => void;
+	clickMount("LeftButton");
+	clickMount("RightButton");
+	for (const index of [1, 2]) {
+		const click = frames
+			.get(`mounts-row-${index}`)
+			?.onClick.mock.calls.at(-1)
+			?.at(0) as (button: string) => void;
+		click("LeftButton");
+	}
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith(42);
 	expect(frames.get("mounts-scroll")?.inset).toHaveBeenCalledWith(
 		expect.anything(),
 		12,
@@ -98,7 +135,15 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 		116,
 	);
 	expect(frames.get("mounts-equipment")?.setIcon).toHaveBeenCalledWith(789);
-	expect(frames.get("mounts-random")?.setSpell).toHaveBeenCalledWith(150544);
+	const random = frames.get("mounts-random");
+	const dragRandom = random?.onDragStart.mock.calls.at(-1)?.at(0) as () => void;
+	dragRandom();
+	expect(client.pickupRandom).toHaveBeenCalledOnce();
+	const clickRandom = random?.onClick.mock.calls.at(-1)?.at(0) as (
+		button: string,
+	) => void;
+	clickRandom("LeftButton");
+	expect(client.summon).toHaveBeenLastCalledWith(0);
 	expect(frames.get("mounts-flight")?.setSpell).toHaveBeenCalledWith(460002);
 	const count = frames.size;
 	const search = frames
@@ -137,6 +182,10 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 		?.onInteract();
 	expect(client.toggleFilter).toHaveBeenCalledWith("collection:1");
 	panel.onUnmount();
+	clickMount("LeftButton");
+	dragRandom();
+	expect(client.summon).toHaveBeenCalledTimes(2);
+	expect(client.pickupRandom).toHaveBeenCalledOnce();
 	expect(panel.getNavGrid()).toEqual([]);
 	search("hidden");
 	expect(client.search).toHaveBeenCalledTimes(1);

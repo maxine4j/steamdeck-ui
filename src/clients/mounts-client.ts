@@ -14,6 +14,8 @@ export interface MountFilter {
 	readonly checked: boolean;
 }
 export interface IMountsClient {
+	summon(id: number): void;
+	pickupRandom(): void;
 	getMounts(): Mount[];
 	getCount(): { collected: number; total: number };
 	search(text: string): void;
@@ -25,6 +27,12 @@ export interface IMountsClient {
 	getUtilitySpells(): { favourite: number; flight: number };
 }
 export class MountsClient implements IMountsClient {
+	summon(id: number): void {
+		C_MountJournal.SummonByID(id);
+	}
+	pickupRandom(): void {
+		C_MountJournal.Pickup(0);
+	}
 	getMounts(): Mount[] {
 		const mounts: Mount[] = [];
 		for (

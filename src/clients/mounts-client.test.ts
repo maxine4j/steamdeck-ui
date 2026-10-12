@@ -2,6 +2,17 @@ import { afterEach, expect, it, vi } from "vitest";
 import { MountsClient } from "./mounts-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("summons by journal ID and picks up the random favourite action", () => {
+	const summon = vi.fn();
+	const pickup = vi.fn();
+	vi.stubGlobal("C_MountJournal", { SummonByID: summon, Pickup: pickup });
+	const client = new MountsClient();
+	client.summon(42);
+	client.summon(0);
+	client.pickupRandom();
+	expect(summon.mock.calls).toEqual([[42], [0]]);
+	expect(pickup).toHaveBeenCalledExactlyOnceWith(0);
+});
 it("routes search and each filter group to the journal and retains the equipment confirmation flow", () => {
 	const collection = vi.fn();
 	const type = vi.fn();

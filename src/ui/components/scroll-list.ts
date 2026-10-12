@@ -14,6 +14,11 @@ export interface ListRow {
 	readonly selected?: boolean;
 	readonly fontSize?: number;
 	readonly indent?: number;
+	readonly background?: readonly [number, number, number];
+	readonly progress?: {
+		readonly value: number;
+		readonly color: readonly [number, number, number];
+	};
 	readonly activate: () => void;
 }
 /** Generic reusable scrollable buttons; domain data stays in module panels. */
@@ -25,6 +30,8 @@ export class ScrollList {
 	private readonly buttons: {
 		frame: Frame;
 		icon: Frame;
+		track: Frame;
+		progress: Frame;
 		secondary: Frame;
 		secondaryNav: INavigable;
 		nav: INavigable;
@@ -86,10 +93,14 @@ export class ScrollList {
 		const width = 480 - 2 * (this.options.padding ?? 12);
 		this.content.layout(
 			width,
-			Math.max(1, this.rows.length * 52),
+			Math.max(
+				1,
+				this.rows.reduce((height, row) => height + (row.progress ? 64 : 52), 0),
+			),
 			"TOPLEFT",
 			this.scroll,
 		);
+		let offset = 0;
 		this.rows.forEach((row, index) => {
 			let button = this.buttons.at(index);
 			if (!button) {
@@ -106,6 +117,8 @@ export class ScrollList {
 				button = {
 					frame,
 					icon: new Frame(`${this.id}-icon-${index}`, this.pool),
+					track: new Frame(`${this.id}-track-${index}`, this.pool),
+					progress: new Frame(`${this.id}-progress-${index}`, this.pool),
 					secondary,
 					secondaryNav: {
 						navId: `${row.id}-secondary`,
@@ -149,14 +162,48 @@ export class ScrollList {
 				button.secondary.show();
 			} else button.secondary.hide();
 			const indent = row.indent ?? 0;
+			const textLeft = row.icon === undefined ? 8 : 48;
+			const textWidth =
+				width - indent - textLeft - 8 - (row.secondary ? 48 : 0);
+			if (row.progress) {
+				button.track.setParent(button.frame);
+				button.track.layout(
+					textWidth,
+					6,
+					"BOTTOMLEFT",
+					button.frame,
+					textLeft,
+					6,
+				);
+				button.track.setColor(0.025, 0.025, 0.025);
+				button.track.show();
+				const value = Math.max(0, Math.min(1, row.progress.value));
+				if (value > 0) {
+					button.progress.setParent(button.track);
+					button.progress.layout(
+						textWidth * value,
+						6,
+						"BOTTOMLEFT",
+						button.track,
+						0,
+						0,
+					);
+					button.progress.setColor(...row.progress.color);
+					button.progress.show();
+				} else button.progress.hide();
+			} else {
+				button.progress.hide();
+				button.track.hide();
+			}
 			button.frame.layout(
 				width - indent,
-				48,
+				row.progress ? 60 : 48,
 				"TOPLEFT",
 				this.content,
 				indent,
-				-index * 52,
+				-offset,
 			);
+			offset += row.progress ? 64 : 52;
 			button.frame.setLabel(
 				"label",
 				row.label,
@@ -174,7 +221,7 @@ export class ScrollList {
 				row.detail ?? "",
 				"BOTTOMLEFT",
 				row.icon === undefined ? 8 : 48,
-				6,
+				row.progress ? 18 : 6,
 				12,
 				width -
 					indent -
@@ -196,10 +243,10 @@ export class ScrollList {
 		this.scroll.clampScroll();
 	}
 	private style(index: number): void {
-		const color: readonly [number, number, number] = this.rows.at(index)
-			?.selected
-			? [0.25, 0.2, 0.05]
-			: [0.08, 0.08, 0.08];
+		const row = this.rows.at(index);
+		const color: readonly [number, number, number] =
+			row?.background ??
+			(row?.selected ? [0.25, 0.2, 0.05] : [0.08, 0.08, 0.08]);
 		this.buttons.at(index)?.frame.setColor(...color);
 	}
 	unmount(): void {
@@ -220,6 +267,8 @@ export class ScrollList {
 	destroy(): void {
 		this.unmount();
 		for (const button of this.buttons) {
+			button.progress.destroy();
+			button.track.destroy();
 			button.secondary.destroy();
 			button.icon.destroy();
 			button.frame.destroy();

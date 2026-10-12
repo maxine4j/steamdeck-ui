@@ -95,6 +95,7 @@ export interface WowEventFrame extends WowFrame {
 
 /** UI-object APIs are absent from the generated game API declarations. */
 declare global {
+	const UISpecialFrames: string[];
 	// Secure-frame guard is a global in the addon environment.
 	function InCombatLockdown(this: void): boolean;
 	const UIParent: WowFrame;
