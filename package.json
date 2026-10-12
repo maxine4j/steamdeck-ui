@@ -6,6 +6,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"test:release": "vitest run scripts/package-addon.test.mjs",
 		"build:lua": "tstl",
 		"build": "./scripts/build-addon.sh",
 		"lint": "biome check",

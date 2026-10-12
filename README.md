@@ -4,6 +4,8 @@ Controller-first UI for Retail World of Warcraft, written in TypeScript and comp
 
 Run `yarn build`, then copy the contents of `dist/` into an `Interface/AddOns/SteamDeckUI/` directory. Log in or reload the UI.
 
+GitHub Actions runs tests, typecheck, lint, and builds on pull requests, pushes to `main`, and new tags. Successful `main` builds publish `main-<short-sha>` prereleases; tags publish stable releases. Each release includes `SteamDeckUI.zip`, containing a `SteamDeckUI/` folder ready to extract into `Interface/AddOns/`. The packaged TOC version matches the release name. Workflow reruns replace the existing ZIP rather than creating another release.
+
 Startup injects the native frame factory, event bus, frame pool, panel orchestrator, clients, and module manager. `PLAYER_LOGIN` starts the modules once. Bags and character-related features use docked side panels. Frames and background textures are pooled.
 
 The controller input module has no panels. It enables native gamepad input and analog left-stick movement: the character faces the stick direction and moves forward, including when pushing down and during combat. The right stick controls the camera; gamepad cursor mode and mouse-click emulation are disabled. Use a Steam Input layout that sends native gamepad inputs. Keyboard movement or mouse emulation configured in Steam Input cannot be corrected by the addon. The controller client restores its previous settings on shutdown.
