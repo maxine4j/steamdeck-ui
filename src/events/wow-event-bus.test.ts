@@ -37,6 +37,18 @@ it("forwards native login events through the hidden event frame", () => {
 	dispatch(frame, "BAG_UPDATE_DELAYED");
 	expect(bagUpdate).toHaveBeenCalledOnce();
 	const finderUpdate = vi.fn();
+	const currencyUpdate = vi.fn();
+	bus.subscribe("CURRENCY_CHANGED", currencyUpdate);
+	for (const event of [
+		"CURRENCY_DISPLAY_UPDATE",
+		"ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED",
+		"CURRENCY_TRANSFER_SUCCESS",
+		"CURRENCY_TRANSFER_FAILED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(currencyUpdate).toHaveBeenCalledTimes(4);
 	bus.subscribe("DUNGEON_FINDER_CHANGED", finderUpdate);
 	for (const event of [
 		"LFG_UPDATE_RANDOM_INFO",

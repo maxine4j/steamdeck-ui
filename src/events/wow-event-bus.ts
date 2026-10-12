@@ -57,6 +57,14 @@ const reputationEvents = [
 	"QUEST_LOG_UPDATE",
 ];
 const titleEvents = ["KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE"];
+const currencyEvents = [
+	"CURRENCY_DISPLAY_UPDATE",
+	"ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED",
+	"CURRENCY_TRANSFER_INITIATED",
+	"CURRENCY_TRANSFER_SUCCESS",
+	"CURRENCY_TRANSFER_FAILED",
+	"PLAYER_ENTERING_WORLD",
+];
 const dungeonFinderEvents = [
 	"LFG_UPDATE_RANDOM_INFO",
 	"LFG_UPDATE",
@@ -131,6 +139,7 @@ export class WowEventBus implements IEventBus {
 			...characterIdentityEvents,
 			...characterIdentityUnitEvents,
 			...reputationEvents,
+			...currencyEvents,
 			...titleEvents,
 			...dungeonFinderEvents,
 			...mountEvents,
@@ -162,6 +171,11 @@ export class WowEventBus implements IEventBus {
 			if (dungeonFinderEvents.includes(event))
 				this.emit("DUNGEON_FINDER_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");
+			if (currencyEvents.includes(event)) this.emit("CURRENCY_CHANGED");
+			if (event === "CURRENCY_TRANSFER_SUCCESS")
+				this.emit("CURRENCY_TRANSFER_SUCCEEDED");
+			if (event === "CURRENCY_TRANSFER_FAILED")
+				this.emit("CURRENCY_TRANSFER_REJECTED");
 			if (
 				event === "KNOWN_TITLES_UPDATE" ||
 				(event === "UNIT_NAME_UPDATE" && unit === "player")

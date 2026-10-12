@@ -3,6 +3,22 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("routes context actions to the current row and ignores hidden lists", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("context", pool, "Test", vi.fn());
+	const context = vi.fn();
+	list.setRows([
+		{ id: "currency", label: "Currency", activate: vi.fn(), context },
+	]);
+	list.mount(new Frame("context-parent", pool));
+	const node = list.getNavGrid().at(0)?.at(0);
+	node?.onContext?.();
+	expect(context).toHaveBeenCalledOnce();
+	list.unmount();
+	node?.onContext?.();
+	expect(context).toHaveBeenCalledOnce();
+});
+
 const { frames } = vi.hoisted(() => ({
 	frames: new Map<
 		string,

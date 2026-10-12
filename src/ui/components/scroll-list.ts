@@ -23,6 +23,7 @@ export interface ListRow {
 		readonly color: readonly [number, number, number];
 	};
 	readonly activate: () => void;
+	readonly context?: () => void;
 }
 /** Generic reusable scrollable buttons; domain data stays in module panels. */
 export class ScrollList {
@@ -201,6 +202,9 @@ export class ScrollList {
 								this.reveal(index);
 							},
 							onBlur: () => this.style(index),
+							onContext: () => {
+								if (this.isReady(index)) this.rows.at(index)?.context?.();
+							},
 							onInteract: () => {
 								if (this.isReady(index)) {
 									if (this.options.secure) frame.click();

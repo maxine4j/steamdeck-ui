@@ -1,6 +1,7 @@
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
+import type { ICurrencyClient } from "./clients/currency-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
@@ -17,6 +18,10 @@ import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
 import { ItemActionMenu } from "./modules/bags/item-action-menu";
 import { ControllerInputModule } from "./modules/controller-input/controller-input-module";
+import { BuiltInCurrency } from "./modules/currency/built-in-currency";
+import { CurrencyModule } from "./modules/currency/currency-module";
+import { CurrencyOptions } from "./modules/currency/currency-options";
+import { CurrencyPanel } from "./modules/currency/currency-panel";
 import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
 import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
@@ -56,6 +61,7 @@ export function startSteamDeckUI(
 	scheduler: ITaskScheduler,
 	talents: ITalentsClient,
 	dungeonFinder: IDungeonFinderClient,
+	currency: ICurrencyClient,
 ) {
 	const navigation = new NavigationManager(events, (active) =>
 		controller.setActive(active),
@@ -65,6 +71,8 @@ export function startSteamDeckUI(
 	const itemMenu = new ItemActionMenu(itemModal, inventory);
 	const characterSuppression = new FrameSuppression(pool);
 	const builtInReputation = new BuiltInReputation(characterSuppression, events);
+	const builtInCurrency = new BuiltInCurrency(characterSuppression, events);
+	const currencyModal = new Modal("currency-options", pool, navigation, events);
 	const builtInTalents = new BuiltInTalents(new FrameSuppression(pool), events);
 	const builtInDungeonFinder = new BuiltInDungeonFinder(
 		new FrameSuppression(pool),
@@ -81,6 +89,7 @@ export function startSteamDeckUI(
 					if (selected.id === "dungeon-finder") builtInDungeonFinder.open();
 					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
+					else if (selected.id === "currency") builtInCurrency.open();
 					else if (selected.id === "paper-doll" || selected.id === "titles")
 						character.open();
 				},
@@ -178,6 +187,20 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
+	const currencyOptions = new CurrencyOptions(currencyModal, currency, () =>
+		currencyPanel.refresh(),
+	);
+	const currencyPanel = new CurrencyPanel(
+		pool,
+		currency,
+		currencyOptions,
+		() => {
+			builtInCurrency.close();
+			ui.closePanel("left", "currency");
+		},
+		scheduler,
+	);
+	ui.registerPanel(currencyPanel, "left");
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
 	ui.registerPanel(mountsPanel, "right");
@@ -202,6 +225,9 @@ export function startSteamDeckUI(
 		new TitlesModule(ui, events, titlesPanel, new BuiltInTitles(events)),
 	);
 	modules.register(
+		new CurrencyModule(ui, events, currencyPanel, builtInCurrency),
+	);
+	modules.register(
 		new BagsModule(
 			ui,
 			events,
@@ -220,11 +246,13 @@ export function startSteamDeckUI(
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
 			itemModal.destroy();
+			currencyModal.destroy();
 			navigation.destroy();
 			ui.destroy();
 			panel.destroy();
 			paperDoll.destroy();
 			reputationPanel.destroy();
+			currencyPanel.destroy();
 			titlesPanel.destroy();
 			mountsPanel.destroy();
 			talentsPanel.destroy();

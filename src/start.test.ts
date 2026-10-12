@@ -252,6 +252,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			join: vi.fn(),
 			leave: vi.fn(),
 		},
+		{
+			getCurrencies: () => [],
+			toggleHeader: vi.fn(),
+			setWatched: () => true,
+			setUnused: vi.fn(),
+			requestSources: vi.fn(),
+			sourcesReady: () => true,
+			getSources: () => [],
+			transferCost: () => undefined,
+			transfer: () => false,
+		},
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
