@@ -5,6 +5,7 @@ import type { INavigable, NavDirection, NavGrid } from "./types";
 type GridSource = NavGrid | (() => NavGrid);
 export type GridNeighbors = Partial<Record<"left" | "right", string>>;
 export interface GridOptions extends GridNeighbors {
+	onCancel?: () => void;
 	onActiveChanged?: (active: boolean) => void;
 	onPanelCycle?: (direction: -1 | 1) => void;
 }
@@ -42,7 +43,13 @@ export class NavigationManager implements INavManager {
 		["NAV_INTERACT", () => this.interact()],
 		["NAV_CONTEXT", () => this.focused?.onContext?.()],
 		["NAV_ALTERNATE", () => this.focused?.onAlternate?.()],
-		["NAV_CANCEL", () => this.modal?.cancel()],
+		[
+			"NAV_CANCEL",
+			() => {
+				if (this.modal) this.modal.cancel();
+				else if (this.active) this.options.get(this.active)?.onCancel?.();
+			},
+		],
 	];
 	constructor(
 		private readonly events: IEventBus,
