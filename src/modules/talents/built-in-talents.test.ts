@@ -9,6 +9,9 @@ it("loads lazily, replaces only player talent/spec tabs and restores the full ed
 	let tab = 2;
 	let inspecting = false;
 	let suppressed = false;
+	let characterShown = true;
+	const characterFrame = { IsShown: () => characterShown };
+	vi.stubGlobal("CharacterFrame", characterFrame);
 	const nativeTreeShow = vi.fn();
 	const frame = {
 		IsShown: () => shown,
@@ -41,6 +44,11 @@ it("loads lazily, replaces only player talent/spec tabs and restores the full ed
 			tab = 2;
 			hooks.get("SetTab")?.();
 			shown = true;
+			// Blizzard auto-minimizes to the spellbook when the character panel occupies the dock.
+			if (characterShown) {
+				tab = 3;
+				hooks.get("SetTab")?.();
+			}
 			if (!suppressed) {
 				nativeTreeShow();
 				hooks.get("OnShow")?.();
@@ -49,7 +57,11 @@ it("loads lazily, replaces only player talent/spec tabs and restores the full ed
 		},
 		OpenToClassSpecializationsTab: vi.fn(),
 	});
-	vi.stubGlobal("HideUIPanel", () => {
+	vi.stubGlobal("HideUIPanel", (target: unknown) => {
+		if (target === characterFrame) {
+			characterShown = false;
+			return;
+		}
 		shown = false;
 		if (!suppressed) hooks.get("OnHide")?.();
 		hooks.get("HideUIPanel")?.();
@@ -67,6 +79,7 @@ it("loads lazily, replaces only player talent/spec tabs and restores the full ed
 	native.disable();
 	expect(load).not.toHaveBeenCalled();
 	native.open();
+	expect(characterShown).toBe(false);
 	expect(frames.suppress).toHaveBeenCalledWith([frame]);
 	expect(native.isOpen()).toBe(true);
 	expect(nativeTreeShow).not.toHaveBeenCalled();

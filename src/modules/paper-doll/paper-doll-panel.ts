@@ -45,7 +45,7 @@ function trackText(slot: EquipmentSlot): string {
 
 export class PaperDollPanel implements IPanel {
 	readonly id = "paper-doll";
-	readonly title = "Character";
+	readonly title = "Equipment";
 	readonly icon = 133127;
 	private mounted = false;
 	private equipmentDirty = true;

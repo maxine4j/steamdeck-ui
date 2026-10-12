@@ -71,6 +71,8 @@ export class BuiltInTalents implements IBuiltInTalents {
 	}
 	open(): void {
 		this.full = false;
+		// Free the character dock before Blizzard can auto-minimize talents into the spellbook.
+		if (CharacterFrame.IsShown()) HideUIPanel(CharacterFrame);
 		PlayerSpellsUtil.OpenToClassTalentsTab();
 		if (!PlayerSpellsFrame?.IsShown())
 			PlayerSpellsUtil.OpenToClassSpecializationsTab();

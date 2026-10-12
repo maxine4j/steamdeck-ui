@@ -27,7 +27,7 @@ const expansionColors = new Map<string, Color>([
 export class ReputationPanel implements IPanel {
 	readonly id = "reputation";
 	readonly title = "Reputation";
-	readonly icon = 133784;
+	readonly icon = 236683;
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;

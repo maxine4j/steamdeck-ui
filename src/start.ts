@@ -118,7 +118,7 @@ export function startSteamDeckUI(
 		mounts,
 		() => {
 			builtInMounts.close();
-			ui.closePanel("left", "mounts");
+			ui.closePanel("right", "mounts");
 		},
 		scheduler,
 	);
@@ -152,7 +152,7 @@ export function startSteamDeckUI(
 	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
-	ui.registerPanel(mountsPanel, "left");
+	ui.registerPanel(mountsPanel, "right");
 	const talentsPanel = new TalentsPanel(
 		pool,
 		talents,

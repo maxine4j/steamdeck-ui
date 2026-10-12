@@ -54,6 +54,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 					SetWordWrap: vi.fn(),
 				}),
 				SetScript: vi.fn(),
+				SetAutoFocus: vi.fn(),
+				SetFontObject: vi.fn(),
+				SetTextInsets: vi.fn(),
+				ClearFocus: vi.fn(),
+				SetText: vi.fn(),
+				SetAttribute: vi.fn(),
 				RegisterForClicks: vi.fn(),
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
@@ -110,6 +116,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		vi.stubGlobal(name, builtIns.at(index));
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
+	vi.stubGlobal("HideUIPanel", vi.fn());
+	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
 	vi.stubGlobal("PlayerSpellsFrame", undefined);
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
@@ -270,6 +278,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();
+	const mountsTabIndex = textures.findIndex((texture) =>
+		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 132261),
+	);
+	expect(mountsTabIndex).toBeGreaterThanOrEqual(0);
+	const mountsTabBorder = frames.at(mountsTabIndex - 1);
+	expect(mountsTabBorder?.SetParent).toHaveBeenLastCalledWith(frames.at(1));
 	const bagIconIndex = textures.findIndex((texture) =>
 		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 123),
 	);
@@ -365,6 +379,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	character.isOpen.mockReturnValue(true);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
 	expect(character.getEquipment).toHaveBeenCalledOnce();
+	expect(
+		textures.filter((texture) =>
+			vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 132261),
+		),
+	).toHaveLength(1);
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	const clickTab = (icon: number) => {
@@ -383,10 +402,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		handler(native, "LeftButton");
 		flush();
 	};
-	clickTab(133784);
+	clickTab(236683);
 	expect(reputation.getReputations).toHaveBeenCalledOnce();
 	const clickRow = (text: string) => {
-		const native = frames.at(labels.findIndex((texts) => texts.includes(text)));
+		const native = frames.at(labels.findLastIndex((texts) => texts.includes(text)));
 		if (!native) throw new Error("Missing list row");
 		const handler = vi
 			.mocked(native.SetScript)
@@ -410,7 +429,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	clickRow("None")();
 	expect(titles.select).toHaveBeenCalledExactlyOnceWith(-1);
 	const withTabs = frames.length;
-	clickTab(133784);
+	clickTab(236683);
 	clickTab(133759);
 	clickTab(133127);
 	expect(frames).toHaveLength(withTabs);
@@ -433,6 +452,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	flush();
 	expect(bagIcon?.Hide).toHaveBeenCalled();
 	expect(app.navigation.focusedId).not.toContain("bags-item-");
+	clickTab(132261);
+	expect(app.ui.getContainer("right").activePanelId).toBe("mounts");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	clickRow("X")();
+	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
+	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");
