@@ -58,6 +58,7 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 				changed(undefined, name);
 			}),
 			RegisterForClicks: vi.fn(),
+			RegisterForDrag: vi.fn(),
 			SetScript: vi.fn((script: string, handler: typeof changed) => {
 				if (script === "OnAttributeChanged") changed = handler;
 			}),
@@ -139,9 +140,20 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 		"_onstate-slot",
 		'self:SetAttribute("action", tonumber(newstate))',
 	);
-	expect(frames.at(0)?.RegisterForClicks).toHaveBeenCalledWith(
-		"AnyDown",
+	expect(frames.at(0)?.RegisterForClicks).toHaveBeenCalledExactlyOnceWith(
 		"AnyUp",
+	);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
+		"useOnKeyDown",
+		false,
+	);
+	expect(frames.at(0)?.RegisterForDrag).toHaveBeenCalledWith("LeftButton");
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
+		"_ondragstart",
+		`local action = self:GetAttribute("action")
+if button == "LeftButton" and action and action > 0 and not SecureCmdOptionParse("[combat] true") then
+	return "action", action
+end`,
 	);
 	action = 145;
 	changed(frames.at(0), "action");
@@ -187,6 +199,11 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	button.destroy();
 	expect(unregister).toHaveBeenCalledWith(frames.at(0), "slot");
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
+		"_ondragstart",
+		undefined,
+	);
+	expect(frames.at(0)?.RegisterForDrag).toHaveBeenLastCalledWith();
 	expect(frames.at(1)?.Clear).toHaveBeenCalledTimes(3);
 	const reused = new SecureSlotButton(pool);
 	const response = 'self:SetAttribute("action", 121)';

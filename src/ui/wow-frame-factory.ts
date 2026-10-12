@@ -16,7 +16,7 @@ export class WowFrameFactory implements FrameFactory {
 				"Button",
 				`SteamDeckUISecureButton${++this.nextSecureId}`,
 				UIParent,
-				"SecureActionButtonTemplate,SecureHandlerStateTemplate",
+				"SecureActionButtonTemplate,SecureHandlerStateTemplate,SecureHandlerDragTemplate",
 			);
 		if (type === "Cooldown")
 			return CreateFrame(

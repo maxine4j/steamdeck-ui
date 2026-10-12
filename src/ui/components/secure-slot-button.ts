@@ -123,10 +123,19 @@ export class SecureSlotButton {
 		this.frame.ClearAllPoints();
 		this.frame.SetPoint("BOTTOM", UIParent, "BOTTOM", x, y);
 		this.label.SetText(label);
-		this.frame.RegisterForClicks("AnyDown", "AnyUp");
+		this.frame.RegisterForClicks("AnyUp");
+		this.frame.RegisterForDrag("LeftButton");
 		this.frame.SetAttribute("type", "action");
-		this.frame.SetAttribute("useOnKeyDown", true);
+		this.frame.SetAttribute("useOnKeyDown", false);
 		this.frame.SetAttribute("action", initialSlot);
+		// The secure drag template picks up the current page's slot without a modifier.
+		this.frame.SetAttribute(
+			"_ondragstart",
+			`local action = self:GetAttribute("action")
+if button == "LeftButton" and action and action > 0 and not SecureCmdOptionParse("[combat] true") then
+	return "action", action
+end`,
+		);
 		this.frame.SetAttribute(
 			"_onstate-slot",
 			typeof driver === "string"
@@ -171,11 +180,13 @@ export class SecureSlotButton {
 			"type",
 			"action",
 			"useOnKeyDown",
+			"_ondragstart",
 			"_onstate-slot",
 			"state-slot",
 		])
 			this.frame.SetAttribute(attribute, undefined);
 		this.frame.RegisterForClicks("LeftButtonUp");
+		this.frame.RegisterForDrag();
 		this.label.SetText("");
 		for (const cooldown of this.cooldowns) {
 			cooldown.Clear();
