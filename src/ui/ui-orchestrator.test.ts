@@ -2,6 +2,40 @@ import { expect, it, vi } from "vitest";
 import type { PanelContainer } from "./panel/panel-container";
 import { UIOrchestrator } from "./ui-orchestrator";
 
+it("opening fullscreen drains both docked stacks before mounting its panel", () => {
+	const order: string[] = [];
+	const ui = new UIOrchestrator((position) => {
+		const stack = position === "fullscreen" ? [] : ["base", "overlay"];
+		return {
+			position,
+			get activePanelId() {
+				return stack.at(-1);
+			},
+			popPanel: () => {
+				order.push(`${position}:${stack.pop()}`);
+			},
+			swapPanel: () => {
+				order.push("fullscreen:mount");
+			},
+		} as unknown as PanelContainer;
+	});
+	ui.registerPanel({
+		id: "achievements",
+		title: "Achievements",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+	});
+	ui.openPanel("achievements", "fullscreen");
+	expect(order).toEqual([
+		"left:overlay",
+		"left:base",
+		"right:overlay",
+		"right:base",
+		"fullscreen:mount",
+	]);
+});
+
 it("hosts dedicated containers exclusively at a dock without mixing their tabs", () => {
 	const containers = new Map<
 		string,

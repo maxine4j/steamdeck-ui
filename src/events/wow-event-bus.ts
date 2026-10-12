@@ -93,6 +93,12 @@ const reputationEvents = [
 	"QUEST_LOG_UPDATE",
 ];
 const titleEvents = ["KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE"];
+const achievementEvents = [
+	"ACHIEVEMENT_EARNED",
+	"CRITERIA_UPDATE",
+	"RECEIVED_ACHIEVEMENT_LIST",
+	"PLAYER_ENTERING_WORLD",
+];
 const currencyEvents = [
 	"CURRENCY_DISPLAY_UPDATE",
 	"ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED",
@@ -192,6 +198,7 @@ export class WowEventBus implements IEventBus {
 			...reputationEvents,
 			...currencyEvents,
 			...titleEvents,
+			...achievementEvents,
 			...dungeonFinderEvents,
 			...mountEvents,
 			...talentEvents,
@@ -273,6 +280,7 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("TALENTS_CHANGED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
+			if (achievementEvents.includes(event)) this.emit("ACHIEVEMENTS_CHANGED");
 			if (event === "TOYS_UPDATED") this.emit("TOYS_CHANGED");
 			if (event === "SPELL_UPDATE_COOLDOWN") this.emit("TOYS_COOLDOWN_CHANGED");
 			if (dungeonFinderEvents.includes(event))

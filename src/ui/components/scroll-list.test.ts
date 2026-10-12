@@ -3,6 +3,24 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("resizes existing rows without replacing their controls", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("resize", pool, "Test", vi.fn());
+	list.setRows([{ id: "row", label: "Row", activate: vi.fn() }]);
+	list.mount(new Frame("resize-parent", pool));
+	const node = list.getNavGrid().at(0)?.at(0);
+	list.setWidth(600);
+	expect(frames.get("resize-row-0")?.layout).toHaveBeenLastCalledWith(
+		576,
+		48,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-0,
+	);
+	expect(list.getNavGrid().at(0)?.at(0)).toBe(node);
+});
+
 it("routes context actions to the current row and ignores hidden lists", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("context", pool, "Test", vi.fn());
@@ -27,6 +45,7 @@ const { frames } = vi.hoisted(() => ({
 			setColor: ReturnType<typeof vi.fn>;
 			hide: ReturnType<typeof vi.fn>;
 			destroy: ReturnType<typeof vi.fn>;
+			show: ReturnType<typeof vi.fn>;
 			revealVerticalRange: ReturnType<typeof vi.fn>;
 			setOpacity: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
@@ -34,6 +53,29 @@ const { frames } = vi.hoisted(() => ({
 		}
 	>(),
 }));
+
+it("omits its own close button when the containing panel provides one", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("embedded", pool, "", vi.fn(), {
+		showClose: false,
+	});
+	list.mount(new Frame("embedded-parent", pool));
+	expect(frames.get("embedded-close")?.show).not.toHaveBeenCalled();
+});
+
+it("reveals a selected row by its logical id", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("selection", pool, "", vi.fn());
+	list.setRows([
+		{ id: "one", label: "One", activate: vi.fn() },
+		{ id: "two", label: "Two", activate: vi.fn() },
+	]);
+	list.mount(new Frame("selection-parent", pool));
+	list.revealRow("two");
+	expect(
+		frames.get("selection-scroll")?.revealVerticalRange,
+	).toHaveBeenLastCalledWith(52, 100, 104);
+});
 vi.mock("./frame", () => ({
 	Frame: class {
 		constructor(id: string) {

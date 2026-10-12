@@ -1,3 +1,4 @@
+import type { IAchievementsClient } from "./clients/achievements-client";
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
@@ -16,6 +17,9 @@ import type { ITitlesClient } from "./clients/titles-client";
 import type { IToysClient } from "./clients/toys-client";
 import type { IVendorClient } from "./clients/vendor-client";
 import type { IEventBus } from "./events/types";
+import { AchievementsModule } from "./modules/achievements/achievements-module";
+import { AchievementsPanel } from "./modules/achievements/achievements-panel";
+import { BuiltInAchievements } from "./modules/achievements/built-in-achievements";
 import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
 import { CrossBar } from "./modules/action-bar/cross-bar";
@@ -83,6 +87,7 @@ export function startSteamDeckUI(
 	dialogue: IDialogueClient,
 	dialogueCamera: IDialogueCamera,
 	vendor: IVendorClient,
+	achievements: IAchievementsClient,
 	toys: IToysClient,
 ) {
 	const pool = new FramePoolManager(factory);
@@ -152,6 +157,23 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const builtInAchievements = new BuiltInAchievements(
+		new FrameSuppression(pool),
+		events,
+	);
+	const achievementsPanel = new AchievementsPanel(
+		pool,
+		achievements,
+		() => {
+			builtInAchievements.close();
+			ui.closePanel("fullscreen", "achievements");
+		},
+		scheduler,
+	);
+	ui.registerPanel(achievementsPanel);
+	modules.register(
+		new AchievementsModule(ui, events, achievementsPanel, builtInAchievements),
+	);
 	const vendorPanel = new VendorPanel("vendor", pool, vendor, () =>
 		vendorModule.close(),
 	);
@@ -332,6 +354,7 @@ export function startSteamDeckUI(
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();
 			buybackPanel.destroy();
+			achievementsPanel.destroy();
 		},
 	};
 }

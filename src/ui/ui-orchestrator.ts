@@ -60,7 +60,10 @@ export class UIOrchestrator implements IUIOrchestrator {
 		if (!panel) throw new Error(`Unknown panel: ${panelId}`);
 		const target = this.getContainer(position, containerId);
 		for (const container of this.containers.values()) {
-			if (container !== target && container.position === position)
+			if (
+				container !== target &&
+				(position === "fullscreen" || container.position === position)
+			)
 				while (container.activePanelId !== undefined) container.popPanel();
 		}
 		target.swapPanel(panel);
