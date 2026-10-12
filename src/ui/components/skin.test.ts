@@ -5,6 +5,9 @@ import { Frame } from "./frame";
 import { applyButtonSkin, applyWindowSkin } from "./skin";
 
 function setup() {
+	vi.stubGlobal("C_Texture", {
+		GetAtlasInfo: () => ({ width: 32, height: 128 }),
+	});
 	const textures: ReturnType<typeof texture>[] = [];
 	function texture() {
 		return {
@@ -20,6 +23,7 @@ function setup() {
 		};
 	}
 	const native = {
+		GetHeight: () => 40,
 		Hide: vi.fn(),
 		ClearAllPoints: vi.fn(),
 		SetSize: vi.fn(),
@@ -46,6 +50,20 @@ it("uses character window artwork and reuses its corners and edges", () => {
 		"UI-Frame-Metal-CornerTopLeft",
 		true,
 	);
+	for (const [index, point, x, y] of [
+		[1, "TOPLEFT", -8, 16],
+		[2, "TOPRIGHT", 4, 16],
+		[3, "BOTTOMLEFT", -8, -3],
+		[4, "BOTTOMRIGHT", 4, -3],
+	] as const) {
+		expect(textures.at(index)?.SetPoint).toHaveBeenLastCalledWith(
+			point,
+			native,
+			point,
+			x,
+			y,
+		);
+	}
 	applyWindowSkin(pool, native);
 	expect(native.CreateTexture).toHaveBeenCalledTimes(9);
 	pool.release("Frame", native);
@@ -55,18 +73,35 @@ it("uses character window artwork and reuses its corners and edges", () => {
 	}
 });
 
-it("uses sliced Blizzard button textures and keeps selected buttons visibly distinct", () => {
+it("uses Escape menu button atlases with proportional caps and distinct selected artwork", () => {
 	const { native, pool, textures } = setup();
 	applyButtonSkin(pool, native, false);
-	expect(textures.at(2)?.SetTexCoord).toHaveBeenLastCalledWith(
-		0.09375,
-		0.53125,
-		0,
-		0.6875,
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"128-RedButton-Left",
+		false,
 	);
+	expect(textures.at(1)?.SetAtlas).toHaveBeenLastCalledWith(
+		"128-RedButton-Right",
+		false,
+	);
+	expect(textures.at(2)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center",
+		false,
+	);
+	expect(textures.at(0)?.SetWidth).toHaveBeenLastCalledWith(10);
+	expect(textures.at(1)?.SetWidth).toHaveBeenLastCalledWith(10);
 	applyButtonSkin(pool, native, true);
-	expect(textures.at(0)?.SetTexture).toHaveBeenLastCalledWith(
-		"Interface\\Buttons\\UI-Panel-Button-Down",
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"128-RedButton-Left-Pressed",
+		false,
+	);
+	expect(textures.at(1)?.SetAtlas).toHaveBeenLastCalledWith(
+		"128-RedButton-Right-Pressed",
+		false,
+	);
+	expect(textures.at(2)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center-Pressed",
+		false,
 	);
 	expect(native.CreateTexture).toHaveBeenCalledTimes(3);
 });
@@ -80,7 +115,8 @@ it("clears button caps when a reused list row becomes a heading", () => {
 		expect(cap.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	expect(textures.at(0)?.SetAllPoints).toHaveBeenCalled();
 	frame.setButtonBackground();
-	expect(textures.at(1)?.SetTexture).toHaveBeenLastCalledWith(
-		"Interface\\Buttons\\UI-Panel-Button-Up",
+	expect(textures.at(1)?.SetAtlas).toHaveBeenLastCalledWith(
+		"128-RedButton-Left",
+		false,
 	);
 });
