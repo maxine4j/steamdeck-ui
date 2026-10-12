@@ -431,6 +431,17 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("type", spell ? "spell" : undefined);
 		native.SetAttribute("spell", spell);
 	}
+	setItem(item?: number): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Item requires a secure button");
+		if (InCombatLockdown()) return;
+		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string | number): void;
+		};
+		native.RegisterForClicks("AnyUp", "AnyDown");
+		native.SetAttribute("type", item ? "item" : undefined);
+		native.SetAttribute("item", item ? `item:${item}` : undefined);
+	}
 	click(): void {
 		(this.acquire() as WowFrame & { Click(): void }).Click();
 	}
@@ -554,7 +565,10 @@ export class Frame implements IUIComponent {
 			input.SetScript("OnEscapePressed", undefined);
 			input.SetScript("OnEnterPressed", undefined);
 		}
-		if (this.frameType === "SecureButton") this.setSpell();
+		if (this.frameType === "SecureButton") {
+			this.setSpell();
+			this.setItem();
+		}
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();

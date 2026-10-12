@@ -5,6 +5,43 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("configures secure item activation and clears item attributes before pooling", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"toy",
+		new FramePoolManager({ createFrame: () => native }),
+		"SecureButton",
+	);
+	frame.setItem(42);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", "item");
+	expect(native.SetAttribute).toHaveBeenCalledWith("item", "item:42");
+	combat = true;
+	native.SetAttribute.mockClear();
+	frame.setItem(43);
+	expect(native.SetAttribute).not.toHaveBeenCalled();
+	combat = false;
+	frame.destroy();
+	expect(native.SetAttribute).toHaveBeenCalledWith("item", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
+});
+
 it("only updates changed label content or layout and resets cached state on release", () => {
 	const label = {
 		ClearAllPoints: vi.fn(),
