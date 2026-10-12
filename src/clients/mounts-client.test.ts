@@ -276,6 +276,68 @@ it("finishes the full scan without duplicate or skipped IDs when unfavouriting r
 	expect(result.map((mount) => mount.id)).toContain(21);
 });
 
+it("prefetches bounded enumeration and counts, then serves cached mounts", () => {
+	const pending: (() => void)[] = [];
+	const displayed = vi.fn((id: number) => [
+		`Mount ${id}`,
+		id,
+		id,
+		false,
+		true,
+		1,
+		false,
+		false,
+		undefined,
+		false,
+		true,
+		id,
+	]);
+	const info = vi.fn(() => [
+		"Mount",
+		1,
+		1,
+		false,
+		true,
+		1,
+		false,
+		false,
+		undefined,
+		false,
+		true,
+	]);
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => 25,
+		GetDisplayedMountInfo: displayed,
+		GetMountIDs: () => Array.from({ length: 25 }, (_, i) => i + 1),
+		GetMountInfoByID: info,
+	});
+	const client = new MountsClient({
+		nextFrame: (callback) => {
+			pending.push(callback);
+			return () => {};
+		},
+	});
+	client.prefetch();
+	expect(displayed).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(20);
+	const done = vi.fn();
+	client.load(done);
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(25);
+	expect(info).toHaveBeenCalledTimes(15);
+	pending.shift()?.();
+	expect(done).toHaveBeenCalledWith(expect.any(Array), {
+		collected: 25,
+		total: 25,
+	});
+	client.load(done);
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(25);
+	expect(info).toHaveBeenCalledTimes(25);
+	expect(done).toHaveBeenCalledTimes(2);
+});
+
 it("loads the journal across frames and cancels an obsolete load", () => {
 	const pending: (() => void)[] = [];
 	const nextFrame = (callback: () => void) => {

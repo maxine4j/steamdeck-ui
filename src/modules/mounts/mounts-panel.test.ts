@@ -61,6 +61,9 @@ function setup() {
 	};
 	const cancel = vi.fn();
 	const client: IMountsClient = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
 		load: vi.fn(() => cancel),
 		getMounts: vi.fn(() => []),
 		getCount: vi.fn(() => ({ collected: 0, total: 0 })),

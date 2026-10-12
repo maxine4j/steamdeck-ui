@@ -11,7 +11,11 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 		restore: vi.fn(),
 		isOpen: vi.fn(() => true),
 	};
-	const module = new ToysModule(ui, events, view, native);
+	const module = new ToysModule(ui, events, view, native, {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
+	});
 	module.disableBuiltIn();
 	module.initialize();
 	expect(native.disable).toHaveBeenCalledOnce();
@@ -33,4 +37,23 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	expect(view.refresh).toHaveBeenCalledTimes(2);
 	expect(view.refreshCooldowns).toHaveBeenCalledTimes(1);
 	expect(native.restore).toHaveBeenCalledOnce();
+});
+
+it("warms the toy journal at initialization and invalidates item metadata before refreshing", () => {
+	const events = createTestEventBus();
+	const journal = { prefetch: vi.fn(), invalidate: vi.fn(), stop: vi.fn() };
+	const module = new ToysModule(
+		{ openPanel: vi.fn(), closePanel: vi.fn() },
+		events,
+		{ refresh: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() },
+		{ disable: vi.fn(), restore: vi.fn(), isOpen: () => false },
+		journal,
+	);
+	module.initialize();
+	expect(journal.prefetch).toHaveBeenCalledOnce();
+	events.emit("TOYS_CHANGED");
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	expect(journal.invalidate).toHaveBeenCalledTimes(2);
+	module.shutdown();
+	expect(journal.stop).toHaveBeenCalledOnce();
 });
