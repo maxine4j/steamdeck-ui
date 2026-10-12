@@ -2,6 +2,8 @@ export interface INavigable {
 	navId: string;
 	/** Logical column; gaps are explicit because Lua arrays cannot retain holes. */
 	navColumn?: number;
+	/** Resolve current item data when focus or the navigation graph refreshes. */
+	tooltipItem?(): string | number | undefined;
 	onFocus(): void;
 	onBlur(): void;
 	onInteract(): void; // Maps to A button

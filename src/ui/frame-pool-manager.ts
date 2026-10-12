@@ -1,6 +1,7 @@
 import type { WowFrame, WowLine, WowTexture } from "../types";
 export type FrameType =
 	| "GameTooltip"
+	| "ShoppingTooltip"
 	| "Frame"
 	| "SecureFrame"
 	| "Button"

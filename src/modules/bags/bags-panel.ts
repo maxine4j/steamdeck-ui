@@ -200,6 +200,10 @@ export class BagsPanel implements IPanel {
 					);
 					cells.push({
 						...node,
+						tooltipItem: () =>
+							this.mounted && !this.rendering
+								? (source?.hyperlink ?? item.itemId)
+								: undefined,
 						onAlternate: () => {
 							if (this.mounted && !this.rendering && source)
 								this.actions.useItem(source);

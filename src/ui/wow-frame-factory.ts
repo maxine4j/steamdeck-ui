@@ -11,12 +11,14 @@ export class WowFrameFactory implements FrameFactory {
 				UIParent,
 				"SecureHandlerBaseTemplate",
 			);
-		if (type === "GameTooltip")
+		if (type === "GameTooltip" || type === "ShoppingTooltip")
 			return CreateFrame(
 				"GameTooltip",
 				`SteamDeckUIItemTooltip${++this.nextTooltipId}`,
 				UIParent,
-				"GameTooltipTemplate",
+				type === "ShoppingTooltip"
+					? "ShoppingTooltipTemplate"
+					: "GameTooltipTemplate",
 			);
 		if (type === "SecureStateButton")
 			return CreateFrame(

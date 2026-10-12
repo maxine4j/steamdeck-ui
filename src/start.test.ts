@@ -41,6 +41,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetHeight: vi.fn(),
 				SetWidth: vi.fn(),
 			};
+			let shown = false;
 			const frame = {
 				CreateFontString: () => ({
 					SetText: vi.fn((text: string) => {
@@ -68,8 +69,14 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				GetVerticalScroll: () => 0,
 				GetVerticalScrollRange: () => 0,
 				SetVerticalScroll: vi.fn(),
-				Show: vi.fn(),
-				Hide: vi.fn(),
+				Show: vi.fn(() => {
+					shown = true;
+				}),
+				Hide: vi.fn(() => {
+					shown = false;
+				}),
+				IsShown: () => shown,
+				RefreshData: vi.fn(),
 				SetParent: vi.fn(),
 				SetFrameStrata: vi.fn(),
 				SetFrameLevel: vi.fn(),
@@ -99,7 +106,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 	};
 	const events = createTestEventBus();
-	const nativeParent = {};
+	const nativeParent = { GetWidth: () => 1920, GetHeight: () => 1080 };
+	vi.stubGlobal("UIParent", nativeParent);
+	const compare = vi.fn();
+	vi.stubGlobal("GameTooltip_ShowCompareItem", compare);
 	const builtIns = Array.from({ length: 7 }, () => ({
 		GetParent: () => nativeParent,
 		SetParent: vi.fn(),
@@ -332,10 +342,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 		0,
 	);
-	const count = frames.length;
 	expect(app.navigation.focusedId).toBe("bags-group-toggle");
 	app.navigation.moveDown();
 	expect(app.navigation.focusedId).toContain("bags-item-42");
+	expect(compare).toHaveBeenCalledOnce();
+	const focusedTooltip = compare.mock.lastCall?.at(0) as WowFrame;
+	expect(focusedTooltip.SetFrameStrata).toHaveBeenCalledWith("TOOLTIP");
+	const count = frames.length;
 	events.emit("BAG_UPDATE_DELAYED");
 	flush();
 	expect(app.navigation.focusedId).toContain("bags-item-42");
@@ -347,8 +360,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(inventory.useItem).toHaveBeenCalledOnce();
 	events.emit("NAV_CONTEXT");
 	expect(app.navigation.focusedId).toBe("item-actions-use");
+	expect(focusedTooltip.Hide).toHaveBeenCalled();
 	const detailTooltip = frames.find(
 		(frame) =>
+			frame !== focusedTooltip &&
 			"SetHyperlink" in frame &&
 			vi.mocked(
 				(frame as WowFrame & { SetHyperlink: ReturnType<typeof vi.fn> })

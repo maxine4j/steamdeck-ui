@@ -168,6 +168,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(grid.at(0)?.at(0)?.navId).toBe("bags-group-toggle");
 	expect(grid.flat().filter(Boolean)).toHaveLength(3);
 	const reagent = grid.flat().find((node) => node?.navId.includes("item-42"));
+	expect(reagent?.tooltipItem?.()).toBe(42);
 	reagent?.onFocus();
 	expect(focus).toHaveBeenLastCalledWith(true);
 	reagent?.onInteract();
