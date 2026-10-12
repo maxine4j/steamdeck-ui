@@ -3,6 +3,8 @@ export type FrameType =
 	| "Frame"
 	| "Button"
 	| "SecureButton"
+	| "SecureStateButton"
+	| "Cooldown"
 	| "EditBox"
 	| "StatusBar"
 	| "ScrollFrame"

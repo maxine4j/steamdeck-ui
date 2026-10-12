@@ -1,4 +1,7 @@
 export type ApplicationEvent =
+	| "ACTION_BAR_CHANGED"
+	| "ACTION_BAR_CURSOR_CHANGED"
+	| "COMBAT_ENDED"
 	| "PLAYER_LOGIN"
 	| "BAG_UPDATE_DELAYED"
 	| "PLAYER_MONEY"

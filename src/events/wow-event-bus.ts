@@ -15,6 +15,19 @@ const characterStatEvents = [
 	"SPELL_POWER_CHANGED",
 	"PLAYER_ENTERING_WORLD",
 ];
+const actionBarEvents = [
+	"ACTIONBAR_SLOT_CHANGED",
+	"ACTIONBAR_UPDATE_COOLDOWN",
+	"SPELL_UPDATE_COOLDOWN",
+	"SPELL_UPDATE_CHARGES",
+	"UPDATE_MACROS",
+	"PLAYER_ENTERING_WORLD",
+];
+const actionCursorEvents = [
+	"CURSOR_CHANGED",
+	"ACTIONBAR_SHOWGRID",
+	"ACTIONBAR_HIDEGRID",
+];
 const characterUnitEvents = [
 	"UNIT_STATS",
 	"UNIT_MAXHEALTH",
@@ -72,6 +85,8 @@ export class WowEventBus implements IEventBus {
 		this.frame.RegisterEvent("ITEM_DATA_LOAD_RESULT");
 		this.frame.RegisterEvent("PLAYER_EQUIPMENT_CHANGED");
 		this.frame.RegisterEvent("UNIT_MODEL_CHANGED");
+		for (const event of actionBarEvents) this.frame.RegisterEvent(event);
+		for (const event of actionCursorEvents) this.frame.RegisterEvent(event);
 		for (const event of [
 			...characterStatEvents,
 			...characterUnitEvents,
@@ -81,6 +96,10 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
+			if (actionBarEvents.includes(event)) this.emit("ACTION_BAR_CHANGED");
+			if (actionCursorEvents.includes(event))
+				this.emit("ACTION_BAR_CURSOR_CHANGED");
+			if (event === "PLAYER_REGEN_ENABLED") this.emit("COMBAT_ENDED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");
 			if (

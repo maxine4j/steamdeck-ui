@@ -1,0 +1,216 @@
+import type { IFramePoolManager } from "../frame-pool-manager";
+import type { INavigable } from "../navigation/types";
+import { Frame } from "./frame";
+
+export interface GridItem {
+	readonly id: string;
+	readonly name: string;
+	readonly icon: number;
+	readonly detail?: string;
+	readonly hyperlink?: string;
+	readonly selected?: boolean;
+	readonly activate: () => void;
+	readonly secondary?: { readonly label: string; activate(): void };
+}
+export interface GridGroup {
+	readonly id: string;
+	readonly label?: string;
+	readonly items: readonly GridItem[];
+}
+interface Cell {
+	readonly frame: Frame;
+	readonly icon: Frame;
+	readonly secondary: Frame;
+	readonly nav: INavigable;
+	readonly secondaryNav: INavigable;
+}
+
+/** Generic grouped two-column item tiles, with pooled controls and a scroll viewport. */
+export class ItemGrid {
+	private readonly viewport: Frame;
+	private readonly content: Frame;
+	private readonly cells: Cell[] = [];
+	private readonly headers: Frame[] = [];
+	private groups: readonly GridGroup[] = [];
+	private items: readonly GridItem[] = [];
+	private grid: INavigable[][] = [];
+	private mounted = false;
+	constructor(
+		private readonly id: string,
+		private readonly pool: IFramePoolManager,
+	) {
+		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
+		this.content = new Frame(`${id}-content`, pool);
+	}
+	setGroups(groups: readonly GridGroup[]): void {
+		this.groups = groups;
+		if (this.mounted) this.render();
+	}
+	mount(parent: Frame, top = 112, bottom = 16): void {
+		this.viewport.inset(parent, 16, top, 16, bottom);
+		this.content.setParent(this.viewport);
+		this.viewport.setScrollContent(this.content);
+		this.viewport.show();
+		this.content.show();
+		this.mounted = true;
+		this.render();
+	}
+	private render(): void {
+		const items: GridItem[] = [];
+		this.grid = [];
+		let y = 0;
+		let headerCount = 0;
+		for (const group of this.groups) {
+			if (group.items.length === 0) continue;
+			if (group.label !== undefined) {
+				let header = this.headers.at(headerCount);
+				if (!header) {
+					header = new Frame(`${this.id}-header-${headerCount}`, this.pool);
+					this.headers.push(header);
+				}
+				header.setParent(this.content);
+				header.layout(460, 24, "TOPLEFT", this.content, 0, -y);
+				header.setLabel("label", group.label, "LEFT", 0, 0, 15, 460);
+				header.show();
+				headerCount++;
+				y += 28;
+			}
+			let row: INavigable[] = [];
+			group.items.forEach((item, groupIndex) => {
+				const index = items.length;
+				items.push(item);
+				let cell = this.cells.at(index);
+				if (!cell) {
+					const frame = new Frame(
+						`${this.id}-cell-${index}`,
+						this.pool,
+						"Button",
+					);
+					const secondary = new Frame(
+						`${this.id}-secondary-${index}`,
+						this.pool,
+						"Button",
+					);
+					cell = {
+						frame,
+						secondary,
+						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
+						nav: {
+							navId: item.id,
+							onFocus: () => frame.setColor(0.3, 0.25, 0),
+							onBlur: () => this.style(index),
+							onInteract: () => {
+								if (this.mounted) this.items.at(index)?.activate();
+							},
+						},
+						secondaryNav: {
+							navId: `${item.id}-secondary`,
+							onFocus: () => secondary.setColor(0.3, 0.25, 0),
+							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
+							onInteract: () => {
+								if (this.mounted) this.items.at(index)?.secondary?.activate();
+							},
+						},
+					};
+					this.cells.push(cell);
+				}
+				cell.nav.navId = item.id;
+				cell.secondaryNav.navId = `${item.id}-secondary`;
+				cell.frame.setParent(this.content);
+				cell.frame.layout(
+					226,
+					60,
+					"TOPLEFT",
+					this.content,
+					(groupIndex % 2) * 234,
+					-y - Math.floor(groupIndex / 2) * 66,
+				);
+				cell.icon.setParent(cell.frame);
+				cell.icon.layout(44, 44, "TOPLEFT", cell.frame, 6, -8);
+				cell.icon.setIcon(item.icon);
+				cell.icon.show();
+				const width = item.secondary ? 132 : 164;
+				cell.frame.setLabel("name", item.name, "TOPLEFT", 56, -8, 12, width);
+				cell.frame.setLabel(
+					"detail",
+					item.detail ?? "",
+					"BOTTOMLEFT",
+					56,
+					6,
+					11,
+					width,
+				);
+				cell.frame.setTooltip(item.name, item.hyperlink);
+				cell.frame.onClick((button) => {
+					if (!this.mounted) return;
+					if (button === "LeftButton") this.items.at(index)?.activate();
+					else if (button === "RightButton")
+						this.items.at(index)?.secondary?.activate();
+				});
+				row.push(cell.nav);
+				if (item.secondary) {
+					cell.secondary.setParent(cell.frame);
+					cell.secondary.layout(28, 28, "TOPRIGHT", cell.frame, -4, -4);
+					cell.secondary.setColor(0.12, 0.12, 0.12);
+					cell.secondary.setLabel("label", item.secondary.label);
+					cell.secondary.onClick((button) => {
+						if (this.mounted && button === "LeftButton")
+							this.items.at(index)?.secondary?.activate();
+					});
+					cell.secondary.show();
+					row.push(cell.secondaryNav);
+				} else cell.secondary.hide();
+				cell.frame.show();
+				if (groupIndex % 2 === 1 || groupIndex === group.items.length - 1) {
+					this.grid.push(row);
+					row = [];
+				}
+			});
+			y += Math.ceil(group.items.length / 2) * 66 + 12;
+		}
+		this.items = items;
+		items.forEach((_item, index) => {
+			this.style(index);
+		});
+		this.content.layout(460, Math.max(1, y), "TOPLEFT", this.viewport);
+		this.content.setLabel(
+			"empty",
+			items.length === 0 ? "No items match your filters" : "",
+			"TOPLEFT",
+			0,
+			-8,
+		);
+		for (let index = items.length; index < this.cells.length; index++)
+			this.cells.at(index)?.frame.hide();
+		for (let index = headerCount; index < this.headers.length; index++)
+			this.headers.at(index)?.hide();
+		this.viewport.clampScroll();
+	}
+	private style(index: number): void {
+		const color: readonly [number, number, number] = this.items.at(index)
+			?.selected
+			? [0.25, 0.2, 0.05]
+			: [0.08, 0.08, 0.08];
+		this.cells.at(index)?.frame.setColor(...color);
+	}
+	unmount(): void {
+		this.mounted = false;
+		this.viewport.hide();
+	}
+	getNavGrid(): INavigable[][] {
+		return this.mounted ? this.grid : [];
+	}
+	destroy(): void {
+		this.unmount();
+		for (const cell of this.cells) {
+			cell.secondary.destroy();
+			cell.icon.destroy();
+			cell.frame.destroy();
+		}
+		for (const header of this.headers) header.destroy();
+		this.cells.length = 0;
+		this.headers.length = 0;
+		this.content.destroy();
+		this.viewport.destroy();
+	}
+}

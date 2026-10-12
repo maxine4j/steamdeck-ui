@@ -155,6 +155,15 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			applyEquipment: vi.fn(),
 			getUtilitySpells: () => ({ favourite: 150544, flight: 1 }),
 		},
+		{
+			canModify: () => false,
+			syncBuiltInVisibility: vi.fn(),
+			disableBuiltIn: vi.fn(),
+			restore: vi.fn(),
+			read: vi.fn(),
+			bind: vi.fn(),
+			getSlotDriver: vi.fn(),
+		},
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);

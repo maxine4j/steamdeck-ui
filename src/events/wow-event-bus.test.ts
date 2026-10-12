@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { WowEventFrame } from "../types";
-import { WowEventBus } from "./wow-event-bus";
 import { createTestEventBus } from "./test-event-bus";
+import { WowEventBus } from "./wow-event-bus";
 
 it("forwards native login events through the hidden event frame", () => {
 	let dispatch: (
@@ -87,6 +87,34 @@ it("forwards native login events through the hidden event frame", () => {
 	expect(titles).toHaveBeenCalledOnce();
 	dispatch(frame, "UNIT_NAME_UPDATE", "player");
 	expect(titles).toHaveBeenCalledTimes(2);
+	const actions = vi.fn(),
+		combatEnded = vi.fn();
+	bus.subscribe("ACTION_BAR_CHANGED", actions);
+	bus.subscribe("COMBAT_ENDED", combatEnded);
+	for (const event of [
+		"ACTIONBAR_SLOT_CHANGED",
+		"ACTIONBAR_UPDATE_COOLDOWN",
+		"SPELL_UPDATE_COOLDOWN",
+		"SPELL_UPDATE_CHARGES",
+		"UPDATE_MACROS",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(actions).toHaveBeenCalledTimes(5);
+	dispatch(frame, "PLAYER_REGEN_ENABLED");
+	expect(combatEnded).toHaveBeenCalledOnce();
+	const cursor = vi.fn();
+	bus.subscribe("ACTION_BAR_CURSOR_CHANGED", cursor);
+	for (const event of [
+		"CURSOR_CHANGED",
+		"ACTIONBAR_SHOWGRID",
+		"ACTIONBAR_HIDEGRID",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(cursor).toHaveBeenCalledTimes(3);
 });
 
 it("deduplicates subscriptions and removes unsubscribed handlers", () => {

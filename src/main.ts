@@ -1,3 +1,4 @@
+import { ActionBarClient } from "./clients/action-bar-client";
 import { CharacterClient } from "./clients/character-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MountsClient } from "./clients/mounts-client";
@@ -5,6 +6,8 @@ import { ReputationClient } from "./clients/reputation-client";
 import { TitlesClient } from "./clients/titles-client";
 import { WowEventBus } from "./events/wow-event-bus";
 import { startSteamDeckUI } from "./start";
+import { FrameSuppression } from "./ui/components/frame-suppression";
+import { FramePoolManager } from "./ui/frame-pool-manager";
 import { WowFrameFactory } from "./ui/wow-frame-factory";
 
 const frameFactory = new WowFrameFactory();
@@ -21,4 +24,5 @@ startSteamDeckUI(
 	reputation,
 	titles,
 	new MountsClient(),
+	new ActionBarClient(new FrameSuppression(new FramePoolManager(frameFactory))),
 );

@@ -1,9 +1,12 @@
+import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IEventBus } from "./events/types";
+import { ActionBarModule } from "./modules/action-bar/action-bar-module";
+import { CrossBar } from "./modules/action-bar/cross-bar";
 import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
@@ -33,6 +36,7 @@ export function startSteamDeckUI(
 	reputation: IReputationClient,
 	titles: ITitlesClient,
 	mounts: IMountsClient,
+	actions: IActionBarClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const characterSuppression = new FrameSuppression(pool);
@@ -60,6 +64,9 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
+	modules.register(
+		new ActionBarModule(events, actions, new CrossBar(pool, actions)),
+	);
 	const builtInMounts = new BuiltInMounts(new FrameSuppression(pool), events);
 	const mountsPanel = new MountsPanel(pool, mounts, () => {
 		builtInMounts.close();
