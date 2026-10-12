@@ -104,16 +104,23 @@ it("converts journal entries and item expansion metadata without using native fr
 	]);
 });
 
-it("bounds enumeration per frame and cancels work without publishing partial collections", () => {
-	const { client, pending } = setup(45);
+it("finishes bounded enumeration after closing and reuses the cache on reopening", () => {
+	const { client, api, pending } = setup(45);
+	const info = vi.spyOn(api, "GetToyInfo");
 	const done = vi.fn();
 	const cancel = client.load(done);
 	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(20);
 	expect(done).not.toHaveBeenCalled();
 	expect(pending).toHaveLength(1);
 	cancel();
 	while (pending.length) pending.shift()?.();
 	expect(done).not.toHaveBeenCalled();
+	expect(info).toHaveBeenCalledTimes(45);
+	client.load(done);
+	pending.shift()?.();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
+	expect(info).toHaveBeenCalledTimes(45);
 });
 
 it("reports scanned entries against the total each frame, including skipped entries", () => {
@@ -179,6 +186,7 @@ it("requests missing metadata once and re-reads loaded expansion data", () => {
 		0,
 		11,
 	]);
+	client.invalidate();
 	client.load(done);
 	pending.shift()?.();
 	expect(done.mock.calls.at(-1)?.at(0).at(0).expansionId).toBe(11);

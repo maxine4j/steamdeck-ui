@@ -40,8 +40,43 @@ it("starts prefetch immediately and shares it with opening and reopening", () =>
 	expect(scan).toHaveBeenCalledOnce();
 });
 
-it("coalesces invalidations during warming and leaves hidden completed caches dirty", () => {
-	const { cache, scan } = setup();
+it("finishes a direct load after closing and caches it for reopening", () => {
+	const { cache, scan, cancel, flush } = setup();
+	const closed = vi.fn();
+	cache.load(closed)();
+	expect(cancel).not.toHaveBeenCalled();
+	scan.mock.calls.at(0)?.at(0)?.([1, 2]);
+	expect(closed).not.toHaveBeenCalled();
+	const reopened = vi.fn();
+	cache.load(reopened);
+	flush();
+	expect(reopened).toHaveBeenCalledWith([1, 2]);
+	expect(scan).toHaveBeenCalledOnce();
+});
+
+it("finishes invalidated refreshes while hidden and caches the latest revision", () => {
+	const { cache, scan, cancel, flush } = setup();
+	cache.prefetch();
+	scan.mock.calls.at(0)?.at(0)?.([1]);
+	cache.invalidate();
+	const closed = vi.fn();
+	cache.load(closed)();
+	cache.invalidate();
+	cache.invalidate();
+	scan.mock.calls.at(1)?.at(0)?.([2]);
+	expect(scan).toHaveBeenCalledTimes(3);
+	scan.mock.calls.at(2)?.at(0)?.([3]);
+	expect(cancel).not.toHaveBeenCalled();
+	expect(closed).not.toHaveBeenCalled();
+	const reopened = vi.fn();
+	cache.load(reopened);
+	flush();
+	expect(reopened).toHaveBeenCalledWith([3]);
+	expect(scan).toHaveBeenCalledTimes(3);
+});
+
+it("coalesces invalidations and refreshes a completed cache without opening a panel", () => {
+	const { cache, scan, flush } = setup();
 	cache.prefetch();
 	cache.invalidate();
 	cache.invalidate();
@@ -51,9 +86,15 @@ it("coalesces invalidations during warming and leaves hidden completed caches di
 	scan.mock.calls.at(1)?.at(0)?.([2]);
 	cache.invalidate();
 	cache.invalidate();
-	expect(scan).toHaveBeenCalledTimes(2);
-	cache.load(vi.fn());
 	expect(scan).toHaveBeenCalledTimes(3);
+	scan.mock.calls.at(2)?.at(0)?.([3]);
+	expect(scan).toHaveBeenCalledTimes(4);
+	scan.mock.calls.at(3)?.at(0)?.([4]);
+	const opened = vi.fn();
+	cache.load(opened);
+	flush();
+	expect(opened).toHaveBeenCalledWith([4]);
+	expect(scan).toHaveBeenCalledTimes(4);
 });
 
 it("keeps warming after a panel closes and cancels the scan on shutdown", () => {

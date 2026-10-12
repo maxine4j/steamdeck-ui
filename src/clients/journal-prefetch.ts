@@ -15,8 +15,7 @@ interface Observer<T, P> {
 
 /** Retains data only; the underlying client still bounds native work per frame. */
 export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
-	private enabled = false;
-	private warming = false;
+	private active = false;
 	private dirty = true;
 	private revision = 0;
 	private generation = 0;
@@ -32,21 +31,21 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		) => () => void,
 	) {}
 	prefetch(): void {
-		this.enabled = true;
+		this.active = true;
 		if (!this.dirty) return;
-		this.warming = true;
 		this.start();
 	}
 	invalidate(): void {
 		this.dirty = true;
 		this.revision++;
+		if (this.active) this.start();
 	}
 	load(
 		done: (value: T) => void,
 		preview?: (value: P) => void,
 		progress?: (completed: number, total: number) => void,
 	): () => void {
-		if (!this.enabled) return this.scan(done, preview, progress);
+		this.active = true;
 		if (!this.dirty && this.value !== undefined) {
 			const value = this.value;
 			const revision = this.revision;
@@ -62,6 +61,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		this.observers.add(observer);
 		this.start();
 		return () => {
+			// Closing a panel detaches its callbacks; journal work fills the cache.
 			this.observers.delete(observer);
 		};
 	}
@@ -74,12 +74,11 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 				if (generation !== this.generation) return;
 				this.cancel = undefined;
 				if (revision !== this.revision) {
-					if (this.warming || this.observers.size > 0) this.start();
+					this.start();
 					return;
 				}
 				this.value = value;
 				this.dirty = false;
-				this.warming = false;
 				const observers = [...this.observers];
 				this.observers.clear();
 				for (const observer of observers) observer.done(value);
@@ -98,8 +97,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 	}
 	stop(): void {
 		this.generation++;
-		this.enabled = false;
-		this.warming = false;
+		this.active = false;
 		this.invalidate();
 		this.cancel?.();
 		this.cancel = undefined;

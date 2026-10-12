@@ -268,7 +268,12 @@ it("finishes the full scan without duplicate or skipped IDs when unfavouriting r
 		},
 	});
 	const done = vi.fn();
-	client.load(done, () => client.setFavourite(1, false, vi.fn()));
+	let changed = false;
+	client.load(done, () => {
+		if (changed) return;
+		changed = true;
+		client.setFavourite(1, false, vi.fn());
+	});
 	while (pending.length) pending.shift()?.();
 	const result = done.mock.calls.at(0)?.at(0) as { id: number }[];
 	expect(result).toHaveLength(45);
@@ -338,7 +343,7 @@ it("prefetches bounded enumeration and counts, then serves cached mounts", () =>
 	expect(done).toHaveBeenCalledTimes(2);
 });
 
-it("loads the journal across frames and cancels an obsolete load", () => {
+it("loads the journal across frames and caches an obsolete load for reopening", () => {
 	const pending: (() => void)[] = [];
 	const nextFrame = (callback: () => void) => {
 		let cancelled = false;
@@ -398,14 +403,19 @@ it("loads the journal across frames and cancels an obsolete load", () => {
 	expect(done.mock.lastCall?.at(0)).toHaveLength(44);
 	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 3, total: 3 });
 	expect(progress).toHaveBeenLastCalledWith(48, 48);
+	client.invalidate();
 	const obsolete = vi.fn();
 	const cancel = client.load(obsolete);
 	pending.shift()?.();
-	const calls = displayed.mock.calls.length;
 	cancel();
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(calls);
+	while (pending.length) pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(90);
 	expect(obsolete).not.toHaveBeenCalled();
+	client.load(done);
+	pending.shift()?.();
+	expect(done).toHaveBeenCalledTimes(2);
+	expect(displayed).toHaveBeenCalledTimes(90);
+	expect(info).toHaveBeenCalledTimes(6);
 });
 
 it("publishes a first page before enumeration and counting finish, without hidden mounts", () => {
@@ -469,7 +479,8 @@ it("publishes a first page before enumeration and counting finish, without hidde
 	expect(preview).toHaveBeenCalledOnce();
 	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
 	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 100, total: 100 });
-	// Cancelling from the preview must also prevent scheduling more work.
+	// Closing from the preview detaches callbacks while the cache fills.
+	client.invalidate();
 	let cancel = () => {};
 	const obsolete = vi.fn();
 	cancel = client.load(obsolete, () => cancel());
