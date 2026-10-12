@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { Toy } from "./clients/toys-client";
 import { createTestEventBus } from "./events/test-event-bus";
 import { startSteamDeckUI } from "./start";
 import type { WowFrame, WowTexture } from "./types";
@@ -61,6 +62,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				ClearFocus: vi.fn(),
 				SetText: vi.fn(),
 				SetAttribute: vi.fn(),
+				Click: vi.fn(),
+				SetCooldown: vi.fn(),
+				SetHideCountdownNumbers: vi.fn(),
+				SetDrawEdge: vi.fn(),
+				Clear: vi.fn(),
 				RegisterForClicks: vi.fn(),
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
@@ -220,11 +226,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	};
 	const toys = {
 		isInCombat: () => false,
-		load: vi.fn(
-			(callback: (toys: import("./clients/toys-client").Toy[]) => void) => {
-				callback([]);
-				return vi.fn();
-			},
+		load: vi.fn((callback: (toys: Toy[]) => void) =>
+			scheduler.nextFrame(() =>
+				callback([
+					{
+						id: 9001,
+						name: "Train",
+						icon: 9002,
+						collected: true,
+						favourite: true,
+						expansionId: 0,
+					},
+				]),
+			),
 		),
 		toggleFavourite: vi.fn(),
 		canUse: () => true,
@@ -411,8 +425,36 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	flush();
 	expect(app.ui.getContainer("right").activePanelId).toBe("toys");
 	expect(toys.load).toHaveBeenCalledOnce();
+	expect(app.navigation.focusedId).toBe("toy-9001");
+	const toyButton = frames.find((frame) =>
+		vi
+			.mocked(frame.SetAttribute)
+			.mock.calls.some(([key, value]) => key === "toy" && value === 9001),
+	);
+	expect(toyButton?.SetAttribute).toHaveBeenCalledWith("type", "toy");
+	events.emit("NAV_ALTERNATE");
+	expect(
+		(toyButton as WowFrame & { Click(): void }).Click,
+	).toHaveBeenCalledOnce();
+	events.emit("NAV_CONTEXT");
+	expect(app.navigation.focusedId).toBe("toy-actions-use");
+	expect(
+		frames.some((frame) =>
+			vi
+				.mocked(
+					(frame as WowFrame & { SetHyperlink(link: string): void })
+						.SetHyperlink,
+				)
+				.mock.calls.some(([link]) => link === "item:9001"),
+		),
+	).toBe(true);
+	events.emit("NAV_DOWN");
+	events.emit("NAV_INTERACT");
+	expect(toys.toggleFavourite).toHaveBeenCalledExactlyOnceWith(9001);
+	flush();
 	app.ui.openPanel("bags", "right");
 	flush();
+	compare.mockClear();
 	const bagIconIndex = textures.findIndex((texture) =>
 		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 123),
 	);
@@ -447,10 +489,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		(frame) =>
 			frame !== focusedTooltip &&
 			"SetHyperlink" in frame &&
-			vi.mocked(
-				(frame as WowFrame & { SetHyperlink: ReturnType<typeof vi.fn> })
-					.SetHyperlink,
-			).mock.calls.length > 0,
+			vi
+				.mocked(
+					(frame as WowFrame & { SetHyperlink: ReturnType<typeof vi.fn> })
+						.SetHyperlink,
+				)
+				.mock.calls.some(([link]) => link === "item:42:bonus:123"),
 	);
 	expect(detailTooltip).toBeDefined();
 	expect(
