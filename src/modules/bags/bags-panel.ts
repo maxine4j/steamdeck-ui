@@ -48,6 +48,7 @@ export class BagsPanel implements IPanel {
 	private cancelRender?: () => void;
 	private navGrid: NavGrid = [];
 	private navigationChanged?: () => void;
+	private visibilityChanged?: (visible: boolean) => void;
 	constructor(
 		public readonly id: string,
 		public readonly title: string,
@@ -71,9 +72,13 @@ export class BagsPanel implements IPanel {
 		this.money = copper;
 		if (this.mounted) this.renderMoney();
 	}
+	setVisibilityChanged(callback?: (visible: boolean) => void): void {
+		this.visibilityChanged = callback;
+	}
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
 			throw new Error("Bags requires a frame parent");
+		this.visibilityChanged?.(true);
 		this.frame.fill(parent);
 		this.frame.setBlackBackground();
 		this.frame.setLabel(
@@ -317,6 +322,7 @@ export class BagsPanel implements IPanel {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {
+		this.visibilityChanged?.(false);
 		this.menu.close();
 		this.mounted = false;
 		this.cancelRender?.();

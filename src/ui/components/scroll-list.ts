@@ -12,8 +12,12 @@ export interface ListRow {
 	readonly spell?: number;
 	readonly secondary?: { label: string; activate(): void };
 	readonly detail?: string;
+	readonly height?: number;
+	readonly trailingLabel?: string;
 	readonly tooltip?: string;
 	readonly selected?: boolean;
+	readonly checked?: boolean;
+	readonly enabled?: boolean;
 	readonly fontSize?: number;
 	readonly indent?: number;
 	readonly marginBottom?: number;
@@ -37,6 +41,9 @@ export class ScrollList {
 		track: Frame;
 		progress: Frame;
 		secondary: Frame;
+		checkbox?: Frame;
+		check?: Frame;
+		dimmed: boolean;
 		secondaryNav: INavigable;
 		nav: INavigable;
 		top: number;
@@ -51,7 +58,7 @@ export class ScrollList {
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
-		private readonly title: string,
+		private title: string,
 		private readonly onClose: () => void,
 		private readonly options: {
 			readonly width?: number;
@@ -70,6 +77,14 @@ export class ScrollList {
 		this.scroll = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
 		this.close = new Frame(`${id}-close`, pool, "Button");
+	}
+	setTitle(title: string): void {
+		this.title = title;
+		if (this.mounted)
+			this.frame.setLabel("title", title, "TOPLEFT", 16, -16, 20);
+	}
+	resetScroll(): void {
+		this.scroll.resetScroll();
 	}
 	setRows(rows: readonly ListRow[]): void {
 		const preserve =
@@ -141,7 +156,13 @@ export class ScrollList {
 			this.rows.reduce(
 				(height, row) =>
 					height +
-					(row.heading ? 32 : row.progress ? 64 : 52) +
+					(row.height !== undefined
+						? row.height + 4
+						: row.heading
+							? 32
+							: row.progress
+								? 64
+								: 52) +
 					(row.marginBottom ?? 0),
 				0,
 			),
@@ -152,7 +173,13 @@ export class ScrollList {
 			.reduce(
 				(height, row) =>
 					height +
-					(row.heading ? 32 : row.progress ? 64 : 52) +
+					(row.height !== undefined
+						? row.height + 4
+						: row.heading
+							? 32
+							: row.progress
+								? 64
+								: 52) +
 					(row.marginBottom ?? 0),
 				0,
 			);
@@ -180,6 +207,7 @@ export class ScrollList {
 						"Button",
 					);
 					button = {
+						dimmed: false,
 						top: 0,
 						bottom: 0,
 						frame,
@@ -221,9 +249,19 @@ export class ScrollList {
 				}
 				button.nav.navId = row.id;
 				button.frame.setParent(this.content);
+				const rowHeight =
+					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
+				const iconSize = Math.min(36, rowHeight - 12);
 				button.icon.setParent(button.frame);
 				if (row.icon !== undefined) {
-					button.icon.layout(36, 36, "TOPLEFT", button.frame, 6, -6);
+					button.icon.layout(
+						iconSize,
+						iconSize,
+						"TOPLEFT",
+						button.frame,
+						6,
+						-6,
+					);
 					button.icon.setIcon(row.icon);
 					button.icon.show();
 				} else button.icon.hide();
@@ -239,9 +277,45 @@ export class ScrollList {
 					button.secondary.show();
 				} else button.secondary.hide();
 				const indent = row.indent ?? 0;
-				const textLeft = row.icon === undefined ? 8 : 48;
+				const checkboxLeft = row.icon === undefined ? 8 : iconSize + 12;
+				const textLeft = checkboxLeft + (row.checked === undefined ? 0 : 28);
+				if (row.checked !== undefined) {
+					if (!button.checkbox || !button.check) {
+						button.checkbox = new Frame(
+							`${this.id}-checkbox-${index}`,
+							this.pool,
+						);
+						button.check = new Frame(`${this.id}-check-${index}`, this.pool);
+					}
+					button.checkbox.setParent(button.frame);
+					button.checkbox.layout(
+						18,
+						18,
+						"TOPLEFT",
+						button.frame,
+						checkboxLeft,
+						-6,
+					);
+					button.checkbox.setColor(0.03, 0.03, 0.03);
+					button.checkbox.setBorder([0.7, 0.65, 0.5, 1]);
+					button.check.fill(button.checkbox);
+					button.check.setLabel(
+						"check",
+						"|TInterface\\Buttons\\UI-CheckBox-Check:22:22|t",
+					);
+					button.checkbox.show();
+					if (row.checked) button.check.show();
+					else button.check.hide();
+				} else button.checkbox?.hide();
+				const dimmed = row.enabled === false;
+				if (dimmed !== button.dimmed)
+					button.frame.setOpacity(dimmed ? 0.35 : 1);
+				button.dimmed = dimmed;
 				const textWidth =
 					width - indent - textLeft - 8 - (row.secondary ? 48 : 0);
+				const trailingWidth = row.trailingLabel
+					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
+					: 0;
 				if (row.progress) {
 					button.track.setParent(button.frame);
 					button.track.layout(
@@ -273,44 +347,46 @@ export class ScrollList {
 					button.track.hide();
 				}
 				button.top = offset;
-				button.bottom = offset + (row.heading ? 28 : row.progress ? 60 : 48);
+				button.bottom = offset + rowHeight;
 				button.frame.layout(
 					width - indent,
-					row.heading ? 28 : row.progress ? 60 : 48,
+					rowHeight,
 					"TOPLEFT",
 					this.content,
 					indent,
 					-offset,
 				);
-				offset +=
-					(row.heading ? 32 : row.progress ? 64 : 52) + (row.marginBottom ?? 0);
+				offset += rowHeight + 4 + (row.marginBottom ?? 0);
 				button.frame.setLabel(
 					"label",
 					row.label,
-					"TOPLEFT",
-					row.icon === undefined ? 8 : 48,
-					-6,
+					row.trailingLabel ? "LEFT" : "TOPLEFT",
+					textLeft,
+					row.trailingLabel ? 0 : -6,
 					row.fontSize ?? (row.heading ? 18 : 14),
-					width -
-						indent -
-						(row.icon === undefined ? 16 : 56) -
-						(row.secondary ? 48 : 0),
+					Math.max(1, textWidth - trailingWidth),
+				);
+				button.frame.setLabel(
+					"trailing",
+					row.trailingLabel ?? "",
+					"RIGHT",
+					row.secondary ? -56 : -8,
+					0,
+					row.fontSize ?? 14,
+					trailingWidth,
 				);
 				button.frame.setLabel(
 					"detail",
 					row.detail ?? "",
 					"BOTTOMLEFT",
-					row.icon === undefined ? 8 : 48,
+					textLeft,
 					row.progress ? 18 : 6,
 					12,
-					width -
-						indent -
-						(row.icon === undefined ? 16 : 56) -
-						(row.secondary ? 48 : 0),
+					textWidth,
 				);
 				if (this.options.autoHeight && !row.heading) {
 					button.frame.setLabelWordWrap("label", true);
-					const minimum = row.progress ? 60 : 48;
+					const minimum = rowHeight;
 					const height = Math.max(
 						minimum,
 						button.frame.labelHeight("label") +
@@ -378,7 +454,10 @@ export class ScrollList {
 	}
 	private isReady(index: number): boolean {
 		return (
-			this.mounted && index < this.renderedRows && !this.rows.at(index)?.heading
+			this.mounted &&
+			index < this.renderedRows &&
+			!this.rows.at(index)?.heading &&
+			this.rows.at(index)?.enabled !== false
 		);
 	}
 	unmount(): void {
@@ -393,7 +472,8 @@ export class ScrollList {
 			? this.buttons
 					.slice(0, this.renderedRows)
 					.flatMap((button, index) =>
-						this.rows.at(index)?.heading
+						this.rows.at(index)?.heading ||
+						this.rows.at(index)?.enabled === false
 							? []
 							: [
 									this.rows.at(index)?.secondary
@@ -406,6 +486,8 @@ export class ScrollList {
 	destroy(): void {
 		this.unmount();
 		for (const button of this.buttons) {
+			button.check?.destroy();
+			button.checkbox?.destroy();
 			button.progress.destroy();
 			button.track.destroy();
 			button.secondary.destroy();

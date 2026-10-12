@@ -65,7 +65,9 @@ it("renders category hierarchy and currency icons, routes Y options, and caches 
 			indent: 32,
 			icon: 123,
 			selected: true,
-			detail: "25 / 100 • Watched • Y: Options",
+			height: 32,
+			trailingLabel: "25 / 100",
+			detail: "",
 		},
 	]);
 	rendered.at(2)?.context?.();

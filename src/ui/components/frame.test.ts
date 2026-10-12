@@ -42,7 +42,7 @@ it("configures secure item activation and clears item attributes before pooling"
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
 });
 
-it("only updates changed label content or layout and resets cached state on release", () => {
+it("only updates changed labels and resets cached state and opacity on release", () => {
 	const label = {
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
@@ -52,6 +52,7 @@ it("only updates changed label content or layout and resets cached state on rele
 		SetText: vi.fn(),
 	};
 	const native = {
+		SetAlpha: vi.fn(),
 		Hide: vi.fn(),
 		Show: vi.fn(),
 		SetParent: vi.fn(),
@@ -79,7 +80,10 @@ it("only updates changed label content or layout and resets cached state on rele
 	frame.setLabel("value", "11", "LEFT", 4);
 	expect(label.SetPoint).toHaveBeenCalledTimes(2);
 	expect(label.SetText).toHaveBeenCalledTimes(2);
+	frame.setOpacity(0.35);
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(0.35);
 	frame.destroy();
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(1);
 	label.SetPoint.mockClear();
 	label.SetText.mockClear();
 	frame.setLabel("value", "11", "LEFT", 4);

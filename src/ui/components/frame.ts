@@ -21,6 +21,7 @@ export class Frame implements IUIComponent {
 	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
+	private opacityChanged = false;
 	private texture?: WowTexture;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
@@ -309,6 +310,12 @@ export class Frame implements IUIComponent {
 		this.acquire();
 		this.texture?.SetColorTexture(red, green, blue, alpha);
 	}
+	setOpacity(alpha: number): void {
+		(this.acquire() as WowFrame & { SetAlpha(alpha: number): void }).SetAlpha(
+			alpha,
+		);
+		this.opacityChanged = alpha !== 1;
+	}
 	setTooltip(text: string, hyperlink?: string): void {
 		const native = this.acquire();
 		native.SetScript("OnEnter", () => {
@@ -514,6 +521,9 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.opacityChanged) {
+			this.setOpacity(1);
+		}
 		if (this.focusBorder) {
 			this.focusBorder.SetFrameLevel(0);
 			this.pool.release("Frame", this.focusBorder);
