@@ -41,14 +41,29 @@ const controls: readonly {
 	},
 	{
 		key: "PADLSHOULDER",
-		label: "LB\nCTRL",
+		label: "",
 		x: -100,
 		y: 106,
 		slot: 155,
 		utility: "FIXED",
 	},
 ];
-const modifiers = [{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 }];
+const placeholders = [
+	{
+		key: "PADLTRIGGER",
+		label: "",
+		x: -100,
+		y: 56,
+		icon: "Interface\\AddOns\\SteamDeckUI\\assets\\xbox_s_lt.blp",
+	},
+	{
+		key: "PADRSHOULDER",
+		label: "RB",
+		x: 100,
+		y: 106,
+		icon: "Interface\\AddOns\\SteamDeckUI\\assets\\Target_Wide_Enemy.png",
+	},
+];
 export class CrossBar {
 	private readonly buttons: SecureSlotButton[] = [];
 	private readonly indicators: Frame[] = [];
@@ -59,12 +74,13 @@ export class CrossBar {
 	) {}
 	initialize(): void {
 		if (this.buttons.length > 0) return;
-		for (const modifier of modifiers) {
+		for (const modifier of placeholders) {
 			const indicator = new Frame(`cross-bar-${modifier.key}`, this.pool);
-			indicator.layout(48, 48, "BOTTOM", undefined, -100, modifier.y);
+			indicator.layout(48, 48, "BOTTOM", undefined, modifier.x, modifier.y);
 			indicator.setColor(0.12, 0.18, 0.25, 0.9);
 			indicator.setBorder([0.32, 0.6, 0.85, 1]);
-			indicator.setLabel("modifier", modifier.label);
+			indicator.setIcon(modifier.icon, false);
+			if (modifier.label !== "") indicator.setLabel("modifier", modifier.label);
 			indicator.show();
 			this.indicators.push(indicator);
 		}

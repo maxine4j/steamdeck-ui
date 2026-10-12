@@ -370,10 +370,11 @@ export class Frame implements IUIComponent {
 			this.show();
 		} else this.hide();
 	}
-	setIcon(iconFileId: number): void {
+	setIcon(iconFileId: number | string, crop = true): void {
 		this.acquire();
 		this.texture?.SetTexture(iconFileId);
-		this.texture?.SetTexCoord(0.07, 0.93, 0.07, 0.93);
+		if (crop) this.texture?.SetTexCoord(0.07, 0.93, 0.07, 0.93);
+		else this.texture?.SetTexCoord(0, 1, 0, 1);
 	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")

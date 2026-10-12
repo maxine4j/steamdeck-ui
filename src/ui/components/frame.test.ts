@@ -646,6 +646,14 @@ it("crops the baked icon rim and restores full texture coordinates for pooled re
 	frame.setIcon(133633);
 	expect(texture.SetTexture).toHaveBeenCalledWith(133633);
 	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0.07, 0.93, 0.07, 0.93);
+	frame.setIcon(
+		"Interface\\AddOns\\SteamDeckUI\\assets\\Target_Wide_Enemy.png",
+		false,
+	);
+	expect(texture.SetTexture).toHaveBeenLastCalledWith(
+		"Interface\\AddOns\\SteamDeckUI\\assets\\Target_Wide_Enemy.png",
+	);
+	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
 	frame.destroy();
 	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
 });
