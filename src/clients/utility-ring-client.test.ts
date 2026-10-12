@@ -48,19 +48,32 @@ function setup(className = "HUNTER") {
 }
 
 it.each(["HUNTER", "WARLOCK"])(
-	"uses populated pet actions for %s, including command-token icons",
+	"prepares all pet slots for %s, including command-token icons",
 	(className) => {
 		const client = setup(className);
 		const driver = client.getRingDriver("class");
-		expect(driver.actions).toEqual([
-			{ slot: 1, type: "pet", value: 1 },
-			{ slot: 2, type: "pet", value: 4 },
-		]);
+		expect(driver.actions).toEqual(
+			Array.from({ length: 10 }, (_, index) => ({
+				slot: index + 1,
+				type: "pet",
+				value: index + 1,
+			})),
+		);
 		expect(driver.occupied).toContain("[pet,novehicleui,nopossessbar]");
 		expect(client.readRing("class", 1).icon).toBe("attack-icon");
-		expect(client.readRing("class", 2).icon).toBe(123);
+		expect(client.readRing("class", 4).icon).toBe(123);
 	},
 );
+
+it("prepares pet actions even with no pet so a combat summon needs no protected reconfiguration", () => {
+	const client = setup();
+	const petInfo = vi.fn(() => [] as unknown[]);
+	vi.stubGlobal("GetPetActionInfo", petInfo);
+	expect(client.getRingDriver("class").slots).toHaveLength(10);
+	expect(client.readRing("class", 4).icon).toBeUndefined();
+	petInfo.mockReturnValue(["Bite", 123, false, false, true, true, 456]);
+	expect(client.readRing("class", 4).icon).toBe(123);
+});
 
 it.each(["DRUID", "WARRIOR", "SHAMAN"])(
 	"uses only the available %s forms, and re-reads them after spec changes",

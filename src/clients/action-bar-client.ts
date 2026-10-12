@@ -209,10 +209,10 @@ if pos then return pos.x, pos.y, pos.len end`,
 		)("player");
 		const entries: RingEntry[] = [];
 		if (className === "HUNTER" || className === "WARLOCK") {
+			// Keep native slot identities ready even when the pet is dismissed. A pet
+			// summoned in combat must work without insecure attribute changes.
 			for (let index = 1; index <= 10; index++) {
-				const [name] = GetPetActionInfo(index);
-				if (name)
-					entries.push({ slot: entries.length + 1, type: "pet", value: index });
+				entries.push({ slot: index, type: "pet", value: index });
 			}
 		} else if (["DRUID", "WARRIOR", "SHAMAN"].includes(className)) {
 			for (let index = 1; index <= GetNumShapeshiftForms(); index++) {
@@ -267,7 +267,7 @@ if pos then return pos.x, pos.y, pos.len end`,
 					bag,
 					slot,
 				) as unknown as { isQuestItem: boolean };
-				if (!quest.isQuestItem) continue;
+				if (!quest?.isQuestItem) continue;
 				const id = C_Container.GetContainerItemID(bag, slot);
 				if (!id) continue;
 				const [usable] = C_Item.IsUsableItem(id);
