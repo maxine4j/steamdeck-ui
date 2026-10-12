@@ -30,6 +30,12 @@ it("configures secure item activation and clears item attributes before pooling"
 		"SecureButton",
 	);
 	frame.setItem(42);
+	const after = vi.fn();
+	frame.onPostClick(after);
+	expect(native.SetScript).toHaveBeenCalledWith(
+		"PostClick",
+		expect.any(Function),
+	);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", "item");
 	expect(native.SetAttribute).toHaveBeenCalledWith("item", "item:42");
 	combat = true;
@@ -40,6 +46,7 @@ it("configures secure item activation and clears item attributes before pooling"
 	frame.destroy();
 	expect(native.SetAttribute).toHaveBeenCalledWith("item", undefined);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
 });
 
 it("only updates changed labels and resets cached state and opacity on release", () => {

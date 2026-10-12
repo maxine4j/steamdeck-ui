@@ -449,6 +449,21 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("type", item ? "item" : undefined);
 		native.SetAttribute("item", item ? `item:${item}` : undefined);
 	}
+	/** Observe a secure action without replacing the template's OnClick handler. */
+	onPostClick(callback?: (this: void, button: string) => void): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Post-click handlers require a secure button");
+		const native = this.acquire() as WowFrame & {
+			SetScript(
+				script: "PostClick",
+				handler?: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		native.SetScript(
+			"PostClick",
+			callback ? (_frame, button) => callback(button) : undefined,
+		);
+	}
 	click(): void {
 		(this.acquire() as WowFrame & { Click(): void }).Click();
 	}
@@ -578,6 +593,7 @@ export class Frame implements IUIComponent {
 		if (this.frameType === "SecureButton") {
 			this.setSpell();
 			this.setItem();
+			this.onPostClick();
 		}
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")

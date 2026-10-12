@@ -7,6 +7,58 @@ import { Modal } from "./modal";
 
 afterEach(() => vi.restoreAllMocks());
 
+it("activates secure item options before dismissing and reuses their pooled controls", () => {
+	for (const method of [
+		"modalBackdrop",
+		"setColor",
+		"onClose",
+		"setParent",
+		"setModalLayer",
+		"setFocusBorder",
+		"layout",
+		"setLabel",
+		"onClick",
+		"show",
+		"hide",
+		"setFocused",
+		"setItem",
+	] as const)
+		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
+	const posts = new Map<string, () => void>();
+	vi.spyOn(Frame.prototype, "onPostClick").mockImplementation(
+		function (callback) {
+			if (callback) posts.set(this.id, () => callback("LeftButton"));
+		},
+	);
+	const clicks = vi
+		.spyOn(Frame.prototype, "click")
+		.mockImplementation(function () {
+			posts.get(this.id)?.();
+		});
+	const navigation = new NavigationManager(createTestEventBus());
+	const modal = new Modal(
+		"toys",
+		{} as IFramePoolManager,
+		navigation,
+		createTestEventBus(),
+	);
+	const selected = vi.fn();
+	modal.open("Toy actions", [
+		{ id: "use", label: "Use", item: 42, select: selected },
+	]);
+	expect(Frame.prototype.setItem).toHaveBeenLastCalledWith(42);
+	navigation.interact();
+	expect(clicks).toHaveBeenCalledOnce();
+	expect(selected).toHaveBeenCalledOnce();
+	modal.open("Toy actions", [
+		{ id: "use", label: "Use", item: 43, select: selected },
+	]);
+	expect(Frame.prototype.setItem).toHaveBeenLastCalledWith(43);
+	modal.close();
+	navigation.interact();
+	expect(selected).toHaveBeenCalledTimes(1);
+});
+
 it("moves the active gold border to the modal and restores panel focus on close", () => {
 	for (const method of [
 		"modalBackdrop",
