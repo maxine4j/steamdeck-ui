@@ -11,10 +11,10 @@ export class CurrencyModule implements IModule {
 	private readonly rejected = () => this.view.transferResult(false);
 	private readonly sync = () => {
 		const open = this.native.isOpen();
-		if (open && !this.nativeOpen) this.ui.openPanel(this.id, "left");
+		if (open && !this.nativeOpen) this.ui.openPanel(this.id, "right");
 		if (!open && this.nativeOpen) {
 			this.view.closeOptions();
-			this.ui.closePanel("left", this.id);
+			this.ui.closePanel("right", this.id);
 		}
 		this.nativeOpen = open;
 	};

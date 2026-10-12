@@ -21,10 +21,10 @@ it("routes visibility and data through the bus and restores native UI on shutdow
 	expect(view.transferResult).toHaveBeenCalledWith(false);
 	open = true;
 	events.emit("CURRENCY_VISIBILITY_CHANGED");
-	expect(ui.openPanel).toHaveBeenCalledWith("currency", "left");
+	expect(ui.openPanel).toHaveBeenCalledWith("currency", "right");
 	open = false;
 	events.emit("CURRENCY_VISIBILITY_CHANGED");
-	expect(ui.closePanel).toHaveBeenCalledWith("left", "currency");
+	expect(ui.closePanel).toHaveBeenCalledWith("right", "currency");
 	module.shutdown();
 	events.emit("CURRENCY_CHANGED");
 	expect(view.refresh).toHaveBeenCalledOnce();

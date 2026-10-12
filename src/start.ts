@@ -113,6 +113,20 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	ui.registerPanel(panel, "right");
+	const currencyOptions = new CurrencyOptions(currencyModal, currency, () =>
+		currencyPanel.refresh(),
+	);
+	const currencyPanel = new CurrencyPanel(
+		pool,
+		currency,
+		currencyOptions,
+		() => {
+			builtInCurrency.close();
+			ui.closePanel("right", "currency");
+		},
+		scheduler,
+	);
+	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
 	const dungeonFinderPanel = new DungeonFinderPanel(
 		pool,
@@ -189,20 +203,6 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
-	const currencyOptions = new CurrencyOptions(currencyModal, currency, () =>
-		currencyPanel.refresh(),
-	);
-	const currencyPanel = new CurrencyPanel(
-		pool,
-		currency,
-		currencyOptions,
-		() => {
-			builtInCurrency.close();
-			ui.closePanel("left", "currency");
-		},
-		scheduler,
-	);
-	ui.registerPanel(currencyPanel, "left");
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
 	ui.registerPanel(mountsPanel, "right");
