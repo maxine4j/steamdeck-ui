@@ -8,6 +8,41 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("propagates secure actions to hardware bindings without emitting addon navigation clicks", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("IsModifierKeyDown", () => false);
+	const events = createTestEventBus();
+	const alternate = vi.fn();
+	events.subscribe("NAV_ALTERNATE", alternate);
+	let handle: ((button: string) => boolean) | undefined;
+	const surface: IGamePadInput = {
+		setClickBindings: vi.fn(),
+		setGamePadInput: vi.fn((callback) => {
+			handle = callback;
+		}),
+		destroy: vi.fn(),
+	};
+	const target = {} as import("../ui/components/frame").Frame;
+	const client = new ControllerInputClient(events, surface);
+	client.setActive(true);
+	client.setSecureActions({ alternate: target });
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([
+		{ key: "PAD3", target },
+	]);
+	expect(handle?.("PAD3")).toBe(false);
+	expect(alternate).not.toHaveBeenCalled();
+	client.setSecureActions();
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([]);
+	expect(handle?.("PAD3")).toBe(true);
+	expect(alternate).toHaveBeenCalledOnce();
+	client.setSecureActions({ interact: target });
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([
+		{ key: "PAD1", target },
+	]);
+	client.setActive(false);
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([]);
+});
+
 it("enables directional movement in and out of combat, reserves camera input and restores settings", () => {
 	const set = vi.fn();
 	const cursor = vi.fn();
@@ -26,6 +61,7 @@ it("enables directional movement in and out of combat, reserves camera input and
 	vi.stubGlobal("SetGamePadCursorControl", cursor);
 	vi.stubGlobal("InCombatLockdown", () => false);
 	const client = new ControllerInputClient(createTestEventBus(), {
+		setClickBindings: vi.fn(),
 		setGamePadInput: vi.fn(),
 		destroy: vi.fn(),
 	});
@@ -93,6 +129,7 @@ it("captures navigation only while active, propagates other buttons and restores
 	events.subscribe("NAV_INTERACT", interact);
 	let handler: ((button: string) => boolean) | undefined;
 	const surface: IGamePadInput = {
+		setClickBindings: vi.fn(),
 		setGamePadInput: vi.fn((callback) => {
 			handler = callback;
 		}),
@@ -168,6 +205,7 @@ it("configures quick repeats for D-pad directions only", () => {
 		  }
 		| undefined;
 	const surface: IGamePadInput = {
+		setClickBindings: vi.fn(),
 		setGamePadInput: vi.fn((down, _released, repeat) => {
 			downHandler = down;
 			repeatOptions = repeat;
@@ -195,6 +233,7 @@ it("disables D-pad repeat when navigation deactivates or combat starts", () => {
 	const events = createTestEventBus();
 	const repeatOptions: (GamePadRepeatOptions | undefined)[] = [];
 	const surface: IGamePadInput = {
+		setClickBindings: vi.fn(),
 		setGamePadInput: vi.fn((_callback, _released, repeat) => {
 			repeatOptions.push(repeat);
 		}),
@@ -225,6 +264,7 @@ it("suspends combat modifiers during UI navigation and restores them on close, c
 	});
 	const events = createTestEventBus();
 	const client = new ControllerInputClient(events, {
+		setClickBindings: vi.fn(),
 		setGamePadInput: vi.fn(),
 		destroy: vi.fn(),
 	});

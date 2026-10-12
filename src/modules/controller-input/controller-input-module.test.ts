@@ -6,6 +6,7 @@ it("configures input through its client without registering panels", () => {
 		disableBuiltIn: vi.fn(),
 		initialize: vi.fn(),
 		setActive: vi.fn(),
+		setSecureActions: vi.fn(),
 		shutdown: vi.fn(),
 	};
 	const module = new ControllerInputModule(client);

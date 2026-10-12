@@ -149,14 +149,15 @@ export class Modal implements IModal {
 			}
 			const control = button;
 			grid.push([
-				button.navigationNode(
-					`${this.id}-${option.id}`,
-					secure
-						? () => {
-								if (this.opened) control.click();
-							}
-						: select,
-				),
+				{
+					...button.navigationNode(
+						`${this.id}-${option.id}`,
+						secure ? () => {} : select,
+					),
+					secureActions: secure
+						? () => ({ interact: this.opened ? control : undefined })
+						: undefined,
+				},
 			]);
 			button.show();
 		});

@@ -28,6 +28,7 @@ function setup() {
 		"setIcon",
 		"setOpacity",
 		"setToy",
+		"setHoverTooltip",
 		"setCooldown",
 		"setLabel",
 		"show",
@@ -81,6 +82,20 @@ it("closes the native journal only when the host closes, rather than during pane
 	expect(close).toHaveBeenCalledOnce();
 });
 
+it("clears the focused secure target before asynchronous refresh reuses its icon", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([toy(1)]);
+	const focused = panel.getNavGrid().at(0)?.at(0);
+	expect(focused?.secureActions?.().alternate).toBeDefined();
+	const changed = vi.fn(() =>
+		expect(focused?.secureActions?.().alternate).toBeUndefined(),
+	);
+	panel.setNavigationChanged(changed);
+	panel.refresh();
+	expect(changed).toHaveBeenCalledOnce();
+});
+
 it("renders favourite and expansion grids with X use, Y tooltip actions and scrolling focus", () => {
 	const { panel, parent, client, menu, publish } = setup();
 	panel.onMount(parent);
@@ -91,23 +106,29 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 	).toEqual([["toy-favourite-1"], ["toy-2"], ["toy-1", "toy-3"]]);
 	const node = panel.getNavGrid().at(0)?.at(0);
 	expect(node?.tooltipItem?.()).toEqual({ toy: 1 });
+	const hover = vi
+		.mocked(Frame.prototype.setHoverTooltip)
+		.mock.calls.at(0)
+		?.at(0);
+	expect(hover?.()).toEqual({ toy: 1 });
 	node?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(favourite);
 	node?.onFocus();
 	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
 	const click = vi.spyOn(Frame.prototype, "click").mockImplementation(() => {});
 	node?.onAlternate?.();
-	expect(client.canUse).toHaveBeenCalledWith(1);
-	expect(click).toHaveBeenCalledOnce();
-	expect(click.mock.contexts.at(0)?.id).toBe("toys-icon-0");
+	expect(click).not.toHaveBeenCalled();
+	expect(node?.secureActions?.().alternate?.id).toBe("toys-icon-0");
 	vi.mocked(client.canUse).mockReturnValue(false);
 	node?.onAlternate?.();
-	expect(click).toHaveBeenCalledTimes(1);
+	expect(node?.secureActions?.().alternate).toBeUndefined();
 	panel.onUnmount();
+	expect(hover?.()).toBeUndefined();
 	node?.onContext?.();
 	node?.onAlternate?.();
 	expect(menu.open).toHaveBeenCalledTimes(1);
-	expect(click).toHaveBeenCalledTimes(1);
+	expect(node?.secureActions?.().alternate).toBeUndefined();
+	expect(click).not.toHaveBeenCalled();
 });
 
 it("defers secure frame creation and rendering until combat ends", () => {
@@ -204,6 +225,7 @@ it("rejects stale loads and cancels rendering on unmount, reloading interrupted 
 	panel.onMount(parent);
 	const old = vi.mocked(client.load).mock.calls.at(-1)?.at(0);
 	panel.refresh();
+	changed.mockClear();
 	old?.([toy(99)]);
 	flush();
 	expect(panel.getNavGrid()).toEqual([]);
@@ -216,6 +238,7 @@ it("rejects stale loads and cancels rendering on unmount, reloading interrupted 
 	flush();
 	expect(panel.getNavGrid()).toEqual([]);
 	panel.onMount(parent);
+	changed.mockClear();
 	publish([toy(1)]);
 	expect(
 		panel

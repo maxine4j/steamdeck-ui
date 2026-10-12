@@ -89,6 +89,7 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.menu.close();
+		this.navigationChanged?.();
 		if (!this.mounted || this.client.isInCombat()) return;
 		this.frame.setLabel(
 			"loading",
@@ -185,6 +186,9 @@ export class ToysPanel implements IPanel {
 					const control = cell.icon;
 					const current = () =>
 						this.mounted && !this.dirty && generation === this.generation;
+					control.setHoverTooltip(() =>
+						current() ? { toy: toy.id } : undefined,
+					);
 					const node = control.navigationNode(
 						group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
 						() => {},
@@ -199,9 +203,12 @@ export class ToysPanel implements IPanel {
 						...node,
 						navColumn: index % columns,
 						tooltipItem: () => (current() ? { toy: toy.id } : undefined),
-						onAlternate: () => {
-							if (current() && this.client.canUse(toy.id)) control.click();
-						},
+						secureActions: () => ({
+							alternate:
+								current() && toy.collected && this.client.canUse(toy.id)
+									? control
+									: undefined,
+						}),
 						onContext: () => {
 							if (current()) this.menu.open(toy);
 						},

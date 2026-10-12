@@ -82,28 +82,63 @@ it("configures secure toy activation and clears toy attributes before pooling", 
 	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
 });
 
-it("uses a toy once from a controller click even when actions default to key down", () => {
-	vi.stubGlobal("InCombatLockdown", () => false);
-	const attributes = new Map<string, unknown>();
-	const use = vi.fn();
+it("shows toy hover details and clears handlers on pooled icon release", () => {
+	const scripts = new Map<string, (() => void) | undefined>();
+	const tooltip = {
+		SetOwner: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		ClearLines: vi.fn(),
+		SetScale: vi.fn(),
+		NineSlice: { SetAlpha: vi.fn() },
+		TopOverlay: { SetAlpha: vi.fn() },
+		BottomOverlay: { SetAlpha: vi.fn() },
+		SetToyByItemID: vi.fn(),
+		Show: vi.fn(),
+		Hide: vi.fn(),
+	};
 	const native = {
 		Hide: vi.fn(),
-		RegisterForClicks: vi.fn(),
-		SetAttribute: (key: string, value: unknown) => attributes.set(key, value),
-		Click: (_button = "LeftButton", down = false) => {
-			const useOnKeyDown = attributes.get("useOnKeyDown") ?? true;
-			if (down === useOnKeyDown) use(attributes.get("toy"));
-		},
-		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+		SetScript: (script: string, callback?: () => void) =>
+			scripts.set(script, callback),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
 	};
 	const frame = new Frame(
-		"toy-controller",
-		new FramePoolManager({ createFrame: () => native as unknown as WowFrame }),
-		"SecureButton",
+		"toy-hover",
+		new FramePoolManager({
+			createFrame: (type) =>
+				(type === "GameTooltip"
+					? { ...native, ...tooltip }
+					: native) as unknown as WowFrame,
+		}),
 	);
-	frame.setToy(42);
-	frame.click();
-	expect(use).toHaveBeenCalledExactlyOnceWith(42);
+	let item: { toy: number } | undefined = { toy: 42 };
+	frame.setHoverTooltip(() => item);
+	scripts.get("OnEnter")?.();
+	expect(tooltip.SetOwner).toHaveBeenCalledWith(native, "ANCHOR_RIGHT");
+	expect(tooltip.SetToyByItemID).toHaveBeenCalledExactlyOnceWith(42);
+	scripts.get("OnLeave")?.();
+	expect(tooltip.Hide).toHaveBeenCalledTimes(2);
+	frame.setHoverTooltip(() => ({ toy: 43 }));
+	scripts.get("OnEnter")?.();
+	expect(tooltip.SetToyByItemID).toHaveBeenLastCalledWith(43);
+	scripts.get("OnHide")?.();
+	expect(tooltip.Hide).toHaveBeenCalledTimes(3);
+	item = undefined;
+	frame.setHoverTooltip(() => item);
+	scripts.get("OnEnter")?.();
+	expect(tooltip.Show).toHaveBeenCalledTimes(2);
+	frame.destroy();
+	expect(scripts.get("OnEnter")).toBeUndefined();
+	expect(scripts.get("OnLeave")).toBeUndefined();
+	expect(scripts.get("OnHide")).toBeUndefined();
 });
 
 it("only updates changed labels and resets cached state and opacity on release", () => {

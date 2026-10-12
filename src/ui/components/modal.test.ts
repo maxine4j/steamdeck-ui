@@ -35,7 +35,12 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 		.mockImplementation(function () {
 			posts.get(this.id)?.();
 		});
-	const navigation = new NavigationManager(createTestEventBus());
+	const focused = vi.fn();
+	const navigation = new NavigationManager(
+		createTestEventBus(),
+		undefined,
+		focused,
+	);
 	const modal = new Modal(
 		"toys",
 		{} as IFramePoolManager,
@@ -48,7 +53,10 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 	]);
 	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(42);
 	navigation.interact();
-	expect(clicks).toHaveBeenCalledOnce();
+	expect(clicks).not.toHaveBeenCalled();
+	const action = focused.mock.lastCall?.at(0)?.secureActions?.().interact;
+	expect(action?.id).toBe("toys-action-0");
+	posts.get(action.id)?.();
 	expect(selected).toHaveBeenCalledOnce();
 	modal.open("Toy actions", [
 		{ id: "use", label: "Use", toy: 43, select: selected },

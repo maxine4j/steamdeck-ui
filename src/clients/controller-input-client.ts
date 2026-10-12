@@ -1,5 +1,7 @@
 import type { ApplicationEvent, IEventBus } from "../events/types";
 import type { GamePadRepeatOptions } from "../ui/components/gamepad-input";
+import type { ClickBinding } from "../ui/components/secure-click-bindings";
+import type { SecureNavigationActions } from "../ui/navigation/types";
 
 // Undocumented globals used by Blizzard's UIParentPanelManager/Game.lua.
 declare global {
@@ -13,6 +15,7 @@ declare global {
 }
 
 export interface IGamePadInput {
+	setClickBindings(bindings: readonly ClickBinding[]): void;
 	setGamePadInput(
 		onButtonDown?: (button: string) => boolean,
 		onButtonUp?: (button: string) => void,
@@ -24,6 +27,7 @@ export interface IControllerInputClient {
 	disableBuiltIn(): void;
 	initialize(): void;
 	setActive(active: boolean): void;
+	setSecureActions(actions?: SecureNavigationActions): void;
 	shutdown(): void;
 }
 
@@ -81,10 +85,26 @@ export class ControllerInputClient implements IControllerInputClient {
 	private cursorHooked = false;
 	private active = false;
 	private listening = false;
+	private secureActions?: SecureNavigationActions;
+	setSecureActions(actions?: SecureNavigationActions): void {
+		this.secureActions = actions;
+		this.syncBindings();
+	}
+	private syncBindings(): void {
+		const bindings: ClickBinding[] = [];
+		if (this.listening) {
+			if (this.secureActions?.interact)
+				bindings.push({ key: "PAD1", target: this.secureActions.interact });
+			if (this.secureActions?.alternate)
+				bindings.push({ key: "PAD3", target: this.secureActions.alternate });
+		}
+		this.surface.setClickBindings(bindings);
+	}
 	private readonly sync = () => {
 		const listening = this.active && !InCombatLockdown();
 		if (listening === this.listening) return;
 		this.listening = listening;
+		this.syncBindings();
 		this.syncModifiers();
 		this.surface.setGamePadInput(
 			listening ? (button) => this.handleButtonDown(button) : undefined,
@@ -115,6 +135,12 @@ export class ControllerInputClient implements IControllerInputClient {
 		if (!this.canHandleInput()) return false;
 		const event = buttons[button];
 		if (!event) return false;
+		// Let the hardware event reach its secure binding, bypassing addon dispatch.
+		if (
+			(button === "PAD1" && this.secureActions?.interact) ||
+			(button === "PAD3" && this.secureActions?.alternate)
+		)
+			return false;
 		this.events.emit(event);
 		return true;
 	}

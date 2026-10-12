@@ -226,6 +226,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		disableBuiltIn: vi.fn(),
 		initialize: vi.fn(),
 		setActive: vi.fn(),
+		setSecureActions: vi.fn(),
 		shutdown: vi.fn(),
 	};
 	const toys = {
@@ -464,7 +465,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_ALTERNATE");
 	expect(
 		(toyButton as WowFrame & { Click(): void }).Click,
-	).toHaveBeenCalledOnce();
+	).not.toHaveBeenCalled();
+	expect(controller.setSecureActions).toHaveBeenLastCalledWith({
+		alternate: expect.objectContaining({ id: "toys-icon-0" }),
+	});
 	events.emit("NAV_CONTEXT");
 	expect(app.navigation.focusedId).toBe("toy-actions-use");
 	expect(

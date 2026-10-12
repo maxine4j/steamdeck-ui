@@ -9,7 +9,7 @@ export class WowFrameFactory implements FrameFactory {
 				"Frame",
 				undefined,
 				UIParent,
-				"SecureHandlerBaseTemplate",
+				"SecureHandlerBaseTemplate,SecureHandlerStateTemplate",
 			);
 		if (type === "GameTooltip" || type === "ShoppingTooltip")
 			return CreateFrame(
@@ -44,7 +44,7 @@ export class WowFrameFactory implements FrameFactory {
 		if (type === "SecureButton")
 			return CreateFrame(
 				"Button",
-				undefined,
+				`SteamDeckUISecureButton${++this.nextSecureId}`,
 				UIParent,
 				"SecureActionButtonTemplate",
 			);

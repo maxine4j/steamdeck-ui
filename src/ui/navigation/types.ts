@@ -1,4 +1,6 @@
 export interface INavigable {
+	/** Hardware bindings for protected actions; never dispatch these via Click(). */
+	secureActions?(): SecureNavigationActions;
 	navId: string;
 	/** Logical column; gaps are explicit because Lua arrays cannot retain holes. */
 	navColumn?: number;
@@ -14,4 +16,10 @@ export interface INavigable {
 export type NavGrid = INavigable[][];
 export type NavDirection = "up" | "down" | "left" | "right";
 
+import type { Frame } from "../components/frame";
 import type { TooltipContent } from "../components/tooltip-content";
+
+export interface SecureNavigationActions {
+	interact?: Frame;
+	alternate?: Frame;
+}

@@ -4,6 +4,10 @@ import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { GamePadRepeatOptions } from "./gamepad-input";
 import {
+	type ClickBinding,
+	SecureClickBindings,
+} from "./secure-click-bindings";
+import {
 	setTooltipContent,
 	type TooltipContent,
 	type TooltipDataFrame,
@@ -24,6 +28,9 @@ type ItemTooltipFrame = WowFrame &
 
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
+	private clickBindings?: SecureClickBindings;
+	private hoverTooltipConfigured = false;
+	private hoverTooltip?: Frame;
 	private docked = false;
 	private mouseShield = false;
 	private closeName?: string;
@@ -498,7 +505,7 @@ export class Frame implements IUIComponent {
 		const native = this.acquire() as WowFrame & {
 			SetAttribute(name: string, value?: string | number | boolean): void;
 		};
-		// Controller dispatch uses Click() on release; do not inherit the action-bar CVar.
+		// Activate on hardware release, independently of the action-bar CVar.
 		native.RegisterForClicks("AnyUp");
 		native.SetAttribute("useOnKeyDown", toy ? false : undefined);
 		native.SetAttribute("type", toy ? "toy" : undefined);
@@ -521,6 +528,46 @@ export class Frame implements IUIComponent {
 	}
 	click(): void {
 		(this.acquire() as WowFrame & { Click(): void }).Click();
+	}
+	secureClickName(): string {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Binding requires a secure button");
+		return (this.acquire() as WowFrame & { GetName(): string }).GetName();
+	}
+	setClickBindings(bindings: readonly ClickBinding[]): void {
+		if (!this.clickBindings && bindings.length === 0) return;
+		this.clickBindings ??= new SecureClickBindings(this.pool);
+		this.clickBindings.set(bindings);
+	}
+	setHoverTooltip(content: () => TooltipContent | undefined): void {
+		const native = this.acquire() as WowFrame & {
+			SetScript(
+				script: "OnEnter" | "OnLeave" | "OnHide",
+				callback?: (this: void) => void,
+			): void;
+		};
+		const hide = () => this.hoverTooltip?.hide();
+		native.SetScript("OnEnter", () => {
+			const item = content();
+			if (item === undefined) {
+				hide();
+				return;
+			}
+			this.hoverTooltip ??= new Frame(
+				`${this.id}-hover-tooltip`,
+				this.pool,
+				"GameTooltip",
+			);
+			const tooltip = this.hoverTooltip.acquire() as ItemTooltipFrame;
+			tooltip.SetFrameStrata("TOOLTIP");
+			tooltip.SetOwner(native, "ANCHOR_RIGHT");
+			tooltip.ClearLines();
+			setTooltipContent(tooltip, item);
+			tooltip.Show();
+		});
+		native.SetScript("OnLeave", hide);
+		native.SetScript("OnHide", hide);
+		this.hoverTooltipConfigured = true;
 	}
 	setCooldown(start: number, duration: number): void {
 		if (this.frameType !== "Cooldown")
@@ -602,7 +649,20 @@ export class Frame implements IUIComponent {
 		this.acquire().SetParent(parent.acquire());
 	}
 	destroy(): void {
+		this.hoverTooltip?.destroy();
+		this.hoverTooltip = undefined;
+		this.clickBindings?.destroy();
+		this.clickBindings = undefined;
 		if (!this.native) return;
+		if (this.hoverTooltipConfigured) {
+			for (const script of ["OnEnter", "OnLeave", "OnHide"])
+				(
+					this.native as WowFrame & {
+						SetScript(script: string, callback?: (this: void) => void): void;
+					}
+				).SetScript(script, undefined);
+			this.hoverTooltipConfigured = false;
+		}
 		if (this.opacityChanged) {
 			this.setOpacity(1);
 		}
@@ -615,6 +675,7 @@ export class Frame implements IUIComponent {
 			const tooltip = this.native as ItemTooltipFrame;
 			tooltip.ClearLines();
 			tooltip.SetScale(1);
+			tooltip.SetFrameStrata("PARENT");
 			tooltip.IsEmbedded = false;
 			tooltip.NineSlice.SetAlpha(1);
 			tooltip.TopOverlay.SetAlpha(1);

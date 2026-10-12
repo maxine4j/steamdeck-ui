@@ -95,7 +95,10 @@ export function startSteamDeckUI(
 	const navigation = new NavigationManager(
 		events,
 		(active) => controller.setActive(active),
-		(control) => itemTooltip.setItem(control?.tooltipItem?.()),
+		(control) => {
+			itemTooltip.setItem(control?.tooltipItem?.());
+			controller.setSecureActions(control?.secureActions?.());
+		},
 	);
 	const itemModal = new Modal("item-actions", pool, navigation, events);
 	const itemMenu = new ItemActionMenu(itemModal, inventory);
