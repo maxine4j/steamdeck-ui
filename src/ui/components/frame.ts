@@ -439,16 +439,16 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("type", spell ? "spell" : undefined);
 		native.SetAttribute("spell", spell);
 	}
-	setItem(item?: number): void {
+	setToy(toy?: number): void {
 		if (this.frameType !== "SecureButton")
-			throw new Error("Item requires a secure button");
+			throw new Error("Toy requires a secure button");
 		if (InCombatLockdown()) return;
 		const native = this.acquire() as WowFrame & {
 			SetAttribute(name: string, value?: string | number): void;
 		};
 		native.RegisterForClicks("AnyUp", "AnyDown");
-		native.SetAttribute("type", item ? "item" : undefined);
-		native.SetAttribute("item", item ? `item:${item}` : undefined);
+		native.SetAttribute("type", toy ? "toy" : undefined);
+		native.SetAttribute("toy", toy);
 	}
 	/** Observe a secure action without replacing the template's OnClick handler. */
 	onPostClick(callback?: (this: void, button: string) => void): void {
@@ -605,7 +605,7 @@ export class Frame implements IUIComponent {
 		}
 		if (this.frameType === "SecureButton") {
 			this.setSpell();
-			this.setItem();
+			this.setToy();
 			this.onPostClick();
 		}
 		if (this.frameType === "Cooldown")

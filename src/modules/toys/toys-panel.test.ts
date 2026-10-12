@@ -27,7 +27,7 @@ function setup() {
 		"clampScroll",
 		"setIcon",
 		"setOpacity",
-		"setItem",
+		"setToy",
 		"setCooldown",
 		"setLabel",
 		"show",
@@ -110,12 +110,12 @@ it("defers secure frame creation and rendering until combat ends", () => {
 	expect(client.load).toHaveBeenCalledOnce();
 	vi.mocked(client.isInCombat).mockReturnValue(true);
 	publish([toy(1)]);
-	expect(Frame.prototype.setItem).not.toHaveBeenCalled();
+	expect(Frame.prototype.setToy).not.toHaveBeenCalled();
 	vi.mocked(client.isInCombat).mockReturnValue(false);
 	panel.resume();
 	publish([toy(1)]);
 	flush();
-	expect(Frame.prototype.setItem).toHaveBeenCalledWith(1);
+	expect(Frame.prototype.setToy).toHaveBeenCalledWith(1);
 });
 
 it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {

@@ -14,7 +14,7 @@ export class ToyActionMenu implements IToyActionMenu {
 	open(toy: Toy): void {
 		const options: ModalOption[] = [];
 		if (toy.collected && this.client.canUse(toy.id))
-			options.push({ id: "use", label: "Use", item: toy.id, select: () => {} });
+			options.push({ id: "use", label: "Use", toy: toy.id, select: () => {} });
 		if (toy.collected)
 			options.push({
 				id: "favourite",

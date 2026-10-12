@@ -7,7 +7,7 @@ import { Modal } from "./modal";
 
 afterEach(() => vi.restoreAllMocks());
 
-it("activates secure item options before dismissing and reuses their pooled controls", () => {
+it("activates secure toy options before dismissing and reuses their pooled controls", () => {
 	for (const method of [
 		"modalBackdrop",
 		"setColor",
@@ -21,7 +21,7 @@ it("activates secure item options before dismissing and reuses their pooled cont
 		"show",
 		"hide",
 		"setFocused",
-		"setItem",
+		"setToy",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const posts = new Map<string, () => void>();
@@ -44,16 +44,16 @@ it("activates secure item options before dismissing and reuses their pooled cont
 	);
 	const selected = vi.fn();
 	modal.open("Toy actions", [
-		{ id: "use", label: "Use", item: 42, select: selected },
+		{ id: "use", label: "Use", toy: 42, select: selected },
 	]);
-	expect(Frame.prototype.setItem).toHaveBeenLastCalledWith(42);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(42);
 	navigation.interact();
 	expect(clicks).toHaveBeenCalledOnce();
 	expect(selected).toHaveBeenCalledOnce();
 	modal.open("Toy actions", [
-		{ id: "use", label: "Use", item: 43, select: selected },
+		{ id: "use", label: "Use", toy: 43, select: selected },
 	]);
-	expect(Frame.prototype.setItem).toHaveBeenLastCalledWith(43);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(43);
 	modal.close();
 	navigation.interact();
 	expect(selected).toHaveBeenCalledTimes(1);

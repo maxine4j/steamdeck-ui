@@ -164,7 +164,7 @@ export class ToysPanel implements IPanel {
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(toy.icon);
 					cell.icon.setOpacity(toy.collected ? 1 : 0.35);
-					cell.icon.setItem(toy.collected ? toy.id : undefined);
+					cell.icon.setToy(toy.collected ? toy.id : undefined);
 					cell.cooldown.fill(cell.icon);
 					const cooldown = this.client.getCooldown(toy.id);
 					cell.cooldown.setCooldown(cooldown.start, cooldown.duration);

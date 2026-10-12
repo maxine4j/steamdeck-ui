@@ -35,7 +35,7 @@ it("passes item cooldowns through to a pooled native cooldown and clears it on r
 	expect(native.Clear).toHaveBeenCalledOnce();
 });
 
-it("configures secure item activation and clears item attributes before pooling", () => {
+it("configures secure toy activation and clears toy attributes before pooling", () => {
 	let combat = false;
 	vi.stubGlobal("InCombatLockdown", () => combat);
 	const native = {
@@ -59,22 +59,22 @@ it("configures secure item activation and clears item attributes before pooling"
 		new FramePoolManager({ createFrame: () => native }),
 		"SecureButton",
 	);
-	frame.setItem(42);
+	frame.setToy(42);
 	const after = vi.fn();
 	frame.onPostClick(after);
 	expect(native.SetScript).toHaveBeenCalledWith(
 		"PostClick",
 		expect.any(Function),
 	);
-	expect(native.SetAttribute).toHaveBeenCalledWith("type", "item");
-	expect(native.SetAttribute).toHaveBeenCalledWith("item", "item:42");
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", "toy");
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", 42);
 	combat = true;
 	native.SetAttribute.mockClear();
-	frame.setItem(43);
+	frame.setToy(43);
 	expect(native.SetAttribute).not.toHaveBeenCalled();
 	combat = false;
 	frame.destroy();
-	expect(native.SetAttribute).toHaveBeenCalledWith("item", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", undefined);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
 	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
 });

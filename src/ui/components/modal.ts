@@ -6,8 +6,8 @@ import { Frame } from "./frame";
 export interface ModalOption {
 	readonly id: string;
 	readonly label: string;
-	/** Secure item activation takes place before select is called. */
-	readonly item?: number;
+	/** Secure toy activation takes place before select is called. */
+	readonly toy?: number;
 	select(): void;
 }
 export interface IModal {
@@ -30,7 +30,7 @@ export class Modal implements IModal {
 	private readonly tooltip: Frame;
 	private readonly divider: Frame;
 	private readonly buttons = new Map<number, Frame>();
-	private readonly itemButtons = new Map<number, Frame>();
+	private readonly actionButtons = new Map<number, Frame>();
 	private opened = false;
 	private readonly dismiss = () => this.close();
 	constructor(
@@ -94,16 +94,16 @@ export class Modal implements IModal {
 		const grid: NavGrid = [];
 		for (const button of [
 			...this.buttons.values(),
-			...this.itemButtons.values(),
+			...this.actionButtons.values(),
 		])
 			button.hide();
 		options.forEach((option, index) => {
-			const secure = option.item !== undefined;
-			const buttons = secure ? this.itemButtons : this.buttons;
+			const secure = option.toy !== undefined;
+			const buttons = secure ? this.actionButtons : this.buttons;
 			let button = buttons.get(index);
 			if (!button) {
 				button = new Frame(
-					`${this.id}-${secure ? "item" : "option"}-${index}`,
+					`${this.id}-${secure ? "action" : "option"}-${index}`,
 					this.pool,
 					secure ? "SecureButton" : "Button",
 				);
@@ -127,7 +127,7 @@ export class Modal implements IModal {
 				option.select();
 			};
 			if (secure) {
-				button.setItem(option.item);
+				button.setToy(option.toy);
 				button.onPostClick((mouse) => {
 					if (mouse === "LeftButton") select();
 				});
@@ -167,11 +167,11 @@ export class Modal implements IModal {
 		this.events.unsubscribe("COMBAT_STARTED", this.dismiss);
 		for (const button of [
 			...this.buttons.values(),
-			...this.itemButtons.values(),
+			...this.actionButtons.values(),
 		])
 			button.destroy();
 		this.buttons.clear();
-		this.itemButtons.clear();
+		this.actionButtons.clear();
 		this.tooltip.destroy();
 		this.divider.destroy();
 		this.window.destroy();

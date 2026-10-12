@@ -29,7 +29,7 @@ it("opens the bags-style tooltip modal with secure use and favourite actions", (
 		"Favourite",
 		"Cancel",
 	]);
-	expect(options.at(0)?.item).toBe(42);
+	expect(options.at(0)?.toy).toBe(42);
 	options.find((option) => option.id === "favourite")?.select();
 	expect(client.toggleFavourite).toHaveBeenCalledExactlyOnceWith(42);
 	expect(refresh).toHaveBeenCalledOnce();
