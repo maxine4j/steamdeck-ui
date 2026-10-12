@@ -166,6 +166,18 @@ it("toggles incomplete filtering and lazily expands criteria with rewards and de
 			?.progress?.value,
 	).toBe(0.6);
 });
+
+it("collapses an already selected parent when activated again", () => {
+	const { panel } = setup();
+	panel.selectCategory(92);
+	lists
+		.get("achievements-categories")
+		?.rows.find((r) => r.id === "category-92")
+		?.activate();
+	expect(
+		lists.get("achievements-categories")?.rows.map((r) => r.id),
+	).not.toContain("category-12");
+});
 it("defers hidden refreshes and exposes two logical navigation columns", () => {
 	const { panel, client, flush } = setup();
 	panel.selectCategory(92);

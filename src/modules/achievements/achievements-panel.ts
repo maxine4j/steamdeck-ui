@@ -28,6 +28,7 @@ export class AchievementsPanel implements IPanel {
 	private readonly update: DeferredRefresh;
 	private mounted = false;
 	private category?: number;
+	private expandedCategory?: number;
 	private incomplete = false;
 	private expanded?: number;
 	private categories: AchievementCategory[] = [];
@@ -98,25 +99,32 @@ export class AchievementsPanel implements IPanel {
 	}
 	private load(): void {
 		this.categories = this.client.categories();
+		if (this.expanded !== undefined)
+			this.expandedCategory = this.parentFor(this.category);
 		this.summary = this.client.summary();
 		this.render();
 	}
 	selectCategory(id?: number): void {
 		this.category = id;
+		this.expandedCategory = this.parentFor(id);
 		this.expanded = undefined;
 		this.render();
 	}
 	selectAchievement(id: number): void {
 		const selected = this.client.selection(id);
 		this.category = this.client.categoryFor(selected);
+		this.expandedCategory = this.parentFor(this.category);
 		this.incomplete = false;
 		this.expanded = selected;
 		if (this.summary) this.render();
 		else this.refresh();
 	}
+	private parentFor(id?: number): number | undefined {
+		const selected = this.categories.find((c) => c.id === id);
+		return selected?.parent === -1 ? selected.id : selected?.parent;
+	}
 	private renderCategories(): void {
-		const selected = this.categories.find((c) => c.id === this.category);
-		const parent = selected?.parent === -1 ? selected.id : selected?.parent;
+		const parent = this.expandedCategory;
 		this.categoriesList.setRows([
 			{
 				id: "achievements-summary",
@@ -131,7 +139,12 @@ export class AchievementsPanel implements IPanel {
 					label: `${c.parent === -1 && this.categories.some((child) => child.parent === c.id) ? (parent === c.id ? "− " : "+ ") : ""}${c.name}`,
 					indent: c.parent === -1 ? 0 : 16,
 					selected: c.id === this.category,
-					activate: () => this.selectCategory(c.id),
+					activate: () => {
+						if (c.parent === -1 && c.id === this.category) {
+							this.expandedCategory = parent === c.id ? undefined : c.id;
+							this.renderCategories();
+						} else this.selectCategory(c.id);
+					},
 				})),
 		]);
 	}
@@ -201,19 +214,29 @@ export class AchievementsPanel implements IPanel {
 		const summary = this.summary;
 		this.frame.setLabel(
 			"overall",
-			`${summary.points} points • ${summary.totals.completed} / ${summary.totals.total} achievements`,
+			`${summary.points} points`,
 			"TOPLEFT",
 			20,
 			-46,
 			16,
 		);
+		this.frame.setLabel(
+			"overall-count",
+			`${summary.totals.completed} / ${summary.totals.total} achievements`,
+			"TOPLEFT",
+			20,
+			-66,
+			14,
+			280,
+		);
 		this.filter.setLabel(
 			"label",
-			`${this.incomplete ? "[x]" : "[ ]"} Only show incomplete`,
+			`|TInterface\\Buttons\\UI-CheckBox-${this.incomplete ? "Check" : "Up"}:22:22|t Only show incomplete`,
 		);
 		let rows: ListRow[];
 		if (this.category === undefined) {
 			this.frame.setLabel("selected", "Summary", "TOPLEFT", 320, -46, 16);
+			this.frame.setLabel("selected-count", "", "TOPLEFT", 320, -66, 14);
 			rows = [
 				{
 					id: "summary-progress",
@@ -262,13 +285,14 @@ export class AchievementsPanel implements IPanel {
 			const name =
 				this.categories.find((c) => c.id === this.category)?.name ??
 				"Achievements";
+			this.frame.setLabel("selected", name, "TOPLEFT", 320, -46, 16);
 			this.frame.setLabel(
-				"selected",
-				`${name} • ${points} points • ${totals.completed} / ${totals.total}`,
+				"selected-count",
+				`${points} points • ${totals.completed} / ${totals.total}`,
 				"TOPLEFT",
 				320,
-				-46,
-				16,
+				-66,
+				14,
 			);
 			rows = this.achievementRows(
 				this.incomplete ? this.client.achievements(this.category, true) : all,

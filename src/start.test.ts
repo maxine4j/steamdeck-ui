@@ -632,7 +632,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	flush();
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("achievements");
-	expect(labels.flat()).toContain("123 points • 2 / 10 achievements");
+	expect(labels.flat()).toContain("123 points");
+	expect(labels.flat()).toContain("2 / 10 achievements");
 	const achievementFrames = frames.length;
 	app.ui.closePanel("fullscreen");
 	app.ui.openPanel("achievements", "fullscreen");

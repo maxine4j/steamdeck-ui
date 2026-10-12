@@ -140,3 +140,11 @@ it("preserves criterion completion for meta achievements and progress flags", ()
 		achievement: 42,
 	});
 });
+
+it("reads the category hierarchy once when calculating summary totals", () => {
+	const client = setup();
+	const categories = vi.fn(() => [92, 12, 96]);
+	vi.stubGlobal("GetCategoryList", categories);
+	client.summary();
+	expect(categories).toHaveBeenCalledOnce();
+});

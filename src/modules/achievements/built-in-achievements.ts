@@ -17,7 +17,7 @@ export class BuiltInAchievements implements IBuiltInAchievements {
 		return !!AchievementFrame?.IsShown() && AchievementFrame.selectedTab === 1;
 	}
 	close(): void {
-		if (AchievementFrame) HideUIPanel(AchievementFrame);
+		if (this.isOpen() && AchievementFrame) HideUIPanel(AchievementFrame);
 	}
 	private readonly sync = () => {
 		if (!this.enabled) return;

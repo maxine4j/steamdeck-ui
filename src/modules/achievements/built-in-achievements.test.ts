@@ -21,6 +21,8 @@ it("suppresses the native personal view, forwards selection and restores on shut
 	const select = vi.fn();
 	events.subscribe("ACHIEVEMENTS_SELECTED", select);
 	const frames = { suppress: vi.fn(), restore: vi.fn() };
+	const hide = vi.fn();
+	vi.stubGlobal("HideUIPanel", hide);
 	const native = new BuiltInAchievements(frames, events);
 	native.disable();
 	expect(frames.suppress).toHaveBeenCalledWith([frame]);
@@ -29,6 +31,8 @@ it("suppresses the native personal view, forwards selection and restores on shut
 	frame.selectedTab = 3;
 	scripts.get("OnShow")?.();
 	expect(frames.restore).toHaveBeenCalled();
+	native.close();
+	expect(hide).not.toHaveBeenCalled();
 	native.restore();
 	hooks.get("AchievementFrame_SelectAchievement")?.(456);
 	expect(select).toHaveBeenCalledOnce();

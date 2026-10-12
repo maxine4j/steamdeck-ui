@@ -1,5 +1,4 @@
 export interface DialogueEventPayloads {
-	ACHIEVEMENTS_SELECTED: { id: number };
 	GOSSIP_SHOW: undefined;
 	GOSSIP_OPTIONS_REFRESHED: undefined;
 	GOSSIP_CLOSED: { continuing: boolean };
@@ -20,8 +19,11 @@ export interface DialogueEventPayloads {
 	DIALOGUE_INTERACTION_SHOWN: { interactionType: number };
 	DIALOGUE_ERROR: { message: string };
 }
+interface ApplicationEventPayloads extends DialogueEventPayloads {
+	ACHIEVEMENTS_SELECTED: { id: number };
+}
 export type ApplicationEvent =
-	| keyof DialogueEventPayloads
+	| keyof ApplicationEventPayloads
 	| "NAV_UP"
 	| "NAV_DOWN"
 	| "NAV_LEFT"
@@ -73,7 +75,9 @@ export type ApplicationEvent =
 	| "MOUNTS_VISIBILITY_CHANGED"
 	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventPayload<E extends ApplicationEvent> =
-	E extends keyof DialogueEventPayloads ? DialogueEventPayloads[E] : undefined;
+	E extends keyof ApplicationEventPayloads
+		? ApplicationEventPayloads[E]
+		: undefined;
 export type EventHandler<E extends ApplicationEvent = ApplicationEvent> = (
 	payload: EventPayload<E>,
 ) => void;

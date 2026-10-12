@@ -57,19 +57,18 @@ export class AchievementsClient implements IAchievementsClient {
 			]);
 	}
 	private category(id: number): AchievementCategory {
-		const [name, parent] = (
-			GetCategoryInfo as unknown as (
-				this: void,
-				id: number,
-			) => LuaMultiReturn<[string, number]>
-		)(id);
+		const [name, parent] = GetCategoryInfo(id);
 		return { id, name, parent };
 	}
 	totals(category: number): AchievementTotals {
+		return this.categoryTotals(category, this.categories());
+	}
+	private categoryTotals(
+		category: number,
+		categories: AchievementCategory[],
+	): AchievementTotals {
 		let [total, completed] = GetCategoryNumAchievements(category, true);
-		for (const child of this.categories().filter(
-			(c) => c.parent === category,
-		)) {
+		for (const child of categories.filter((c) => c.parent === category)) {
 			const [count, done] = GetCategoryNumAchievements(child.id, true);
 			total += count;
 			completed += done;
@@ -137,6 +136,7 @@ export class AchievementsClient implements IAchievementsClient {
 		return current;
 	}
 	summary(): AchievementSummary {
+		const categories = this.categories();
 		const [total, completed] = GetNumCompletedAchievements();
 		const recent = [...GetLatestCompletedAchievements()]
 			.slice(0, 3)
@@ -152,7 +152,7 @@ export class AchievementsClient implements IAchievementsClient {
 			recent,
 			categories: summaryCategories.map((id) => ({
 				...this.category(id),
-				...this.totals(id),
+				...this.categoryTotals(id, categories),
 			})),
 		};
 	}
