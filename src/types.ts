@@ -20,7 +20,27 @@ export interface WowTexture {
 		alpha: number,
 	): void;
 }
+export interface WowLine {
+	SetStartPoint(
+		point: string,
+		relativeTo: WowFrame,
+		x: number,
+		y: number,
+	): void;
+	SetEndPoint(point: string, relativeTo: WowFrame, x: number, y: number): void;
+	SetThickness(thickness: number): void;
+	SetColorTexture(
+		red: number,
+		green: number,
+		blue: number,
+		alpha: number,
+	): void;
+	ClearAllPoints(): void;
+	Show(): void;
+	Hide(): void;
+}
 export interface WowFrame {
+	CreateLine(name?: string, layer?: string): WowLine;
 	CreateFontString(
 		name?: string,
 		layer?: string,

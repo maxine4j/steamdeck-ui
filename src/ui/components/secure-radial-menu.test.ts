@@ -14,6 +14,15 @@ function setup() {
 	vi.stubGlobal("SecureHandlerUnwrapScript", unwrap);
 	vi.stubGlobal("SecureHandlerExecute", execute);
 	const create = vi.fn((_type: FrameType) => {
+		const line = {
+			SetStartPoint: vi.fn(),
+			SetEndPoint: vi.fn(),
+			SetThickness: vi.fn(),
+			SetColorTexture: vi.fn(),
+			ClearAllPoints: vi.fn(),
+			Show: vi.fn(),
+			Hide: vi.fn(),
+		};
 		const attributes = new Map<string, unknown>();
 		const scripts = new Map<string, (...args: unknown[]) => void>();
 		const textures = new Map<string, ReturnType<typeof texture>>();
@@ -30,6 +39,8 @@ function setup() {
 			};
 		}
 		return {
+			line,
+			CreateLine: vi.fn(() => line),
 			attributes,
 			scripts,
 			textures,
@@ -166,6 +177,87 @@ it("refreshes compacted slots, highlights the current sector and consumes only c
 	expect(create.mock.calls.length).toBe(allocations);
 });
 
+it("tracks the exact stick direction continuously, including between positions in one sector", () => {
+	const { frames } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2);
+	display.attributes.set("count", 2);
+	const input = listener.scripts.get("OnGamePadStick");
+	input(undefined, "Right", 0.6, 0.8, 1);
+	expect(display.line.SetStartPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		0,
+		0,
+	);
+	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		42,
+		56,
+	);
+	expect(display.line.SetColorTexture).toHaveBeenLastCalledWith(
+		1,
+		0.82,
+		0,
+		0.9,
+	);
+	input(undefined, "Right", 0.8, 0.6, 1);
+	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		56,
+		42,
+	);
+	const updates = display.line.SetEndPoint.mock.calls.length;
+	input(undefined, "Left", 0, 1, 1);
+	expect(display.line.SetEndPoint.mock.calls.length).toBe(updates);
+	display.attributes.set("count", 12);
+	input(undefined, "Right", 0.6, 0.8, 1);
+	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		72,
+		96,
+	);
+	input(undefined, "Right", 0.6, 0.8, 0.5);
+	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		36,
+		48,
+	);
+});
+
+it("shows subdued analogue feedback inside the deadzone and clears it on center, close and reopen", () => {
+	const { frames } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2);
+	display.attributes.set("count", 2);
+	const input = listener.scripts.get("OnGamePadStick");
+	input(undefined, "Right", 0.15, 0.2, 0.25);
+	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
+		"CENTER",
+		display,
+		10.5,
+		14,
+	);
+	expect(display.line.SetColorTexture).toHaveBeenLastCalledWith(
+		0.65,
+		0.7,
+		0.8,
+		0.45,
+	);
+	expect(display.line.Show).toHaveBeenCalled();
+	display.line.Hide.mockClear();
+	input(undefined, "Right", 0, 0, 0);
+	expect(display.line.Hide).toHaveBeenCalledOnce();
+	display.scripts.get("OnHide")();
+	expect(display.line.Hide).toHaveBeenCalledTimes(2);
+	display.scripts.get("OnShow")();
+	expect(display.line.Hide).toHaveBeenCalledTimes(3);
+});
+
 it("clears handlers and temporary bindings and reuses every native frame", () => {
 	const { menu, frames, create, unwrap, execute, pool } = setup();
 	menu.destroy();
@@ -177,4 +269,6 @@ it("clears handlers and temporary bindings and reuses every native frame", () =>
 	// The component returns all sixteen frames to its injected pool.
 	new SecureRadialMenu(pool, 12);
 	expect(create).toHaveBeenCalledTimes(16);
+	expect(frames.at(1)?.CreateLine).toHaveBeenCalledOnce();
+	expect(frames.at(1)?.line.ClearAllPoints).toHaveBeenCalledOnce();
 });

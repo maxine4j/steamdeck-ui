@@ -1,4 +1,4 @@
-import type { WowFrame, WowTexture } from "../types";
+import type { WowFrame, WowLine, WowTexture } from "../types";
 export type FrameType =
 	| "GameTooltip"
 	| "Frame"
@@ -20,11 +20,13 @@ export interface IFramePoolManager {
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
 	getDecoration(frame: WowFrame, key: string): WowTexture;
+	getLine(frame: WowFrame, key: string): WowLine;
 }
 export class FramePoolManager implements IFramePoolManager {
 	private readonly available = new Map<FrameType, WowFrame[]>();
 	private readonly backgrounds = new Map<WowFrame, WowTexture>();
 	private readonly decorations = new Map<WowFrame, Map<string, WowTexture>>();
+	private readonly lines = new Map<WowFrame, Map<string, WowLine>>();
 	private readonly leased = new Map<WowFrame, FrameType>();
 	constructor(private readonly factory: FrameFactory) {}
 	acquire(type: FrameType): WowFrame {
@@ -56,6 +58,20 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
+	getLine(frame: WowFrame, key: string): WowLine {
+		let lines = this.lines.get(frame);
+		if (!lines) {
+			lines = new Map<string, WowLine>();
+			this.lines.set(frame, lines);
+		}
+		let line = lines.get(key);
+		if (!line) {
+			line = frame.CreateLine(undefined, "ARTWORK");
+			line.Hide();
+			lines.set(key, line);
+		}
+		return line;
+	}
 	release(type: FrameType, frame: WowFrame): void {
 		if (this.leased.get(frame) !== type) return;
 		frame.Hide();
@@ -66,6 +82,12 @@ export class FramePoolManager implements IFramePoolManager {
 			decoration.SetTexture(undefined);
 			decoration.SetColorTexture(0, 0, 0, 0);
 			decoration.ClearAllPoints();
+		}
+		for (const line of this.lines.get(frame)?.values() ?? []) {
+			line.Hide();
+			line.ClearAllPoints();
+			line.SetColorTexture(0, 0, 0, 0);
+			line.SetThickness(1);
 		}
 		frame.ClearAllPoints();
 		frame.SetSize(0, 0);

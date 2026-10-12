@@ -1,4 +1,4 @@
-import type { WowFontString, WowFrame } from "../../types";
+import type { WowFontString, WowFrame, WowLine } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
 import { RADIAL_INDEX_SNIPPET, radialIndex } from "./radial-selection";
@@ -81,6 +81,7 @@ export class SecureRadialMenu {
 	private readonly blocker: RadialFrame;
 	private readonly items: RadialFrame[];
 	private readonly label: WowFontString;
+	private readonly pointer: WowLine;
 	private read?: SlotReader;
 	constructor(
 		private readonly pool: IFramePoolManager,
@@ -99,6 +100,7 @@ export class SecureRadialMenu {
 			"OVERLAY",
 			"GameFontNormal",
 		);
+		this.pointer = pool.getLine(this.display, "radial-pointer");
 	}
 	configure(
 		key: string,
@@ -125,8 +127,11 @@ export class SecureRadialMenu {
 		this.display.SetSize(360, 360);
 		this.display.SetPoint("CENTER", this.trigger, "CENTER", 0, 0);
 		this.display.SetFrameStrata("DIALOG");
-		this.label.SetPoint("CENTER", this.display, "CENTER", 0, 0);
+		this.label.SetPoint("TOP", this.display, "BOTTOM", 0, -8);
 		this.label.SetText(caption);
+		this.pointer.SetThickness(3);
+		this.pointer.SetStartPoint("CENTER", this.display, 0, 0);
+		this.pointer.Hide();
 		for (let i = 0; i < this.items.length; i++) {
 			const item = this.items.at(i);
 			if (!item) continue;
@@ -155,10 +160,12 @@ export class SecureRadialMenu {
 			if (stick === driver.virtualStick) this.blocker.Hide();
 		});
 		this.display.SetScript("OnShow", () => {
+			this.pointer.Hide();
 			this.refresh();
 			this.listener.Show();
 		});
 		this.display.SetScript("OnHide", () => {
+			this.pointer.Hide();
 			this.listener.Hide();
 			this.blocker.Hide();
 		});
@@ -249,6 +256,20 @@ end`,
 	private highlight(x: number, y: number, length: number): void {
 		const count = this.display.GetAttribute("count") ?? 0;
 		const index = radialIndex(x, y, length, count);
+		const magnitude = Math.sqrt(x * x + y * y);
+		if (count > 0 && magnitude > 0 && length > 0) {
+			const distance = Math.max(70, count * 10) * Math.min(length, 1);
+			this.pointer.SetEndPoint(
+				"CENTER",
+				this.display,
+				(x / magnitude) * distance,
+				(y / magnitude) * distance,
+			);
+			if (index === undefined)
+				this.pointer.SetColorTexture(0.65, 0.7, 0.8, 0.45);
+			else this.pointer.SetColorTexture(1, 0.82, 0, 0.9);
+			this.pointer.Show();
+		} else this.pointer.Hide();
 		for (let i = 0; i < count; i++) {
 			const item = this.items.at(i);
 			if (item)
