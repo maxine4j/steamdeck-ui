@@ -1,6 +1,7 @@
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
+import { CollectionsClient } from "./clients/collections-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { ICurrencyClient } from "./clients/currency-client";
 import type { IDialogueCamera } from "./clients/dialogue-camera";
@@ -12,6 +13,7 @@ import type { IReputationClient } from "./clients/reputation-client";
 import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
+import type { IToysClient } from "./clients/toys-client";
 import type { IVendorClient } from "./clients/vendor-client";
 import type { IEventBus } from "./events/types";
 import { AbilityRing } from "./modules/action-bar/ability-ring";
@@ -48,6 +50,10 @@ import { TalentsPanel } from "./modules/talents/talents-panel";
 import { BuiltInTitles } from "./modules/titles/built-in-titles";
 import { TitlesModule } from "./modules/titles/titles-module";
 import { TitlesPanel } from "./modules/titles/titles-panel";
+import { BuiltInToys } from "./modules/toys/built-in-toys";
+import { ToyActionMenu } from "./modules/toys/toy-action-menu";
+import { ToysModule } from "./modules/toys/toys-module";
+import { ToysPanel } from "./modules/toys/toys-panel";
 import { BuiltInVendor } from "./modules/vendor/built-in-vendor";
 import { VendorModule } from "./modules/vendor/vendor-module";
 import { VendorPanel } from "./modules/vendor/vendor-panel";
@@ -77,6 +83,7 @@ export function startSteamDeckUI(
 	dialogue: IDialogueClient,
 	dialogueCamera: IDialogueCamera,
 	vendor: IVendorClient,
+	toys: IToysClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -212,7 +219,14 @@ export function startSteamDeckUI(
 			},
 		}),
 	);
-	const builtInMounts = new BuiltInMounts(new FrameSuppression(pool), events);
+	const collections = new CollectionsClient(new FrameSuppression(pool), events);
+	const builtInMounts = new BuiltInMounts(collections);
+	const builtInToys = new BuiltInToys(collections);
+	const toyModal = new Modal("toy-actions", pool, navigation, events);
+	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
+	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler);
+	ui.registerPanel(toysPanel, "right");
+	modules.register(new ToysModule(ui, events, toysPanel, builtInToys));
 	const mountsPanel = new MountsPanel(
 		pool,
 		mounts,
@@ -301,6 +315,7 @@ export function startSteamDeckUI(
 			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();
+			toyModal.destroy();
 			navigation.destroy();
 			itemTooltip.destroy();
 			ui.destroy();
@@ -310,6 +325,7 @@ export function startSteamDeckUI(
 			currencyPanel.destroy();
 			titlesPanel.destroy();
 			mountsPanel.destroy();
+			toysPanel.destroy();
 			talentsPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();

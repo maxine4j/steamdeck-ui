@@ -143,6 +143,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		HookScript: vi.fn(),
 	});
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("CollectionsJournal", {
 		IsShown: () => false,
 		HookScript: vi.fn(),
@@ -216,6 +217,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		initialize: vi.fn(),
 		setActive: vi.fn(),
 		shutdown: vi.fn(),
+	};
+	const toys = {
+		load: vi.fn(
+			(callback: (toys: import("./clients/toys-client").Toy[]) => void) => {
+				callback([]);
+				return vi.fn();
+			},
+		),
+		toggleFavourite: vi.fn(),
+		canUse: () => true,
+		getCooldown: () => ({ start: 0, duration: 0 }),
 	};
 	const app = startSteamDeckUI(
 		factory,
@@ -339,6 +351,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			ensureBagsOpen: () => inventory.isOpen.mockReturnValue(true),
 			close: vi.fn(),
 		},
+		toys,
 	);
 	expect(frames).toHaveLength(3);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -386,6 +399,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(mountsTabIndex).toBeGreaterThanOrEqual(0);
 	const mountsTabBorder = frames.at(mountsTabIndex - 1);
 	expect(mountsTabBorder?.SetParent).toHaveBeenLastCalledWith(frames.at(1));
+	const toysTabIndex = textures.findIndex((texture) =>
+		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 454046),
+	);
+	expect(toysTabIndex).toBeGreaterThanOrEqual(0);
+	expect(frames.at(toysTabIndex - 1)?.SetParent).toHaveBeenLastCalledWith(
+		frames.at(1),
+	);
+	app.ui.openPanel("toys", "right");
+	flush();
+	expect(app.ui.getContainer("right").activePanelId).toBe("toys");
+	expect(toys.load).toHaveBeenCalledOnce();
+	app.ui.openPanel("bags", "right");
+	flush();
 	const bagIconIndex = textures.findIndex((texture) =>
 		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 123),
 	);
