@@ -4,6 +4,7 @@ import { ControllerInputClient } from "./clients/controller-input-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MountsClient } from "./clients/mounts-client";
 import { ReputationClient } from "./clients/reputation-client";
+import { TaskScheduler } from "./clients/task-scheduler";
 import { TitlesClient } from "./clients/titles-client";
 import { WowEventBus } from "./events/wow-event-bus";
 import { startSteamDeckUI } from "./start";
@@ -18,6 +19,7 @@ const inventory = new InventoryClient();
 const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
+const scheduler = new TaskScheduler();
 startSteamDeckUI(
 	frameFactory,
 	events,
@@ -25,10 +27,11 @@ startSteamDeckUI(
 	character,
 	reputation,
 	titles,
-	new MountsClient(),
+	new MountsClient(scheduler),
 	new ActionBarClient(new FrameSuppression(new FramePoolManager(frameFactory))),
 	new ControllerInputClient(
 		events,
 		new Frame("navigation-input", new FramePoolManager(frameFactory)),
 	),
+	scheduler,
 );

@@ -1,12 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { MountsClient } from "./mounts-client";
 
+const scheduler = { nextFrame: vi.fn(() => vi.fn()) };
+
 afterEach(() => vi.unstubAllGlobals());
 it("summons by journal ID and picks up the random favourite action", () => {
 	const summon = vi.fn();
 	const pickup = vi.fn();
 	vi.stubGlobal("C_MountJournal", { SummonByID: summon, Pickup: pickup });
-	const client = new MountsClient();
+	const client = new MountsClient(scheduler);
 	client.summon(42);
 	client.summon(0);
 	client.pickupRandom();
@@ -30,7 +32,7 @@ it("routes search and each filter group to the journal and retains the equipment
 		SetSearch: search,
 	});
 	vi.stubGlobal("C_PetJournal", { GetNumPetSources: () => 12 });
-	const client = new MountsClient();
+	const client = new MountsClient(scheduler);
 	client.search("horse");
 	client.toggleFilter("collection:2");
 	client.toggleFilter("type:3");
@@ -54,6 +56,7 @@ it("routes search and each filter group to the journal and retains the equipment
 });
 it("uses displayed indices for favourites, preserves mount IDs and counts the full collection", () => {
 	const favourite = vi.fn();
+	const displayedCount = vi.fn(() => 1);
 	vi.stubGlobal("C_MountJournal", {
 		GetMountIDs: () => [10, 20, 30],
 		GetMountInfoByID: (id: number) => [
@@ -69,7 +72,7 @@ it("uses displayed indices for favourites, preserves mount IDs and counts the fu
 			id === 30,
 			id === 10,
 		],
-		GetNumDisplayedMounts: () => 1,
+		GetNumDisplayedMounts: displayedCount,
 		GetDisplayedMountInfo: () => [
 			"Horse",
 			123,
@@ -87,7 +90,7 @@ it("uses displayed indices for favourites, preserves mount IDs and counts the fu
 		GetIsFavorite: () => [true, true],
 		SetIsFavorite: favourite,
 	});
-	const client = new MountsClient();
+	const client = new MountsClient(scheduler);
 	expect(client.getCount()).toEqual({ collected: 1, total: 2 });
 	expect(client.getMounts()).toEqual([
 		{
@@ -105,4 +108,73 @@ it("uses displayed indices for favourites, preserves mount IDs and counts the fu
 	expect(favourite).toHaveBeenCalledWith(1, false);
 	client.toggleFavourite(999);
 	expect(favourite).toHaveBeenCalledTimes(1);
+	// One journal-size query per load, rather than one per loop iteration.
+	expect(displayedCount).toHaveBeenCalledTimes(3);
+});
+
+it("loads the journal across frames and cancels an obsolete load", () => {
+	const pending: (() => void)[] = [];
+	const nextFrame = (callback: () => void) => {
+		let cancelled = false;
+		pending.push(() => {
+			if (!cancelled) callback();
+		});
+		return () => {
+			cancelled = true;
+		};
+	};
+	const displayed = vi.fn((index: number) => [
+		`Mount ${index}`,
+		123,
+		456,
+		false,
+		true,
+		1,
+		false,
+		false,
+		null,
+		index === 2,
+		true,
+		index,
+	]);
+	const info = vi.fn(() => [
+		"Mount",
+		123,
+		456,
+		false,
+		true,
+		1,
+		false,
+		false,
+		null,
+		false,
+		true,
+	]);
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => 45,
+		GetDisplayedMountInfo: displayed,
+		GetMountIDs: () => [1, 2, 3],
+		GetMountInfoByID: info,
+	});
+	const client = new MountsClient({ nextFrame });
+	const done = vi.fn();
+	client.load(done);
+	expect(displayed).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(20);
+	expect(done).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(40);
+	pending.shift()?.();
+	expect(done).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(44);
+	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 3, total: 3 });
+	const obsolete = vi.fn();
+	const cancel = client.load(obsolete);
+	pending.shift()?.();
+	const calls = displayed.mock.calls.length;
+	cancel();
+	pending.shift()?.();
+	expect(displayed).toHaveBeenCalledTimes(calls);
+	expect(obsolete).not.toHaveBeenCalled();
 });

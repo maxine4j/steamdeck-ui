@@ -4,7 +4,7 @@ interface GridNode {
 	control: INavigable;
 	row: number;
 	column: number;
-	neighbors: Partial<Record<NavDirection, INavigable>>;
+	neighbors: Partial<Record<NavDirection, INavigable | null>>;
 }
 
 /** Builds directional edges from logical cells, independent of native frames. */
@@ -24,32 +24,6 @@ export class NavigationGrid {
 				});
 			});
 		});
-		for (const node of this.nodes.values()) {
-			for (const direction of ["up", "down", "left", "right"] as const) {
-				let best: GridNode | undefined;
-				let bestAcross = Infinity;
-				let bestAlong = Infinity;
-				for (const candidate of this.nodes.values()) {
-					const dx = candidate.column - node.column;
-					const dy = candidate.row - node.row;
-					const vertical = direction === "up" || direction === "down";
-					const along =
-						(vertical ? dy : dx) *
-						(direction === "up" || direction === "left" ? -1 : 1);
-					const across = Math.abs(vertical ? dx : dy);
-					if (along <= 0) continue;
-					if (
-						across < bestAcross ||
-						(across === bestAcross && along < bestAlong)
-					) {
-						best = candidate;
-						bestAcross = across;
-						bestAlong = along;
-					}
-				}
-				if (best) node.neighbors[direction] = best.control;
-			}
-		}
 	}
 	get first(): INavigable | undefined {
 		return this.nodes.values().next().value?.control;
@@ -58,6 +32,31 @@ export class NavigationGrid {
 		return this.nodes.get(id)?.control;
 	}
 	neighbor(id: string, direction: NavDirection): INavigable | undefined {
-		return this.nodes.get(id)?.neighbors[direction];
+		const node = this.nodes.get(id);
+		if (!node) return undefined;
+		const cached = node.neighbors[direction];
+		if (cached !== undefined) return cached ?? undefined;
+		// Opening only indexes controls. Search on demand instead of building
+		// all four edges for every node (quadratic for large journals).
+		let best: GridNode | undefined;
+		let bestAcross = Infinity;
+		let bestAlong = Infinity;
+		for (const candidate of this.nodes.values()) {
+			const dx = candidate.column - node.column;
+			const dy = candidate.row - node.row;
+			const vertical = direction === "up" || direction === "down";
+			const along =
+				(vertical ? dy : dx) *
+				(direction === "up" || direction === "left" ? -1 : 1);
+			const across = Math.abs(vertical ? dx : dy);
+			if (along <= 0) continue;
+			if (across < bestAcross || (across === bestAcross && along < bestAlong)) {
+				best = candidate;
+				bestAcross = across;
+				bestAlong = along;
+			}
+		}
+		node.neighbors[direction] = best?.control ?? null;
+		return best?.control;
 	}
 }

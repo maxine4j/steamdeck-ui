@@ -77,6 +77,66 @@ it("renders proportional bars, restores header tints on blur and reuses controls
 	list.setRows([{ id: "header", label: "Header", activate: vi.fn() }]);
 	expect(frames.get("test-track-0")?.hide).toHaveBeenCalled();
 	expect(frames.size).toBe(count);
+	const layouts = frames.get("test-row-0")?.layout;
+	layouts?.mockClear();
+	list.unmount();
+	list.mount(new Frame("parent", pool));
+	expect(layouts).not.toHaveBeenCalled();
+	list.unmount();
+	list.setRows([{ id: "changed", label: "Changed", activate: vi.fn() }]);
+	expect(layouts).not.toHaveBeenCalled();
+	list.mount(new Frame("parent", pool));
+	expect(layouts).toHaveBeenCalledOnce();
+	expect(list.getNavGrid().at(0)?.at(0)?.navId).toBe("changed");
 	list.destroy();
 	expect(frames.get("test-progress-0")?.destroy).toHaveBeenCalledOnce();
+});
+
+it("renders large lists in bounded frame batches and stops while hidden", () => {
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const changed = vi.fn();
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("batch", pool, "Batch", vi.fn(), {
+		scheduler,
+		onChanged: changed,
+	});
+	const rows = Array.from({ length: 25 }, (_, index) => ({
+		id: `row-${index}`,
+		label: `${index}`,
+		activate: vi.fn(),
+	}));
+	list.setRows(rows);
+	const parent = new Frame("batch-parent", pool);
+	list.mount(parent);
+	expect(list.getNavGrid()).toHaveLength(0);
+	pending.shift()?.();
+	expect(list.getNavGrid()).toHaveLength(10);
+	expect(frames.has("batch-row-10")).toBe(false);
+	expect(changed).toHaveBeenCalledTimes(2);
+	list.unmount();
+	pending.shift()?.();
+	expect(frames.has("batch-row-10")).toBe(false);
+	list.mount(parent);
+	while (pending.length) pending.shift()?.();
+	expect(list.getNavGrid()).toHaveLength(25);
+	list.setRows(rows.slice(0, 1));
+	while (pending.length) pending.shift()?.();
+	expect(list.getNavGrid()).toHaveLength(1);
+	expect(frames.get("batch-row-24")?.hide).toHaveBeenCalled();
+	list.setRows(rows);
+	list.destroy();
+	const notifications = changed.mock.calls.length;
+	while (pending.length) pending.shift()?.();
+	expect(changed).toHaveBeenCalledTimes(notifications);
 });

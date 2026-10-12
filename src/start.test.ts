@@ -61,6 +61,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetHyperlink: vi.fn(),
 				ClearLines: vi.fn(),
 				SetScale: vi.fn(),
+				NineSlice: { SetAlpha: vi.fn() },
+				TopOverlay: { SetAlpha: vi.fn() },
+				BottomOverlay: { SetAlpha: vi.fn() },
 				SetUnit: vi.fn(),
 				SetPortraitZoom: vi.fn(),
 				SetCamDistanceScale: vi.fn(),
@@ -168,6 +171,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		reputation,
 		titles,
 		{
+			load: vi.fn(() => vi.fn()),
 			getMounts: () => [],
 			summon: vi.fn(),
 			pickupRandom: vi.fn(),
@@ -190,6 +194,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			getSlotDriver: vi.fn(),
 		},
 		controller,
+		{ nextFrame: vi.fn(() => vi.fn()) },
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);

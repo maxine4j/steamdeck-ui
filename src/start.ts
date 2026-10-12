@@ -4,6 +4,7 @@ import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
+import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IEventBus } from "./events/types";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
@@ -43,6 +44,7 @@ export function startSteamDeckUI(
 	mounts: IMountsClient,
 	actions: IActionBarClient,
 	controller: IControllerInputClient,
+	scheduler: ITaskScheduler,
 ) {
 	const navigation = new NavigationManager(events, (active) =>
 		controller.setActive(active),
@@ -87,10 +89,15 @@ export function startSteamDeckUI(
 		new ActionBarModule(events, actions, new CrossBar(pool, actions)),
 	);
 	const builtInMounts = new BuiltInMounts(new FrameSuppression(pool), events);
-	const mountsPanel = new MountsPanel(pool, mounts, () => {
-		builtInMounts.close();
-		ui.closePanel("left", "mounts");
-	});
+	const mountsPanel = new MountsPanel(
+		pool,
+		mounts,
+		() => {
+			builtInMounts.close();
+			ui.closePanel("left", "mounts");
+		},
+		scheduler,
+	);
 	modules.register(new MountsModule(ui, events, mountsPanel, builtInMounts));
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),

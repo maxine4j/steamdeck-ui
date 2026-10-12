@@ -1,3 +1,4 @@
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { Frame } from "./frame";
@@ -38,6 +39,9 @@ export class ScrollList {
 	}[] = [];
 	private rows: readonly ListRow[] = [];
 	private mounted = false;
+	private dirty = true;
+	private cancelRender?: () => void;
+	private renderedRows = 0;
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
@@ -49,6 +53,8 @@ export class ScrollList {
 			readonly bottom?: number;
 			readonly secure?: boolean;
 			readonly background?: boolean;
+			readonly scheduler?: ITaskScheduler;
+			readonly onChanged?: (complete: boolean) => void;
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -58,6 +64,7 @@ export class ScrollList {
 	}
 	setRows(rows: readonly ListRow[]): void {
 		this.rows = rows;
+		this.dirty = true;
 		if (this.mounted) this.render();
 	}
 	mount(parent: IUIComponent): void {
@@ -87,9 +94,14 @@ export class ScrollList {
 		this.content.show();
 		this.frame.show();
 		this.mounted = true;
-		this.render();
+		if (this.dirty) this.render();
+		else this.scroll.clampScroll();
 	}
 	private render(): void {
+		this.cancelRender?.();
+		this.cancelRender = undefined;
+		this.renderedRows = 0;
+		this.options.onChanged?.(false);
 		const width = 480 - 2 * (this.options.padding ?? 12);
 		this.content.layout(
 			width,
@@ -101,146 +113,169 @@ export class ScrollList {
 			this.scroll,
 		);
 		let offset = 0;
-		this.rows.forEach((row, index) => {
-			let button = this.buttons.at(index);
-			if (!button) {
-				const frame = new Frame(
-					`${this.id}-row-${index}`,
-					this.pool,
-					this.options.secure ? "SecureButton" : "Button",
-				);
-				const secondary = new Frame(
-					`${this.id}-secondary-${index}`,
-					this.pool,
-					"Button",
-				);
-				button = {
-					frame,
-					icon: new Frame(`${this.id}-icon-${index}`, this.pool),
-					track: new Frame(`${this.id}-track-${index}`, this.pool),
-					progress: new Frame(`${this.id}-progress-${index}`, this.pool),
-					secondary,
-					secondaryNav: {
-						navId: `${row.id}-secondary`,
-						onFocus: () => secondary.setColor(0.3, 0.25, 0),
-						onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
-						onInteract: () => {
-							if (this.mounted) this.rows.at(index)?.secondary?.activate();
+		let cursor = 0;
+		const total = Math.max(this.rows.length, this.buttons.length);
+		const step = () => {
+			this.cancelRender = undefined;
+			const end = Math.min(
+				total,
+				cursor + (this.options.scheduler ? 10 : total),
+			);
+			const start = cursor;
+			this.rows.slice(start, end).forEach((row, batchIndex) => {
+				const index = start + batchIndex;
+				let button = this.buttons.at(index);
+				if (!button) {
+					const frame = new Frame(
+						`${this.id}-row-${index}`,
+						this.pool,
+						this.options.secure ? "SecureButton" : "Button",
+					);
+					const secondary = new Frame(
+						`${this.id}-secondary-${index}`,
+						this.pool,
+						"Button",
+					);
+					button = {
+						frame,
+						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
+						track: new Frame(`${this.id}-track-${index}`, this.pool),
+						progress: new Frame(`${this.id}-progress-${index}`, this.pool),
+						secondary,
+						secondaryNav: {
+							navId: `${row.id}-secondary`,
+							onFocus: () => secondary.setColor(0.3, 0.25, 0),
+							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
+							onInteract: () => {
+								if (this.isReady(index))
+									this.rows.at(index)?.secondary?.activate();
+							},
 						},
-					},
-					nav: {
-						navId: row.id,
-						onFocus: () => frame.setColor(0.3, 0.25, 0),
-						onBlur: () => this.style(index),
-						onInteract: () => {
-							if (this.mounted) {
-								if (this.options.secure) frame.click();
-								else this.rows.at(index)?.activate();
-							}
+						nav: {
+							navId: row.id,
+							onFocus: () => frame.setColor(0.3, 0.25, 0),
+							onBlur: () => this.style(index),
+							onInteract: () => {
+								if (this.isReady(index)) {
+									if (this.options.secure) frame.click();
+									else this.rows.at(index)?.activate();
+								}
+							},
 						},
-					},
-				};
-				this.buttons.push(button);
-			}
-			button.nav.navId = row.id;
-			button.frame.setParent(this.content);
-			button.icon.setParent(button.frame);
-			if (row.icon !== undefined) {
-				button.icon.layout(36, 36, "TOPLEFT", button.frame, 6, -6);
-				button.icon.setIcon(row.icon);
-				button.icon.show();
-			} else button.icon.hide();
-			button.secondaryNav.navId = `${row.id}-favourite`;
-			if (row.secondary) {
-				button.secondary.setParent(button.frame);
-				button.secondary.layout(44, 40, "TOPRIGHT", button.frame, -4, -4);
-				button.secondary.setColor(0.12, 0.12, 0.12);
-				button.secondary.setLabel("label", row.secondary.label);
-				button.secondary.onClick(() => {
-					if (this.mounted) this.rows.at(index)?.secondary?.activate();
-				});
-				button.secondary.show();
-			} else button.secondary.hide();
-			const indent = row.indent ?? 0;
-			const textLeft = row.icon === undefined ? 8 : 48;
-			const textWidth =
-				width - indent - textLeft - 8 - (row.secondary ? 48 : 0);
-			if (row.progress) {
-				button.track.setParent(button.frame);
-				button.track.layout(
-					textWidth,
-					6,
-					"BOTTOMLEFT",
-					button.frame,
-					textLeft,
-					6,
-				);
-				button.track.setColor(0.025, 0.025, 0.025);
-				button.track.show();
-				const value = Math.max(0, Math.min(1, row.progress.value));
-				if (value > 0) {
-					button.progress.setParent(button.track);
-					button.progress.layout(
-						textWidth * value,
+					};
+					this.buttons.push(button);
+				}
+				button.nav.navId = row.id;
+				button.frame.setParent(this.content);
+				button.icon.setParent(button.frame);
+				if (row.icon !== undefined) {
+					button.icon.layout(36, 36, "TOPLEFT", button.frame, 6, -6);
+					button.icon.setIcon(row.icon);
+					button.icon.show();
+				} else button.icon.hide();
+				button.secondaryNav.navId = `${row.id}-favourite`;
+				if (row.secondary) {
+					button.secondary.setParent(button.frame);
+					button.secondary.layout(44, 40, "TOPRIGHT", button.frame, -4, -4);
+					button.secondary.setColor(0.12, 0.12, 0.12);
+					button.secondary.setLabel("label", row.secondary.label);
+					button.secondary.onClick(() => {
+						if (this.isReady(index)) this.rows.at(index)?.secondary?.activate();
+					});
+					button.secondary.show();
+				} else button.secondary.hide();
+				const indent = row.indent ?? 0;
+				const textLeft = row.icon === undefined ? 8 : 48;
+				const textWidth =
+					width - indent - textLeft - 8 - (row.secondary ? 48 : 0);
+				if (row.progress) {
+					button.track.setParent(button.frame);
+					button.track.layout(
+						textWidth,
 						6,
 						"BOTTOMLEFT",
-						button.track,
-						0,
-						0,
+						button.frame,
+						textLeft,
+						6,
 					);
-					button.progress.setColor(...row.progress.color);
-					button.progress.show();
-				} else button.progress.hide();
-			} else {
-				button.progress.hide();
-				button.track.hide();
+					button.track.setColor(0.025, 0.025, 0.025);
+					button.track.show();
+					const value = Math.max(0, Math.min(1, row.progress.value));
+					if (value > 0) {
+						button.progress.setParent(button.track);
+						button.progress.layout(
+							textWidth * value,
+							6,
+							"BOTTOMLEFT",
+							button.track,
+							0,
+							0,
+						);
+						button.progress.setColor(...row.progress.color);
+						button.progress.show();
+					} else button.progress.hide();
+				} else {
+					button.progress.hide();
+					button.track.hide();
+				}
+				button.frame.layout(
+					width - indent,
+					row.progress ? 60 : 48,
+					"TOPLEFT",
+					this.content,
+					indent,
+					-offset,
+				);
+				offset += row.progress ? 64 : 52;
+				button.frame.setLabel(
+					"label",
+					row.label,
+					"TOPLEFT",
+					row.icon === undefined ? 8 : 48,
+					-6,
+					row.fontSize ?? 14,
+					width -
+						indent -
+						(row.icon === undefined ? 16 : 56) -
+						(row.secondary ? 48 : 0),
+				);
+				button.frame.setLabel(
+					"detail",
+					row.detail ?? "",
+					"BOTTOMLEFT",
+					row.icon === undefined ? 8 : 48,
+					row.progress ? 18 : 6,
+					12,
+					width -
+						indent -
+						(row.icon === undefined ? 16 : 56) -
+						(row.secondary ? 48 : 0),
+				);
+				button.frame.setTooltip(row.tooltip ?? row.label);
+				if (this.options.secure) button.frame.setSpell(row.spell);
+				else
+					button.frame.onClick((mouseButton) => {
+						if (this.isReady(index) && mouseButton === "LeftButton")
+							this.rows.at(index)?.activate();
+					});
+				this.style(index);
+				button.frame.show();
+			});
+			for (let index = Math.max(start, this.rows.length); index < end; index++)
+				this.buttons.at(index)?.frame.hide();
+			this.renderedRows = Math.min(end, this.rows.length);
+			cursor = end;
+			if (cursor < total && this.options.scheduler)
+				this.cancelRender = this.options.scheduler.nextFrame(step);
+			else {
+				this.scroll.clampScroll();
+				this.dirty = false;
 			}
-			button.frame.layout(
-				width - indent,
-				row.progress ? 60 : 48,
-				"TOPLEFT",
-				this.content,
-				indent,
-				-offset,
-			);
-			offset += row.progress ? 64 : 52;
-			button.frame.setLabel(
-				"label",
-				row.label,
-				"TOPLEFT",
-				row.icon === undefined ? 8 : 48,
-				-6,
-				row.fontSize ?? 14,
-				width -
-					indent -
-					(row.icon === undefined ? 16 : 56) -
-					(row.secondary ? 48 : 0),
-			);
-			button.frame.setLabel(
-				"detail",
-				row.detail ?? "",
-				"BOTTOMLEFT",
-				row.icon === undefined ? 8 : 48,
-				row.progress ? 18 : 6,
-				12,
-				width -
-					indent -
-					(row.icon === undefined ? 16 : 56) -
-					(row.secondary ? 48 : 0),
-			);
-			button.frame.setTooltip(row.tooltip ?? row.label);
-			if (this.options.secure) button.frame.setSpell(row.spell);
-			else
-				button.frame.onClick((mouseButton) => {
-					if (this.mounted && mouseButton === "LeftButton")
-						this.rows.at(index)?.activate();
-				});
-			this.style(index);
-			button.frame.show();
-		});
-		for (let index = this.rows.length; index < this.buttons.length; index++)
-			this.buttons.at(index)?.frame.hide();
-		this.scroll.clampScroll();
+			this.options.onChanged?.(!this.dirty);
+		};
+		if (this.options.scheduler)
+			this.cancelRender = this.options.scheduler.nextFrame(step);
+		else step();
 	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
@@ -249,14 +284,19 @@ export class ScrollList {
 			(row?.selected ? [0.25, 0.2, 0.05] : [0.08, 0.08, 0.08]);
 		this.buttons.at(index)?.frame.setColor(...color);
 	}
+	private isReady(index: number): boolean {
+		return this.mounted && index < this.renderedRows;
+	}
 	unmount(): void {
 		this.mounted = false;
+		this.cancelRender?.();
+		this.cancelRender = undefined;
 		this.frame.hide();
 	}
 	getNavGrid(): INavigable[][] {
 		return this.mounted
 			? this.buttons
-					.slice(0, this.rows.length)
+					.slice(0, this.renderedRows)
 					.map((button, index) =>
 						this.rows.at(index)?.secondary
 							? [button.nav, button.secondaryNav]

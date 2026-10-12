@@ -1,3 +1,5 @@
+import type { ITaskScheduler } from "./task-scheduler";
+
 export interface Mount {
 	readonly id: number;
 	readonly index: number;
@@ -14,6 +16,12 @@ export interface MountFilter {
 	readonly checked: boolean;
 }
 export interface IMountsClient {
+	load(
+		callback: (
+			mounts: Mount[],
+			count: { collected: number; total: number },
+		) => void,
+	): () => void;
 	summon(id: number): void;
 	pickupRandom(): void;
 	getMounts(): Mount[];
@@ -27,6 +35,70 @@ export interface IMountsClient {
 	getUtilitySpells(): { favourite: number; flight: number };
 }
 export class MountsClient implements IMountsClient {
+	constructor(private readonly scheduler: ITaskScheduler) {}
+	load(
+		callback: (
+			mounts: Mount[],
+			count: { collected: number; total: number },
+		) => void,
+	): () => void {
+		const mounts: Mount[] = [];
+		let ids: number[] | undefined;
+		let displayed = 0;
+		let index = 1;
+		let countIndex = 0;
+		let collected = 0;
+		let total = 0;
+		const step = () => {
+			if (!ids) {
+				displayed = C_MountJournal.GetNumDisplayedMounts();
+				ids = C_MountJournal.GetMountIDs() as unknown as number[];
+			}
+			// Bound API work per frame, including the unfiltered collection count.
+			let remaining = 20;
+			while (index <= displayed && remaining > 0) {
+				const mount = this.getDisplayedMount(index++);
+				if (mount) mounts.push(mount);
+				remaining--;
+			}
+			while (countIndex < ids.length && remaining > 0) {
+				const id = ids.at(countIndex++);
+				if (id !== undefined) {
+					const [, , , , , , , , , hidden, owned] =
+						C_MountJournal.GetMountInfoByID(id);
+					if (!hidden) {
+						total++;
+						if (owned) collected++;
+					}
+				}
+				remaining--;
+			}
+			if (index <= displayed || countIndex < ids.length)
+				cancel = this.scheduler.nextFrame(step);
+			else callback(mounts, { collected, total });
+		};
+		let cancel = this.scheduler.nextFrame(step);
+		return () => cancel();
+	}
+	private getDisplayedMount(index: number): Mount | undefined {
+		const [
+			name,
+			spell,
+			icon,
+			,
+			usable,
+			,
+			favourite,
+			,
+			,
+			hidden,
+			collected,
+			id,
+		] = C_MountJournal.GetDisplayedMountInfo(index);
+		return hidden
+			? undefined
+			: { id, index, name, spell, icon, usable, collected, favourite };
+	}
 	summon(id: number): void {
 		C_MountJournal.SummonByID(id);
 	}
@@ -35,36 +107,10 @@ export class MountsClient implements IMountsClient {
 	}
 	getMounts(): Mount[] {
 		const mounts: Mount[] = [];
-		for (
-			let index = 1;
-			index <= C_MountJournal.GetNumDisplayedMounts();
-			index++
-		) {
-			const [
-				name,
-				spell,
-				icon,
-				,
-				usable,
-				,
-				favourite,
-				,
-				,
-				hidden,
-				collected,
-				id,
-			] = C_MountJournal.GetDisplayedMountInfo(index);
-			if (!hidden)
-				mounts.push({
-					id,
-					index,
-					name,
-					spell,
-					icon,
-					usable,
-					collected,
-					favourite,
-				});
+		const count = C_MountJournal.GetNumDisplayedMounts();
+		for (let index = 1; index <= count; index++) {
+			const mount = this.getDisplayedMount(index);
+			if (mount) mounts.push(mount);
 		}
 		return mounts;
 	}

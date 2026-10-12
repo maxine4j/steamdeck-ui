@@ -1,4 +1,5 @@
-import type { IMountsClient } from "../../clients/mounts-client";
+import type { IMountsClient, Mount } from "../../clients/mounts-client";
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
 import { ScrollList } from "../../ui/components/scroll-list";
@@ -19,10 +20,14 @@ export class MountsPanel implements IPanel {
 	private readonly flight: Frame;
 	private readonly list: ScrollList;
 	private mounted = false;
+	private dirty = true;
+	private cancelLoad?: () => void;
+	private navigationChanged?: () => void;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IMountsClient,
 		close: () => void,
+		scheduler: ITaskScheduler,
 	) {
 		this.frame = new Frame("mounts-root", pool);
 		this.search = new Frame("mounts-search", pool, "EditBox");
@@ -35,11 +40,38 @@ export class MountsPanel implements IPanel {
 			top: 112,
 			bottom: 116,
 			background: false,
+			scheduler,
+			onChanged: (complete) => {
+				if (complete && !this.cancelLoad) this.frame.setLabel("loading", "");
+				this.navigationChanged?.();
+			},
 		});
 	}
 	refresh(): void {
+		this.dirty = true;
+		this.cancelLoad?.();
+		this.cancelLoad = undefined;
+		if (!this.mounted) return;
+		this.frame.setLabel(
+			"loading",
+			"Loading mounts...",
+			"TOPRIGHT",
+			-16,
+			-44,
+			14,
+		);
+		this.cancelLoad = this.client.load((mounts, count) => {
+			this.cancelLoad = undefined;
+			if (!this.mounted) return;
+			this.render(mounts, count);
+		});
+	}
+	private render(
+		mounts: Mount[],
+		count: { collected: number; total: number },
+	): void {
 		this.list.setRows(
-			this.client.getMounts().map((mount) => ({
+			mounts.map((mount) => ({
 				id: `mount-${mount.id}`,
 				label: mount.name,
 				icon: mount.icon,
@@ -74,8 +106,6 @@ export class MountsPanel implements IPanel {
 				},
 			})),
 		);
-		if (!this.mounted) return;
-		const count = this.client.getCount();
 		this.frame.setLabel(
 			"count",
 			`${count.collected} / ${count.total}`,
@@ -89,6 +119,10 @@ export class MountsPanel implements IPanel {
 		this.equipment.setTooltip(equipment.label, equipment.link);
 		const spells = this.client.getUtilitySpells();
 		this.flight.setSpell(spells.flight);
+		this.dirty = false;
+	}
+	setNavigationChanged(callback?: () => void): void {
+		this.navigationChanged = callback;
 	}
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
@@ -154,10 +188,12 @@ export class MountsPanel implements IPanel {
 		this.filters.mount(this.frame);
 		this.frame.show();
 		this.mounted = true;
-		this.refresh();
+		if (this.dirty) this.refresh();
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.cancelLoad?.();
+		this.cancelLoad = undefined;
 		this.filters.hide();
 		this.list.unmount();
 		this.frame.hide();
