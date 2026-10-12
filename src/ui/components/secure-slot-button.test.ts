@@ -207,6 +207,10 @@ end`,
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("type", undefined);
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("spell", undefined);
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
+		"macrotext",
+		undefined,
+	);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
 		"_ondragstart",
 		undefined,
 	);

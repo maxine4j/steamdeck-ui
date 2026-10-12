@@ -152,7 +152,7 @@ if not action then
 	end
 	action = (page - 1) * 12 + ${slot}
 end
-${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : defaultCommand === "MOUNT" ? 'self:SetAttribute("spell", action == -3 and 150544 or nil)\nself:SetAttribute("type", action == -3 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
+${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : defaultCommand === "MOUNT" ? 'self:SetAttribute("macrotext", action == -3 and "/run C_MountJournal.SummonByID(0)" or nil)\nself:SetAttribute("type", action == -3 and "macro" or "action")\n' : ""}self:SetAttribute("action", action)`,
 		};
 	}
 	getRingDriver(kind: ActionRingKind = "abilities"): RadialDriver {
@@ -356,8 +356,11 @@ if pos then return pos.x, pos.y, pos.len end`,
 		} else this.disableBuiltIn();
 	}
 	read(slot: number): SlotVisual {
-		if (slot === -3)
-			return { icon: "Interface\\Icons\\Ability_Mount_RidingHorse" };
+		// 150544 supplies the journal icon; summoning uses SummonByID(0), not a cast.
+		if (slot === -3) {
+			const [icon] = C_Spell.GetSpellTexture(150544);
+			return { icon };
+		}
 		if (slot === -2) {
 			// Generated declarations flatten this table and alter Blizzard's field casing.
 			const abilities = C_ZoneAbility.GetActiveAbilities() as unknown as {

@@ -40,12 +40,18 @@ it("keeps unmodified Down on random favourite mount during all main-bar states",
 		"[mod:shift,mod:ctrl] 179; [mod:shift] 171; [mod:ctrl] 163; -3",
 	);
 	expect(driver.response).toContain(
-		'self:SetAttribute("spell", action == -3 and 150544 or nil)',
+		'self:SetAttribute("macrotext", action == -3 and "/run C_MountJournal.SummonByID(0)" or nil)',
 	);
 	expect(driver.response).toContain(
-		'self:SetAttribute("type", action == -3 and "spell" or "action")',
+		'self:SetAttribute("type", action == -3 and "macro" or "action")',
 	);
-	expect(client.read(-3).icon).toBeDefined();
+});
+
+it("uses the mount journal's random favourite mount icon", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	vi.stubGlobal("C_Spell", { GetSpellTexture: vi.fn(() => [901234, 901235]) });
+	expect(client.read(-3).icon).toBe(901234);
+	expect(C_Spell.GetSpellTexture).toHaveBeenCalledWith(150544);
 });
 
 it("reads the highest-priority zone spell and leaves an absent zone ability empty", () => {
