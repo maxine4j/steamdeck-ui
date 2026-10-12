@@ -88,7 +88,7 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 	publish([toy(3, 0), toy(2, 11), favourite]);
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
-	).toEqual([["toy-1"], ["toy-2"], ["toy-3"]]);
+	).toEqual([["toy-favourite-1"], ["toy-2"], ["toy-1", "toy-3"]]);
 	const node = panel.getNavGrid().at(0)?.at(0);
 	expect(node?.tooltipItem?.()).toBe(1);
 	node?.onContext?.();

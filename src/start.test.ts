@@ -425,7 +425,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	flush();
 	expect(app.ui.getContainer("right").activePanelId).toBe("toys");
 	expect(toys.load).toHaveBeenCalledOnce();
-	expect(app.navigation.focusedId).toBe("toy-9001");
+	expect(app.navigation.focusedId).toBe("toy-favourite-9001");
 	const toyButton = frames.find((frame) =>
 		vi
 			.mocked(frame.SetAttribute)

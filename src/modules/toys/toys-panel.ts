@@ -176,7 +176,7 @@ export class ToysPanel implements IPanel {
 					const current = () =>
 						this.mounted && !this.dirty && generation === this.generation;
 					const node = control.navigationNode(
-						`toy-${toy.id}`,
+						group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
 						() => {},
 						() =>
 							this.viewport.revealVerticalRange(
