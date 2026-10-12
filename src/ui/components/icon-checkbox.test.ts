@@ -29,6 +29,11 @@ vi.mock("./frame", () => ({
 		layout = vi.fn();
 		setBorder = vi.fn();
 		setColor = vi.fn();
+		setFocused = vi.fn();
+		setCloseButtonBackground = vi.fn();
+		setInsetBackground = vi.fn();
+		setButtonBackground = vi.fn();
+		setWindowBackground = vi.fn();
 		setOpacity = vi.fn();
 		setTooltip = vi.fn();
 		constructor(id: string) {

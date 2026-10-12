@@ -19,7 +19,7 @@ export class Dropdown {
 		this.parent = parent;
 		this.button.setParent(parent);
 		this.button.layout(112, 32, "TOPRIGHT", parent, -16, -66);
-		this.button.setColor(0.15, 0.15, 0.15);
+		this.button.setButtonBackground();
 		this.button.setLabel("label", "Filters v");
 		this.button.onClick(() => this.toggle());
 		this.button.show();
@@ -49,8 +49,8 @@ export class Dropdown {
 			[
 				{
 					navId: this.button.id,
-					onFocus: () => this.button.setColor(0.3, 0.25, 0),
-					onBlur: () => this.button.setColor(0.15, 0.15, 0.15),
+					onFocus: () => this.button.setFocused(true),
+					onBlur: () => this.button.setFocused(false),
 					onInteract: () => this.toggle(),
 				},
 			],

@@ -181,11 +181,11 @@ export class VendorPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Vendor requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
 		this.closeButton.setParent(this.frame);
 		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setLabel("close", "X");
+		this.closeButton.setCloseButtonBackground();
 		this.closeButton.onClick((button) => {
 			if (this.mounted && button === "LeftButton") this.close();
 		});
@@ -194,7 +194,7 @@ export class VendorPanel implements IPanel {
 		if (this.id === "vendor") {
 			this.footer.setParent(this.frame);
 			this.footer.layout(456, 120, "BOTTOMLEFT", this.frame, 16, 12);
-			this.footer.setColor(0.12, 0.12, 0.12);
+			this.footer.setInsetBackground();
 			this.controls.forEach((control, index) => {
 				control.frame.setParent(this.footer);
 				control.frame.layout(
@@ -236,8 +236,8 @@ export class VendorPanel implements IPanel {
 			[
 				{
 					navId: this.closeButton.id,
-					onFocus: () => this.closeButton.setColor(0.3, 0.25, 0),
-					onBlur: () => this.closeButton.setColor(0.12, 0.12, 0.12),
+					onFocus: () => this.closeButton.setFocused(true),
+					onBlur: () => this.closeButton.setFocused(false),
 					onInteract: () => {
 						if (this.mounted) this.close();
 					},

@@ -11,6 +11,8 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 	for (const method of [
 		"modalBackdrop",
 		"setColor",
+		"setWindowBackground",
+		"setButtonBackground",
 		"onClose",
 		"setParent",
 		"setModalLayer",
@@ -71,6 +73,8 @@ it("moves the active gold border to the modal and restores panel focus on close"
 	for (const method of [
 		"modalBackdrop",
 		"setColor",
+		"setWindowBackground",
+		"setButtonBackground",
 		"onClose",
 		"setParent",
 		"setModalLayer",

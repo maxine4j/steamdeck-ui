@@ -7,6 +7,7 @@ import {
 	type ClickBinding,
 	SecureClickBindings,
 } from "./secure-click-bindings";
+import { applyButtonSkin, applyWindowSkin } from "./skin";
 import {
 	setTooltipContent,
 	type TooltipContent,
@@ -63,6 +64,7 @@ export class Frame implements IUIComponent {
 	private readonly heldGamePadButtons = new Map<string, number>();
 	private opacityChanged = false;
 	private texture?: WowTexture;
+	private buttonSkinned = false;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
 	private readonly labelState = new Map<
@@ -392,6 +394,13 @@ export class Frame implements IUIComponent {
 	}
 	setColor(red: number, green: number, blue: number, alpha = 1): void {
 		this.acquire();
+		if (this.buttonSkinned && this.native) {
+			for (const key of ["button-left", "button-right"])
+				this.pool.getDecoration(this.native, key).SetColorTexture(0, 0, 0, 0);
+			this.texture?.ClearAllPoints();
+			this.texture?.SetAllPoints();
+			this.buttonSkinned = false;
+		}
 		this.texture?.SetColorTexture(red, green, blue, alpha);
 	}
 	setOpacity(alpha: number): void {
@@ -672,9 +681,21 @@ export class Frame implements IUIComponent {
 		};
 		native.SetScript("OnReceiveDrag", callback);
 	}
-	setBlackBackground(): void {
+	setWindowBackground(): void {
+		applyWindowSkin(this.pool, this.acquire());
+	}
+	setButtonBackground(selected = false): void {
+		applyButtonSkin(this.pool, this.acquire(), selected);
+		this.buttonSkinned = true;
+	}
+	setInsetBackground(): void {
 		this.acquire();
-		this.texture?.SetColorTexture(0, 0, 0, 1);
+		this.texture?.SetAtlas("character-panel-background", false);
+		this.setBorder([0.45, 0.4, 0.3, 1], 1);
+	}
+	setCloseButtonBackground(): void {
+		this.acquire();
+		this.texture?.SetAtlas("RedButton-Exit", false);
 	}
 	setAnimatedAtlas(atlas: AnimatedAtlas): void {
 		this.acquire();
@@ -715,6 +736,7 @@ export class Frame implements IUIComponent {
 		this.animation = undefined;
 		this.flipbook = undefined;
 		this.animatedAtlas = undefined;
+		this.buttonSkinned = false;
 		this.hoverTooltip?.destroy();
 		this.hoverTooltip = undefined;
 		this.clickBindings?.destroy();

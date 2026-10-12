@@ -60,7 +60,7 @@ export class ToysPanel implements IPanel {
 		this.mountPending = this.client.isInCombat();
 		if (this.mountPending) return;
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.setLabel(
 			"actions",
 			"X: Use   Y: Actions",

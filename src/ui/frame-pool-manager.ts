@@ -54,7 +54,10 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		let texture = decorations.get(key);
 		if (!texture) {
-			texture = frame.CreateTexture(undefined, "OVERLAY");
+			texture = frame.CreateTexture(
+				undefined,
+				key.startsWith("button-") ? "BACKGROUND" : "OVERLAY",
+			);
 			decorations.set(key, texture);
 		}
 		return texture;
@@ -79,8 +82,11 @@ export class FramePoolManager implements IFramePoolManager {
 		this.backgrounds.get(frame)?.SetTexture(undefined);
 		this.backgrounds.get(frame)?.SetTexCoord(0, 1, 0, 1);
 		this.backgrounds.get(frame)?.SetColorTexture(0, 0, 0, 0);
+		this.backgrounds.get(frame)?.ClearAllPoints();
+		this.backgrounds.get(frame)?.SetAllPoints();
 		for (const decoration of this.decorations.get(frame)?.values() ?? []) {
 			decoration.SetTexture(undefined);
+			decoration.SetTexCoord(0, 1, 0, 1);
 			decoration.SetColorTexture(0, 0, 0, 0);
 			decoration.ClearAllPoints();
 		}

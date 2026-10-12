@@ -102,7 +102,7 @@ export class ItemGrid {
 						nav: {
 							navId: item.id,
 							onFocus: () => {
-								frame.setColor(0.3, 0.25, 0);
+								frame.setFocused(true);
 								this.reveal(index);
 							},
 							tooltipItem: () => this.items.at(index)?.hyperlink,
@@ -114,10 +114,10 @@ export class ItemGrid {
 						secondaryNav: {
 							navId: `${item.id}-secondary`,
 							onFocus: () => {
-								secondary.setColor(0.3, 0.25, 0);
+								secondary.setFocused(true);
 								this.reveal(index);
 							},
-							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
+							onBlur: () => secondary.setFocused(false),
 							onInteract: () => {
 								if (this.mounted) this.items.at(index)?.secondary?.activate();
 							},
@@ -163,7 +163,7 @@ export class ItemGrid {
 				if (item.secondary) {
 					cell.secondary.setParent(cell.frame);
 					cell.secondary.layout(28, 28, "TOPRIGHT", cell.frame, -4, -4);
-					cell.secondary.setColor(0.12, 0.12, 0.12);
+					cell.secondary.setButtonBackground();
 					cell.secondary.setLabel("label", item.secondary.label);
 					cell.secondary.onClick((button) => {
 						if (this.mounted && button === "LeftButton")
@@ -209,11 +209,9 @@ export class ItemGrid {
 			);
 	}
 	private style(index: number): void {
-		const color: readonly [number, number, number] = this.items.at(index)
-			?.selected
-			? [0.25, 0.2, 0.05]
-			: [0.08, 0.08, 0.08];
-		this.cells.at(index)?.frame.setColor(...color);
+		const frame = this.cells.at(index)?.frame;
+		frame?.setFocused(false);
+		frame?.setButtonBackground(this.items.at(index)?.selected ?? false);
 	}
 	unmount(): void {
 		this.mounted = false;

@@ -17,7 +17,10 @@ const toy = (id: number, expansionId = 10, favourite = false): Toy => ({
 function setup() {
 	for (const method of [
 		"fill",
-		"setBlackBackground",
+		"setWindowBackground",
+		"setButtonBackground",
+		"setInsetBackground",
+		"setCloseButtonBackground",
 		"setParent",
 		"layout",
 		"setColor",

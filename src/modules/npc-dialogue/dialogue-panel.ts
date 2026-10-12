@@ -85,7 +85,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.height = height;
 		this.window.setParent(parent);
 		this.window.layout(width, height, "CENTER", parent);
-		this.window.setColor(0.035, 0.04, 0.055, 0.96);
+		this.window.setWindowBackground();
 		this.window.setFocusBorder(true);
 		this.readingWidth = width - 444;
 		this.readingHeight = height - 162;
@@ -109,7 +109,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		);
 		this.input.setParent(this.window);
 		this.input.layout(360, 40, "TOPRIGHT", this.window, -32, -106);
-		this.input.setColor(0.12, 0.14, 0.18);
+		this.input.setInsetBackground();
 		this.input.setFocusBorder(true);
 		this.input.configureInput((text) => {
 			this.code = text;

@@ -299,7 +299,7 @@ export class DungeonFinderPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Dungeon finder requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.list.mount(this.frame);
 		this.checkboxes.forEach((control, index) => {
 			control.mount(this.frame, 30 + index * 108, 70, false);

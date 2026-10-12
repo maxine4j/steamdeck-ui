@@ -52,7 +52,7 @@ export class IconCheckbox implements INavigable {
 	}
 	setChecked(checked: boolean, enabled = true): void {
 		this.enabled = enabled;
-		this.button.setColor(0.08, 0.08, 0.08);
+		this.button.setButtonBackground();
 		this.button.setOpacity(enabled ? 1 : 0.35);
 		if (checked) this.check.show();
 		else this.check.hide();

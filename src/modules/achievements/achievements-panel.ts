@@ -78,8 +78,8 @@ export class AchievementsPanel implements IPanel {
 		this.filterNav = {
 			navId: "achievements-filter",
 			navColumn: 0,
-			onFocus: () => this.filter.setColor(0.3, 0.25, 0),
-			onBlur: () => this.filter.setColor(0.1, 0.1, 0.1),
+			onFocus: () => this.filter.setFocused(true),
+			onBlur: () => this.filter.setFocused(false),
 			onInteract: () => {
 				this.incomplete = !this.incomplete;
 				this.expanded = undefined;
@@ -89,8 +89,8 @@ export class AchievementsPanel implements IPanel {
 		this.closeNav = {
 			navId: "achievements-close",
 			navColumn: 1,
-			onFocus: () => this.closeButton.setColor(0.3, 0.25, 0),
-			onBlur: () => this.closeButton.setColor(0.1, 0.1, 0.1),
+			onFocus: () => this.closeButton.setFocused(true),
+			onBlur: () => this.closeButton.setFocused(false),
 			onInteract: () => this.close(),
 		};
 	}
@@ -314,7 +314,7 @@ export class AchievementsPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Achievements requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 20, -16, 22);
 		const width = parent.getSize().width;
 		this.sidebar.inset(this.frame, 12, 90, Math.max(12, width - 292), 12);
@@ -322,11 +322,12 @@ export class AchievementsPanel implements IPanel {
 		this.body.inset(this.frame, 308, 90, 12, 12);
 		this.filter.setParent(this.frame);
 		this.filter.layout(250, 28, "TOPRIGHT", this.frame, -52, -12);
+		this.filter.setButtonBackground();
 		this.filter.onClick(() => this.filterNav.onInteract());
 		this.filter.show();
 		this.closeButton.setParent(this.frame);
 		this.closeButton.layout(28, 28, "TOPRIGHT", this.frame, -12, -12);
-		this.closeButton.setLabel("label", "X");
+		this.closeButton.setCloseButtonBackground();
 		this.closeButton.onClick(this.close);
 		this.closeButton.show();
 		this.frame.show();

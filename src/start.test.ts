@@ -39,6 +39,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			const texture = {
 				ClearAllPoints: vi.fn(),
 				SetAllPoints: vi.fn(),
+				SetAtlas: vi.fn(() => textureIcons.delete(texture)),
 				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
 				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
 				SetTexCoord: vi.fn(),
@@ -620,12 +621,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	const clickTab = (icon: number) => {
-		const index = textures.findIndex(
-			(texture, index) =>
-				textureIcons.get(texture) === icon && frames.at(index)?.IsShown(),
-		);
+		const index = textures.findIndex((texture, index) => {
+			const frame = frames.at(index);
+			return (
+				textureIcons.get(texture) === icon &&
+				frame?.IsShown() &&
+				vi
+					.mocked(frame.SetScript)
+					.mock.calls.findLast((call) => call.at(0) === "OnClick")
+					?.at(1)
+			);
+		});
 		const native = frames.at(index);
-		if (!native) throw new Error("Missing tab frame");
+		if (index < 0 || !native) throw new Error(`Missing tab frame ${icon}`);
 		const handler = vi
 			.mocked(native.SetScript)
 			.mock.calls.findLast((call) => call.at(0) === "OnClick")
@@ -690,7 +698,22 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	clickTab(132261);
 	expect(app.ui.getContainer("right").activePanelId).toBe("mounts");
 	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
-	clickRow("X")();
+	const closeIndex = textures.findLastIndex(
+		(texture, index) =>
+			frames.at(index)?.IsShown() &&
+			vi.mocked(texture.SetAtlas).mock.lastCall?.at(0) === "RedButton-Exit",
+	);
+	const closeFrame = frames.at(closeIndex);
+	const closeHandler =
+		closeFrame &&
+		vi
+			.mocked(closeFrame.SetScript)
+			.mock.calls.findLast((call) => call.at(0) === "OnClick")
+			?.at(1);
+	if (!closeFrame || !closeHandler)
+		throw new Error("Missing mount close button");
+	closeHandler(closeFrame, "LeftButton");
+	flush();
 	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());

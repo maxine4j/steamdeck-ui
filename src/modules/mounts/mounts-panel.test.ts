@@ -20,7 +20,10 @@ const mount = (id: number, favourite = false): Mount => ({
 function setup() {
 	for (const method of [
 		"fill",
-		"setBlackBackground",
+		"setWindowBackground",
+		"setButtonBackground",
+		"setInsetBackground",
+		"setCloseButtonBackground",
 		"setParent",
 		"layout",
 		"setColor",

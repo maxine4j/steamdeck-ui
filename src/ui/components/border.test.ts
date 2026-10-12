@@ -10,6 +10,7 @@ it("draws four inset edges and clears and reuses them with the pooled frame", ()
 			SetAllPoints: vi.fn(),
 			SetTexture: vi.fn(),
 			SetTexCoord: vi.fn(),
+			SetAtlas: vi.fn(),
 			SetColorTexture: vi.fn(),
 			ClearAllPoints: vi.fn(),
 			SetPoint: vi.fn(),

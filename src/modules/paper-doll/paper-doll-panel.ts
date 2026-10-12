@@ -142,7 +142,7 @@ export class PaperDollPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Paper Doll requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.show();
 		this.content.setParent(this.frame);
 		this.content.show();
@@ -153,7 +153,7 @@ export class PaperDollPanel implements IPanel {
 		});
 		this.closeButton.setParent(this.frame);
 		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setLabel("close", "X");
+		this.closeButton.setCloseButtonBackground();
 		this.closeButton.onClick(() => {
 			if (this.mounted) this.actions.close();
 		});

@@ -11,7 +11,10 @@ it.each(["category", "expansion"] as const)(
 	(mode) => {
 		for (const method of [
 			"fill",
-			"setBlackBackground",
+			"setWindowBackground",
+			"setButtonBackground",
+			"setInsetBackground",
+			"setCloseButtonBackground",
 			"setParent",
 			"layout",
 			"layoutVerticallyCentered",
@@ -151,6 +154,11 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 					SetAllPoints: vi.fn(),
 					SetTexture: vi.fn(),
 					SetTexCoord: vi.fn(),
+					SetAtlas: vi.fn(),
+					ClearAllPoints: vi.fn(),
+					SetPoint: vi.fn(),
+					SetWidth: vi.fn(),
+					SetHeight: vi.fn(),
 					SetColorTexture: colors,
 				}),
 				CreateFontString: () => {

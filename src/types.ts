@@ -1,9 +1,10 @@
 /** Narrow native contracts used only by frame adapters. Methods use Lua self. */
 export interface WowTexture {
+	SetAtlas(atlas: string, useAtlasSize: boolean): void;
 	ClearAllPoints(): void;
 	SetPoint(
 		point: string,
-		relativeTo: WowFrame,
+		relativeTo: WowFrame | WowTexture,
 		relativePoint: string,
 		x: number,
 		y: number,

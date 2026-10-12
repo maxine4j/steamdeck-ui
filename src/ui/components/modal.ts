@@ -58,7 +58,7 @@ export class Modal implements IModal {
 		this.backdrop.onClose(this.dismiss);
 		this.window.setParent(this.backdrop);
 		this.window.setModalLayer();
-		this.window.setColor(0.06, 0.07, 0.1);
+		this.window.setWindowBackground();
 		let width = 360;
 		let height = 100 + options.length * 44;
 		let optionWidth = 328;
@@ -130,7 +130,7 @@ export class Modal implements IModal {
 				-20,
 				-58 - index * 44,
 			);
-			button.setColor(0.15, 0.18, 0.24);
+			button.setButtonBackground();
 			button.setLabel("label", option.label);
 			const select = () => {
 				if (!this.opened) return;

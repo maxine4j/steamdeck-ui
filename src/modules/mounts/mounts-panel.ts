@@ -67,9 +67,9 @@ export class MountsPanel implements IPanel {
 		this.search = new Frame("mounts-search", pool, "EditBox");
 		this.searchNavigation = {
 			navId: this.search.id,
-			onFocus: () => this.search.setColor(0.3, 0.25, 0),
+			onFocus: () => this.search.setFocused(true),
 			onBlur: () => {
-				this.search.setColor(0.12, 0.12, 0.12);
+				this.search.setFocused(false);
 				this.search.blurInput();
 			},
 			onInteract: () => {
@@ -445,11 +445,11 @@ export class MountsPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Mounts requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -12, 20);
 		this.closeButton.setParent(this.frame);
 		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setLabel("close", "X");
+		this.closeButton.setCloseButtonBackground();
 		this.closeButton.onClick(() => {
 			if (this.mounted) this.close();
 		});
@@ -472,7 +472,7 @@ export class MountsPanel implements IPanel {
 		this.content.show();
 		this.search.setParent(this.frame);
 		this.search.layout(320, 32, "TOPLEFT", this.frame, 16, -66);
-		this.search.setColor(0.12, 0.12, 0.12);
+		this.search.setInsetBackground();
 		this.search.configureInput((text) => {
 			if (this.mounted) {
 				this.client.search(text);
@@ -484,7 +484,7 @@ export class MountsPanel implements IPanel {
 		this.search.show();
 		this.footer.setParent(this.frame);
 		this.footer.layout(456, 70, "BOTTOMLEFT", this.frame, 12, 32);
-		this.footer.setColor(0.12, 0.12, 0.12);
+		this.footer.setInsetBackground();
 		this.footer.setLabel("equipment", "Equipment", "TOPLEFT", 12, -8, 12);
 		this.footer.setLabel("random", "Favourite mount", "TOPLEFT", 100, -8, 12);
 		this.footer.setLabel(

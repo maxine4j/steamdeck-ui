@@ -80,7 +80,7 @@ export class BagsPanel implements IPanel {
 			throw new Error("Bags requires a frame parent");
 		this.visibilityChanged?.(true);
 		this.frame.fill(parent);
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.setLabel(
 			"actions",
 			"X: Use / Equip   Y: Actions",
@@ -92,7 +92,7 @@ export class BagsPanel implements IPanel {
 		this.frame.show();
 		this.toggle.setParent(this.frame);
 		this.toggle.layout(180, 30, "TOPLEFT", this.frame, 16, -16);
-		this.toggle.setColor(0.15, 0.18, 0.24);
+		this.toggle.setButtonBackground();
 		this.toggle.onClick((button) => {
 			if (button !== "LeftButton") return;
 			this.toggleGrouping();

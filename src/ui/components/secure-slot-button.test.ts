@@ -25,6 +25,7 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 		SetHeight: vi.fn(),
 		SetAllPoints: vi.fn(),
 		SetTexture: vi.fn(),
+		SetAtlas: vi.fn(),
 		SetColorTexture: vi.fn(),
 		SetTexCoord: vi.fn(),
 	};
@@ -103,7 +104,10 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	button.configure("A", 110, 56, 1, "[mod:shift] 145; 1", read);
 	button.setSpell(123);
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("spell", 123);
-	expect(texture.SetColorTexture).toHaveBeenCalledWith(0.42, 0.47, 0.55, 1);
+	expect(texture.SetAtlas).toHaveBeenCalledWith(
+		"UI-HUD-ActionBar-IconFrame",
+		false,
+	);
 	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
 		frames.at(0),

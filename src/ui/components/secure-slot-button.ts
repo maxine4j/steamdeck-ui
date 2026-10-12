@@ -1,6 +1,5 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
-import { setBorder } from "./border";
 import { type CooldownDuration, CooldownOverlay } from "./cooldown-overlay";
 
 export type { CooldownDuration } from "./cooldown-overlay";
@@ -73,7 +72,9 @@ export class SecureSlotButton {
 		read: SlotReader,
 	): void {
 		this.frame.SetSize(48, 48);
-		setBorder(this.pool, this.frame, [0.42, 0.47, 0.55, 1]);
+		const artwork = this.pool.getDecoration(this.frame, "action-slot-artwork");
+		artwork.SetAllPoints();
+		artwork.SetAtlas("UI-HUD-ActionBar-IconFrame", false);
 		this.read = undefined;
 		this.frame.ClearAllPoints();
 		this.frame.SetPoint("BOTTOM", UIParent, "BOTTOM", x, y);
@@ -117,9 +118,10 @@ end`,
 		if (slot === undefined) return;
 		const visual = read(slot);
 		const texture = this.pool.getBackground(this.frame);
-		texture.SetColorTexture(0.08, 0.08, 0.1, 0.9);
+		texture.SetAtlas("UI-HUD-ActionBar-IconFrame-Background", false);
 		if (visual.icon !== undefined) texture.SetTexture(visual.icon);
-		texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
+		if (visual.icon !== undefined) texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
+		else texture.SetTexCoord(0, 1, 0, 1);
 		this.cooldowns.refresh(visual.cooldown, visual.recharge);
 	}
 	destroy(): void {

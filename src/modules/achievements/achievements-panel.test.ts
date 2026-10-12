@@ -18,7 +18,10 @@ vi.mock("../../ui/components/frame", () => ({
 		setParent() {}
 		layout() {}
 		setColor() {}
-		setBlackBackground() {}
+		setWindowBackground() {}
+		setButtonBackground() {}
+		setInsetBackground() {}
+		setCloseButtonBackground() {}
 		setLabel() {}
 		onClick() {}
 		show() {}

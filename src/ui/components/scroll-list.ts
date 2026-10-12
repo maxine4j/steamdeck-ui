@@ -114,11 +114,11 @@ export class ScrollList {
 		if (!(parent instanceof Frame))
 			throw new Error("List requires a frame parent");
 		this.frame.fill(parent);
-		if (this.options.background !== false) this.frame.setBlackBackground();
+		if (this.options.background !== false) this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
 		this.close.setParent(this.frame);
 		this.close.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.close.setLabel("close", "X");
+		this.close.setCloseButtonBackground();
 		this.close.onClick(() => {
 			if (this.mounted) this.onClose();
 		});
@@ -250,10 +250,10 @@ export class ScrollList {
 						secondaryNav: {
 							navId: `${row.id}-secondary`,
 							onFocus: () => {
-								secondary.setColor(0.3, 0.25, 0);
+								secondary.setFocused(true);
 								this.reveal(index);
 							},
-							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
+							onBlur: () => secondary.setFocused(false),
 							onInteract: () => {
 								if (this.isReady(index))
 									this.rows.at(index)?.secondary?.activate();
@@ -267,7 +267,7 @@ export class ScrollList {
 									frame.setBorder([1, 0.82, 0, 1]);
 									const control = this.buttons.at(index);
 									if (control) control.animatedFocus = true;
-								} else frame.setColor(0.3, 0.25, 0);
+								} else frame.setFocused(true);
 								this.reveal(index);
 							},
 							onBlur: () => {
@@ -330,7 +330,7 @@ export class ScrollList {
 				if (row.secondary) {
 					button.secondary.setParent(button.frame);
 					button.secondary.layout(44, 40, "TOPRIGHT", button.frame, -4, -4);
-					button.secondary.setColor(0.12, 0.12, 0.12);
+					button.secondary.setButtonBackground();
 					button.secondary.setLabel("label", row.secondary.label);
 					button.secondary.onClick(() => {
 						if (this.isReady(index)) this.rows.at(index)?.secondary?.activate();
@@ -511,14 +511,14 @@ export class ScrollList {
 	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
+		const frame = this.buttons.at(index)?.frame;
+		frame?.setFocused(false);
 		if (row?.heading) {
-			this.buttons.at(index)?.frame.setColor(0, 0, 0, 0);
+			frame?.setColor(0, 0, 0, 0);
 			return;
 		}
-		const color: readonly [number, number, number] =
-			row?.background ??
-			(row?.selected ? [0.25, 0.2, 0.05] : [0.08, 0.08, 0.08]);
-		this.buttons.at(index)?.frame.setColor(...color);
+		if (row?.background) frame?.setColor(...row.background);
+		else frame?.setButtonBackground(row?.selected ?? false);
 	}
 	private reveal(index: number): void {
 		const button = this.buttons.at(index);

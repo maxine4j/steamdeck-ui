@@ -39,6 +39,11 @@ function setup() {
 				SetAllPoints: vi.fn(),
 				SetTexture: vi.fn(),
 				SetTexCoord: vi.fn(),
+				SetAtlas: vi.fn(),
+				ClearAllPoints: vi.fn(),
+				SetPoint: vi.fn(),
+				SetWidth: vi.fn(),
+				SetHeight: vi.fn(),
 				SetColorTexture: vi.fn(),
 			}),
 		};

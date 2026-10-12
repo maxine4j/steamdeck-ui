@@ -10,7 +10,7 @@ export class Panel implements IPanel {
 	onMount(parent: IUIComponent): void {
 		this.frame.setParent(parent);
 		this.frame.layout(420, 560, "CENTER");
-		this.frame.setBlackBackground();
+		this.frame.setWindowBackground();
 		this.frame.show();
 	}
 	onUnmount(): void {
