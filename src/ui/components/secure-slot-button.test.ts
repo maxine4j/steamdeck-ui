@@ -15,6 +15,10 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	let action: number | undefined;
 	let changed: (frame: unknown, name: string) => void = () => {};
 	const texture = {
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetWidth: vi.fn(),
+		SetHeight: vi.fn(),
 		SetAllPoints: vi.fn(),
 		SetTexture: vi.fn(),
 		SetColorTexture: vi.fn(),
@@ -73,6 +77,21 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	button.refresh(read);
 	expect(read).not.toHaveBeenCalled();
 	button.configure("A", 110, 56, 1, "[mod:shift] 145; 1", read);
+	expect(texture.SetColorTexture).toHaveBeenCalledWith(0.42, 0.47, 0.55, 1);
+	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		frames.at(0),
+		"TOPLEFT",
+		2,
+		-2,
+	);
+	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
+		"BOTTOMRIGHT",
+		frames.at(0),
+		"BOTTOMRIGHT",
+		-2,
+		2,
+	);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"BOTTOM",
 		UIParent,

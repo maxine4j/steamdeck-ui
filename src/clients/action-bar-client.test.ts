@@ -28,13 +28,19 @@ it("suppresses all eight standard action bars once and restores their parents", 
 	expect(suppression.restore).toHaveBeenCalledOnce();
 });
 
-it("selects the first eight slots of Retail Edit Mode bars 1, 6, 7, and 8", () => {
+it("selects the first ten slots of Retail Edit Mode bars 1, 6, 7, and 8", () => {
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	expect(client.getSlotDriver(1)).toBe(
 		"[mod:shift,mod:ctrl] 169; [mod:shift] 145; [mod:ctrl] 157; 1",
 	);
 	expect(client.getSlotDriver(8)).toBe(
 		"[mod:shift,mod:ctrl] 176; [mod:shift] 152; [mod:ctrl] 164; 8",
+	);
+	expect(client.getSlotDriver(9)).toBe(
+		"[mod:shift,mod:ctrl] 177; [mod:shift] 153; [mod:ctrl] 165; 9",
+	);
+	expect(client.getSlotDriver(10)).toBe(
+		"[mod:shift,mod:ctrl] 178; [mod:shift] 154; [mod:ctrl] 166; 10",
 	);
 });
 
@@ -91,15 +97,18 @@ it("binds every modifier combination without changing saved bindings, then resto
 	const suppression = { suppress: vi.fn(), restore: vi.fn() };
 	const client = new ActionBarClient(suppression);
 	const target = { owner: {}, name: "CrossButton" };
-	client.bind([{ key: "PAD1", target }]);
-	for (const prefix of ["", "SHIFT-", "CTRL-", "CTRL-SHIFT-"])
-		expect(bind).toHaveBeenCalledWith(
-			target.owner,
-			false,
-			`${prefix}PAD1`,
-			target.name,
-			"LeftButton",
-		);
+	client.bind(
+		["PAD1", "PADRTRIGGER", "PADRSHOULDER"].map((key) => ({ key, target })),
+	);
+	for (const key of ["PAD1", "PADRTRIGGER", "PADRSHOULDER"])
+		for (const prefix of ["", "SHIFT-", "CTRL-", "CTRL-SHIFT-"])
+			expect(bind).toHaveBeenCalledWith(
+				target.owner,
+				false,
+				`${prefix}${key}`,
+				target.name,
+				"LeftButton",
+			);
 	expect(setCVar).toHaveBeenCalledWith("GamePadEmulateShift", "PADLTRIGGER");
 	expect(setCVar).toHaveBeenCalledWith("GamePadEmulateCtrl", "PADLSHOULDER");
 	client.restore();
@@ -114,19 +123,23 @@ it("binds every modifier combination without changing saved bindings, then resto
 	);
 });
 
-it("clears conflicting Alt emulation on the left modifier controls and restores it", () => {
-	const set = vi.fn();
-	vi.stubGlobal("C_CVar", {
-		GetCVar: (name: string) =>
-			name === "GamePadEmulateAlt" ? "PADLSHOULDER" : "none",
-		SetCVar: set,
-	});
-	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
-	client.bind([]);
-	expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", "none");
-	client.restore();
-	expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", "PADLSHOULDER");
-});
+it.each(["PADLTRIGGER", "PADLSHOULDER", "PADRTRIGGER", "PADRSHOULDER"])(
+	"clears conflicting Alt emulation on %s and restores it",
+	(key) => {
+		const set = vi.fn();
+		vi.stubGlobal("SetOverrideBindingClick", vi.fn());
+		vi.stubGlobal("ClearOverrideBindings", vi.fn());
+		vi.stubGlobal("C_CVar", {
+			GetCVar: (name: string) => (name === "GamePadEmulateAlt" ? key : "none"),
+			SetCVar: set,
+		});
+		const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+		client.bind([{ key, target: { owner: {}, name: "CrossButton" } }]);
+		expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", "none");
+		client.restore();
+		expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", key);
+	},
+);
 
 it("passes opaque native cooldown durations through without arithmetic", () => {
 	const duration = {};

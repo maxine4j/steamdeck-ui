@@ -104,7 +104,11 @@ export class ActionBarClient implements IActionBarClient {
 	}
 	bind(bindings: readonly ActionBinding[]): void {
 		const alt = C_CVar.GetCVar("GamePadEmulateAlt");
-		if (alt === "PADLTRIGGER" || alt === "PADLSHOULDER") {
+		if (
+			alt === "PADLTRIGGER" ||
+			alt === "PADLSHOULDER" ||
+			bindings.some(({ key }) => key === alt)
+		) {
 			this.originalCVars.set("GamePadEmulateAlt", alt);
 			C_CVar.SetCVar("GamePadEmulateAlt", "none");
 		}

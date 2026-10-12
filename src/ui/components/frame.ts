@@ -1,5 +1,6 @@
 import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import { type BorderColor, setBorder } from "./border";
 import type { IUIComponent } from "./types";
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
@@ -136,6 +137,9 @@ export class Frame implements IUIComponent {
 		model.SetPortraitZoom(0);
 		model.SetCamDistanceScale(1);
 		model.SetFacing(0);
+	}
+	setBorder(color: BorderColor, width = 2): void {
+		setBorder(this.pool, this.acquire(), color, width);
 	}
 	setColor(red: number, green: number, blue: number, alpha = 1): void {
 		this.acquire();

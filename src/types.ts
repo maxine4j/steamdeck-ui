@@ -1,5 +1,15 @@
 /** Narrow native contracts used only by frame adapters. Methods use Lua self. */
 export interface WowTexture {
+	ClearAllPoints(): void;
+	SetPoint(
+		point: string,
+		relativeTo: WowFrame,
+		relativePoint: string,
+		x: number,
+		y: number,
+	): void;
+	SetWidth(width: number): void;
+	SetHeight(height: number): void;
 	SetTexCoord(left: number, right: number, top: number, bottom: number): void;
 	SetTexture(fileId: number | undefined): void;
 	SetAllPoints(): void;

@@ -1,4 +1,5 @@
 import type { IActionBarClient } from "../../clients/action-bar-client";
+import { Frame } from "../../ui/components/frame";
 import {
 	SecureSlotButton,
 	type SlotReader,
@@ -6,17 +7,25 @@ import {
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 
 const controls = [
-	{ key: "PADDUP", label: "↑", x: -110, y: 160 },
-	{ key: "PADDRIGHT", label: "→", x: -58, y: 108 },
-	{ key: "PADDDOWN", label: "↓", x: -110, y: 56 },
-	{ key: "PADDLEFT", label: "←", x: -162, y: 108 },
-	{ key: "PAD4", label: "|cffffe74fY|r", x: 110, y: 160 },
-	{ key: "PAD2", label: "|cffff4451B|r", x: 162, y: 108 },
-	{ key: "PAD1", label: "|cff52c14eA|r", x: 110, y: 56 },
-	{ key: "PAD3", label: "|cff00a2ffX|r", x: 58, y: 108 },
+	// ConsolePort's Crossbar: Minimal uses 50px horizontal / 25px vertical offsets.
+	{ key: "PADDUP", label: "↑", x: -200, y: 106 },
+	{ key: "PADDRIGHT", label: "→", x: -150, y: 81 },
+	{ key: "PADDDOWN", label: "↓", x: -200, y: 56 },
+	{ key: "PADDLEFT", label: "←", x: -250, y: 81 },
+	{ key: "PAD4", label: "|cffffe74fY|r", x: 200, y: 106 },
+	{ key: "PAD2", label: "|cffff4451B|r", x: 250, y: 81 },
+	{ key: "PAD1", label: "|cff52c14eA|r", x: 200, y: 56 },
+	{ key: "PAD3", label: "|cff00a2ffX|r", x: 150, y: 81 },
+	{ key: "PADRTRIGGER", label: "RT", x: 100, y: 56 },
+	{ key: "PADRSHOULDER", label: "RB", x: 100, y: 106 },
+];
+const modifiers = [
+	{ key: "PADLSHOULDER", label: "LB\nCTRL", y: 106 },
+	{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 },
 ];
 export class CrossBar {
 	private readonly buttons: SecureSlotButton[] = [];
+	private readonly indicators: Frame[] = [];
 	private readonly read: SlotReader = (slot) => this.client.read(slot);
 	constructor(
 		private readonly pool: IFramePoolManager,
@@ -24,6 +33,15 @@ export class CrossBar {
 	) {}
 	initialize(): void {
 		if (this.buttons.length > 0) return;
+		for (const modifier of modifiers) {
+			const indicator = new Frame(`cross-bar-${modifier.key}`, this.pool);
+			indicator.layout(48, 48, "BOTTOM", undefined, -100, modifier.y);
+			indicator.setColor(0.12, 0.18, 0.25, 0.9);
+			indicator.setBorder([0.32, 0.6, 0.85, 1]);
+			indicator.setLabel("modifier", modifier.label);
+			indicator.show();
+			this.indicators.push(indicator);
+		}
 		this.client.bind(
 			controls.map((control, index) => {
 				const button = new SecureSlotButton(this.pool);
@@ -46,5 +64,7 @@ export class CrossBar {
 	destroy(): void {
 		for (const button of this.buttons) button.destroy();
 		this.buttons.length = 0;
+		for (const indicator of this.indicators) indicator.destroy();
+		this.indicators.length = 0;
 	}
 }

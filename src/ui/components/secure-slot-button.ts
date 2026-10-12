@@ -1,5 +1,6 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import { setBorder } from "./border";
 
 /** Opaque native duration: cooldown values can be secret in combat. */
 export interface CooldownDuration {
@@ -72,8 +73,10 @@ export class SecureSlotButton {
 		this.cooldowns = [0, 1].map(() => {
 			const cooldown = pool.acquire("Cooldown") as CooldownFrame;
 			cooldown.SetParent(this.frame);
-			cooldown.SetSize(48, 48);
-			cooldown.SetPoint("CENTER", this.frame, "CENTER", 0, 0);
+			// Replace template anchors, which can still point to UIParent.
+			cooldown.ClearAllPoints();
+			cooldown.SetPoint("TOPLEFT", this.frame, "TOPLEFT", 2, -2);
+			cooldown.SetPoint("BOTTOMRIGHT", this.frame, "BOTTOMRIGHT", -2, 2);
 			cooldown.SetHideCountdownNumbers(false);
 			cooldown.SetCountdownFormatter(formatter);
 			cooldown.SetDrawEdge(false);
@@ -87,7 +90,7 @@ export class SecureSlotButton {
 			"GameFontNormal",
 		);
 		this.label.SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE");
-		this.label.SetPoint("TOPLEFT", this.frame, "TOPLEFT", 2, -2);
+		this.label.SetPoint("TOPLEFT", this.frame, "TOPLEFT", 4, -4);
 		// Preserve the secure template's state handler; replacing it breaks combat paging.
 		this.frame.HookScript("OnAttributeChanged", (_frame, name) => {
 			if (name === "action" && this.read) this.refresh(this.read);
@@ -102,6 +105,7 @@ export class SecureSlotButton {
 		read: SlotReader,
 	): void {
 		this.frame.SetSize(48, 48);
+		setBorder(this.pool, this.frame, [0.42, 0.47, 0.55, 1]);
 		this.read = undefined;
 		this.frame.ClearAllPoints();
 		this.frame.SetPoint("BOTTOM", UIParent, "BOTTOM", x, y);

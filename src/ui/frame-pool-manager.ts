@@ -16,10 +16,12 @@ export interface IFramePoolManager {
 	acquire(type: FrameType): WowFrame;
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
+	getDecoration(frame: WowFrame, key: string): WowTexture;
 }
 export class FramePoolManager implements IFramePoolManager {
 	private readonly available = new Map<FrameType, WowFrame[]>();
 	private readonly backgrounds = new Map<WowFrame, WowTexture>();
+	private readonly decorations = new Map<WowFrame, Map<string, WowTexture>>();
 	private readonly leased = new Map<WowFrame, FrameType>();
 	constructor(private readonly factory: FrameFactory) {}
 	acquire(type: FrameType): WowFrame {
@@ -38,12 +40,30 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
+	getDecoration(frame: WowFrame, key: string): WowTexture {
+		let decorations = this.decorations.get(frame);
+		if (!decorations) {
+			decorations = new Map<string, WowTexture>();
+			this.decorations.set(frame, decorations);
+		}
+		let texture = decorations.get(key);
+		if (!texture) {
+			texture = frame.CreateTexture(undefined, "OVERLAY");
+			decorations.set(key, texture);
+		}
+		return texture;
+	}
 	release(type: FrameType, frame: WowFrame): void {
 		if (this.leased.get(frame) !== type) return;
 		frame.Hide();
 		this.backgrounds.get(frame)?.SetTexture(undefined);
 		this.backgrounds.get(frame)?.SetTexCoord(0, 1, 0, 1);
 		this.backgrounds.get(frame)?.SetColorTexture(0, 0, 0, 0);
+		for (const decoration of this.decorations.get(frame)?.values() ?? []) {
+			decoration.SetTexture(undefined);
+			decoration.SetColorTexture(0, 0, 0, 0);
+			decoration.ClearAllPoints();
+		}
 		frame.ClearAllPoints();
 		frame.SetSize(0, 0);
 		frame.SetParent(undefined);
