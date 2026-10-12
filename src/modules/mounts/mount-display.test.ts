@@ -26,13 +26,11 @@ it("repeats favourites above expansions ordered newest first, retaining missing 
 		"Favourites",
 		"Midnight",
 		"Classic",
-		"Unknown expansion",
 	]);
 	expect(groups.map((group) => group.mounts.map((mount) => mount.id))).toEqual([
 		[1],
-		[2],
+		[2, 4],
 		[1, 3],
-		[4],
 	]);
 	expect(groups.at(2)?.mounts).toContain(missing);
 	expect(groupMounts([])).toEqual([]);
