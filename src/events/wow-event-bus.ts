@@ -63,6 +63,8 @@ const characterIdentityUnitEvents = [
 	"PLAYER_SPECIALIZATION_CHANGED",
 ];
 const actionBarEvents = [
+	"PET_BAR_UPDATE_COOLDOWN",
+	"UPDATE_SHAPESHIFT_COOLDOWN",
 	"SPELLS_CHANGED",
 	"UPDATE_EXTRA_ACTIONBAR",
 	"ZONE_CHANGED_NEW_AREA",
@@ -71,6 +73,21 @@ const actionBarEvents = [
 	"SPELL_UPDATE_COOLDOWN",
 	"SPELL_UPDATE_CHARGES",
 	"UPDATE_MACROS",
+	"PLAYER_ENTERING_WORLD",
+];
+const actionRingEvents = [
+	"PET_BAR_UPDATE",
+	"PET_SPECIALIZATION_CHANGED",
+	"UPDATE_SHAPESHIFT_FORMS",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"QUEST_LOG_UPDATE",
+	"QUEST_WATCH_LIST_CHANGED",
+	"QUEST_ITEM_UPDATE",
+	"BAG_UPDATE_DELAYED",
+	"ITEM_DATA_LOAD_RESULT",
+	"SPELLS_CHANGED",
+	"ZONE_CHANGED_NEW_AREA",
+	"UPDATE_EXTRA_ACTIONBAR",
 	"PLAYER_ENTERING_WORLD",
 ];
 const actionCursorEvents = [
@@ -181,6 +198,8 @@ export class WowEventBus implements IEventBus {
 		this.frame.RegisterEvent("PLAYER_EQUIPMENT_CHANGED");
 		this.frame.RegisterEvent("UNIT_MODEL_CHANGED");
 		for (const event of actionBarEvents) this.frame.RegisterEvent(event);
+		for (const event of actionRingEvents) this.frame.RegisterEvent(event);
+		this.frame.RegisterEvent("UNIT_PET");
 		for (const event of actionCursorEvents) this.frame.RegisterEvent(event);
 		for (const event of [
 			...characterStatEvents,
@@ -267,6 +286,12 @@ export class WowEventBus implements IEventBus {
 				this.emit("ACTION_BAR_CHANGED");
 			if (actionCursorEvents.includes(event))
 				this.emit("ACTION_BAR_CURSOR_CHANGED");
+			if (
+				actionRingEvents.includes(event) ||
+				(event === "UNIT_PET" && unit === "player") ||
+				(event === "PLAYER_SPECIALIZATION_CHANGED" && unit === "player")
+			)
+				this.emit("ACTION_RING_CONTENTS_CHANGED");
 			if (event === "PLAYER_REGEN_ENABLED") this.emit("COMBAT_ENDED");
 			if (
 				talentEvents.includes(event) ||

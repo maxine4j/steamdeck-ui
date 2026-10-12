@@ -42,27 +42,24 @@ vi.mock("../../ui/components/secure-slot-button", () => ({
 }));
 
 it("uses the minimal crossbar layout with ten actions and two unbound modifier indicators", () => {
-	let combat = false;
-	let spell: number | undefined = 123;
 	const client = {
 		bind: vi.fn(),
-		read: vi.fn(() => ({ spell })),
-		canModify: () => !combat,
+		read: vi.fn(() => ({})),
 		getSlotDriver: (slot: number, command?: string) =>
 			command ? `slot-${slot}-${command}` : `slot-${slot}`,
 	};
 	const view = new CrossBar({}, client);
 	view.initialize();
 	view.initialize();
-	expect(setSpell).toHaveBeenCalledExactlyOnceWith(123);
+	expect(setSpell).not.toHaveBeenCalled();
 	expect(configure).toHaveBeenCalledTimes(10);
 	expect(
 		configure.mock.calls.map(([label, x, y, slot]) => [label, x, y, slot]),
 	).toEqual([
 		["↑", -200, 106, -1],
-		["→", -150, 81, -2],
-		["↓", -200, 56, 7],
-		["←", -250, 81, 8],
+		["→", -150, 81, -1],
+		["↓", -200, 56, -3],
+		["←", -250, 81, -1],
 		["|cffffe74fY|r", 200, 106, 2],
 		["|cffff4451B|r", 250, 81, 3],
 		["|cff52c14eA|r", 200, 56, 0],
@@ -70,18 +67,18 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 		["RT", 100, 56, 9],
 		["RB", 100, 106, 10],
 	]);
-	for (const call of configure.mock.calls) {
-		const slot = call.at(3);
-		expect(call.at(4)).toBe(
-			slot === -1
-				? "slot-5-RING"
-				: slot === -2
-					? "slot-6-EXTRA"
-					: slot === 0
-						? "slot-4-JUMP"
-						: `slot-${slot}`,
-		);
-	}
+	expect(configure.mock.calls.map((call) => call.at(4))).toEqual([
+		"slot-5-RING",
+		"slot-6-RING",
+		"slot-7-MOUNT",
+		"slot-8-RING",
+		"slot-2",
+		"slot-3",
+		"slot-4-JUMP",
+		"slot-1",
+		"slot-9",
+		"slot-10",
+	]);
 	expect(indicators).toHaveLength(2);
 	for (const indicator of indicators)
 		expect(indicator.setBorder).toHaveBeenCalledWith([0.32, 0.6, 0.85, 1]);
@@ -122,7 +119,7 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 			"PADRTRIGGER",
 			"PADRSHOULDER",
 		].map((key) =>
-			key === "PADDUP"
+			["PADDUP", "PADDLEFT", "PADDRIGHT"].includes(key)
 				? { key, target, prefixes: ["SHIFT-", "CTRL-", "CTRL-SHIFT-"] }
 				: key === "PAD1"
 					? { key, target, defaultCommand: "JUMP" }
@@ -131,16 +128,6 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	);
 	view.refresh();
 	expect(refresh).toHaveBeenCalledTimes(10);
-	combat = true;
-	spell = 456;
-	view.refresh();
-	expect(setSpell).toHaveBeenCalledTimes(2);
-	combat = false;
-	view.refresh();
-	expect(setSpell).toHaveBeenLastCalledWith(456);
-	spell = undefined;
-	view.refresh();
-	expect(setSpell).toHaveBeenLastCalledWith(undefined);
 	view.destroy();
 	expect(destroy).toHaveBeenCalledTimes(10);
 	for (const indicator of indicators)

@@ -7,11 +7,26 @@ it("routes the extra-action control through a secure extra-bar state with a zone
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getSlotDriver(6, "EXTRA");
 	expect(driver.condition).toBe(
-		"[mod:shift,mod:ctrl] 174; [mod:shift] 150; [mod:ctrl] 162; [extrabar] 169; -2",
+		"[mod:shift,mod:ctrl] 178; [mod:shift] 170; [mod:ctrl] 162; [extrabar] 217; -2",
 	);
 	expect(driver.response).toContain(
 		'self:SetAttribute("type", action == -2 and "spell" or "action")',
 	);
+});
+
+it("keeps unmodified Down on random favourite mount during all main-bar states", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	const driver = client.getSlotDriver(7, "MOUNT");
+	expect(driver.condition).toBe(
+		"[mod:shift,mod:ctrl] 179; [mod:shift] 171; [mod:ctrl] 163; -3",
+	);
+	expect(driver.response).toContain(
+		'self:SetAttribute("spell", action == -3 and 150544 or nil)',
+	);
+	expect(driver.response).toContain(
+		'self:SetAttribute("type", action == -3 and "spell" or "action")',
+	);
+	expect(client.read(-3).icon).toBeDefined();
 });
 
 it("reads the highest-priority zone spell and leaves an absent zone ability empty", () => {
@@ -58,13 +73,29 @@ it("suppresses all eight standard action bars once and restores their parents", 
 	expect(suppression.restore).toHaveBeenCalledOnce();
 });
 
-it("selects the first ten slots of Retail Edit Mode bars 1, 6, 7, and 8", () => {
+it("packs the eight controls into all 24 slots of Retail bars 7 and 8", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	const slots = Array.from({ length: 8 }, (_, i) => i + 1);
+	const conditions = slots.map((slot) => client.getSlotDriver(slot).condition);
+	for (const [prefix, start] of [
+		["[mod:ctrl]", 157],
+		["[mod:shift]", 165],
+		["[mod:shift,mod:ctrl]", 173],
+	] as const)
+		expect(
+			conditions.map((condition) =>
+				Number(condition.split(`${prefix} `).at(1)?.split(";").at(0)),
+			),
+		).toEqual(slots.map((_, index) => start + index));
+});
+
+it("keeps dynamic main-bar paging and the existing RT/RB pages", () => {
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	for (const slot of [1, 4, 8, 9, 10]) {
 		const driver = client.getSlotDriver(slot);
 		// Modifier bars take priority even while the dynamic bar is active.
 		expect(driver.condition).toBe(
-			`[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ` +
+			`[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ` +
 				"[vehicleui] vehicle; [possessbar] possess; [overridebar] override; [shapeshift] shapeshift; " +
 				"[bar:2] page2; [bar:3] page3; [bar:4] page4; [bar:5] page5; [bar:6] page6; " +
 				"[bonusbar:1] bonus1; [bonusbar:2] bonus2; [bonusbar:3] bonus3; [bonusbar:4] bonus4; [bonusbar:5] bonus5; main",
@@ -146,7 +177,7 @@ it("binds unmodified A to native jump and keeps modified A on secondary actions"
 			"LeftButton",
 		);
 	expect(client.getSlotDriver(4, "JUMP").condition).toBe(
-		"[mod:shift,mod:ctrl] 172; [mod:shift] 148; [mod:ctrl] 160; 0",
+		"[mod:shift,mod:ctrl] 176; [mod:shift] 168; [mod:ctrl] 160; 0",
 	);
 	client.restore();
 	expect(clear).toHaveBeenCalledExactlyOnceWith(target.owner);

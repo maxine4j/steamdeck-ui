@@ -3,14 +3,14 @@ import { ActionBarClient } from "./action-bar-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("uses all twelve slots of Edit Mode bar 5 and resolves the raw right stick", () => {
+it("uses all twelve slots of Edit Mode bar 6 and resolves the raw right stick", () => {
 	vi.stubGlobal("C_GamePad", {
 		StickIndexToConfigName: (index: number) =>
 			["Left", "Right", "Gyro"].at(index),
 	});
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getRingDriver();
-	expect(driver.slots).toEqual(Array.from({ length: 12 }, (_, i) => 37 + i));
+	expect(driver.slots).toEqual(Array.from({ length: 12 }, (_, i) => 145 + i));
 	expect(driver.occupied).toBe("return HasAction(slot)");
 	expect(driver.position).toContain("GetGamePadState()");
 	expect(driver.position).toContain("state.sticks[2]");
@@ -41,7 +41,7 @@ it("shows a ring icon on unmodified Up and preserves modified slot five", () => 
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getSlotDriver(5, "RING");
 	expect(driver.condition).toBe(
-		"[mod:shift,mod:ctrl] 173; [mod:shift] 149; [mod:ctrl] 161; -1",
+		"[mod:shift,mod:ctrl] 177; [mod:shift] 169; [mod:ctrl] 161; -1",
 	);
 	expect(client.read(-1).icon).toBe("Interface\\Icons\\INV_Misc_EngGizmos_19");
 });

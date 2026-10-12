@@ -2,6 +2,33 @@ import { expect, it, vi } from "vitest";
 import { createTestEventBus } from "../../events/test-event-bus";
 import { ActionBarModule } from "./action-bar-module";
 
+it("refreshes ring contents on source changes and combat exit, then unsubscribes on shutdown", () => {
+	const events = createTestEventBus();
+	const client = {
+		canModify: () => true,
+		syncBuiltInVisibility: vi.fn(),
+		disableBuiltIn: vi.fn(),
+		restore: vi.fn(),
+	};
+	const view = {
+		initialize: vi.fn(),
+		refresh: vi.fn(),
+		refreshContents: vi.fn(),
+		destroy: vi.fn(),
+	};
+	const module = new ActionBarModule(events, client, view);
+	module.initialize();
+	events.emit("ACTION_RING_CONTENTS_CHANGED");
+	expect(view.refreshContents).toHaveBeenCalledOnce();
+	events.emit("ACTION_BAR_CHANGED");
+	expect(view.refreshContents).toHaveBeenCalledOnce();
+	events.emit("COMBAT_ENDED");
+	expect(view.refreshContents).toHaveBeenCalledTimes(2);
+	module.shutdown();
+	events.emit("ACTION_RING_CONTENTS_CHANGED");
+	expect(view.refreshContents).toHaveBeenCalledTimes(2);
+});
+
 it("starts the cross bar, refreshes action changes and restores native UI on shutdown", () => {
 	const events = createTestEventBus();
 	const client = {

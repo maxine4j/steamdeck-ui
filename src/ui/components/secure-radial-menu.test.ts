@@ -5,7 +5,13 @@ import { SecureRadialMenu } from "./secure-radial-menu";
 
 afterEach(() => vi.unstubAllGlobals());
 
-function setup() {
+function setup(
+	actions?: {
+		slot: number;
+		type: "pet" | "spell" | "item";
+		value: number | string;
+	}[],
+) {
 	vi.stubGlobal("UIParent", {});
 	vi.stubGlobal("C_StringUtil", {
 		CreateSecondsFormatter: () => ({
@@ -102,6 +108,7 @@ function setup() {
 			position: "return 1, 0, 1",
 			stick: "Right",
 			virtualStick: "Camera",
+			actions,
 		},
 		read,
 		"",
@@ -110,6 +117,50 @@ function setup() {
 	frames.at(1)?.scripts.get("OnShow")?.();
 	return { menu, create, frames, wrap, unwrap, execute, read, pool };
 }
+
+it("configures mixed secure actions and clears their attributes when pooled", () => {
+	const { menu, frames, wrap } = setup([
+		{ slot: 37, type: "pet", value: 1 },
+		{ slot: 38, type: "spell", value: 123 },
+		{ slot: 39, type: "item", value: "item:456" },
+	]);
+	const trigger = frames.at(0);
+	expect(trigger.attributes.get("kind37")).toBe("pet");
+	expect(trigger.attributes.get("value39")).toBe("item:456");
+	expect(wrap.mock.calls.at(0)?.at(3)).toContain(
+		'self:SetAttribute("typerelease", kind)',
+	);
+	menu.destroy();
+	expect(trigger.attributes.get("kind37")).toBeUndefined();
+	expect(trigger.attributes.get("value39")).toBeUndefined();
+});
+
+it("updates ring contents without rewrapping handlers or allocating for unchanged capacity", () => {
+	const { menu, frames, create, wrap } = setup();
+	const allocations = create.mock.calls.length;
+	menu.setActions({
+		slots: [1],
+		actions: [{ slot: 1, type: "spell", value: 123 }],
+	});
+	expect(frames.at(0).attributes.get("slot1")).toBe(1);
+	expect(frames.at(0).attributes.get("slot2")).toBeUndefined();
+	expect(frames.at(0).attributes.get("value1")).toBe(123);
+	expect(create).toHaveBeenCalledTimes(allocations);
+	expect(wrap).toHaveBeenCalledOnce();
+});
+
+it("grows beyond twelve entries and returns the added controls to the frame pool", () => {
+	const { menu, frames, create, pool } = setup();
+	menu.setActions({
+		slots: Array.from({ length: 15 }, (_, index) => index + 1),
+	});
+	expect(frames.at(0).attributes.get("capacity")).toBe(15);
+	expect(frames.at(0).attributes.get("slot15")).toBe(15);
+	expect(create).toHaveBeenCalledTimes(49);
+	menu.destroy();
+	new SecureRadialMenu(pool, 15);
+	expect(create).toHaveBeenCalledTimes(49);
+});
 
 it("uses protected frames for every region manipulated by secure ring layout", () => {
 	const { create } = setup();

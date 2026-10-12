@@ -8,11 +8,17 @@ import type { BindingTarget, SlotReader } from "./secure-slot-button";
 /** API-specific queries are supplied by a client, executed in WoW's restricted environment. */
 export interface RadialDriver {
 	readonly slots: readonly number[];
+	readonly actions?: readonly RadialAction[];
 	/** Receives the candidate action slot through ... and returns whether it exists. */
 	readonly occupied: string;
 	readonly position: string;
 	readonly stick: string;
 	readonly virtualStick: string;
+}
+export interface RadialAction {
+	readonly slot: number;
+	readonly type: "action" | "pet" | "spell" | "item";
+	readonly value: number | string;
 }
 interface RadialFrame extends WowFrame {
 	SetFrameStrata(
@@ -88,6 +94,7 @@ export class SecureRadialMenu {
 	private read?: SlotReader;
 	private inputActive = false;
 	private releaseGraceRemaining = 0;
+	private slots: readonly number[] = [];
 	constructor(
 		private readonly pool: IFramePoolManager,
 		capacity: number,
@@ -128,7 +135,6 @@ export class SecureRadialMenu {
 		);
 		this.trigger.SetAttribute("position", driver.position);
 		this.trigger.SetAttribute("binding", key);
-		this.trigger.SetAttribute("capacity", driver.slots.length);
 		this.trigger.SetFrameRef("display", this.display);
 		this.display.SetParent(this.trigger);
 		this.display.SetSize(360, 360);
@@ -139,14 +145,7 @@ export class SecureRadialMenu {
 		this.pointer.SetThickness(3);
 		this.pointer.SetStartPoint("CENTER", this.display, 0, 0);
 		this.pointer.Hide();
-		for (let i = 0; i < this.items.length; i++) {
-			const item = this.items.at(i);
-			if (!item) continue;
-			item.SetParent(this.display);
-			item.SetSize(48, 48);
-			this.trigger.SetAttribute(`slot${i + 1}`, driver.slots.at(i));
-			this.trigger.SetFrameRef(`item${i + 1}`, item);
-		}
+		this.setActions(driver);
 		// See ConsolePort's raw Right -> virtual Camera dispatch. Propagation is
 		// configured once out of combat; only blocker visibility changes at runtime.
 		this.listener.SetParent(UIParent);
@@ -203,6 +202,8 @@ export class SecureRadialMenu {
 self:SetAttribute("type", nil)
 self:SetAttribute("typerelease", nil)
 self:SetAttribute("action", nil)
+self:SetAttribute("spell", nil)
+self:SetAttribute("item", nil)
 local display = self:GetFrameRef("display")
 if down then
 	if self:GetAttribute("held") then return end
@@ -247,8 +248,15 @@ ${RADIAL_INDEX_SNIPPET}
 	if index then
 		local slot = self:GetAttribute("active"..index)
 		if self:RunAttribute("occupied", slot) then
-			self:SetAttribute("action", slot)
-			self:SetAttribute("typerelease", "action")
+			local kind = self:GetAttribute("kind"..slot)
+			if kind then
+				local attribute = kind == "pet" and "action" or kind
+				self:SetAttribute(attribute, self:GetAttribute("value"..slot))
+				self:SetAttribute("typerelease", kind)
+			else
+				self:SetAttribute("action", slot)
+				self:SetAttribute("typerelease", "action")
+			end
 		end
 	end
 	self:SetAttribute("held", nil)
@@ -259,6 +267,34 @@ ${RADIAL_INDEX_SNIPPET}
 end`,
 		);
 		this.trigger.Show();
+	}
+	/** Called out of combat; preserves pooled controls and the installed secure handler. */
+	setActions(driver: Pick<RadialDriver, "slots" | "actions">): void {
+		for (const slot of this.slots) {
+			this.trigger.SetAttribute(`kind${slot}`, undefined);
+			this.trigger.SetAttribute(`value${slot}`, undefined);
+		}
+		this.slots = driver.slots;
+		while (this.items.length < driver.slots.length) {
+			const item = this.pool.acquire("SecureFrame") as RadialFrame;
+			this.items.push(item);
+			this.cooldowns.push(new CooldownOverlay(this.pool, item));
+		}
+		this.display.Hide();
+		this.trigger.SetAttribute("capacity", driver.slots.length);
+		for (let i = 0; i < this.items.length; i++) {
+			const item = this.items.at(i);
+			if (!item) continue;
+			item.SetParent(this.display);
+			item.SetSize(48, 48);
+			item.Hide();
+			this.trigger.SetAttribute(`slot${i + 1}`, driver.slots.at(i));
+			this.trigger.SetFrameRef(`item${i + 1}`, item);
+		}
+		for (const action of driver.actions ?? []) {
+			this.trigger.SetAttribute(`kind${action.slot}`, action.type);
+			this.trigger.SetAttribute(`value${action.slot}`, action.value);
+		}
 	}
 	getBindingTarget(): BindingTarget {
 		return { owner: this.trigger, name: this.trigger.GetName() };
@@ -327,6 +363,8 @@ end`,
 			"type",
 			"typerelease",
 			"action",
+			"spell",
+			"item",
 			"held",
 			"count",
 			"capacity",
@@ -337,6 +375,11 @@ end`,
 			"pressAndHoldAction",
 		])
 			this.trigger.SetAttribute(name, undefined);
+		for (const slot of this.slots) {
+			this.trigger.SetAttribute(`kind${slot}`, undefined);
+			this.trigger.SetAttribute(`value${slot}`, undefined);
+		}
+		this.slots = [];
 		this.trigger.RegisterForClicks("LeftButtonUp");
 		for (const cooldown of this.cooldowns) cooldown.destroy();
 		for (let i = 0; i < this.items.length; i++) {

@@ -3,6 +3,50 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("separates structural ring events from cooldown refreshes and filters pet unit events", () => {
+	let dispatch: (
+		frame: WowEventFrame,
+		event: string,
+		...args: unknown[]
+	) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: vi.fn((_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		}),
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const contents = vi.fn();
+	bus.subscribe("ACTION_RING_CONTENTS_CHANGED", contents);
+	for (const event of [
+		"PET_BAR_UPDATE",
+		"UPDATE_SHAPESHIFT_FORMS",
+		"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+		"QUEST_LOG_UPDATE",
+		"QUEST_WATCH_LIST_CHANGED",
+		"BAG_UPDATE_DELAYED",
+		"SPELLS_CHANGED",
+		"ZONE_CHANGED_NEW_AREA",
+		"UPDATE_EXTRA_ACTIONBAR",
+		"ITEM_DATA_LOAD_RESULT",
+		"QUEST_ITEM_UPDATE",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		const before = contents.mock.calls.length;
+		dispatch(frame, event);
+		expect(contents).toHaveBeenCalledTimes(before + 1);
+	}
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("UNIT_PET");
+	contents.mockClear();
+	dispatch(frame, "UNIT_PET", "party1");
+	dispatch(frame, "ACTIONBAR_UPDATE_COOLDOWN");
+	dispatch(frame, "SPELL_UPDATE_COOLDOWN");
+	expect(contents).not.toHaveBeenCalled();
+	dispatch(frame, "UNIT_PET", "player");
+	expect(contents).toHaveBeenCalledOnce();
+});
+
 it("forwards native login events through the hidden event frame", () => {
 	let dispatch: (
 		frame: WowEventFrame,

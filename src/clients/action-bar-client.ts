@@ -1,6 +1,9 @@
 import type { WowFrame } from "../types";
 import type { IFrameSuppression } from "../ui/components/frame-suppression";
-import type { RadialDriver } from "../ui/components/secure-radial-menu";
+import type {
+	RadialAction,
+	RadialDriver,
+} from "../ui/components/secure-radial-menu";
 import type {
 	BindingTarget,
 	CooldownDuration,
@@ -10,6 +13,30 @@ import type {
 
 type NativeBar = WowFrame & { GetParent(): WowFrame | undefined };
 declare global {
+	const ExtraActionButton1: { action: number };
+	function GetPetActionInfo(
+		this: void,
+		slot: number,
+	): LuaMultiReturn<
+		[
+			string | undefined,
+			string | number | undefined,
+			boolean | undefined,
+			boolean | undefined,
+			boolean | undefined,
+			boolean | undefined,
+			number | undefined,
+		]
+	>;
+	function GetNumShapeshiftForms(this: void): number;
+	function GetShapeshiftFormInfo(
+		this: void,
+		index: number,
+	): LuaMultiReturn<[number | undefined, boolean, boolean, number | undefined]>;
+	function GetQuestLogSpecialItemInfo(
+		this: void,
+		index: number,
+	): LuaMultiReturn<[string | undefined, number | undefined]>;
 	const MainActionBar: NativeBar;
 	const MultiBarBottomLeft: NativeBar;
 	const MultiBarBottomRight: NativeBar;
@@ -35,6 +62,10 @@ declare global {
 		command: string,
 	): void;
 }
+export type ActionRingKind = "abilities" | "class" | "utility";
+interface RingEntry extends RadialAction {
+	readonly icon?: number | string;
+}
 export interface ActionBinding {
 	key: string;
 	target: BindingTarget;
@@ -47,9 +78,10 @@ export interface IActionBarClient {
 	syncBuiltInVisibility(): void;
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
 	): SlotDriver;
-	getRingDriver(): RadialDriver;
+	getRingDriver(kind?: ActionRingKind): RadialDriver;
+	readRing(kind: ActionRingKind, slot: number): SlotVisual;
 	read(slot: number): SlotVisual;
 	bind(bindings: readonly ActionBinding[]): void;
 	restore(): void;
@@ -57,6 +89,10 @@ export interface IActionBarClient {
 export class ActionBarClient implements IActionBarClient {
 	private suppressed = false;
 	private readonly owners: WowFrame[] = [];
+	private readonly ringEntries = new Map<
+		ActionRingKind,
+		readonly RingEntry[]
+	>();
 	constructor(private readonly frames: IFrameSuppression) {}
 	canModify(): boolean {
 		return !InCombatLockdown();
@@ -77,7 +113,7 @@ export class ActionBarClient implements IActionBarClient {
 	}
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
 	): SlotDriver {
 		// Retail Edit Mode bars 6/7/8 use action pages 13/14/15 (ConsolePort Actionbar.lua).
 		// Distinct states trigger the secure handler when the main bar changes.
@@ -91,7 +127,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "EXTRA" ? "[extrabar] 169; -2" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "MOUNT" ? "-3" : defaultCommand === "EXTRA" ? "[extrabar] 217; -2" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -111,11 +147,11 @@ if not action then
 	end
 	action = (page - 1) * 12 + ${slot}
 end
-${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
+${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : defaultCommand === "MOUNT" ? 'self:SetAttribute("spell", action == -3 and 150544 or nil)\nself:SetAttribute("type", action == -3 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
 		};
 	}
-	getRingDriver(): RadialDriver {
-		// Edit Mode bar 5 is MultiBarLeft, action page 4 (slots 37–48).
+	getRingDriver(kind: ActionRingKind = "abilities"): RadialDriver {
+		// Edit Mode bar 6 is MultiBar5, action page 13 (slots 145–156).
 		let rightStick = 2;
 		for (let index = 0; index < 8; index++) {
 			const name = C_GamePad.StickIndexToConfigName(index);
@@ -125,14 +161,168 @@ ${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spel
 				break;
 			}
 		}
+		const entries =
+			kind === "class"
+				? this.classEntries()
+				: kind === "utility"
+					? this.utilityEntries()
+					: undefined;
+		if (entries) this.ringEntries.set(kind, entries);
 		return {
-			slots: Array.from({ length: 12 }, (_, i) => 37 + i),
-			occupied: "return HasAction(slot)",
+			slots:
+				entries?.map((entry) => entry.slot) ??
+				Array.from({ length: 12 }, (_, i) => 145 + i),
+			...(entries
+				? {
+						actions: entries.map(({ slot, type, value }) => ({
+							slot,
+							type,
+							value,
+						})),
+					}
+				: {}),
+			occupied:
+				kind === "abilities"
+					? "return HasAction(slot)"
+					: kind === "class"
+						? `if self:GetAttribute("kind"..slot) == "pet" then
+	return SecureCmdOptionParse("[pet,novehicleui,nopossessbar] true") ~= nil
+end
+return self:GetAttribute("value"..slot) ~= nil`
+						: `if self:GetAttribute("kind"..slot) == "action" then
+	return SecureCmdOptionParse("[extrabar] true") ~= nil and HasAction(slot)
+end
+return self:GetAttribute("value"..slot) ~= nil`,
 			position: `local state = GetGamePadState()
 local pos = state and state.sticks and state.sticks[${rightStick}]
 if pos then return pos.x, pos.y, pos.len end`,
 			stick: "Right",
 			virtualStick: "Camera",
+		};
+	}
+	private classEntries(): RingEntry[] {
+		const [, className] = (
+			UnitClass as unknown as (
+				this: void,
+				unit: string,
+			) => LuaMultiReturn<[string, string]>
+		)("player");
+		const entries: RingEntry[] = [];
+		if (className === "HUNTER" || className === "WARLOCK") {
+			// Keep native slot identities ready even when the pet is dismissed. A pet
+			// summoned in combat must work without insecure attribute changes.
+			for (let index = 1; index <= 10; index++) {
+				entries.push({ slot: index, type: "pet", value: index });
+			}
+		} else if (["DRUID", "WARRIOR", "SHAMAN"].includes(className)) {
+			for (let index = 1; index <= GetNumShapeshiftForms(); index++) {
+				const [icon, , , spell] = GetShapeshiftFormInfo(index);
+				if (spell)
+					entries.push({
+						slot: entries.length + 1,
+						type: "spell",
+						value: spell,
+						icon,
+					});
+			}
+		}
+		return entries;
+	}
+	private utilityEntries(): RingEntry[] {
+		// Retail's extra-action page is 19; 169 belongs to normal Edit Mode bar 8.
+		const extra = ExtraActionButton1?.action ?? 217;
+		const entries: RingEntry[] = [
+			{ slot: extra, type: "action", value: extra },
+		];
+		const items = new Set<number>();
+		const addItem = (id: number, icon?: number) => {
+			if (items.has(id)) return;
+			items.add(id);
+			entries.push({
+				slot: entries.length,
+				type: "item",
+				value: `item:${id}`,
+				icon,
+			});
+		};
+		const [count] = C_QuestLog.GetNumQuestLogEntries();
+		for (let index = 1; index <= count; index++) {
+			const [link, icon] = GetQuestLogSpecialItemInfo(index);
+			if (!link) continue;
+			const id = (
+				C_Item.GetItemIDForItemInfo as unknown as (
+					this: void,
+					info: string,
+				) => number | undefined
+			)(link);
+			if (id) addItem(id, icon);
+		}
+		for (let bag = 0; bag <= 5; bag++) {
+			for (
+				let slot = 1;
+				slot <= C_Container.GetContainerNumSlots(bag);
+				slot++
+			) {
+				const quest = C_Container.GetContainerItemQuestInfo(
+					bag,
+					slot,
+				) as unknown as { isQuestItem: boolean };
+				if (!quest?.isQuestItem) continue;
+				const id = C_Container.GetContainerItemID(bag, slot);
+				if (!id) continue;
+				const [usable] = C_Item.IsUsableItem(id);
+				if (usable) addItem(id, C_Item.GetItemIconByID(id) ?? undefined);
+			}
+		}
+		const spells = new Set<number>();
+		const abilities = C_ZoneAbility.GetActiveAbilities() as unknown as {
+			spellID: number;
+			uiPriority: number;
+		}[];
+		abilities.sort((a, b) => a.uiPriority - b.uiPriority);
+		for (const ability of abilities) {
+			if (spells.has(ability.spellID)) continue;
+			spells.add(ability.spellID);
+			entries.push({
+				slot: entries.length,
+				type: "spell",
+				value: ability.spellID,
+				icon: C_ZoneAbility.GetZoneAbilityIcon(ability.spellID) ?? undefined,
+			});
+		}
+		return entries;
+	}
+	readRing(kind: ActionRingKind, slot: number): SlotVisual {
+		if (kind === "abilities") return this.read(slot);
+		const entry = this.ringEntries
+			.get(kind)
+			?.find((candidate) => candidate.slot === slot);
+		if (!entry) return {};
+		if (entry.type === "action") return this.read(Number(entry.value));
+		if (entry.type === "pet") {
+			const [, texture, token, , , , spell] = GetPetActionInfo(
+				Number(entry.value),
+			);
+			const icon =
+				token && typeof texture === "string"
+					? (_G as unknown as Record<string, string | number | undefined>)[
+							texture
+						]
+					: texture;
+			return { icon, ...(spell ? this.spellVisual(spell) : {}) };
+		}
+		if (entry.type === "spell")
+			return { ...this.spellVisual(Number(entry.value)), icon: entry.icon };
+		return { icon: entry.icon };
+	}
+	private spellVisual(spell: number): SlotVisual {
+		return {
+			cooldown: C_Spell.GetSpellCooldownDuration(spell, false) as unknown as
+				| CooldownDuration
+				| undefined,
+			recharge: C_Spell.GetSpellChargeDuration(spell) as unknown as
+				| CooldownDuration
+				| undefined,
 		};
 	}
 	syncBuiltInVisibility(): void {
@@ -161,6 +351,8 @@ if pos then return pos.x, pos.y, pos.len end`,
 		} else this.disableBuiltIn();
 	}
 	read(slot: number): SlotVisual {
+		if (slot === -3)
+			return { icon: "Interface\\Icons\\Ability_Mount_RidingHorse" };
 		if (slot === -2) {
 			// Generated declarations flatten this table and alter Blizzard's field casing.
 			const abilities = C_ZoneAbility.GetActiveAbilities() as unknown as {
