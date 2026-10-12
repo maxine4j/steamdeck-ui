@@ -375,15 +375,24 @@ export class Frame implements IUIComponent {
 		);
 		this.opacityChanged = alpha !== 1;
 	}
-	setTooltip(text: string, hyperlink?: string): void {
+	setTooltip(text: string, hyperlink?: string, compareItems = true): void {
 		const native = this.acquire();
+		type HoverTooltip = typeof GameTooltip & {
+			suppressAutomaticCompareItem: boolean;
+		};
 		native.SetScript("OnEnter", () => {
-			GameTooltip.SetOwner(native, "ANCHOR_RIGHT");
-			if (hyperlink) GameTooltip.SetHyperlink(hyperlink);
-			else GameTooltip.SetText(text);
-			GameTooltip.Show();
+			const tooltip = GameTooltip as HoverTooltip;
+			tooltip.SetOwner(native, "ANCHOR_RIGHT");
+			tooltip.suppressAutomaticCompareItem = !compareItems;
+			if (hyperlink) tooltip.SetHyperlink(hyperlink);
+			else tooltip.SetText(text);
+			tooltip.Show();
 		});
-		native.SetScript("OnLeave", () => GameTooltip.Hide());
+		native.SetScript("OnLeave", () => {
+			const tooltip = GameTooltip as HoverTooltip;
+			tooltip.Hide();
+			tooltip.suppressAutomaticCompareItem = false;
+		});
 	}
 	getSize(): { width: number; height: number } {
 		const native = this.acquire() as WowFrame & {

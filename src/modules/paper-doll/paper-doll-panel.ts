@@ -181,9 +181,8 @@ export class PaperDollPanel implements IPanel {
 						navId: `equipment-${index}`,
 						tooltipItem: () => {
 							const current = this.equipment.at(index);
-							return this.mounted
-								? (current?.hyperlink ?? current?.itemId)
-								: undefined;
+							const item = current?.hyperlink ?? current?.itemId;
+							return this.mounted && item !== undefined ? { item } : undefined;
 						},
 						onFocus: () => border.setColor(1, 0.82, 0),
 						onBlur: () => {
@@ -211,7 +210,7 @@ export class PaperDollPanel implements IPanel {
 			cell.button.setParent(cell.border);
 			cell.button.layout(40, 40, "CENTER", cell.border);
 			cell.button.setIcon(slot.icon);
-			cell.button.setTooltip(slot.name, slot.hyperlink);
+			cell.button.setTooltip(slot.name, slot.hyperlink, false);
 			const weapon = index >= 16;
 			const width = weapon ? 226 : 150;
 			const point = weapon ? "TOP" : index < 8 ? "TOPLEFT" : "TOPRIGHT";

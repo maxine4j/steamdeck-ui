@@ -103,7 +103,9 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
-	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toBe("item:42");
+	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
+		item: "item:42",
+	});
 	const navigationChanged = vi.fn();
 	panel.setNavigationChanged(navigationChanged);
 	panel.setEquipment(
@@ -112,9 +114,9 @@ it("fits equipment around a character model with stats below, reuses controls an
 		),
 	);
 	expect(navigationChanged).toHaveBeenCalledOnce();
-	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toBe(
-		"item:43:bonus",
-	);
+	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
+		item: "item:43:bonus",
+	});
 	panel.setEquipment(equipment);
 	const details = natives.filter((native) =>
 		native.texts.includes("|cffffffff150|r"),
@@ -238,6 +240,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	expect(factory.createFrame).toHaveBeenCalledTimes(framesBeforeIdentityUpdate);
 	expect(equipmentButtons).toHaveLength(18);
 	const tooltip = {
+		suppressAutomaticCompareItem: false,
 		SetOwner: vi.fn(),
 		SetHyperlink: vi.fn(),
 		SetText: vi.fn(),
@@ -247,8 +250,10 @@ it("fits equipment around a character model with stats below, reuses controls an
 	vi.stubGlobal("GameTooltip", tooltip);
 	equipmentButtons.at(0)?.handlers.get("OnEnter")?.(undefined, "");
 	expect(tooltip.SetHyperlink).toHaveBeenCalledWith("item:42");
+	expect(tooltip.suppressAutomaticCompareItem).toBe(true);
 	equipmentButtons.at(0)?.handlers.get("OnLeave")?.(undefined, "");
 	expect(tooltip.Hide).toHaveBeenCalledOnce();
+	expect(tooltip.suppressAutomaticCompareItem).toBe(false);
 	equipmentButtons.at(0)?.handlers.get("OnClick")?.(undefined, "RightButton");
 	equipmentButtons.at(1)?.handlers.get("OnClick")?.(undefined, "LeftButton");
 	expect(actions.use).toHaveBeenCalledWith(equipment.at(0));

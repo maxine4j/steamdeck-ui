@@ -98,6 +98,28 @@ it("renders full instance links with native equipped stat comparisons centered a
 	);
 });
 
+it("keeps equipped item details comparison-free through event and asynchronous refreshes", () => {
+	const { tooltip, frames, compare, events } = setup();
+	tooltip.setItem(41);
+	compare.mockClear();
+	tooltip.setItem({ item: "item:42:bonus" });
+	const main = frames.at(0);
+	if (!main) throw new Error("Missing main tooltip");
+	expect(main.SetHyperlink).toHaveBeenLastCalledWith("item:42:bonus");
+	expect(frames.at(1)?.IsShown()).toBe(false);
+	events.emit("PLAYER_EQUIPMENT_CHANGED");
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	main.shouldRefreshData = true;
+	const update = main.SetScript.mock.lastCall?.at(1) as
+		| ((frame: unknown, elapsed: number) => void)
+		| undefined;
+	update?.(main, 0.25);
+	expect(main.RefreshData).toHaveBeenCalledOnce();
+	expect(compare).not.toHaveBeenCalled();
+	tooltip.setItem(43);
+	expect(compare).toHaveBeenCalledOnce();
+});
+
 it("clears comparisons when changing items, hides on blur and reuses pooled tooltips", () => {
 	const { tooltip, frames, factory, compare, pool, events } = setup();
 	tooltip.setItem(42);
