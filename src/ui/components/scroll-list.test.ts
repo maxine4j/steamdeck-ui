@@ -3,6 +3,31 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("preserves a row's atlas artwork across focus and clears it when reused as a heading", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("atlas", pool, "Test", vi.fn());
+	list.setRows([
+		{
+			id: "tile",
+			label: "Tile",
+			backgroundAtlas: "tile-art",
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("atlas-parent", pool));
+	const row = frames.get("atlas-row-0");
+	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith("tile-art");
+	const nav = list.getNavGrid().at(0)?.at(0);
+	nav?.onFocus();
+	nav?.onBlur();
+	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith("tile-art");
+	expect(row?.setButtonBackground).not.toHaveBeenCalled();
+	list.setRows([
+		{ id: "heading", label: "Heading", heading: true, activate: vi.fn() },
+	]);
+	expect(row?.setColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
+});
+
 it.each([1, 2])(
 	"adds heading margins to %i-column layouts and scrolling",
 	(columns) => {
@@ -219,6 +244,7 @@ vi.mock("./frame", () => ({
 		fill = vi.fn();
 		setWindowBackground = vi.fn();
 		setButtonBackground = vi.fn();
+		setAtlasBackground = vi.fn();
 		setInsetBackground = vi.fn();
 		setCloseButtonBackground = vi.fn();
 		setScrollContent = vi.fn();

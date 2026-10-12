@@ -104,19 +104,22 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 	]);
 	expect(rows.at(0)).toMatchObject({
 		fontSize: 20,
-		marginTop: 24,
-		marginBottom: 12,
+		height: 28,
+		marginTop: 8,
+		marginBottom: 8,
 	});
-	expect(rows.at(9)).toMatchObject({ marginTop: 24 });
+	expect(rows.at(9)).toMatchObject({ marginTop: 8 });
 	expect(rows.at(4)).toMatchObject({
 		fontSize: 16,
 		indent: 12,
 		marginBottom: 8,
 		marginTop: 0,
+		height: 24,
 	});
 	expect(rows.at(1)).toMatchObject({
 		detail: "Friendly 1500 / 6000",
 		height: 60,
+		backgroundAtlas: "ui-journeys-renown-button",
 		progress: { value: 0.25, color: [0.15, 0.7, 0.25] },
 	});
 	expect(construct.mock.lastCall?.at(4)).toMatchObject({
@@ -124,6 +127,10 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 		gap: 12,
 		edgeProgress: true,
 	});
+	for (const row of rows.filter((row) => !row.heading)) {
+		expect(row.backgroundAtlas).toBe("ui-journeys-renown-button");
+		expect(row.background).toBeUndefined();
+	}
 	rows.at(1)?.activate();
 	expect(client.activate).toHaveBeenCalledWith(
 		expect.objectContaining({ id: 2 }),

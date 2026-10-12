@@ -81,9 +81,9 @@ export class ReputationPanel implements IPanel {
 			heading: true,
 			fontSize: child ? 16 : 20,
 			indent: child ? 12 : 0,
-			height: child ? 36 : 44,
-			marginTop: child ? 0 : 24,
-			marginBottom: child ? 8 : 12,
+			height: child ? 24 : 28,
+			marginTop: child ? 0 : 8,
+			marginBottom: 8,
 			activate: () => {},
 		};
 	}
@@ -94,6 +94,7 @@ export class ReputationPanel implements IPanel {
 			id: `reputation-${reputation.index}`,
 			label: reputation.name,
 			height: 60,
+			backgroundAtlas: "ui-journeys-renown-button",
 			indent,
 			detail: `${reputation.standing}${!capped && reputation.progress ? ` ${reputation.progress}` : ""}${reputation.watched ? " • Watched" : ""}`,
 			tooltip: reputation.description,

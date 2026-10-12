@@ -25,6 +25,7 @@ export interface ListRow {
 	readonly marginTop?: number;
 	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number];
+	readonly backgroundAtlas?: string;
 	readonly progress?: {
 		readonly value: number;
 		readonly color: readonly [number, number, number];
@@ -517,7 +518,8 @@ export class ScrollList {
 			frame?.setColor(0, 0, 0, 0);
 			return;
 		}
-		if (row?.background) frame?.setColor(...row.background);
+		if (row?.backgroundAtlas) frame?.setAtlasBackground(row.backgroundAtlas);
+		else if (row?.background) frame?.setColor(...row.background);
 		else frame?.setButtonBackground(row?.selected ?? false);
 	}
 	private reveal(index: number): void {

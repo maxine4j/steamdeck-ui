@@ -39,6 +39,17 @@ function setup() {
 	return { native, pool, textures };
 }
 
+it("replaces a sliced button with a full-frame atlas and clears its old caps", () => {
+	const { pool, textures } = setup();
+	const frame = new Frame("atlas-row", pool, "Button");
+	frame.setButtonBackground();
+	frame.setAtlasBackground("tile-art");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith("tile-art", false);
+	expect(textures.at(0)?.SetAllPoints).toHaveBeenCalled();
+	for (const cap of textures.slice(1))
+		expect(cap.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+});
+
 it("uses character window artwork and reuses its corners and edges", () => {
 	const { native, pool, textures } = setup();
 	applyWindowSkin(pool, native);

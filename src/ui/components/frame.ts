@@ -684,6 +684,12 @@ export class Frame implements IUIComponent {
 	setWindowBackground(): void {
 		applyWindowSkin(this.pool, this.acquire());
 	}
+	setAtlasBackground(atlas: string): void {
+		this.setColor(0, 0, 0, 0);
+		this.texture?.ClearAllPoints();
+		this.texture?.SetAllPoints();
+		this.texture?.SetAtlas(atlas, false);
+	}
 	setButtonBackground(selected = false): void {
 		applyButtonSkin(this.pool, this.acquire(), selected);
 		this.buttonSkinned = true;
