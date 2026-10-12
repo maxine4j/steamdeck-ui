@@ -5,7 +5,81 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("only updates changed label content or layout and resets cached state on release", () => {
+it("passes item cooldowns through to a pooled native cooldown and clears it on release", () => {
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		SetCooldown: vi.fn(),
+		Clear: vi.fn(),
+		SetHideCountdownNumbers: vi.fn(),
+		SetDrawEdge: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"cooldown",
+		new FramePoolManager({ createFrame: () => native }),
+		"Cooldown",
+	);
+	frame.setCooldown(10, 60);
+	expect(native.SetCooldown).toHaveBeenCalledExactlyOnceWith(10, 60);
+	frame.destroy();
+	expect(native.Clear).toHaveBeenCalledOnce();
+});
+
+it("configures secure toy activation and clears toy attributes before pooling", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"toy",
+		new FramePoolManager({ createFrame: () => native }),
+		"SecureButton",
+	);
+	frame.setToy(42);
+	const after = vi.fn();
+	frame.onPostClick(after);
+	expect(native.SetScript).toHaveBeenCalledWith(
+		"PostClick",
+		expect.any(Function),
+	);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", "toy");
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", 42);
+	combat = true;
+	native.SetAttribute.mockClear();
+	frame.setToy(43);
+	expect(native.SetAttribute).not.toHaveBeenCalled();
+	combat = false;
+	frame.destroy();
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
+});
+
+it("only updates changed labels and resets cached state and opacity on release", () => {
 	const label = {
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
@@ -15,6 +89,7 @@ it("only updates changed label content or layout and resets cached state on rele
 		SetText: vi.fn(),
 	};
 	const native = {
+		SetAlpha: vi.fn(),
 		Hide: vi.fn(),
 		Show: vi.fn(),
 		SetParent: vi.fn(),
@@ -42,7 +117,10 @@ it("only updates changed label content or layout and resets cached state on rele
 	frame.setLabel("value", "11", "LEFT", 4);
 	expect(label.SetPoint).toHaveBeenCalledTimes(2);
 	expect(label.SetText).toHaveBeenCalledTimes(2);
+	frame.setOpacity(0.35);
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(0.35);
 	frame.destroy();
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(1);
 	label.SetPoint.mockClear();
 	label.SetText.mockClear();
 	frame.setLabel("value", "11", "LEFT", 4);

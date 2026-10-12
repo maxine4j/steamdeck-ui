@@ -5,6 +5,7 @@ import { Frame } from "./frame";
 /** Pooled icon toggle with a separate checkbox and controller focus. */
 export class IconCheckbox implements INavigable {
 	private readonly button: Frame;
+	private readonly artwork: Frame;
 	private readonly box: Frame;
 	private readonly check: Frame;
 	private readonly nav: INavigable;
@@ -18,6 +19,7 @@ export class IconCheckbox implements INavigable {
 		private readonly activate: () => void,
 	) {
 		this.button = new Frame(navId, pool, "Button");
+		this.artwork = new Frame(`${navId}-icon`, pool);
 		this.box = new Frame(`${navId}-box`, pool);
 		this.check = new Frame(`${navId}-check`, pool);
 		this.nav = this.button.navigationNode(navId, () => this.onInteract());
@@ -25,27 +27,31 @@ export class IconCheckbox implements INavigable {
 	mount(parent: Frame, x: number, top: number): void {
 		this.button.setParent(parent);
 		this.button.layout(96, 100, "TOPLEFT", parent, x, -top);
-		this.button.setLabel("icon", this.icon, "TOP", 0, -2, 40);
+		this.artwork.setParent(this.button);
+		this.artwork.layout(32, 32, "TOP", this.button, 0, -10);
+		this.artwork.setLabel("icon", this.icon, "CENTER", 0, 0, 12);
 		this.button.setLabel("label", this.label, "BOTTOM", 0, 0, 12, 96);
-		this.box.setParent(this.button);
-		this.box.layout(22, 22, "BOTTOM", this.button, 0, 30);
+		this.box.setParent(this.artwork);
+		this.box.layout(14, 14, "BOTTOMRIGHT", this.artwork, 2, -2);
 		this.box.setColor(0.03, 0.03, 0.03);
 		this.box.setBorder([0.7, 0.65, 0.5, 1]);
 		this.check.fill(this.box);
 		this.check.setLabel(
 			"check",
-			"|TInterface\\Buttons\\UI-CheckBox-Check:26:26|t",
+			"|TInterface\\Buttons\\UI-CheckBox-Check:18:18|t",
 		);
 		this.button.onClick((button) => {
 			if (button === "LeftButton") this.onInteract();
 		});
 		this.mounted = true;
 		this.box.show();
+		this.artwork.show();
 		this.button.show();
 	}
 	setChecked(checked: boolean, enabled = true): void {
 		this.enabled = enabled;
-		this.button.setColor(0.08, 0.08, 0.08, enabled ? 1 : 0.4);
+		this.button.setColor(0.08, 0.08, 0.08);
+		this.button.setOpacity(enabled ? 1 : 0.35);
 		if (checked) this.check.show();
 		else this.check.hide();
 	}
@@ -66,6 +72,7 @@ export class IconCheckbox implements INavigable {
 		this.unmount();
 		this.check.destroy();
 		this.box.destroy();
+		this.artwork.destroy();
 		this.button.destroy();
 	}
 }

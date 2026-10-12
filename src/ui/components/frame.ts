@@ -21,6 +21,7 @@ export class Frame implements IUIComponent {
 	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
+	private opacityChanged = false;
 	private texture?: WowTexture;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
@@ -43,6 +44,7 @@ export class Frame implements IUIComponent {
 			| "Frame"
 			| "Button"
 			| "SecureButton"
+			| "Cooldown"
 			| "EditBox"
 			| "ScrollFrame"
 			| "PlayerModel" = "Frame",
@@ -309,6 +311,12 @@ export class Frame implements IUIComponent {
 		this.acquire();
 		this.texture?.SetColorTexture(red, green, blue, alpha);
 	}
+	setOpacity(alpha: number): void {
+		(this.acquire() as WowFrame & { SetAlpha(alpha: number): void }).SetAlpha(
+			alpha,
+		);
+		this.opacityChanged = alpha !== 1;
+	}
 	setTooltip(text: string, hyperlink?: string): void {
 		const native = this.acquire();
 		native.SetScript("OnEnter", () => {
@@ -432,8 +440,46 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("type", spell ? "spell" : undefined);
 		native.SetAttribute("spell", spell);
 	}
+	setToy(toy?: number): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Toy requires a secure button");
+		if (InCombatLockdown()) return;
+		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string | number): void;
+		};
+		native.RegisterForClicks("AnyUp", "AnyDown");
+		native.SetAttribute("type", toy ? "toy" : undefined);
+		native.SetAttribute("toy", toy);
+	}
+	/** Observe a secure action without replacing the template's OnClick handler. */
+	onPostClick(callback?: (this: void, button: string) => void): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Post-click handlers require a secure button");
+		const native = this.acquire() as WowFrame & {
+			SetScript(
+				script: "PostClick",
+				handler?: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		native.SetScript(
+			"PostClick",
+			callback ? (_frame, button) => callback(button) : undefined,
+		);
+	}
 	click(): void {
 		(this.acquire() as WowFrame & { Click(): void }).Click();
+	}
+	setCooldown(start: number, duration: number): void {
+		if (this.frameType !== "Cooldown")
+			throw new Error("Cooldown requires a cooldown frame");
+		const native = this.acquire() as WowFrame & {
+			SetCooldown(start: number, duration: number): void;
+			SetHideCountdownNumbers(hide: boolean): void;
+			SetDrawEdge(draw: boolean): void;
+		};
+		native.SetHideCountdownNumbers(false);
+		native.SetDrawEdge(false);
+		native.SetCooldown(start, duration);
 	}
 	configureInput(change?: (this: void, text: string) => void): void {
 		if (this.frameType !== "EditBox")
@@ -504,6 +550,9 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.opacityChanged) {
+			this.setOpacity(1);
+		}
 		if (this.focusBorder) {
 			this.focusBorder.SetFrameLevel(0);
 			this.pool.release("Frame", this.focusBorder);
@@ -555,7 +604,13 @@ export class Frame implements IUIComponent {
 			input.SetScript("OnEscapePressed", undefined);
 			input.SetScript("OnEnterPressed", undefined);
 		}
-		if (this.frameType === "SecureButton") this.setSpell();
+		if (this.frameType === "SecureButton") {
+			this.setSpell();
+			this.setToy();
+			this.onPostClick();
+		}
+		if (this.frameType === "Cooldown")
+			(this.native as WowFrame & { Clear(): void }).Clear();
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
