@@ -29,7 +29,7 @@ it("opens bags before focusing the dedicated vendor container and coalesces upda
 		native,
 		scheduler,
 	);
-	const bags = vi.fn(() => ui.openPanel("bags", "right"));
+	const bags = vi.fn();
 	events.subscribe("BAG_VISIBILITY_CHANGED", bags);
 	module.disableBuiltIn();
 	module.initialize();
@@ -37,6 +37,7 @@ it("opens bags before focusing the dedicated vendor container and coalesces upda
 	expect(pending).toHaveLength(0);
 	events.emit("MERCHANT_SHOW");
 	expect(client.ensureBagsOpen).toHaveBeenCalledOnce();
+	expect(bags).toHaveBeenCalledOnce();
 	expect(ui.openPanel.mock.calls).toEqual([
 		["bags", "right"],
 		["vendor", "left", "merchant"],
@@ -78,4 +79,28 @@ it("closes the native interaction and cancels pending work on shutdown", () => {
 	module.shutdown();
 	expect(cancel).toHaveBeenCalledOnce();
 	expect(client.close).toHaveBeenCalledOnce();
+});
+
+it("handles a synchronous native close without closing the interaction twice", () => {
+	const events = createTestEventBus();
+	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
+	const client = {
+		setOpen: vi.fn(),
+		ensureBagsOpen: vi.fn(),
+		close: vi.fn(() => events.emit("MERCHANT_CLOSED")),
+	} as unknown as IVendorClient;
+	const module = new VendorModule(
+		ui,
+		events,
+		client,
+		[],
+		{ disable: vi.fn(), restore: vi.fn() },
+		{ nextFrame: () => vi.fn() },
+	);
+	ui.closePanel.mockImplementation(() => module.close());
+	module.initialize();
+	events.emit("MERCHANT_SHOW");
+	module.close();
+	expect(client.close).toHaveBeenCalledOnce();
+	expect(ui.closePanel).toHaveBeenCalledOnce();
 });

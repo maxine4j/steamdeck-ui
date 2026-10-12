@@ -4,7 +4,11 @@ import type {
 	VendorItem,
 } from "../../clients/vendor-client";
 import { Frame } from "../../ui/components/frame";
-import { type GridGroup, ItemGrid } from "../../ui/components/item-grid";
+import {
+	type GridGroup,
+	type GridItem,
+	ItemGrid,
+} from "../../ui/components/item-grid";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
@@ -105,14 +109,21 @@ export class VendorPanel implements IPanel {
 			this.id === "vendor" ? this.client.getItems() : this.client.getBuyback();
 		const groups: GridGroup[] = [];
 		const pageSize = this.id === "vendor" ? 10 : 12;
-		for (let start = 0; start < items.length; start += pageSize) {
-			const page = Math.floor(start / pageSize) + 1;
+		const pages = new Map<number, GridItem[]>();
+		for (const item of items) {
+			const page = Math.floor((item.index - 1) / pageSize) + 1;
+			let tiles = pages.get(page);
+			if (!tiles) {
+				tiles = [];
+				pages.set(page, tiles);
+			}
+			tiles.push(this.tile(item));
+		}
+		for (const [page, tiles] of pages) {
 			groups.push({
 				id: `page-${page}`,
 				label: this.id === "vendor" ? `Page ${page}` : undefined,
-				items: items
-					.slice(start, start + pageSize)
-					.map((item) => this.tile(item)),
+				items: tiles,
 			});
 		}
 		this.grid.setGroups(groups);
@@ -149,7 +160,7 @@ export class VendorPanel implements IPanel {
 		const costs = item.costs
 			.map((cost) => `${cost.count}|T${cost.icon}:12:12|t`)
 			.join(" ");
-		const detail = `${price(item.price)}${costs ? ` + ${costs}` : ""}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
+		const detail = `${price(item.price)}${costs.length > 0 ? ` + ${costs}` : ""}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
 		return {
 			id: `${this.id}-item-${item.index}`,
 			name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,

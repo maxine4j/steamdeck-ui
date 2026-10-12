@@ -44,10 +44,13 @@ export class VendorModule implements IModule {
 		this.native.disable();
 		this.client.ensureBagsOpen();
 		this.events.emit("BAG_VISIBILITY_CHANGED");
+		// Bags can already be logically open while another right-hand tab is visible.
+		this.ui.openPanel("bags", "right");
 		for (const view of this.views) view.refresh();
 		this.ui.openPanel("vendor", "left", "merchant");
 	};
 	private readonly closed = () => {
+		if (!this.open) return;
 		this.open = false;
 		this.cancelRefresh?.();
 		this.cancelRefresh = undefined;
@@ -55,6 +58,7 @@ export class VendorModule implements IModule {
 		this.ui.closePanel("left", undefined, "merchant");
 	};
 	close(): void {
+		if (!this.open) return;
 		this.client.close();
 		this.closed();
 	}

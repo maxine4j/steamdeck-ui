@@ -71,6 +71,15 @@ it("stacks vendor pages in two columns, exposes purchase actions and reuses cont
 	const close = vi.fn();
 	const panel = new VendorPanel("vendor", pool, client, close);
 	panel.onMount(parent);
+	expect(labels.get("vendor-items-cell-0")).toHaveBeenCalledWith(
+		"detail",
+		"1g 23s 45c",
+		"BOTTOMLEFT",
+		56,
+		6,
+		11,
+		164,
+	);
 	expect(labels.get("vendor-items-header-0")).toHaveBeenCalledWith(
 		"label",
 		"Page 1",
@@ -137,4 +146,23 @@ it("routes repair and junk controls, guards unavailable actions, and isolates bu
 	expect(buyback.getNavGrid()).toHaveLength(2);
 	buyback.getNavGrid().at(0)?.at(0)?.onInteract();
 	expect(client.buyback).toHaveBeenCalledWith(items.at(0));
+});
+
+it("retains page boundaries when some merchant item data is unavailable", () => {
+	const { pool, client, parent, items } = setup();
+	const first = items.at(0);
+	const secondPage = items.at(10);
+	if (!first || !secondPage) throw new Error("Expected two pages");
+	vi.mocked(client.getItems).mockReturnValue([first, secondPage]);
+	const panel = new VendorPanel("vendor", pool, client, vi.fn());
+	panel.onMount(parent);
+	expect(labels.get("vendor-items-header-1")).toHaveBeenCalledWith(
+		"label",
+		"Page 2",
+		"LEFT",
+		0,
+		0,
+		15,
+		460,
+	);
 });

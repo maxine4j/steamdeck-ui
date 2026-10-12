@@ -22,6 +22,7 @@ export class PanelContainer implements IPanelContainer {
 	) {
 		this.frame.dock(position, 500);
 		this.frame.onClose(() => {
+			if (this.stack.length === 0) return;
 			this.releaseNavigation();
 			const active = this.stack.at(-1);
 			this.stack.length = 0;
@@ -90,6 +91,7 @@ export class PanelContainer implements IPanelContainer {
 		});
 	}
 	popPanel(): void {
+		if (this.stack.length === 0) return;
 		this.releaseNavigation();
 		const active = this.stack.pop();
 		active?.onUnmount();
