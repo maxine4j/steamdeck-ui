@@ -161,6 +161,8 @@ const { frames } = vi.hoisted(() => ({
 			show: ReturnType<typeof vi.fn>;
 			revealVerticalRange: ReturnType<typeof vi.fn>;
 			setOpacity: ReturnType<typeof vi.fn>;
+			setAnimatedAtlas: ReturnType<typeof vi.fn>;
+			setBorder: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
 			setLabelWordWrap: ReturnType<typeof vi.fn>;
@@ -196,6 +198,7 @@ vi.mock("./frame", () => ({
 			frames.set(id, this);
 		}
 		layout = vi.fn();
+		setAnimatedAtlas = vi.fn();
 		layoutVerticallyCentered = vi.fn();
 		onSizeChanged = vi.fn();
 		setColor = vi.fn();
@@ -219,6 +222,42 @@ vi.mock("./frame", () => ({
 		revealVerticalRange = vi.fn();
 	},
 }));
+
+it("renders a trailing animation, preserves row color on focus and stops it on reuse", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("animated", pool, "Test", vi.fn());
+	const animation = {
+		atlas: "atlas",
+		rows: 8,
+		columns: 11,
+		frames: 80,
+		duration: 2,
+	};
+	list.setRows([
+		{
+			id: "queue",
+			label: "Queue",
+			background: [0.05, 0.25, 0.5],
+			animatedIcon: animation,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("animated-animation-0")?.setAnimatedAtlas,
+	).toHaveBeenCalledWith(animation);
+	list.getNavGrid().at(0)?.at(0)?.onFocus();
+	expect(frames.get("animated-row-0")?.setColor).toHaveBeenLastCalledWith(
+		0.05,
+		0.25,
+		0.5,
+	);
+	list.setRows([{ id: "other", label: "Other", activate: vi.fn() }]);
+	expect(frames.get("animated-animation-0")?.hide).toHaveBeenCalled();
+	expect(frames.get("animated-row-0")?.setBorder).toHaveBeenLastCalledWith([
+		0, 0, 0, 0,
+	]);
+});
 
 it("renders checkbox rows and excludes disabled choices while reusing rows for ordinary buttons", () => {
 	const pool = {} as IFramePoolManager;

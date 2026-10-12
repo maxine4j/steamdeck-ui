@@ -16,6 +16,7 @@ export interface IPanel {
 
 	// Returns the D-Pad routable elements for this panel
 	getNavGrid(): NavGrid;
+	onBack?(): void;
 	setNavigationChanged?(callback?: () => void): void;
 }
 

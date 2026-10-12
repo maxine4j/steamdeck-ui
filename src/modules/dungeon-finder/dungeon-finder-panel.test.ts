@@ -93,8 +93,15 @@ function setup(queued = false, canTank = true, canHeal = true) {
 				name: "Choice",
 				available: true,
 				checked: true,
+				difficulty: "heroic",
 			},
-			{ id: 12, name: "Locked", available: false, checked: false },
+			{
+				id: 12,
+				name: "Locked",
+				available: false,
+				checked: false,
+				difficulty: "normal",
+			},
 		],
 		selectList: vi.fn(),
 		toggleDungeon: vi.fn(),
@@ -180,7 +187,7 @@ it.each(["follower", "specific"] as const)(
 		).not.toContain("choice-12");
 		callbacks.shift()?.();
 		const updated = setRows.mock.lastCall?.at(0) as ListRow[];
-		const back = updated.at(-1);
+		const back = updated.find((row) => row.id === "dungeon-back");
 		expect(back).toMatchObject({ id: "dungeon-back", label: "Back" });
 		back?.activate();
 		callbacks.shift()?.();
@@ -198,6 +205,7 @@ it("keeps Back accessible on an empty secondary page", () => {
 	expect(choices).toMatchObject([
 		{ id: "empty-choices", marginBottom: 28 },
 		{ id: "dungeon-back", label: "Back" },
+		{ id: "queue-action", enabled: false },
 	]);
 	expect(
 		panel
@@ -207,31 +215,29 @@ it("keeps Back accessible on an empty secondary page", () => {
 	).toBe(true);
 });
 
-it("allows browsing and returning while queued without editing the queue", () => {
+it("greys competing queues and lets A leave the active random queue", () => {
 	const { rows, client, panel, callbacks } = setup(true);
 	rows.find((row) => row.id === "list-specific")?.activate();
 	callbacks.shift()?.();
 	expect(client.selectList).not.toHaveBeenCalled();
-	const choices = setRows.mock.lastCall?.at(0) as ListRow[];
-	choices.find((row) => row.id === "choice-10")?.activate();
-	expect(client.toggleDungeon).not.toHaveBeenCalled();
-	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.map((node) => node.navId),
-	).not.toContain("choice-10");
-	choices.at(-1)?.activate();
-	callbacks.shift()?.();
+	expect(rows.find((row) => row.id === "dungeon-1")?.enabled).toBe(false);
+	expect(rows.find((row) => row.id === "list-specific")?.enabled).toBe(false);
+	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
+		background: [0.05, 0.25, 0.5],
+		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
+		enabled: true,
+	});
+	rows.find((row) => row.id === "dungeon-3")?.activate();
+	expect(client.leave).toHaveBeenCalledOnce();
 	expect(
 		panel
 			.getNavGrid()
 			.flat()
 			.some((node) => node.navId === "list-specific"),
-	).toBe(true);
+	).toBe(false);
 });
 
-it("renders ordered sections and selects available dungeons without joining", () => {
+it("renders ordered sections and immediately joins available random dungeons", () => {
 	const { rows, client } = setup();
 	const headings = rows.filter((row) => row.heading);
 	expect(headings.map((row) => row.id)).toEqual([
@@ -240,7 +246,7 @@ it("renders ordered sections and selects available dungeons without joining", ()
 		"heading-normal",
 	]);
 	expect(headings.at(0)?.label).toContain(
-		"|A:ui-hud-calendar-1-up:20:20|a Special events & Timewalking",
+		"|A:ui-hud-calendar-1-up:20:20|a Special events",
 	);
 	expect(headings.at(1)?.label).toContain(
 		"|TInterface\\LFGFrame\\UI-LFG-ICON-HEROIC:20:16:0:0:32:32:0:16:0:20|t Heroic random",
@@ -251,7 +257,8 @@ it("renders ordered sections and selects available dungeons without joining", ()
 	expect(rows.find((row) => row.id === "dungeon-3")?.marginBottom).toBe(20);
 	rows.find((row) => row.id === "dungeon-3")?.activate();
 	expect(client.select).toHaveBeenCalledWith(3);
-	expect(client.join).not.toHaveBeenCalled();
+	expect(client.join).toHaveBeenCalledOnce();
+	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBeUndefined();
 	rows.find((row) => row.id === "dungeon-2")?.activate();
 	expect(client.select).toHaveBeenCalledTimes(1);
 });
@@ -295,39 +302,29 @@ it("pins four horizontal icon checkboxes above the scrolling dungeons", () => {
 		expect.anything(),
 		30,
 		70,
+		false,
 	);
 	expect(checkboxes.get("role-leader")?.mount).toHaveBeenCalledWith(
 		expect.anything(),
 		354,
 		70,
+		false,
 	);
 });
 
-it("pins a prominent Find Dungeon footer with space around it", () => {
-	const { panel, client } = setup();
+it("removes the overview queue footer and compacts the role area", () => {
+	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
-		top: 190,
-		bottom: 120,
+		top: 144,
+		bottom: 30,
 		background: false,
 	});
-	expect(frames.get("queue-action")?.layout).toHaveBeenCalledWith(
-		420,
-		56,
-		"BOTTOM",
-		expect.anything(),
-		0,
-		30,
-	);
-	expect(frames.get("queue-action")?.setLabel).toHaveBeenCalledWith(
-		"action",
-		"Find Dungeon",
-		"CENTER",
-		0,
-		0,
-		20,
-	);
-	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
-	expect(client.join).toHaveBeenCalledOnce();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "queue-action"),
+	).toBe(false);
 });
 
 it("locks pinned roles while queued and offers Leave Queue", () => {
@@ -338,18 +335,43 @@ it("locks pinned roles while queued and offers Leave Queue", () => {
 	);
 	panel.getNavGrid().at(0)?.at(3)?.onInteract();
 	expect(client.toggleRole).not.toHaveBeenCalled();
-	expect(frames.get("queue-action")?.setLabel).toHaveBeenCalledWith(
-		"action",
-		"Leave Queue",
-		"CENTER",
-		0,
-		0,
-		20,
-	);
-	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "dungeon-3")
+		?.onInteract();
 	expect(client.leave).toHaveBeenCalledOnce();
 	expect(client.join).not.toHaveBeenCalled();
 });
+
+it.each(["specific", "follower"] as const)(
+	"keeps %s queue action last, compacts choices and supports B",
+	(list) => {
+		const { panel, rows, client, callbacks } = setup();
+		rows.find((row) => row.id === `list-${list}`)?.activate();
+		callbacks.shift()?.();
+		const choices = setRows.mock.lastCall?.at(0) as ListRow[];
+		expect(
+			choices
+				.filter((row) => row.checked !== undefined)
+				.every((row) => row.height === 24),
+		).toBe(true);
+		expect(choices.at(-1)?.id).toBe("queue-action");
+		choices.at(-1)?.activate();
+		expect(client.join).toHaveBeenCalledOnce();
+		if (list === "specific")
+			expect(
+				choices.filter((row) => row.heading).map((row) => row.label),
+			).toEqual(["Heroic", "Normal"]);
+		panel.onBack();
+		callbacks.shift()?.();
+		expect(
+			((setRows.mock.lastCall?.at(0) as ListRow[] | undefined) ?? []).some(
+				(row) => row.id === "list-specific",
+			),
+		).toBe(true);
+	},
+);
 
 it("removes navigation and guards retained controls when unmounted", () => {
 	const { panel, client } = setup();
@@ -361,3 +383,35 @@ it("removes navigation and guards retained controls when unmounted", () => {
 	expect(client.toggleRole).not.toHaveBeenCalled();
 	expect(client.join).not.toHaveBeenCalled();
 });
+
+it.each(["specific", "follower"] as const)(
+	"shows the active %s queue in blue and leaves it from its bottom action",
+	(list) => {
+		const { panel, client, rows, callbacks } = setup();
+		rows.find((row) => row.id === `list-${list}`)?.activate();
+		callbacks.shift()?.();
+		client.getSelected = () => list;
+		client.isQueued = () => true;
+		panel.refresh();
+		callbacks.shift()?.();
+		const choices = setRows.mock.lastCall?.at(0) as ListRow[];
+		expect(choices.at(-1)).toMatchObject({
+			id: "queue-action",
+			label: "Leave Queue",
+			enabled: true,
+			background: [0.05, 0.25, 0.5],
+			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
+		});
+		choices.at(-1)?.activate();
+		expect(client.leave).toHaveBeenCalledOnce();
+		expect(client.join).not.toHaveBeenCalled();
+		panel.onBack();
+		callbacks.shift()?.();
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.some((node) => node.navId === `list-${list}`),
+		).toBe(true);
+	},
+);
