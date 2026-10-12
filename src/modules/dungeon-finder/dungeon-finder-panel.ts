@@ -92,7 +92,10 @@ export class DungeonFinderPanel implements IPanel {
 			bottom: 30,
 			background: false,
 			scheduler,
-			onChanged: () => this.navigationChanged?.(),
+			onChanged: (complete) => {
+				// Intermediate batches omit controls that are still being rebuilt.
+				if (complete) this.navigationChanged?.();
+			},
 		});
 	}
 	refresh(): void {
@@ -313,9 +316,10 @@ export class DungeonFinderPanel implements IPanel {
 		this.frame.hide();
 	}
 	getNavGrid() {
-		const availableRoles = this.mounted
-			? this.client.getAvailableRoles()
-			: undefined;
+		const availableRoles =
+			this.mounted && !this.client.isQueued()
+				? this.client.getAvailableRoles()
+				: undefined;
 		return this.mounted
 			? [
 					this.checkboxes.filter((_control, index) => {

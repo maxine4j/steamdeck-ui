@@ -41,6 +41,7 @@ it("publishes focused item changes, refreshes stable nodes and clears during mod
 	link = "item:43";
 	manager.refreshGrid("bags");
 	expect(changed).toHaveBeenCalledOnce();
+	expect(item.onFocus).toHaveBeenCalledTimes(2);
 	expect(changed.mock.lastCall?.at(0).tooltipItem()).toBe("item:43");
 	manager.pushModal("menu", [[node("cancel")]], vi.fn());
 	expect(changed.mock.lastCall?.at(0).tooltipItem).toBeUndefined();

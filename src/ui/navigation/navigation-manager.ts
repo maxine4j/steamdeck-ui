@@ -127,6 +127,8 @@ export class NavigationManager implements INavManager {
 	}
 	private setFocus(control?: INavigable): void {
 		if (control === this.focused) {
+			// A render may reset styling even when it reuses the focused control.
+			control?.onFocus();
 			this.onFocusChanged?.(control);
 			return;
 		}

@@ -329,6 +329,12 @@ it("removes the overview queue footer and compacts the role area", () => {
 
 it("locks pinned roles while queued and offers Leave Queue", () => {
 	const { panel, client } = setup(true);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["dungeon-3"]);
 	expect(checkboxes.get("role-damage")?.setChecked).toHaveBeenCalledWith(
 		true,
 		false,
