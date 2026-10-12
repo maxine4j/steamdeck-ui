@@ -50,6 +50,124 @@ vi.mock("../../ui/components/frame", () => ({
 	},
 }));
 
+it("makes the first page usable while loading, and reloads a cancelled preview", () => {
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const flush = () => {
+		while (pending.length) pending.shift()?.();
+	};
+	const cancel = vi.fn();
+	const client: IMountsClient = {
+		load: vi.fn(() => cancel),
+		getMounts: vi.fn(() => []),
+		getCount: vi.fn(() => ({ collected: 0, total: 0 })),
+		search: vi.fn(),
+		getFilters: () => [],
+		toggleFilter: vi.fn(),
+		toggleFavourite: vi.fn(),
+		getEquipment: () => ({ icon: 1, label: "Equipment" }),
+		applyEquipment: vi.fn(),
+		getUtilitySpells: () => ({ favourite: 150544, flight: 460002 }),
+		summon: vi.fn(),
+		pickupRandom: vi.fn(),
+	};
+	const mounts = Array.from({ length: 45 }, (_, index) => ({
+		id: index + 1,
+		index: index + 1,
+		name: `Mount ${index + 1}`,
+		spell: 1,
+		icon: 2,
+		collected: true,
+		usable: true,
+		favourite: false,
+	}));
+	const pool = {} as IFramePoolManager;
+	const panel = new MountsPanel(pool, client, vi.fn(), scheduler);
+	const parent = new Frame("parent", pool);
+	panel.onMount(parent);
+	const firstLoad = vi.mocked(client.load).mock.calls.at(-1);
+	if (!firstLoad) throw new Error("Expected initial load");
+	const [done, preview] = firstLoad;
+	preview?.(mounts.slice(0, 20));
+	flush();
+	const nav = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-1");
+	expect(nav).toBeDefined();
+	nav?.onInteract();
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
+	expect(
+		frames
+			.get("mounts-root")
+			?.setLabel.mock.calls.filter((call) => call.at(0) === "loading")
+			.at(-1)
+			?.at(1),
+	).toBe("Loading mounts...");
+	panel.onUnmount();
+	expect(cancel).toHaveBeenCalledOnce();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	// A callback from the cancelled load cannot replace the new load's rows/count.
+	done(mounts, { collected: 99, total: 99 });
+	const currentLoad = vi.mocked(client.load).mock.calls.at(-1);
+	if (!currentLoad) throw new Error("Expected reload");
+	const [currentDone, currentPreview] = currentLoad;
+	currentPreview?.(mounts.slice(0, 20));
+	flush();
+	currentDone(mounts, { collected: 45, total: 100 });
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)),
+	).toHaveLength(20);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)),
+	).toHaveLength(45);
+	expect(frames.get("mounts-root")?.setLabel).not.toHaveBeenCalledWith(
+		"count",
+		"99 / 99",
+		"TOPLEFT",
+		16,
+		-44,
+		14,
+	);
+	expect(frames.get("mounts-root")?.setLabel).toHaveBeenCalledWith(
+		"count",
+		"45 / 100",
+		"TOPLEFT",
+		16,
+		-44,
+		14,
+	);
+	expect(
+		frames
+			.get("mounts-root")
+			?.setLabel.mock.calls.filter((call) => call.at(0) === "loading")
+			.at(-1)
+			?.at(1),
+	).toBe("");
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	panel.destroy();
+});
+
 it("renders icons, the unfiltered counter and footer, routes search/favourites and reuses controls", () => {
 	const pending: (() => void)[] = [];
 	const scheduler = {

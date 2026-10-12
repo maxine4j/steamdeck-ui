@@ -194,3 +194,43 @@ it("renders compact headings and skips them during navigation and interaction", 
 	list.getNavGrid().at(0)?.at(0)?.onInteract?.();
 	expect(activate).toHaveBeenCalledOnce();
 });
+
+it("retains ready rows and focus styling when the same prefix grows during rendering", () => {
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("growing", pool, "Test", vi.fn(), { scheduler });
+	const rows = Array.from({ length: 35 }, (_, index) => ({
+		id: `row-${index}`,
+		label: `${index}`,
+		activate: vi.fn(),
+	}));
+	list.setRows(rows.slice(0, 20));
+	list.mount(new Frame("parent", pool));
+	pending.shift()?.();
+	const first = list.getNavGrid().at(0)?.at(0);
+	first?.onFocus();
+	frames.get("growing-row-0")?.layout.mockClear();
+	frames.get("growing-row-0")?.setColor.mockClear();
+	list.setRows(rows);
+	expect(list.getNavGrid()).toHaveLength(10);
+	expect(list.getNavGrid().at(0)?.at(0)).toBe(first);
+	first?.onInteract();
+	expect(rows.at(0)?.activate).toHaveBeenCalledOnce();
+	while (pending.length) pending.shift()?.();
+	expect(list.getNavGrid()).toHaveLength(35);
+	expect(frames.get("growing-row-0")?.layout).not.toHaveBeenCalled();
+	expect(frames.get("growing-row-0")?.setColor).not.toHaveBeenCalled();
+	expect(frames.get("growing-row-10")?.layout.mock.lastCall?.at(-1)).toBe(-520);
+	list.destroy();
+});

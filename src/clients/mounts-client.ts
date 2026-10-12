@@ -21,6 +21,7 @@ export interface IMountsClient {
 			mounts: Mount[],
 			count: { collected: number; total: number },
 		) => void,
+		onFirstPage?: (mounts: Mount[]) => void,
 	): () => void;
 	summon(id: number): void;
 	pickupRandom(): void;
@@ -41,6 +42,7 @@ export class MountsClient implements IMountsClient {
 			mounts: Mount[],
 			count: { collected: number; total: number },
 		) => void,
+		onFirstPage?: (mounts: Mount[]) => void,
 	): () => void {
 		const mounts: Mount[] = [];
 		let ids: number[] | undefined;
@@ -49,7 +51,10 @@ export class MountsClient implements IMountsClient {
 		let countIndex = 0;
 		let collected = 0;
 		let total = 0;
+		let publishedFirstPage = false;
+		let cancelled = false;
 		const step = () => {
+			if (cancelled) return;
 			if (!ids) {
 				displayed = C_MountJournal.GetNumDisplayedMounts();
 				ids = C_MountJournal.GetMountIDs() as unknown as number[];
@@ -60,6 +65,12 @@ export class MountsClient implements IMountsClient {
 				const mount = this.getDisplayedMount(index++);
 				if (mount) mounts.push(mount);
 				remaining--;
+			}
+			if (!publishedFirstPage && (mounts.length >= 20 || index > displayed)) {
+				publishedFirstPage = true;
+				// Publish a stable preview before the unfiltered count is available.
+				onFirstPage?.(mounts.slice(0, 20));
+				if (cancelled) return;
 			}
 			while (countIndex < ids.length && remaining > 0) {
 				const id = ids.at(countIndex++);
@@ -78,7 +89,10 @@ export class MountsClient implements IMountsClient {
 			else callback(mounts, { collected, total });
 		};
 		let cancel = this.scheduler.nextFrame(step);
-		return () => cancel();
+		return () => {
+			cancelled = true;
+			cancel();
+		};
 	}
 	private getDisplayedMount(index: number): Mount | undefined {
 		const [

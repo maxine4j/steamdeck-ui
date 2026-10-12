@@ -178,3 +178,72 @@ it("loads the journal across frames and cancels an obsolete load", () => {
 	expect(displayed).toHaveBeenCalledTimes(calls);
 	expect(obsolete).not.toHaveBeenCalled();
 });
+
+it("publishes a first page before enumeration and counting finish, without hidden mounts", () => {
+	const pending: (() => void)[] = [];
+	const nextFrame = (callback: () => void) => {
+		let cancelled = false;
+		pending.push(() => {
+			if (!cancelled) callback();
+		});
+		return () => {
+			cancelled = true;
+		};
+	};
+	const info = vi.fn(() => [
+		"Mount",
+		1,
+		2,
+		false,
+		true,
+		1,
+		false,
+		false,
+		null,
+		false,
+		true,
+	]);
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => 65,
+		GetDisplayedMountInfo: (index: number) => [
+			`Mount ${index}`,
+			1,
+			2,
+			false,
+			true,
+			1,
+			false,
+			false,
+			null,
+			index <= 20,
+			true,
+			index,
+		],
+		GetMountIDs: () => Array.from({ length: 100 }, (_, index) => index + 1),
+		GetMountInfoByID: info,
+	});
+	const client = new MountsClient({ nextFrame });
+	const done = vi.fn();
+	const preview = vi.fn();
+	client.load(done, preview);
+	pending.shift()?.();
+	expect(preview).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(preview).toHaveBeenCalledOnce();
+	const firstPage = preview.mock.lastCall?.at(0);
+	expect(firstPage).toHaveLength(20);
+	expect(firstPage.at(0)?.id).toBe(21);
+	expect(info).not.toHaveBeenCalled();
+	expect(done).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(firstPage).toHaveLength(20);
+	expect(preview).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
+	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 100, total: 100 });
+	// Cancelling from the preview must also prevent scheduling more work.
+	let cancel = () => {};
+	const obsolete = vi.fn();
+	cancel = client.load(obsolete, () => cancel());
+	while (pending.length) pending.shift()?.();
+	expect(obsolete).not.toHaveBeenCalled();
+});

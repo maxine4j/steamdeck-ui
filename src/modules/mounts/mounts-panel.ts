@@ -2,7 +2,7 @@ import type { IMountsClient, Mount } from "../../clients/mounts-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
-import { ScrollList } from "../../ui/components/scroll-list";
+import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable } from "../../ui/navigation/types";
@@ -22,6 +22,9 @@ export class MountsPanel implements IPanel {
 	private mounted = false;
 	private dirty = true;
 	private cancelLoad?: () => void;
+	private loadGeneration = 0;
+	private renderedMounts: readonly Mount[] = [];
+	private rows: readonly ListRow[] = [];
 	private navigationChanged?: () => void;
 	constructor(
 		pool: IFramePoolManager,
@@ -48,6 +51,7 @@ export class MountsPanel implements IPanel {
 		});
 	}
 	refresh(): void {
+		const generation = ++this.loadGeneration;
 		this.dirty = true;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
@@ -60,18 +64,27 @@ export class MountsPanel implements IPanel {
 			-44,
 			14,
 		);
-		this.cancelLoad = this.client.load((mounts, count) => {
-			this.cancelLoad = undefined;
-			if (!this.mounted) return;
-			this.render(mounts, count);
-		});
+		this.cancelLoad = this.client.load(
+			(mounts, count) => {
+				if (!this.mounted || generation !== this.loadGeneration) return;
+				this.cancelLoad = undefined;
+				this.render(mounts, count);
+				this.dirty = false;
+			},
+			(mounts) => {
+				if (!this.mounted || generation !== this.loadGeneration) return;
+				this.render(mounts);
+			},
+		);
 	}
 	private render(
 		mounts: Mount[],
-		count: { collected: number; total: number },
+		count?: { collected: number; total: number },
 	): void {
-		this.list.setRows(
-			mounts.map((mount) => ({
+		const rows = mounts.map((mount, index) => {
+			const previous = this.rows.at(index);
+			if (previous && this.renderedMounts.at(index) === mount) return previous;
+			return {
 				id: `mount-${mount.id}`,
 				label: mount.name,
 				icon: mount.icon,
@@ -94,8 +107,11 @@ export class MountsPanel implements IPanel {
 							},
 						}
 					: undefined,
-			})),
-		);
+			};
+		});
+		this.renderedMounts = mounts;
+		this.rows = rows;
+		this.list.setRows(rows);
 		this.filters.setOptions(
 			this.client.getFilters().map((filter) => ({
 				id: filter.id,
@@ -106,20 +122,20 @@ export class MountsPanel implements IPanel {
 				},
 			})),
 		);
-		this.frame.setLabel(
-			"count",
-			`${count.collected} / ${count.total}`,
-			"TOPLEFT",
-			16,
-			-44,
-			14,
-		);
+		if (count)
+			this.frame.setLabel(
+				"count",
+				`${count.collected} / ${count.total}`,
+				"TOPLEFT",
+				16,
+				-44,
+				14,
+			);
 		const equipment = this.client.getEquipment();
 		this.equipment.setIcon(equipment.icon);
 		this.equipment.setTooltip(equipment.label, equipment.link);
 		const spells = this.client.getUtilitySpells();
 		this.flight.setSpell(spells.flight);
-		this.dirty = false;
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;
@@ -191,6 +207,7 @@ export class MountsPanel implements IPanel {
 		if (this.dirty) this.refresh();
 	}
 	onUnmount(): void {
+		this.loadGeneration++;
 		this.mounted = false;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;

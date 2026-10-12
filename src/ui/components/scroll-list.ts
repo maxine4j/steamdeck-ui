@@ -67,9 +67,12 @@ export class ScrollList {
 		this.close = new Frame(`${id}-close`, pool, "Button");
 	}
 	setRows(rows: readonly ListRow[]): void {
+		const preserve =
+			rows.length >= this.rows.length &&
+			this.rows.every((row, index) => row === rows.at(index));
 		this.rows = rows;
 		this.dirty = true;
-		if (this.mounted) this.render();
+		if (this.mounted) this.render(preserve ? this.renderedRows : 0);
 	}
 	mount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
@@ -120,10 +123,10 @@ export class ScrollList {
 			);
 		else this.content.layout(width, this.contentHeight, "TOPLEFT", this.scroll);
 	}
-	private render(): void {
+	private render(startRow = 0): void {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		this.renderedRows = 0;
+		this.renderedRows = startRow;
 		this.options.onChanged?.(false);
 		const width = 480 - 2 * (this.options.padding ?? 12);
 		this.contentHeight = Math.max(
@@ -137,8 +140,16 @@ export class ScrollList {
 			),
 		);
 		this.layoutContent();
-		let offset = 0;
-		let cursor = 0;
+		let offset = this.rows
+			.slice(0, startRow)
+			.reduce(
+				(height, row) =>
+					height +
+					(row.heading ? 32 : row.progress ? 64 : 52) +
+					(row.marginBottom ?? 0),
+				0,
+			);
+		let cursor = startRow;
 		const total = Math.max(this.rows.length, this.buttons.length);
 		const step = () => {
 			this.cancelRender = undefined;
