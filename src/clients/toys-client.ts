@@ -30,6 +30,7 @@ export interface IToysClient {
 	load(callback: (toys: Toy[]) => void): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
+	getCooldown(id: number): { start: number; duration: number };
 }
 
 export class ToysClient implements IToysClient {
@@ -80,5 +81,9 @@ export class ToysClient implements IToysClient {
 	}
 	canUse(id: number): boolean {
 		return !InCombatLockdown() && PlayerHasToy(id) && C_ToyBox.IsToyUsable(id);
+	}
+	getCooldown(id: number): { start: number; duration: number } {
+		const [start, duration] = C_Container.GetItemCooldown(id);
+		return { start, duration };
 	}
 }

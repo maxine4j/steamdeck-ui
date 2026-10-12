@@ -5,6 +5,36 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("passes item cooldowns through to a pooled native cooldown and clears it on release", () => {
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		SetCooldown: vi.fn(),
+		Clear: vi.fn(),
+		SetHideCountdownNumbers: vi.fn(),
+		SetDrawEdge: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"cooldown",
+		new FramePoolManager({ createFrame: () => native }),
+		"Cooldown",
+	);
+	frame.setCooldown(10, 60);
+	expect(native.SetCooldown).toHaveBeenCalledExactlyOnceWith(10, 60);
+	frame.destroy();
+	expect(native.Clear).toHaveBeenCalledOnce();
+});
+
 it("configures secure item activation and clears item attributes before pooling", () => {
 	let combat = false;
 	vi.stubGlobal("InCombatLockdown", () => combat);

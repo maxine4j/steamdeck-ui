@@ -3,6 +3,15 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("passes item cooldown values through without arithmetic", () => {
+	const { client } = setup();
+	vi.stubGlobal("C_Container", {
+		GetItemCooldown: vi.fn(() => [10, 60, true]),
+	});
+	expect(client.getCooldown(42)).toEqual({ start: 10, duration: 60 });
+	expect(C_Container.GetItemCooldown).toHaveBeenCalledExactlyOnceWith(42);
+});
+
 function setup(count = 2) {
 	const pending: (() => void)[] = [];
 	const scheduler = {

@@ -44,6 +44,7 @@ export class Frame implements IUIComponent {
 			| "Frame"
 			| "Button"
 			| "SecureButton"
+			| "Cooldown"
 			| "EditBox"
 			| "ScrollFrame"
 			| "PlayerModel" = "Frame",
@@ -467,6 +468,18 @@ export class Frame implements IUIComponent {
 	click(): void {
 		(this.acquire() as WowFrame & { Click(): void }).Click();
 	}
+	setCooldown(start: number, duration: number): void {
+		if (this.frameType !== "Cooldown")
+			throw new Error("Cooldown requires a cooldown frame");
+		const native = this.acquire() as WowFrame & {
+			SetCooldown(start: number, duration: number): void;
+			SetHideCountdownNumbers(hide: boolean): void;
+			SetDrawEdge(draw: boolean): void;
+		};
+		native.SetHideCountdownNumbers(false);
+		native.SetDrawEdge(false);
+		native.SetCooldown(start, duration);
+	}
 	configureInput(change?: (this: void, text: string) => void): void {
 		if (this.frameType !== "EditBox")
 			throw new Error("Input requires an edit box");
@@ -595,6 +608,8 @@ export class Frame implements IUIComponent {
 			this.setItem();
 			this.onPostClick();
 		}
+		if (this.frameType === "Cooldown")
+			(this.native as WowFrame & { Clear(): void }).Clear();
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
