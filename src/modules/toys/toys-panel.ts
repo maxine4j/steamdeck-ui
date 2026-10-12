@@ -188,7 +188,7 @@ export class ToysPanel implements IPanel {
 					grid.at(firstRow + row)?.push({
 						...node,
 						navColumn: index % columns,
-						tooltipItem: () => (current() ? toy.id : undefined),
+						tooltipItem: () => (current() ? { toy: toy.id } : undefined),
 						onAlternate: () => {
 							if (current() && this.client.canUse(toy.id)) control.click();
 						},

@@ -94,6 +94,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				GetWidth: () => (type === "GameTooltip" ? 320 : 1280),
 				SetOwner: vi.fn(),
 				SetHyperlink: vi.fn(),
+				SetToyByItemID: vi.fn(),
 				ClearLines: vi.fn(),
 				SetScale: vi.fn(),
 				SetAlpha: vi.fn(),
@@ -442,10 +443,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		frames.some((frame) =>
 			vi
 				.mocked(
-					(frame as WowFrame & { SetHyperlink(link: string): void })
-						.SetHyperlink,
+					(frame as WowFrame & { SetToyByItemID(id: number): boolean })
+						.SetToyByItemID,
 				)
-				.mock.calls.some(([link]) => link === "item:9001"),
+				.mock.calls.some(([id]) => id === 9001),
 		),
 	).toBe(true);
 	events.emit("NAV_DOWN");

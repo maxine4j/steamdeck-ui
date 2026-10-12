@@ -90,7 +90,7 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
 	).toEqual([["toy-favourite-1"], ["toy-2"], ["toy-1", "toy-3"]]);
 	const node = panel.getNavGrid().at(0)?.at(0);
-	expect(node?.tooltipItem?.()).toBe(1);
+	expect(node?.tooltipItem?.()).toEqual({ toy: 1 });
 	node?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(favourite);
 	node?.onFocus();

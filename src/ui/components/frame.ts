@@ -2,18 +2,24 @@ import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
+import {
+	setTooltipContent,
+	type TooltipContent,
+	type TooltipDataFrame,
+} from "./tooltip-content";
 import type { IUIComponent } from "./types";
 
-type ItemTooltipFrame = WowFrame & {
-	SetOwner(owner: WowFrame, anchor: string): void;
-	SetHyperlink(link: string): void;
-	ClearLines(): void;
-	SetScale(scale: number): void;
-	IsEmbedded: boolean;
-	NineSlice: { SetAlpha(alpha: number): void };
-	TopOverlay: { SetAlpha(alpha: number): void };
-	BottomOverlay: { SetAlpha(alpha: number): void };
-};
+type ItemTooltipFrame = WowFrame &
+	TooltipDataFrame & {
+		SetOwner(owner: WowFrame, anchor: string): void;
+		SetHyperlink(link: string): void;
+		ClearLines(): void;
+		SetScale(scale: number): void;
+		IsEmbedded: boolean;
+		NineSlice: { SetAlpha(alpha: number): void };
+		TopOverlay: { SetAlpha(alpha: number): void };
+		BottomOverlay: { SetAlpha(alpha: number): void };
+	};
 
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
@@ -337,7 +343,7 @@ export class Frame implements IUIComponent {
 	/** Render the complete native tooltip without borrowing the global hover tooltip. */
 	showItemTooltip(
 		parent: Frame,
-		item: string | number,
+		item: TooltipContent,
 		maxWidth: number,
 		maxHeight: number,
 	): { width: number; height: number } {
@@ -355,7 +361,7 @@ export class Frame implements IUIComponent {
 		// Reparenting under a hidden modal can clear ownership through OnHide.
 		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
 		native.ClearLines();
-		native.SetHyperlink(typeof item === "number" ? `item:${item}` : item);
+		setTooltipContent(native, item);
 		native.Show();
 		const size = this.getSize();
 		const scale = Math.min(

@@ -311,6 +311,7 @@ it("retains the tooltip owner when first attaching to a hidden modal window", ()
 			if (shown) native.Hide();
 		},
 		SetHyperlink: vi.fn(),
+		SetToyByItemID: vi.fn(),
 		ClearLines: vi.fn(),
 		SetScale: vi.fn(),
 		SetFrameStrata: vi.fn(),
@@ -327,6 +328,10 @@ it("retains the tooltip owner when first attaching to a hidden modal window", ()
 	tooltip.showItemTooltip(new Frame("window", pool), 42, 500, 500);
 	expect(owner).toBe(window);
 	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42");
+	native.SetHyperlink.mockClear();
+	tooltip.showItemTooltip(new Frame("window", pool), { toy: 43 }, 500, 500);
+	expect(native.SetToyByItemID).toHaveBeenCalledExactlyOnceWith(43);
+	expect(native.SetHyperlink).not.toHaveBeenCalled();
 });
 
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {
