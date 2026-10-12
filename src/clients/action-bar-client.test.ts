@@ -3,6 +3,36 @@ import { ActionBarClient } from "./action-bar-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("routes the extra-action control through a secure extra-bar state with a zone spell fallback", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	const driver = client.getSlotDriver(6, "EXTRA");
+	expect(driver.condition).toBe(
+		"[mod:shift,mod:ctrl] 174; [mod:shift] 150; [mod:ctrl] 162; [extrabar] 169; -2",
+	);
+	expect(driver.response).toContain(
+		'self:SetAttribute("type", action == -2 and "spell" or "action")',
+	);
+});
+
+it("reads the highest-priority zone spell and leaves an absent zone ability empty", () => {
+	const abilities = [
+		{ spellID: 456, uiPriority: 20 },
+		{ spellID: 123, uiPriority: 10 },
+	];
+	vi.stubGlobal("C_ZoneAbility", {
+		GetActiveAbilities: () => abilities,
+		GetZoneAbilityIcon: (spell: number) => spell + 1,
+	});
+	vi.stubGlobal("C_Spell", {
+		GetSpellCooldownDuration: () => undefined,
+		GetSpellChargeDuration: () => undefined,
+	});
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	expect(client.read(-2)).toEqual({ spell: 123, icon: 124 });
+	abilities.length = 0;
+	expect(client.read(-2)).toEqual({});
+});
+
 it("suppresses all eight standard action bars once and restores their parents", () => {
 	const bars = [
 		"MainActionBar",

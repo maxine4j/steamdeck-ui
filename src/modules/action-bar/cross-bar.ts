@@ -38,6 +38,7 @@ const modifiers = [
 	{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 },
 ];
 export class CrossBar {
+	private extraButton?: SecureSlotButton;
 	private readonly buttons: SecureSlotButton[] = [];
 	private readonly indicators: Frame[] = [];
 	private readonly read: SlotReader = (slot) => this.client.read(slot);
@@ -66,15 +67,22 @@ export class CrossBar {
 					control.y,
 					control.key === "PADDUP"
 						? -1
-						: control.defaultCommand
-							? 0
-							: control.slot,
+						: control.key === "PADDRIGHT"
+							? -2
+							: control.defaultCommand
+								? 0
+								: control.slot,
 					this.client.getSlotDriver(
 						control.slot,
-						control.key === "PADDUP" ? "RING" : control.defaultCommand,
+						control.key === "PADDUP"
+							? "RING"
+							: control.key === "PADDRIGHT"
+								? "EXTRA"
+								: control.defaultCommand,
 					),
 					this.read,
 				);
+				if (control.key === "PADDRIGHT") this.extraButton = button;
 				return {
 					key: control.key,
 					target: button.getBindingTarget(),
@@ -85,11 +93,18 @@ export class CrossBar {
 				};
 			}),
 		);
+		this.syncZoneSpell();
+	}
+	private syncZoneSpell(): void {
+		if (this.extraButton && this.client.canModify())
+			this.extraButton.setSpell(this.client.read(-2).spell);
 	}
 	refresh(): void {
+		this.syncZoneSpell();
 		for (const button of this.buttons) button.refresh(this.read);
 	}
 	destroy(): void {
+		this.extraButton = undefined;
 		for (const button of this.buttons) button.destroy();
 		this.buttons.length = 0;
 		for (const indicator of this.indicators) indicator.destroy();

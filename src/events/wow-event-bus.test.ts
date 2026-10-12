@@ -92,6 +92,9 @@ it("forwards native login events through the hidden event frame", () => {
 	bus.subscribe("ACTION_BAR_CHANGED", actions);
 	bus.subscribe("COMBAT_ENDED", combatEnded);
 	for (const event of [
+		"SPELLS_CHANGED",
+		"UPDATE_EXTRA_ACTIONBAR",
+		"ZONE_CHANGED_NEW_AREA",
 		"ACTIONBAR_SLOT_CHANGED",
 		"ACTIONBAR_UPDATE_COOLDOWN",
 		"SPELL_UPDATE_COOLDOWN",
@@ -101,7 +104,11 @@ it("forwards native login events through the hidden event frame", () => {
 		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
 		dispatch(frame, event);
 	}
-	expect(actions).toHaveBeenCalledTimes(5);
+	expect(actions).toHaveBeenCalledTimes(8);
+	dispatch(frame, "UNIT_AURA", "target");
+	expect(actions).toHaveBeenCalledTimes(8);
+	dispatch(frame, "UNIT_AURA", "player");
+	expect(actions).toHaveBeenCalledTimes(9);
 	dispatch(frame, "PLAYER_REGEN_ENABLED");
 	expect(combatEnded).toHaveBeenCalledOnce();
 	const cursor = vi.fn();

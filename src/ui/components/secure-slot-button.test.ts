@@ -101,6 +101,8 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	button.refresh(read);
 	expect(read).not.toHaveBeenCalled();
 	button.configure("A", 110, 56, 1, "[mod:shift] 145; 1", read);
+	button.setSpell(123);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("spell", 123);
 	expect(texture.SetColorTexture).toHaveBeenCalledWith(0.42, 0.47, 0.55, 1);
 	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -199,6 +201,7 @@ end`,
 	button.destroy();
 	expect(unregister).toHaveBeenCalledWith(frames.at(0), "slot");
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("spell", undefined);
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
 		"_ondragstart",
 		undefined,

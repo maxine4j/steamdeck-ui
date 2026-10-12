@@ -27,6 +27,9 @@ const characterIdentityUnitEvents = [
 	"PLAYER_SPECIALIZATION_CHANGED",
 ];
 const actionBarEvents = [
+	"SPELLS_CHANGED",
+	"UPDATE_EXTRA_ACTIONBAR",
+	"ZONE_CHANGED_NEW_AREA",
 	"ACTIONBAR_SLOT_CHANGED",
 	"ACTIONBAR_UPDATE_COOLDOWN",
 	"SPELL_UPDATE_COOLDOWN",
@@ -132,7 +135,11 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("CHARACTER_IDENTITY_CHANGED");
 			if (event === "PLAYER_REGEN_DISABLED") this.emit("COMBAT_STARTED");
-			if (actionBarEvents.includes(event)) this.emit("ACTION_BAR_CHANGED");
+			if (
+				actionBarEvents.includes(event) ||
+				(event === "UNIT_AURA" && unit === "player")
+			)
+				this.emit("ACTION_BAR_CHANGED");
 			if (actionCursorEvents.includes(event))
 				this.emit("ACTION_BAR_CURSOR_CHANGED");
 			if (event === "PLAYER_REGEN_ENABLED") this.emit("COMBAT_ENDED");

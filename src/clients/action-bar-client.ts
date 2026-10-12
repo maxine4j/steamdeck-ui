@@ -45,7 +45,10 @@ export interface IActionBarClient {
 	canModify(): boolean;
 	disableBuiltIn(): void;
 	syncBuiltInVisibility(): void;
-	getSlotDriver(slot: number, defaultCommand?: "JUMP" | "RING"): SlotDriver;
+	getSlotDriver(
+		slot: number,
+		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+	): SlotDriver;
 	getRingDriver(): RadialDriver;
 	read(slot: number): SlotVisual;
 	bind(bindings: readonly ActionBinding[]): void;
@@ -72,7 +75,10 @@ export class ActionBarClient implements IActionBarClient {
 		]);
 		this.suppressed = true;
 	}
-	getSlotDriver(slot: number, defaultCommand?: "JUMP" | "RING"): SlotDriver {
+	getSlotDriver(
+		slot: number,
+		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+	): SlotDriver {
 		// Retail Edit Mode bars 6/7/8 use action pages 13/14/15 (ConsolePort Actionbar.lua).
 		// Distinct states trigger the secure handler when the main bar changes.
 		const mainConditions = [
@@ -85,7 +91,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "EXTRA" ? "[extrabar] 169; -2" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -105,7 +111,7 @@ if not action then
 	end
 	action = (page - 1) * 12 + ${slot}
 end
-self:SetAttribute("action", action)`,
+${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
 		};
 	}
 	getRingDriver(): RadialDriver {
@@ -155,6 +161,29 @@ if pos then return pos.x, pos.y, pos.len end`,
 		} else this.disableBuiltIn();
 	}
 	read(slot: number): SlotVisual {
+		if (slot === -2) {
+			// Generated declarations flatten this table and alter Blizzard's field casing.
+			const abilities = C_ZoneAbility.GetActiveAbilities() as unknown as {
+				spellID: number;
+				uiPriority: number;
+			}[];
+			let ability: (typeof abilities)[number] | undefined;
+			for (const candidate of abilities)
+				if (!ability || candidate.uiPriority < ability.uiPriority)
+					ability = candidate;
+			if (!ability) return {};
+			return {
+				spell: ability.spellID,
+				icon: C_ZoneAbility.GetZoneAbilityIcon(ability.spellID) ?? undefined,
+				cooldown: C_Spell.GetSpellCooldownDuration(
+					ability.spellID,
+					false,
+				) as unknown as CooldownDuration | undefined,
+				recharge: C_Spell.GetSpellChargeDuration(ability.spellID) as unknown as
+					| CooldownDuration
+					| undefined,
+			};
+		}
 		if (slot === -1) return { icon: "Interface\\Icons\\INV_Misc_EngGizmos_19" };
 		// Zero is the presentation state for the native jump binding, not an action slot.
 		if (slot === 0)

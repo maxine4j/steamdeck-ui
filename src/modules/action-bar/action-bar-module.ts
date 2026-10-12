@@ -23,7 +23,7 @@ export class ActionBarModule implements IModule {
 			if (this.active) this.view.destroy();
 			this.active = false;
 			this.events.unsubscribe("COMBAT_ENDED", this.reconcile);
-		}
+		} else this.refresh();
 		this.syncNative();
 	};
 	constructor(

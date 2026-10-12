@@ -1,21 +1,23 @@
 import { expect, it, vi } from "vitest";
 import { CrossBar } from "./cross-bar";
 
-const { configure, refresh, destroy, target, indicators } = vi.hoisted(() => ({
-	configure: vi.fn(),
-	refresh: vi.fn(),
-	destroy: vi.fn(),
-	target: { owner: {}, name: "CrossButton" },
-	indicators: [] as {
-		id: string;
-		layout: ReturnType<typeof vi.fn>;
-		setLabel: ReturnType<typeof vi.fn>;
-		setColor: ReturnType<typeof vi.fn>;
-		setBorder: ReturnType<typeof vi.fn>;
-		show: ReturnType<typeof vi.fn>;
-		destroy: ReturnType<typeof vi.fn>;
-	}[],
-}));
+const { configure, refresh, destroy, setSpell, target, indicators } =
+	vi.hoisted(() => ({
+		configure: vi.fn(),
+		refresh: vi.fn(),
+		destroy: vi.fn(),
+		setSpell: vi.fn(),
+		target: { owner: {}, name: "CrossButton" },
+		indicators: [] as {
+			id: string;
+			layout: ReturnType<typeof vi.fn>;
+			setLabel: ReturnType<typeof vi.fn>;
+			setColor: ReturnType<typeof vi.fn>;
+			setBorder: ReturnType<typeof vi.fn>;
+			show: ReturnType<typeof vi.fn>;
+			destroy: ReturnType<typeof vi.fn>;
+		}[],
+	}));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		layout = vi.fn();
@@ -35,25 +37,30 @@ vi.mock("../../ui/components/secure-slot-button", () => ({
 		refresh = refresh;
 		destroy = destroy;
 		getBindingTarget = () => target;
+		setSpell = setSpell;
 	},
 }));
 
 it("uses the minimal crossbar layout with ten actions and two unbound modifier indicators", () => {
+	let combat = false;
+	let spell: number | undefined = 123;
 	const client = {
 		bind: vi.fn(),
-		read: vi.fn(),
+		read: vi.fn(() => ({ spell })),
+		canModify: () => !combat,
 		getSlotDriver: (slot: number, command?: string) =>
 			command ? `slot-${slot}-${command}` : `slot-${slot}`,
 	};
 	const view = new CrossBar({}, client);
 	view.initialize();
 	view.initialize();
+	expect(setSpell).toHaveBeenCalledExactlyOnceWith(123);
 	expect(configure).toHaveBeenCalledTimes(10);
 	expect(
 		configure.mock.calls.map(([label, x, y, slot]) => [label, x, y, slot]),
 	).toEqual([
 		["↑", -200, 106, -1],
-		["→", -150, 81, 6],
+		["→", -150, 81, -2],
 		["↓", -200, 56, 7],
 		["←", -250, 81, 8],
 		["|cffffe74fY|r", 200, 106, 2],
@@ -66,7 +73,13 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	for (const call of configure.mock.calls) {
 		const slot = call.at(3);
 		expect(call.at(4)).toBe(
-			slot === -1 ? "slot-5-RING" : slot === 0 ? "slot-4-JUMP" : `slot-${slot}`,
+			slot === -1
+				? "slot-5-RING"
+				: slot === -2
+					? "slot-6-EXTRA"
+					: slot === 0
+						? "slot-4-JUMP"
+						: `slot-${slot}`,
 		);
 	}
 	expect(indicators).toHaveLength(2);
@@ -118,6 +131,16 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	);
 	view.refresh();
 	expect(refresh).toHaveBeenCalledTimes(10);
+	combat = true;
+	spell = 456;
+	view.refresh();
+	expect(setSpell).toHaveBeenCalledTimes(2);
+	combat = false;
+	view.refresh();
+	expect(setSpell).toHaveBeenLastCalledWith(456);
+	spell = undefined;
+	view.refresh();
+	expect(setSpell).toHaveBeenLastCalledWith(undefined);
 	view.destroy();
 	expect(destroy).toHaveBeenCalledTimes(10);
 	for (const indicator of indicators)

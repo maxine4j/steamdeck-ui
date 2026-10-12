@@ -21,11 +21,13 @@ it("starts the cross bar, refreshes action changes and restores native UI on shu
 	expect(client.syncBuiltInVisibility).toHaveBeenCalledTimes(2);
 	events.emit("ACTION_BAR_CHANGED");
 	expect(view.refresh).toHaveBeenCalledOnce();
+	events.emit("COMBAT_ENDED");
+	expect(view.refresh).toHaveBeenCalledTimes(2);
 	module.shutdown();
 	events.emit("ACTION_BAR_CURSOR_CHANGED");
-	expect(client.syncBuiltInVisibility).toHaveBeenCalledTimes(2);
+	expect(client.syncBuiltInVisibility).toHaveBeenCalledTimes(3);
 	events.emit("ACTION_BAR_CHANGED");
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.refresh).toHaveBeenCalledTimes(2);
 	expect(view.destroy).toHaveBeenCalledOnce();
 	expect(client.restore).toHaveBeenCalledOnce();
 });

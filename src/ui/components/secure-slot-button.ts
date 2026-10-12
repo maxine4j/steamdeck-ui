@@ -9,6 +9,7 @@ export interface BindingTarget {
 	readonly name: string;
 }
 export interface SlotVisual {
+	spell?: number;
 	icon?: number | string;
 	cooldown?: CooldownDuration;
 	recharge?: CooldownDuration;
@@ -108,6 +109,9 @@ end`,
 	getBindingTarget(): BindingTarget {
 		return { owner: this.frame, name: this.frame.GetName() };
 	}
+	setSpell(spell?: number): void {
+		this.frame.SetAttribute("spell", spell);
+	}
 	refresh(read: SlotReader): void {
 		const slot = this.frame.GetAttribute("action");
 		if (slot === undefined) return;
@@ -124,6 +128,7 @@ end`,
 		for (const attribute of [
 			"type",
 			"action",
+			"spell",
 			"useOnKeyDown",
 			"_ondragstart",
 			"_onstate-slot",
