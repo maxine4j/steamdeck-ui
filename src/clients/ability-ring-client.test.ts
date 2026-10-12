@@ -3,14 +3,14 @@ import { ActionBarClient } from "./action-bar-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("uses all twelve slots of Edit Mode bar 6 and resolves the raw right stick", () => {
+it("reserves the last two slots of Edit Mode bar 6 and resolves the raw right stick", () => {
 	vi.stubGlobal("C_GamePad", {
 		StickIndexToConfigName: (index: number) =>
 			["Left", "Right", "Gyro"].at(index),
 	});
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getRingDriver();
-	expect(driver.slots).toEqual(Array.from({ length: 12 }, (_, i) => 145 + i));
+	expect(driver.slots).toEqual(Array.from({ length: 10 }, (_, i) => 145 + i));
 	expect(driver.occupied).toBe("return HasAction(slot)");
 	expect(driver.position).toContain("GetGamePadState()");
 	expect(driver.position).toContain("state.sticks[2]");
