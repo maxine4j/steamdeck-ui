@@ -16,6 +16,7 @@ export interface ListRow {
 	readonly trailingLabel?: string;
 	readonly tooltip?: string;
 	readonly selected?: boolean;
+	readonly searching?: boolean;
 	readonly checked?: boolean;
 	readonly enabled?: boolean;
 	readonly fontSize?: number;

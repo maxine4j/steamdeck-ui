@@ -57,7 +57,6 @@ export class DungeonFinderPanel implements IPanel {
 	readonly icon = 1100023;
 	private readonly list: ScrollList;
 	private readonly frame: Frame;
-	private readonly action: Frame;
 	private readonly checkboxes: IconCheckbox[];
 	private mounted = false;
 	private page?: DungeonListId;
@@ -70,7 +69,6 @@ export class DungeonFinderPanel implements IPanel {
 		scheduler: ITaskScheduler,
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
-		this.action = new Frame("queue-action", pool, "Button");
 		this.checkboxes = roleControls.map(
 			({ role, label, icon }) =>
 				new IconCheckbox(`role-${role}`, pool, label, icon, () => {
@@ -82,8 +80,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
-			top: 190,
-			bottom: 120,
+			top: 144,
+			bottom: 30,
 			background: false,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
@@ -95,6 +93,7 @@ export class DungeonFinderPanel implements IPanel {
 	private overviewRows(): ListRow[] {
 		const dungeons = this.client.getDungeons();
 		const selected = this.client.getSelected();
+		const queued = this.client.isQueued();
 		const rows: ListRow[] = [];
 		for (const section of sections) {
 			const entries = dungeons.filter(
@@ -112,22 +111,29 @@ export class DungeonFinderPanel implements IPanel {
 				rows.push({
 					id: `dungeon-${dungeon.id}`,
 					label: dungeon.name,
-					selected: selected === dungeon.id,
-					detail: !dungeon.available
-						? "Unavailable for you or your party"
-						: selected === dungeon.id
-							? "Selected"
-							: "Select dungeon",
+					enabled: queued ? selected === dungeon.id : dungeon.available,
+					background:
+						queued && selected === dungeon.id ? [0.05, 0.25, 0.5] : undefined,
+					searching: queued && selected === dungeon.id,
+					height: 32,
+					tooltip:
+						queued && selected === dungeon.id ? "Leave Queue" : dungeon.name,
+					detail: undefined,
 					marginBottom: index === entries.length - 1 ? 20 : 4,
 					activate: () => {
 						if (
 							!this.mounted ||
 							this.page ||
-							this.client.isQueued() ||
-							!dungeon.available
+							(!this.client.isQueued() && !dungeon.available)
 						)
 							return;
-						this.client.select(dungeon.id);
+						if (this.client.isQueued()) {
+							if (this.client.getSelected() !== dungeon.id) return;
+							this.client.leave();
+						} else {
+							this.client.select(dungeon.id);
+							this.client.join();
+						}
 						this.refresh();
 					},
 				});
@@ -147,10 +153,18 @@ export class DungeonFinderPanel implements IPanel {
 				label: list.label,
 				fontSize: 18,
 				detail: "Choose dungeons  ›",
-				selected: selected === list.id,
+				enabled: !queued || selected === list.id,
+				background:
+					queued && selected === list.id ? [0.05, 0.25, 0.5] : undefined,
+				searching: queued && selected === list.id,
 				marginBottom: 20,
 				activate: () => {
-					if (!this.mounted || this.page) return;
+					if (
+						!this.mounted ||
+						this.page ||
+						(this.client.isQueued() && this.client.getSelected() !== list.id)
+					)
+						return;
 					if (!this.client.isQueued()) this.client.selectList(list.id);
 					this.page = list.id;
 					this.list.resetScroll();
@@ -162,27 +176,48 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	private choiceRows(page: DungeonListId): ListRow[] {
 		const choices = this.client.getDungeonChoices(page);
-		const rows = choices.map<ListRow>((dungeon, index) => ({
-			id: `choice-${dungeon.id}`,
-			label: dungeon.name,
-			checked: dungeon.checked,
-			enabled: dungeon.available && !this.client.isQueued(),
-			detail: dungeon.available
-				? undefined
-				: "Unavailable for you or your party",
-			marginBottom: index === choices.length - 1 ? 28 : 4,
-			activate: () => {
-				if (
-					!this.mounted ||
-					this.page !== page ||
-					this.client.isQueued() ||
-					!dungeon.available
-				)
-					return;
-				this.client.toggleDungeon(page, dungeon.id);
-				this.refresh();
-			},
-		}));
+		const ordered =
+			page === "specific"
+				? [
+						...choices.filter((dungeon) => dungeon.difficulty === "heroic"),
+						...choices.filter((dungeon) => dungeon.difficulty === "normal"),
+					]
+				: choices;
+		const rows: ListRow[] = [];
+		let difficulty: string | undefined;
+		ordered.forEach((dungeon, index) => {
+			if (page === "specific" && difficulty !== dungeon.difficulty) {
+				difficulty = dungeon.difficulty;
+				rows.push({
+					id: `difficulty-${difficulty}`,
+					label: difficulty === "heroic" ? "Heroic" : "Normal",
+					heading: true,
+					activate: () => {},
+				});
+			}
+			rows.push({
+				id: `choice-${dungeon.id}`,
+				label: dungeon.name,
+				checked: dungeon.checked,
+				enabled: dungeon.available && !this.client.isQueued(),
+				height: 24,
+				tooltip: dungeon.available
+					? dungeon.name
+					: `${dungeon.name}: Unavailable for you or your party`,
+				marginBottom: index === ordered.length - 1 ? 28 : 4,
+				activate: () => {
+					if (
+						!this.mounted ||
+						this.page !== page ||
+						this.client.isQueued() ||
+						!dungeon.available
+					)
+						return;
+					this.client.toggleDungeon(page, dungeon.id);
+					this.refresh();
+				},
+			});
+		});
 		if (choices.length === 0)
 			rows.push({
 				id: "empty-choices",
@@ -196,9 +231,29 @@ export class DungeonFinderPanel implements IPanel {
 			label: "Back",
 			background: [0.18, 0.14, 0.04],
 			activate: () => {
+				if (this.page === page) this.onBack();
+			},
+		});
+		const queued = this.client.isQueued();
+		rows.push({
+			id: "queue-action",
+			label: queued ? "Leave Queue" : "Find Dungeon",
+			enabled: queued
+				? this.client.getSelected() === page
+				: choices.some((dungeon) => dungeon.checked && dungeon.available),
+			background: queued ? [0.05, 0.25, 0.5] : [0.3, 0.22, 0.06],
+			searching: queued,
+			activate: () => {
 				if (!this.mounted || this.page !== page) return;
-				this.page = undefined;
-				this.list.resetScroll();
+				if (this.client.isQueued()) {
+					if (this.client.getSelected() !== page) return;
+					this.client.leave();
+				} else if (
+					this.client
+						.getDungeonChoices(page)
+						.some((dungeon) => dungeon.checked && dungeon.available)
+				)
+					this.client.join();
 				this.refresh();
 			},
 		});
@@ -220,20 +275,12 @@ export class DungeonFinderPanel implements IPanel {
 				.at(index)
 				?.setChecked(roles[role], !queued && availableRoles[role]);
 		});
-		this.action.setLabel(
-			"action",
-			queued ? "Leave Queue" : "Find Dungeon",
-			"CENTER",
-			0,
-			0,
-			20,
-		);
 		this.list.setRows(rows);
 	}
-	private activateQueue(): void {
-		if (!this.mounted) return;
-		if (this.client.isQueued()) this.client.leave();
-		else this.client.join();
+	onBack(): void {
+		if (!this.mounted || !this.page) return;
+		this.page = undefined;
+		this.list.resetScroll();
 		this.refresh();
 	}
 	onMount(parent: IUIComponent): void {
@@ -243,16 +290,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.frame.setBlackBackground();
 		this.list.mount(this.frame);
 		this.checkboxes.forEach((control, index) => {
-			control.mount(this.frame, 30 + index * 108, 70);
+			control.mount(this.frame, 30 + index * 108, 70, false);
 		});
-		this.action.setParent(this.frame);
-		this.action.layout(420, 56, "BOTTOM", this.frame, 0, 30);
-		this.action.setColor(0.3, 0.22, 0.06);
-		this.action.setBorder([1, 0.82, 0, 1]);
-		this.action.onClick((button) => {
-			if (button === "LeftButton") this.activateQueue();
-		});
-		this.action.show();
 		this.frame.show();
 		this.mounted = true;
 		this.update.setActive(true);
@@ -275,11 +314,6 @@ export class DungeonFinderPanel implements IPanel {
 						return role !== undefined && availableRoles?.[role];
 					}),
 					...this.list.getNavGrid(),
-					[
-						this.action.navigationNode("queue-action", () =>
-							this.activateQueue(),
-						),
-					],
 				]
 			: [];
 	}
@@ -290,7 +324,6 @@ export class DungeonFinderPanel implements IPanel {
 		this.onUnmount();
 		this.list.destroy();
 		for (const control of this.checkboxes) control.destroy();
-		this.action.destroy();
 		this.frame.destroy();
 	}
 }
