@@ -18,6 +18,7 @@ export interface GridGroup {
 	readonly items: readonly GridItem[];
 }
 interface Cell {
+	top: number;
 	readonly frame: Frame;
 	readonly icon: Frame;
 	readonly secondary: Frame;
@@ -35,9 +36,11 @@ export class ItemGrid {
 	private items: readonly GridItem[] = [];
 	private grid: INavigable[][] = [];
 	private mounted = false;
+	private contentHeight = 1;
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
+		private readonly emptyText = "No items match your filters",
 	) {
 		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
@@ -92,12 +95,17 @@ export class ItemGrid {
 						"Button",
 					);
 					cell = {
+						top: 0,
 						frame,
 						secondary,
 						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
 						nav: {
 							navId: item.id,
-							onFocus: () => frame.setColor(0.3, 0.25, 0),
+							onFocus: () => {
+								frame.setColor(0.3, 0.25, 0);
+								this.reveal(index);
+							},
+							tooltipItem: () => this.items.at(index)?.hyperlink,
 							onBlur: () => this.style(index),
 							onInteract: () => {
 								if (this.mounted) this.items.at(index)?.activate();
@@ -105,7 +113,10 @@ export class ItemGrid {
 						},
 						secondaryNav: {
 							navId: `${item.id}-secondary`,
-							onFocus: () => secondary.setColor(0.3, 0.25, 0),
+							onFocus: () => {
+								secondary.setColor(0.3, 0.25, 0);
+								this.reveal(index);
+							},
 							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
 							onInteract: () => {
 								if (this.mounted) this.items.at(index)?.secondary?.activate();
@@ -115,6 +126,7 @@ export class ItemGrid {
 					this.cells.push(cell);
 				}
 				cell.nav.navId = item.id;
+				cell.top = y + Math.floor(groupIndex / 2) * 66;
 				cell.secondaryNav.navId = `${item.id}-secondary`;
 				cell.frame.setParent(this.content);
 				cell.frame.layout(
@@ -172,10 +184,11 @@ export class ItemGrid {
 		items.forEach((_item, index) => {
 			this.style(index);
 		});
-		this.content.layout(460, Math.max(1, y), "TOPLEFT", this.viewport);
+		this.contentHeight = Math.max(1, y);
+		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
 		this.content.setLabel(
 			"empty",
-			items.length === 0 ? "No items match your filters" : "",
+			items.length === 0 ? this.emptyText : "",
 			"TOPLEFT",
 			0,
 			-8,
@@ -185,6 +198,15 @@ export class ItemGrid {
 		for (let index = headerCount; index < this.headers.length; index++)
 			this.headers.at(index)?.hide();
 		this.viewport.clampScroll();
+	}
+	private reveal(index: number): void {
+		const cell = this.cells.at(index);
+		if (this.mounted && cell)
+			this.viewport.revealVerticalRange(
+				cell.top,
+				cell.top + 60,
+				this.contentHeight,
+			);
 	}
 	private style(index: number): void {
 		const color: readonly [number, number, number] = this.items.at(index)

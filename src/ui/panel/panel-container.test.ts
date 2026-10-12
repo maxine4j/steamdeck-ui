@@ -4,6 +4,38 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it("notifies content when its container closes but not when tabs switch", () => {
+	let hide = () => {};
+	const frame = {
+		dock: vi.fn(),
+		onClose: (callback: () => void) => {
+			hide = callback;
+		},
+		show: vi.fn(),
+		hide: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer("left", "left", frame);
+	const closed = vi.fn();
+	const panel = (id: string) => ({
+		id,
+		title: id,
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		onContainerClosed: closed,
+		getNavGrid: () => [],
+	});
+	container.swapPanel(panel("vendor"));
+	container.swapPanel(panel("buyback"));
+	expect(closed).not.toHaveBeenCalled();
+	container.popPanel();
+	expect(closed).toHaveBeenCalledOnce();
+	hide();
+	expect(closed).toHaveBeenCalledOnce();
+	container.swapPanel(panel("vendor"));
+	hide();
+	expect(closed).toHaveBeenCalledTimes(2);
+});
+
 it.each(["left", "right"] as const)(
 	"keeps %s tabs flush against the container while switching panels",
 	(position) => {

@@ -22,10 +22,12 @@ export class PanelContainer implements IPanelContainer {
 	) {
 		this.frame.dock(position, 500);
 		this.frame.onClose(() => {
+			if (this.stack.length === 0) return;
 			this.releaseNavigation();
 			const active = this.stack.at(-1);
 			this.stack.length = 0;
 			active?.onUnmount();
+			active?.onContainerClosed?.();
 			for (const tab of this.tabs) {
 				tab.button.hide();
 				tab.border.hide();
@@ -89,8 +91,10 @@ export class PanelContainer implements IPanelContainer {
 		});
 	}
 	popPanel(): void {
+		if (this.stack.length === 0) return;
 		this.releaseNavigation();
-		this.stack.pop()?.onUnmount();
+		const active = this.stack.pop();
+		active?.onUnmount();
 		const previous = this.stack.at(-1);
 		if (previous) this.mount(previous);
 		else {
@@ -99,6 +103,7 @@ export class PanelContainer implements IPanelContainer {
 				tab.border.hide();
 			}
 			this.frame.hide();
+			active?.onContainerClosed?.();
 		}
 	}
 	swapPanel(panel: IPanel): void {

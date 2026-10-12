@@ -12,6 +12,7 @@ import type { IReputationClient } from "./clients/reputation-client";
 import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
+import type { IVendorClient } from "./clients/vendor-client";
 import type { IEventBus } from "./events/types";
 import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
@@ -47,6 +48,9 @@ import { TalentsPanel } from "./modules/talents/talents-panel";
 import { BuiltInTitles } from "./modules/titles/built-in-titles";
 import { TitlesModule } from "./modules/titles/titles-module";
 import { TitlesPanel } from "./modules/titles/titles-panel";
+import { BuiltInVendor } from "./modules/vendor/built-in-vendor";
+import { VendorModule } from "./modules/vendor/vendor-module";
+import { VendorPanel } from "./modules/vendor/vendor-panel";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
 import { ItemTooltip } from "./ui/components/item-tooltip";
@@ -72,6 +76,7 @@ export function startSteamDeckUI(
 	currency: ICurrencyClient,
 	dialogue: IDialogueClient,
 	dialogueCamera: IDialogueCamera,
+	vendor: IVendorClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -93,11 +98,11 @@ export function startSteamDeckUI(
 		events,
 	);
 	const ui = new UIOrchestrator(
-		(position) =>
+		(position, containerId = position) =>
 			new PanelContainer(
 				position,
 				position,
-				new Frame(`container-${position}`, pool),
+				new Frame(`container-${containerId}`, pool),
 				(id, button) => new Frame(id, pool, button ? "Button" : "Frame"),
 				(selected) => {
 					if (selected.id === "dungeon-finder") builtInDungeonFinder.open();
@@ -140,6 +145,23 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const vendorPanel = new VendorPanel("vendor", pool, vendor, () =>
+		vendorModule.close(),
+	);
+	const buybackPanel = new VendorPanel("buyback", pool, vendor, () =>
+		vendorModule.close(),
+	);
+	ui.registerPanel(vendorPanel, "left", "merchant");
+	ui.registerPanel(buybackPanel, "left", "merchant");
+	const vendorModule = new VendorModule(
+		ui,
+		events,
+		vendor,
+		[vendorPanel, buybackPanel],
+		new BuiltInVendor(new FrameSuppression(pool)),
+		scheduler,
+	);
+	modules.register(vendorModule);
 	const dialoguePanel = new DialoguePanel(pool, navigation);
 	ui.registerPanel(dialoguePanel);
 	modules.register(
@@ -290,6 +312,8 @@ export function startSteamDeckUI(
 			mountsPanel.destroy();
 			talentsPanel.destroy();
 			dungeonFinderPanel.destroy();
+			vendorPanel.destroy();
+			buybackPanel.destroy();
 		},
 	};
 }

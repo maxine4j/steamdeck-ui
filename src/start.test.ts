@@ -300,8 +300,36 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			isDialogueInteraction: () => true,
 		},
 		{ begin: vi.fn(), end: vi.fn() },
+		{
+			setOpen: vi.fn(),
+			getItems: () => [
+				{
+					index: 1,
+					name: "Potion",
+					icon: 1,
+					price: 100,
+					count: 1,
+					available: -1,
+					purchasable: true,
+					costs: [],
+				},
+			],
+			getBuyback: () => [],
+			getActions: () => ({
+				repairCost: 0,
+				repair: false,
+				guildRepair: false,
+				sellJunk: false,
+			}),
+			buy: vi.fn(),
+			buyback: vi.fn(),
+			repair: vi.fn(),
+			sellJunk: vi.fn(),
+			ensureBagsOpen: () => inventory.isOpen.mockReturnValue(true),
+			close: vi.fn(),
+		},
 	);
-	expect(frames).toHaveLength(2);
+	expect(frames).toHaveLength(3);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -335,9 +363,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(3);
+	expect(frames).toHaveLength(4);
 	for (const frame of builtIns)
-		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(2));
+		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(3));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();
@@ -547,6 +575,31 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.ui.openPanel("dungeon-finder", "right");
 	flush();
 	expect(frames).toHaveLength(finderFrames);
+	app.ui.closePanel("right");
+	app.ui.openPanel("paper-doll", "left");
+	events.emit("MERCHANT_SHOW");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("left", "merchant").activePanelId).toBe("vendor");
+	expect(app.ui.getContainer("right").activePanelId).toBe("bags");
+	expect(app.navigation.focusedId).toBe("vendor-item-1");
+	app.ui.closePanel("left");
+	expect(app.navigation.focusedId).toBe("vendor-item-1");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(app.navigation.focusedId).not.toContain("vendor");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(app.navigation.focusedId).toBe("vendor-item-1");
+	events.emit("NAV_PANEL_NEXT");
+	expect(app.ui.getContainer("left", "merchant").activePanelId).toBe("buyback");
+	events.emit("NAV_PANEL_NEXT");
+	expect(app.ui.getContainer("left", "merchant").activePanelId).toBe("vendor");
+	app.ui.openPanel("paper-doll", "left");
+	expect(app.ui.getContainer("left", "merchant").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
+	events.emit("MERCHANT_SHOW");
+	events.emit("MERCHANT_CLOSED");
+	expect(app.ui.getContainer("left", "merchant").activePanelId).toBeUndefined();
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(app.navigation.focusedId).not.toContain("vendor");
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");

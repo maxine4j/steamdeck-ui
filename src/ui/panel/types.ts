@@ -11,6 +11,8 @@ export interface IPanel {
 	// Lifecycle hooks
 	onMount(parentComponent: IUIComponent): void;
 	onUnmount(): void;
+	/** Called only when the host closes, including Escape and dock replacement. */
+	onContainerClosed?(): void;
 
 	// Returns the D-Pad routable elements for this panel
 	getNavGrid(): NavGrid;
