@@ -77,7 +77,7 @@ export class ToysClient implements IToysClient {
 				const id = C_ToyBox.GetToyFromIndex(index++);
 				if (id <= 0) continue;
 				const [itemId, name, icon, favourite] = C_ToyBox.GetToyInfo(id);
-				if (itemId === undefined || name === undefined) continue;
+				if (itemId === undefined) continue;
 				const [itemName, , , , , , , , , , , , , , expansionId] =
 					C_Item.GetItemInfo(id);
 				const loaded = itemName !== undefined && itemName !== "";
@@ -87,7 +87,9 @@ export class ToysClient implements IToysClient {
 				}
 				toys.push({
 					id,
-					name: name || `Toy ${id}`,
+					// Startup prefetch can precede name caching. Keep the entry;
+					// item-data events invalidate the snapshot when metadata arrives.
+					name: name || itemName || `Toy ${id}`,
 					icon,
 					favourite,
 					collected: PlayerHasToy(id),

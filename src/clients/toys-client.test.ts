@@ -3,6 +3,25 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps every toy when startup prefetch runs before toy names are cached", () => {
+	const { client, api, pending } = setup(25);
+	api.GetToyInfo = (id) =>
+		id <= 4
+			? [id, `Toy ${id}`, 100 + id, true]
+			: [id, undefined, 100 + id, false];
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const done = vi.fn();
+	client.load(done);
+	pending.shift()?.();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(25);
+	expect(done.mock.lastCall?.at(0).at(4)).toMatchObject({
+		id: 5,
+		name: "Toy 5",
+		icon: 105,
+	});
+});
+
 it("prefetches in twenty-entry batches and reuses the snapshot on opening", () => {
 	const { client, api, pending } = setup(45);
 	const info = vi.spyOn(api, "GetToyInfo");
