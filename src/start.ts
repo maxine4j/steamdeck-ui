@@ -44,6 +44,7 @@ import { TitlesModule } from "./modules/titles/titles-module";
 import { TitlesPanel } from "./modules/titles/titles-panel";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
+import { ItemTooltip } from "./ui/components/item-tooltip";
 import { Modal } from "./ui/components/modal";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
@@ -64,10 +65,13 @@ export function startSteamDeckUI(
 	dungeonFinder: IDungeonFinderClient,
 	currency: ICurrencyClient,
 ) {
-	const navigation = new NavigationManager(events, (active) =>
-		controller.setActive(active),
-	);
 	const pool = new FramePoolManager(factory);
+	const itemTooltip = new ItemTooltip(pool);
+	const navigation = new NavigationManager(
+		events,
+		(active) => controller.setActive(active),
+		(control) => itemTooltip.setItem(control?.tooltipItem?.()),
+	);
 	const itemModal = new Modal("item-actions", pool, navigation, events);
 	const itemMenu = new ItemActionMenu(itemModal, inventory);
 	const characterSuppression = new FrameSuppression(pool);
@@ -254,6 +258,7 @@ export function startSteamDeckUI(
 			itemModal.destroy();
 			currencyModal.destroy();
 			navigation.destroy();
+			itemTooltip.destroy();
 			ui.destroy();
 			panel.destroy();
 			paperDoll.destroy();
