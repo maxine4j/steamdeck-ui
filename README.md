@@ -23,4 +23,6 @@ Modifier switching, main-bar paging, and action activation use secure handlers, 
 
 Unmodified D-pad Up opens an ability ring in the center of the screen while held, replacing main-bar slot 5. Populate Retail Edit Mode **bar 5** (the second right-side bar, action slots 37–48) to configure it. Empty slots are excluded and the remaining 1–12 actions are arranged clockwise from the top. Hold the right stick toward an action and release D-pad Up to use it; returning the stick to the center cancels. A line from the center tracks the exact stick angle and deflection, with subdued feedback inside the cancellation deadzone and gold feedback when an action is selected. The right stick controls selection instead of the camera while the ring is open. Selection and release casting use secure handlers and work during combat. Modified D-pad Up still uses slot 5 of bars 6–8. Panel navigation takes priority over opening the ring outside combat.
 
+Ring icons show the same native cooldown and charge recharge sweeps and compact countdown numbers as the action bars. Right-stick camera input remains suppressed for 200 ms after releasing the ring bind, giving the stick time to return to center without turning the camera.
+
 Use `yarn test`, `yarn typecheck`, and `yarn build` to verify changes. Generate game API declarations with `yarn setup`.

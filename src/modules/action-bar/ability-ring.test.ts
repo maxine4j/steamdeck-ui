@@ -35,6 +35,7 @@ it("binds one ring to unmodified Up, delegates reads, and releases it on shutdow
 		driver,
 		expect.any(Function),
 		"Right stick to select\nRelease ↑ to use",
+		0.2,
 	);
 	expect(client.bind).toHaveBeenCalledExactlyOnceWith([
 		{ key: "PADDUP", target, prefixes: [""] },

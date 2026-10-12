@@ -7,6 +7,17 @@ afterEach(() => vi.unstubAllGlobals());
 
 function setup() {
 	vi.stubGlobal("UIParent", {});
+	vi.stubGlobal("C_StringUtil", {
+		CreateSecondsFormatter: () => ({
+			SetDefaultAbbreviation: vi.fn(),
+			SetConvertToLower: vi.fn(),
+			SetStripIntervalWhitespace: vi.fn(),
+			SetDesiredUnitCount: vi.fn(),
+			SetMaxInterval: vi.fn(),
+			SetMinInterval: vi.fn(),
+			SetMillisecondsThreshold: vi.fn(),
+		}),
+	});
 	const wrap = vi.fn(),
 		unwrap = vi.fn(),
 		execute = vi.fn();
@@ -63,6 +74,12 @@ function setup() {
 			Show: vi.fn(),
 			Hide: vi.fn(),
 			ClearAllPoints: vi.fn(),
+			SetCooldownFromDurationObject: vi.fn(),
+			SetHideCountdownNumbers: vi.fn(),
+			SetDrawEdge: vi.fn(),
+			SetDrawSwipe: vi.fn(),
+			SetCountdownFormatter: vi.fn(),
+			Clear: vi.fn(),
 			CreateFontString: () => ({ SetPoint: vi.fn(), SetText: vi.fn() }),
 			CreateTexture: () => {
 				const result = texture();
@@ -87,7 +104,10 @@ function setup() {
 			virtualStick: "Camera",
 		},
 		read,
+		"",
+		0.2,
 	);
+	frames.at(1)?.scripts.get("OnShow")?.();
 	return { menu, create, frames, wrap, unwrap, execute, read, pool };
 }
 
@@ -99,7 +119,44 @@ it("uses protected frames for every region manipulated by secure ring layout", (
 		"Frame",
 		"Frame",
 		...Array.from({ length: 12 }, () => "SecureFrame"),
+		...Array.from({ length: 24 }, () => "Cooldown"),
 	]);
+});
+
+it("renders native cooldown and recharge sweeps with countdown numbers for compacted ring slots", () => {
+	const { menu, frames, read } = setup();
+	const display = frames.at(1),
+		item = frames.at(4);
+	display.attributes.set("count", 1);
+	item.attributes.set("slot", 47);
+	const cooldown = {},
+		recharge = {};
+	read.mockReturnValue({ icon: 47, cooldown, recharge });
+	menu.refresh();
+	const chargeFrame = frames.at(16),
+		cooldownFrame = frames.at(17);
+	expect(chargeFrame.SetParent).toHaveBeenCalledWith(item);
+	expect(cooldownFrame.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		item,
+		"TOPLEFT",
+		2,
+		-2,
+	);
+	expect(cooldownFrame.SetHideCountdownNumbers).toHaveBeenCalledWith(false);
+	expect(cooldownFrame.SetDrawSwipe).toHaveBeenCalledWith(true);
+	expect(chargeFrame.SetCooldownFromDurationObject).toHaveBeenLastCalledWith(
+		recharge,
+		true,
+	);
+	expect(cooldownFrame.SetCooldownFromDurationObject).toHaveBeenLastCalledWith(
+		cooldown,
+		true,
+	);
+	read.mockReturnValue({ icon: 47 });
+	menu.refresh();
+	expect(chargeFrame.Clear).toHaveBeenCalledOnce();
+	expect(cooldownFrame.Clear).toHaveBeenCalledOnce();
 });
 
 it("emits snippets accepted by WoW's restricted closure syntax checks", () => {
@@ -258,6 +315,62 @@ it("shows subdued analogue feedback inside the deadzone and clears it on center,
 	expect(display.line.Hide).toHaveBeenCalledTimes(3);
 });
 
+it("consumes camera input for 200ms after release without updating the hidden ring", () => {
+	const { frames } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2),
+		blocker = frames.at(3);
+	display.attributes.set("count", 2);
+	display.scripts.get("OnHide")();
+	listener.Hide.mockClear();
+	display.line.Show.mockClear();
+	blocker.Show.mockClear();
+	const input = listener.scripts.get("OnGamePadStick");
+	const update = listener.scripts.get("OnUpdate");
+	update(undefined, 0.1);
+	input(undefined, "Right", 1, 0, 1);
+	expect(blocker.Show).toHaveBeenCalledOnce();
+	expect(display.line.Show).not.toHaveBeenCalled();
+	expect(listener.Hide).not.toHaveBeenCalled();
+	input(undefined, "Left", 1, 0, 1);
+	expect(blocker.Show).toHaveBeenCalledOnce();
+	update(undefined, 0.099);
+	expect(listener.Hide).not.toHaveBeenCalled();
+	update(undefined, 0.002);
+	expect(listener.Hide).toHaveBeenCalledOnce();
+	input(undefined, "Right", 1, 0, 1);
+	expect(blocker.Show).toHaveBeenCalledOnce();
+});
+
+it("preserves an armed camera blocker when the bind is released between stick events", () => {
+	const { frames } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2),
+		blocker = frames.at(3);
+	listener.scripts.get("OnGamePadStick")(undefined, "Right", 1, 0, 1);
+	blocker.Hide.mockClear();
+	display.scripts.get("OnHide")();
+	expect(blocker.Hide).not.toHaveBeenCalled();
+	blocker.scripts.get("OnGamePadStick")(undefined, "Camera", 1, 0, 1);
+	expect(blocker.Hide).toHaveBeenCalledOnce();
+});
+
+it("keeps consuming input if the ring reopens during the release grace period", () => {
+	const { frames } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2),
+		blocker = frames.at(3);
+	display.scripts.get("OnHide")();
+	listener.scripts.get("OnUpdate")(undefined, 0.1);
+	display.scripts.get("OnShow")();
+	listener.Hide.mockClear();
+	blocker.Show.mockClear();
+	listener.scripts.get("OnUpdate")(undefined, 0.5);
+	listener.scripts.get("OnGamePadStick")(undefined, "Right", 1, 0, 1);
+	expect(listener.Hide).not.toHaveBeenCalled();
+	expect(blocker.Show).toHaveBeenCalledOnce();
+});
+
 it("clears handlers and temporary bindings and reuses every native frame", () => {
 	const { menu, frames, create, unwrap, execute, pool } = setup();
 	menu.destroy();
@@ -266,9 +379,9 @@ it("clears handlers and temporary bindings and reuses every native frame", () =>
 	expect(frames.at(2)?.scripts.get("OnGamePadStick")).toBeUndefined();
 	expect(frames.at(3)?.EnableGamePadStick).toHaveBeenLastCalledWith(false);
 	expect(frames.at(0)?.attributes.get("held")).toBeUndefined();
-	// The component returns all sixteen frames to its injected pool.
+	// Ring controls and their twenty-four cooldown frames return to the pool.
 	new SecureRadialMenu(pool, 12);
-	expect(create).toHaveBeenCalledTimes(16);
+	expect(create).toHaveBeenCalledTimes(40);
 	expect(frames.at(1)?.CreateLine).toHaveBeenCalledOnce();
 	expect(frames.at(1)?.line.ClearAllPoints).toHaveBeenCalledOnce();
 });

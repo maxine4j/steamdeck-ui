@@ -1,6 +1,7 @@
 import type { WowFontString, WowFrame, WowLine } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
+import { CooldownOverlay } from "./cooldown-overlay";
 import { RADIAL_INDEX_SNIPPET, radialIndex } from "./radial-selection";
 import type { BindingTarget, SlotReader } from "./secure-slot-button";
 
@@ -26,9 +27,10 @@ interface RadialFrame extends WowFrame {
 	GetAttribute(name: string): number | undefined;
 	SetAttribute(name: string, value?: string | number | boolean): void;
 	SetFrameRef(name: string, frame: WowFrame): void;
+	SetScript(script: "OnShow" | "OnHide", handler?: (this: void) => void): void;
 	SetScript(
-		script: "OnShow" | "OnHide" | "OnUpdate",
-		handler?: (this: void) => void,
+		script: "OnUpdate",
+		handler?: (this: void, frame: WowFrame, elapsed: number) => void,
 	): void;
 	SetScript(
 		script: "OnGamePadStick",
@@ -80,9 +82,12 @@ export class SecureRadialMenu {
 	private readonly listener: RadialFrame;
 	private readonly blocker: RadialFrame;
 	private readonly items: RadialFrame[];
+	private readonly cooldowns: CooldownOverlay[];
 	private readonly label: WowFontString;
 	private readonly pointer: WowLine;
 	private read?: SlotReader;
+	private inputActive = false;
+	private releaseGraceRemaining = 0;
 	constructor(
 		private readonly pool: IFramePoolManager,
 		capacity: number,
@@ -95,6 +100,7 @@ export class SecureRadialMenu {
 			{ length: capacity },
 			() => pool.acquire("SecureFrame") as RadialFrame,
 		);
+		this.cooldowns = this.items.map((item) => new CooldownOverlay(pool, item));
 		this.label = this.display.CreateFontString(
 			undefined,
 			"OVERLAY",
@@ -107,6 +113,7 @@ export class SecureRadialMenu {
 		driver: RadialDriver,
 		read: SlotReader,
 		caption = "",
+		releaseGraceSeconds = 0,
 	): void {
 		this.read = read;
 		this.trigger.SetParent(UIParent);
@@ -152,22 +159,38 @@ export class SecureRadialMenu {
 		this.blocker.EnableGamePadStick(true);
 		this.listener.SetScript("OnGamePadStick", (_frame, stick, x, y, length) => {
 			if (stick !== driver.stick) return;
-			this.highlight(x, y, length);
+			if (!this.inputActive && this.releaseGraceRemaining <= 0) return;
+			if (this.inputActive) this.highlight(x, y, length);
 			this.blocker.Show();
 		});
-		this.listener.SetScript("OnUpdate", () => this.blocker.Hide());
+		this.listener.SetScript("OnUpdate", (_frame, elapsed) => {
+			this.blocker.Hide();
+			if (this.inputActive || this.releaseGraceRemaining <= 0) return;
+			this.releaseGraceRemaining = Math.max(
+				0,
+				this.releaseGraceRemaining - elapsed,
+			);
+			if (this.releaseGraceRemaining === 0) this.listener.Hide();
+		});
 		this.blocker.SetScript("OnGamePadStick", (_frame, stick) => {
 			if (stick === driver.virtualStick) this.blocker.Hide();
 		});
 		this.display.SetScript("OnShow", () => {
+			this.inputActive = true;
+			this.releaseGraceRemaining = 0;
 			this.pointer.Hide();
 			this.refresh();
 			this.listener.Show();
 		});
 		this.display.SetScript("OnHide", () => {
 			this.pointer.Hide();
-			this.listener.Hide();
-			this.blocker.Hide();
+			if (!this.inputActive) return;
+			this.inputActive = false;
+			this.releaseGraceRemaining = Math.max(0, releaseGraceSeconds);
+			if (this.releaseGraceRemaining === 0) {
+				this.listener.Hide();
+				this.blocker.Hide();
+			}
 		});
 		this.listener.Hide();
 		this.blocker.Hide();
@@ -248,8 +271,10 @@ end`,
 			const slot = item?.GetAttribute("slot");
 			if (!item || slot === undefined) continue;
 			const texture = this.pool.getBackground(item);
-			texture.SetTexture(this.read(slot).icon);
+			const visual = this.read(slot);
+			texture.SetTexture(visual.icon);
 			texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
+			this.cooldowns.at(i)?.refresh(visual.cooldown, visual.recharge);
 			setBorder(this.pool, item, [0.42, 0.47, 0.55, 1]);
 		}
 	}
@@ -282,6 +307,8 @@ end`,
 		}
 	}
 	destroy(): void {
+		this.inputActive = false;
+		this.releaseGraceRemaining = 0;
 		SecureHandlerExecute(this.trigger, "self:ClearBindings()");
 		SecureHandlerUnwrapScript(this.trigger, "PreClick");
 		this.label.SetText("");
@@ -311,6 +338,7 @@ end`,
 		])
 			this.trigger.SetAttribute(name, undefined);
 		this.trigger.RegisterForClicks("LeftButtonUp");
+		for (const cooldown of this.cooldowns) cooldown.destroy();
 		for (let i = 0; i < this.items.length; i++) {
 			this.trigger.SetAttribute(`slot${i + 1}`, undefined);
 			this.trigger.SetAttribute(`active${i + 1}`, undefined);

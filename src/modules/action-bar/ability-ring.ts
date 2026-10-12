@@ -16,6 +16,7 @@ export class AbilityRing {
 			this.client.getRingDriver(),
 			(slot) => this.client.read(slot),
 			"Right stick to select\nRelease ↑ to use",
+			0.2,
 		);
 		this.client.bind([
 			{ key: "PADDUP", target: this.menu.getBindingTarget(), prefixes: [""] },

@@ -1,11 +1,9 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
+import { type CooldownDuration, CooldownOverlay } from "./cooldown-overlay";
 
-/** Opaque native duration: cooldown values can be secret in combat. */
-export interface CooldownDuration {
-	readonly durationObject?: never;
-}
+export type { CooldownDuration } from "./cooldown-overlay";
 export interface BindingTarget {
 	readonly owner: WowFrame;
 	readonly name: string;
@@ -29,26 +27,6 @@ type SecureFrame = WowFrame & {
 		handler: (this: void, frame: WowFrame, name: string) => void,
 	): void;
 };
-interface CooldownFrame extends WowFrame {
-	SetCooldownFromDurationObject(
-		duration: CooldownDuration,
-		clearIfZero: boolean,
-	): void;
-	SetHideCountdownNumbers(hide: boolean): void;
-	SetDrawEdge(draw: boolean): void;
-	SetDrawSwipe(draw: boolean): void;
-	SetCountdownFormatter(formatter?: SecondsFormatter): void;
-	Clear(): void;
-}
-interface SecondsFormatter {
-	SetDefaultAbbreviation(abbreviation: number): void;
-	SetConvertToLower(convert: boolean): void;
-	SetStripIntervalWhitespace(strip: number): void;
-	SetDesiredUnitCount(count: number): void;
-	SetMaxInterval(interval: number): void;
-	SetMinInterval(interval: number): void;
-	SetMillisecondsThreshold(seconds: number): void;
-}
 declare global {
 	function RegisterStateDriver(
 		this: void,
@@ -66,37 +44,13 @@ declare global {
 /** Generic secure action slot, driven entirely by its supplied macro condition. */
 export class SecureSlotButton {
 	private readonly frame: SecureFrame;
-	private readonly cooldowns: CooldownFrame[];
+	private readonly cooldowns: CooldownOverlay;
 	private readonly label;
 	private read?: SlotReader;
 	constructor(private readonly pool: IFramePoolManager) {
 		this.frame = pool.acquire("SecureStateButton") as SecureFrame;
 		this.frame.SetParent(UIParent);
-		const formatter =
-			C_StringUtil.CreateSecondsFormatter() as unknown as SecondsFormatter;
-		// OneLetter = 2, StripIgnoreLocale = 2: compact suffixes such as 8s and 2m.
-		formatter.SetDefaultAbbreviation(2);
-		formatter.SetConvertToLower(true);
-		formatter.SetStripIntervalWhitespace(2);
-		formatter.SetDesiredUnitCount(1);
-		// Restrict units to seconds (0) and minutes (1).
-		formatter.SetMaxInterval(1);
-		formatter.SetMinInterval(0);
-		formatter.SetMillisecondsThreshold(0);
-		this.cooldowns = [0, 1].map(() => {
-			const cooldown = pool.acquire("Cooldown") as CooldownFrame;
-			cooldown.SetParent(this.frame);
-			// Replace template anchors, which can still point to UIParent.
-			cooldown.ClearAllPoints();
-			cooldown.SetPoint("TOPLEFT", this.frame, "TOPLEFT", 2, -2);
-			cooldown.SetPoint("BOTTOMRIGHT", this.frame, "BOTTOMRIGHT", -2, 2);
-			cooldown.SetHideCountdownNumbers(false);
-			cooldown.SetCountdownFormatter(formatter);
-			cooldown.SetDrawEdge(false);
-			cooldown.SetDrawSwipe(true);
-			cooldown.Show();
-			return cooldown;
-		});
+		this.cooldowns = new CooldownOverlay(pool, this.frame);
 		this.label = this.frame.CreateFontString(
 			undefined,
 			"OVERLAY",
@@ -162,16 +116,7 @@ end`,
 		texture.SetColorTexture(0.08, 0.08, 0.1, 0.9);
 		if (visual.icon !== undefined) texture.SetTexture(visual.icon);
 		texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
-		this.updateCooldown(this.cooldowns.at(0), visual.recharge);
-		this.updateCooldown(this.cooldowns.at(1), visual.cooldown);
-	}
-	private updateCooldown(
-		frame: CooldownFrame | undefined,
-		duration: CooldownDuration | undefined,
-	): void {
-		if (!frame) return;
-		if (duration === undefined) frame.Clear();
-		else frame.SetCooldownFromDurationObject(duration, true);
+		this.cooldowns.refresh(visual.cooldown, visual.recharge);
 	}
 	destroy(): void {
 		this.read = undefined;
@@ -188,11 +133,7 @@ end`,
 		this.frame.RegisterForClicks("LeftButtonUp");
 		this.frame.RegisterForDrag();
 		this.label.SetText("");
-		for (const cooldown of this.cooldowns) {
-			cooldown.Clear();
-			cooldown.SetCountdownFormatter(undefined);
-			this.pool.release("Cooldown", cooldown);
-		}
+		this.cooldowns.destroy();
 		this.pool.release("SecureStateButton", this.frame);
 	}
 }
