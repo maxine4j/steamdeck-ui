@@ -224,7 +224,9 @@ export function startSteamDeckUI(
 	const builtInToys = new BuiltInToys(collections);
 	const toyModal = new Modal("toy-actions", pool, navigation, events);
 	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
-	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler);
+	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler, () =>
+		builtInToys.close(),
+	);
 	ui.registerPanel(toysPanel, "right");
 	modules.register(new ToysModule(ui, events, toysPanel, builtInToys));
 	const mountsPanel = new MountsPanel(

@@ -42,6 +42,7 @@ export class ToysPanel implements IPanel {
 		private readonly client: IToysClient,
 		private readonly menu: IToyActionMenu,
 		private readonly scheduler: ITaskScheduler,
+		private readonly close: () => void,
 	) {
 		this.frame = new Frame("toys-root", pool);
 		this.viewport = new Frame("toys-scroll", pool, "ScrollFrame");
@@ -266,6 +267,9 @@ export class ToysPanel implements IPanel {
 	}
 	getNavGrid(): NavGrid {
 		return this.mounted ? this.grid : [];
+	}
+	onContainerClosed(): void {
+		this.close();
 	}
 	onUnmount(): void {
 		this.mounted = false;

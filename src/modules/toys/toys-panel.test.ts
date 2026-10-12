@@ -58,7 +58,8 @@ function setup() {
 	};
 	const menu = { open: vi.fn(), close: vi.fn() };
 	const pool = {} as IFramePoolManager;
-	const panel = new ToysPanel(pool, client, menu, scheduler);
+	const close = vi.fn();
+	const panel = new ToysPanel(pool, client, menu, scheduler, close);
 	const parent = new Frame("parent", pool);
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
@@ -67,8 +68,18 @@ function setup() {
 		vi.mocked(client.load).mock.calls.at(-1)?.at(0)(toys);
 		flush();
 	};
-	return { panel, parent, client, menu, flush, publish, pending };
+	return { panel, parent, client, menu, flush, publish, pending, close };
 }
+
+it("closes the native journal only when the host closes, rather than during panel switches", () => {
+	const { panel, parent, publish, close } = setup();
+	panel.onMount(parent);
+	publish([toy(1)]);
+	panel.onUnmount();
+	expect(close).not.toHaveBeenCalled();
+	panel.onContainerClosed();
+	expect(close).toHaveBeenCalledOnce();
+});
 
 it("renders favourite and expansion grids with X use, Y tooltip actions and scrolling focus", () => {
 	const { panel, parent, client, menu, publish } = setup();
