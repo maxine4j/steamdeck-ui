@@ -45,6 +45,7 @@ export class ScrollList {
 		checkbox?: Frame;
 		check?: Frame;
 		animation?: Frame;
+		animatedFocus?: boolean;
 		dimmed: boolean;
 		secondaryNav: INavigable;
 		nav: INavigable;
@@ -257,12 +258,17 @@ export class ScrollList {
 								if (this.rows.at(index)?.animatedIcon) {
 									this.style(index);
 									frame.setBorder([1, 0.82, 0, 1]);
+									const control = this.buttons.at(index);
+									if (control) control.animatedFocus = true;
 								} else frame.setColor(0.3, 0.25, 0);
 								this.reveal(index);
 							},
 							onBlur: () => {
-								if (this.rows.at(index)?.animatedIcon)
+								const control = this.buttons.at(index);
+								if (control?.animatedFocus) {
 									frame.setBorder([0, 0, 0, 0]);
+									control.animatedFocus = false;
+								}
 								this.style(index);
 							},
 							onContext: () => {
@@ -292,7 +298,13 @@ export class ScrollList {
 					button.animation.layout(size, size, "RIGHT", button.frame, -8, 0);
 					button.animation.setAnimatedAtlas(row.animatedIcon);
 					button.animation.show();
-				} else button.animation?.hide();
+				} else {
+					button.animation?.hide();
+					if (button.animatedFocus) {
+						button.frame.setBorder([0, 0, 0, 0]);
+						button.animatedFocus = false;
+					}
+				}
 				const iconSize = Math.min(36, rowHeight - 12);
 				button.icon.setParent(button.frame);
 				if (row.icon !== undefined) {

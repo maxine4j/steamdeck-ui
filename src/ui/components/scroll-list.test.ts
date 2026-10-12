@@ -127,6 +127,7 @@ const { frames } = vi.hoisted(() => ({
 			revealVerticalRange: ReturnType<typeof vi.fn>;
 			setOpacity: ReturnType<typeof vi.fn>;
 			setAnimatedAtlas: ReturnType<typeof vi.fn>;
+			setBorder: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
 			setLabelWordWrap: ReturnType<typeof vi.fn>;
@@ -218,6 +219,9 @@ it("renders a trailing animation, preserves row color on focus and stops it on r
 	);
 	list.setRows([{ id: "other", label: "Other", activate: vi.fn() }]);
 	expect(frames.get("animated-animation-0")?.hide).toHaveBeenCalled();
+	expect(frames.get("animated-row-0")?.setBorder).toHaveBeenLastCalledWith([
+		0, 0, 0, 0,
+	]);
 });
 
 it("renders checkbox rows and excludes disabled choices while reusing rows for ordinary buttons", () => {
