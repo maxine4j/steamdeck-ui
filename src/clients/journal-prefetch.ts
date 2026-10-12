@@ -7,9 +7,10 @@ export interface IJournalPrefetch {
 }
 
 interface Observer<T, P> {
-	done(value: T): void;
-	preview?: (value: P) => void;
-	progress?: (completed: number, total: number) => void;
+	// Stored callbacks must retain the scan's plain Lua calling convention.
+	done(this: void, value: T): void;
+	preview?: (this: void, value: P) => void;
+	progress?: (this: void, completed: number, total: number) => void;
 }
 
 /** Retains data only; the underlying client still bounds native work per frame. */
