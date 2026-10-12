@@ -17,7 +17,7 @@ const sections: readonly { id: DungeonSection; label: string; icon: string }[] =
 	[
 		{
 			id: "special",
-			label: "Special events & Timewalking",
+			label: "Special events",
 			icon: "|A:ui-hud-calendar-1-up:20:20|a",
 		},
 		{
@@ -54,7 +54,7 @@ const roleControls: readonly {
 export class DungeonFinderPanel implements IPanel {
 	readonly id = "dungeon-finder";
 	readonly title = "Dungeon Finder";
-	readonly icon = 237538;
+	readonly icon = 1100023;
 	private readonly list: ScrollList;
 	private readonly frame: Frame;
 	private readonly action: Frame;
