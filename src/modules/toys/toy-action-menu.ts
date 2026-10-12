@@ -25,7 +25,7 @@ export class ToyActionMenu implements IToyActionMenu {
 				},
 			});
 		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
-		this.modal.open("Toy actions", options, toy.id);
+		this.modal.open("Toy actions", options, { toy: toy.id });
 	}
 	close(): void {
 		this.modal.close();

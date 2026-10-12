@@ -68,6 +68,8 @@ it("configures secure toy activation and clears toy attributes before pooling", 
 	);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", "toy");
 	expect(native.SetAttribute).toHaveBeenCalledWith("toy", 42);
+	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", false);
+	expect(native.RegisterForClicks).toHaveBeenCalledWith("AnyUp");
 	combat = true;
 	native.SetAttribute.mockClear();
 	frame.setToy(43);
@@ -76,7 +78,32 @@ it("configures secure toy activation and clears toy attributes before pooling", 
 	frame.destroy();
 	expect(native.SetAttribute).toHaveBeenCalledWith("toy", undefined);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", undefined);
 	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
+});
+
+it("uses a toy once from a controller click even when actions default to key down", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	const attributes = new Map<string, unknown>();
+	const use = vi.fn();
+	const native = {
+		Hide: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: (key: string, value: unknown) => attributes.set(key, value),
+		Click: (_button = "LeftButton", down = false) => {
+			const useOnKeyDown = attributes.get("useOnKeyDown") ?? true;
+			if (down === useOnKeyDown) use(attributes.get("toy"));
+		},
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const frame = new Frame(
+		"toy-controller",
+		new FramePoolManager({ createFrame: () => native as unknown as WowFrame }),
+		"SecureButton",
+	);
+	frame.setToy(42);
+	frame.click();
+	expect(use).toHaveBeenCalledExactlyOnceWith(42);
 });
 
 it("only updates changed labels and resets cached state and opacity on release", () => {
@@ -284,6 +311,7 @@ it("retains the tooltip owner when first attaching to a hidden modal window", ()
 			if (shown) native.Hide();
 		},
 		SetHyperlink: vi.fn(),
+		SetToyByItemID: vi.fn(),
 		ClearLines: vi.fn(),
 		SetScale: vi.fn(),
 		SetFrameStrata: vi.fn(),
@@ -300,6 +328,10 @@ it("retains the tooltip owner when first attaching to a hidden modal window", ()
 	tooltip.showItemTooltip(new Frame("window", pool), 42, 500, 500);
 	expect(owner).toBe(window);
 	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42");
+	native.SetHyperlink.mockClear();
+	tooltip.showItemTooltip(new Frame("window", pool), { toy: 43 }, 500, 500);
+	expect(native.SetToyByItemID).toHaveBeenCalledExactlyOnceWith(43);
+	expect(native.SetHyperlink).not.toHaveBeenCalled();
 });
 
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {

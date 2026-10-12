@@ -1,25 +1,31 @@
 import type { ApplicationEvent, IEventBus } from "../../events/types";
 import type { WowFrame } from "../../types";
 import type { FrameType, IFramePoolManager } from "../frame-pool-manager";
+import {
+	setTooltipContent,
+	type TooltipContent,
+	type TooltipDataFrame,
+} from "./tooltip-content";
 
-type NativeTooltip = WowFrame & {
-	SetOwner(owner: WowFrame, anchor: string): void;
-	SetHyperlink(link: string): void;
-	ClearLines(): void;
-	SetScale(scale: number): void;
-	EnableMouse(enabled: boolean): void;
-	IsShown(): boolean;
-	GetWidth(): number;
-	GetHeight(): number;
-	shoppingTooltips?: NativeTooltip[];
-	suppressAutomaticCompareItem?: boolean;
-	shouldRefreshData?: boolean;
-	RefreshData(): void;
-	SetScript(
-		script: "OnUpdate",
-		handler?: (this: void, frame: WowFrame, elapsed: number) => void,
-	): void;
-};
+type NativeTooltip = WowFrame &
+	TooltipDataFrame & {
+		SetOwner(owner: WowFrame, anchor: string): void;
+		SetHyperlink(link: string): void;
+		ClearLines(): void;
+		SetScale(scale: number): void;
+		EnableMouse(enabled: boolean): void;
+		IsShown(): boolean;
+		GetWidth(): number;
+		GetHeight(): number;
+		shoppingTooltips?: NativeTooltip[];
+		suppressAutomaticCompareItem?: boolean;
+		shouldRefreshData?: boolean;
+		RefreshData(): void;
+		SetScript(
+			script: "OnUpdate",
+			handler?: (this: void, frame: WowFrame, elapsed: number) => void,
+		): void;
+	};
 
 /** UI helpers are not part of the generated game API surface. */
 declare global {
@@ -29,7 +35,7 @@ declare global {
 /** Non-interactive item details for the currently focused navigation node. */
 export class ItemTooltip {
 	private tooltips: NativeTooltip[] = [];
-	private item?: string | number;
+	private item?: TooltipContent;
 	private elapsed = 0;
 	private layoutKey?: string;
 	private readonly refresh = () => this.setItem(this.item);
@@ -44,7 +50,7 @@ export class ItemTooltip {
 		for (const event of this.refreshEvents)
 			events.subscribe(event, this.refresh);
 	}
-	setItem(item: string | number | undefined): void {
+	setItem(item: TooltipContent | undefined): void {
 		this.item = item;
 		this.layoutKey = undefined;
 		for (const tooltip of this.tooltips) tooltip.Hide();
@@ -76,7 +82,7 @@ export class ItemTooltip {
 			this.elapsed = 0;
 			if (main.shouldRefreshData) {
 				main.RefreshData();
-				GameTooltip_ShowCompareItem(main);
+				if (typeof this.item !== "object") GameTooltip_ShowCompareItem(main);
 				this.layoutKey = undefined;
 			}
 			this.layout();
@@ -85,10 +91,10 @@ export class ItemTooltip {
 		main.suppressAutomaticCompareItem = true;
 		main.ClearAllPoints();
 		main.SetPoint("TOP", UIParent, "TOP", 0, -32);
-		main.SetHyperlink(typeof item === "number" ? `item:${item}` : item);
+		setTooltipContent(main, item);
 		main.Show();
 		// Blizzard supplies equipped headers, paired-weapon rules and colored stat deltas.
-		GameTooltip_ShowCompareItem(main);
+		if (typeof item !== "object") GameTooltip_ShowCompareItem(main);
 		this.layout();
 	}
 	private layout(): void {

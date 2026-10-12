@@ -88,9 +88,9 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 	publish([toy(3, 0), toy(2, 11), favourite]);
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
-	).toEqual([["toy-1"], ["toy-2"], ["toy-3"]]);
+	).toEqual([["toy-favourite-1"], ["toy-2"], ["toy-1", "toy-3"]]);
 	const node = panel.getNavGrid().at(0)?.at(0);
-	expect(node?.tooltipItem?.()).toBe(1);
+	expect(node?.tooltipItem?.()).toEqual({ toy: 1 });
 	node?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(favourite);
 	node?.onFocus();
@@ -127,6 +127,46 @@ it("defers secure frame creation and rendering until combat ends", () => {
 	publish([toy(1)]);
 	flush();
 	expect(Frame.prototype.setToy).toHaveBeenCalledWith(1);
+});
+
+it("shows collected and total counts including favourites in expansion headers", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([toy(1, 10, true), { ...toy(2, 10), collected: false }, toy(3, 0)]);
+	const titles = vi
+		.mocked(Frame.prototype.setLabel)
+		.mock.calls.filter(([key]) => key === "title")
+		.map(([, label]) => label);
+	expect(titles).toEqual([
+		"Favourites (1 / 1)",
+		"The War Within (1 / 2)",
+		"Classic (1 / 1)",
+	]);
+	panel.refresh();
+	publish([toy(1, 10), toy(2, 10)]);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"title",
+		"The War Within (2 / 2)",
+		"LEFT",
+		0,
+		0,
+		15,
+		460,
+	);
+});
+
+it("darkens uncollected borders and icons and restores collected styling on reuse", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([{ ...toy(1), collected: false }]);
+	expect(Frame.prototype.setColor).toHaveBeenCalledWith(0.12, 0.12, 0.12);
+	expect(Frame.prototype.setOpacity).toHaveBeenLastCalledWith(0.2);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(undefined);
+	panel.refresh();
+	publish([toy(1)]);
+	expect(Frame.prototype.setColor).toHaveBeenLastCalledWith(0.3, 0.34, 0.42);
+	expect(Frame.prototype.setOpacity).toHaveBeenLastCalledWith(1);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(1);
 });
 
 it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {

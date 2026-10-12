@@ -121,7 +121,16 @@ export class ToysPanel implements IPanel {
 				}
 				header.setParent(this.content);
 				header.layout(460, 24, "TOPLEFT", this.content, 0, -top);
-				header.setLabel("title", group.label, "LEFT", 0, 0, 15, 460);
+				const collected = group.toys.filter((toy) => toy.collected).length;
+				header.setLabel(
+					"title",
+					`${group.label} (${collected} / ${group.toys.length})`,
+					"LEFT",
+					0,
+					0,
+					15,
+					460,
+				);
 				header.show();
 			});
 			const firstRow = grid.length;
@@ -159,12 +168,13 @@ export class ToysPanel implements IPanel {
 						(index % columns) * spacing,
 						-cellTop,
 					);
-					if (toy.favourite) cell.border.setColor(1, 0.82, 0);
+					if (!toy.collected) cell.border.setColor(0.12, 0.12, 0.12);
+					else if (toy.favourite) cell.border.setColor(1, 0.82, 0);
 					else cell.border.setColor(0.3, 0.34, 0.42);
 					cell.icon.setParent(cell.border);
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(toy.icon);
-					cell.icon.setOpacity(toy.collected ? 1 : 0.35);
+					cell.icon.setOpacity(toy.collected ? 1 : 0.2);
 					cell.icon.setToy(toy.collected ? toy.id : undefined);
 					cell.cooldown.fill(cell.icon);
 					const cooldown = this.client.getCooldown(toy.id);
@@ -176,7 +186,7 @@ export class ToysPanel implements IPanel {
 					const current = () =>
 						this.mounted && !this.dirty && generation === this.generation;
 					const node = control.navigationNode(
-						`toy-${toy.id}`,
+						group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
 						() => {},
 						() =>
 							this.viewport.revealVerticalRange(
@@ -188,7 +198,7 @@ export class ToysPanel implements IPanel {
 					grid.at(firstRow + row)?.push({
 						...node,
 						navColumn: index % columns,
-						tooltipItem: () => (current() ? toy.id : undefined),
+						tooltipItem: () => (current() ? { toy: toy.id } : undefined),
 						onAlternate: () => {
 							if (current() && this.client.canUse(toy.id)) control.click();
 						},
