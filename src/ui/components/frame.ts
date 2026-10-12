@@ -26,7 +26,32 @@ type ItemTooltipFrame = WowFrame &
 		BottomOverlay: { SetAlpha(alpha: number): void };
 	};
 
+export interface AnimatedAtlas {
+	readonly atlas: string;
+	readonly rows: number;
+	readonly columns: number;
+	readonly frames: number;
+	readonly duration: number;
+}
+interface FlipbookAnimation {
+	SetDuration(seconds: number): void;
+	SetOrder(order: number): void;
+	SetFlipBookRows(rows: number): void;
+	SetFlipBookColumns(columns: number): void;
+	SetFlipBookFrames(frames: number): void;
+}
+interface AtlasAnimationGroup {
+	CreateAnimation(type: "FlipBook"): FlipbookAnimation;
+	SetLooping(mode: "REPEAT"): void;
+	Play(): void;
+	Stop(): void;
+	IsPlaying(): boolean;
+}
+
 export class Frame implements IUIComponent {
+	private animation?: AtlasAnimationGroup;
+	private flipbook?: FlipbookAnimation;
+	private animatedAtlas?: AnimatedAtlas;
 	private native?: WowFrame;
 	private clickBindings?: SecureClickBindings;
 	private hoverTooltipConfigured = false;
@@ -651,10 +676,33 @@ export class Frame implements IUIComponent {
 		this.acquire();
 		this.texture?.SetColorTexture(0, 0, 0, 1);
 	}
+	setAnimatedAtlas(atlas: AnimatedAtlas): void {
+		this.acquire();
+		const texture = this.texture as WowTexture & {
+			SetAtlas(atlas: string): void;
+			CreateAnimationGroup(): AtlasAnimationGroup;
+		};
+		if (!this.animation) {
+			this.animation = texture.CreateAnimationGroup();
+			this.animation.SetLooping("REPEAT");
+			this.flipbook = this.animation.CreateAnimation("FlipBook");
+			this.flipbook.SetOrder(1);
+		}
+		if (this.animatedAtlas === atlas) return;
+		this.animation.Stop();
+		texture.SetAtlas(atlas.atlas);
+		this.flipbook?.SetDuration(atlas.duration);
+		this.flipbook?.SetFlipBookRows(atlas.rows);
+		this.flipbook?.SetFlipBookColumns(atlas.columns);
+		this.flipbook?.SetFlipBookFrames(atlas.frames);
+		this.animatedAtlas = atlas;
+	}
 	show(): void {
 		this.acquire().Show();
+		if (this.animation && !this.animation.IsPlaying()) this.animation.Play();
 	}
 	hide(): void {
+		this.animation?.Stop();
 		this.native?.Hide();
 	}
 	setParent(parent: IUIComponent): void {
@@ -663,6 +711,10 @@ export class Frame implements IUIComponent {
 		this.acquire().SetParent(parent.acquire());
 	}
 	destroy(): void {
+		this.animation?.Stop();
+		this.animation = undefined;
+		this.flipbook = undefined;
+		this.animatedAtlas = undefined;
 		this.hoverTooltip?.destroy();
 		this.hoverTooltip = undefined;
 		this.clickBindings?.destroy();
