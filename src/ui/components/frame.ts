@@ -1,11 +1,13 @@
 import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { IUIComponent } from "./types";
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private docked = false;
 	private closeName?: string;
+	private gamePadInputConfigured = false;
 	private texture?: WowTexture;
 	private readonly labels = new Map<string, WowFontString>();
 	constructor(
@@ -132,6 +134,76 @@ export class Frame implements IUIComponent {
 				Math.min(native.GetVerticalScrollRange(), native.GetVerticalScroll()),
 			),
 		);
+	}
+	revealVerticalRange(
+		top: number,
+		bottom: number,
+		contentHeight: number,
+	): void {
+		const native = this.acquire() as WowFrame & { GetHeight(): number };
+		const height = native.GetHeight();
+		const offset = Math.max(0, (height - contentHeight) / 2);
+		const scroll = native.GetVerticalScroll();
+		const target =
+			top + offset < scroll
+				? top + offset
+				: bottom + offset > scroll + height
+					? bottom + offset - height
+					: scroll;
+		native.SetVerticalScroll(
+			Math.max(0, Math.min(native.GetVerticalScrollRange(), target)),
+		);
+	}
+	setFocused(focused: boolean): void {
+		const overlay = this.pool.getDecoration(this.acquire(), "navigation-focus");
+		overlay.SetAllPoints();
+		overlay.SetColorTexture(1, 0.82, 0, focused ? 0.45 : 0);
+	}
+	navigationNode(
+		navId: string,
+		interact: () => void,
+		focus?: () => void,
+	): INavigable {
+		return {
+			navId,
+			onFocus: () => {
+				this.setFocused(true);
+				focus?.();
+			},
+			onBlur: () => this.setFocused(false),
+			onInteract: () => interact(),
+		};
+	}
+	setGamePadInput(callback?: (button: string) => boolean): void {
+		if (!callback && !this.native) return;
+		const native = this.acquire() as WowFrame & {
+			EnableGamePadButton(enabled: boolean): void;
+			SetPropagateKeyboardInput(propagate: boolean): void;
+			SetFrameLevel(level: number): void;
+			SetScript(
+				script: "OnGamePadButtonDown",
+				handler?: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		this.gamePadInputConfigured = true;
+		native.EnableGamePadButton(callback !== undefined);
+		native.SetScript(
+			"OnGamePadButtonDown",
+			callback
+				? (_frame, button) => {
+						const consumed = callback(button);
+						if (!InCombatLockdown())
+							native.SetPropagateKeyboardInput(!consumed);
+					}
+				: undefined,
+		);
+		if (callback) {
+			native.SetFrameStrata("DIALOG");
+			native.SetFrameLevel(100);
+			this.docked = true;
+			native.SetPropagateKeyboardInput(true);
+			this.show();
+		} else this.hide();
 	}
 	setIcon(iconFileId: number): void {
 		this.acquire();
@@ -279,6 +351,13 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.gamePadInputConfigured) {
+			this.setGamePadInput();
+			(
+				this.native as WowFrame & { SetFrameLevel(level: number): void }
+			).SetFrameLevel(0);
+			this.gamePadInputConfigured = false;
+		}
 		if (this.closeName) {
 			(
 				this.native as WowFrame & {

@@ -5,6 +5,74 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {
+	let scroll = 0;
+	const native = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+		GetHeight: () => 100,
+		GetVerticalScroll: () => scroll,
+		GetVerticalScrollRange: () => 300,
+		SetVerticalScroll: vi.fn((value: number) => {
+			scroll = value;
+		}),
+	} as unknown as WowFrame;
+	const frame = new Frame(
+		"viewport",
+		new FramePoolManager({ createFrame: () => native }),
+		"ScrollFrame",
+	);
+	frame.revealVerticalRange(200, 242, 400);
+	expect(scroll).toBe(142);
+	frame.revealVerticalRange(20, 62, 400);
+	expect(scroll).toBe(20);
+	frame.revealVerticalRange(380, 422, 400);
+	expect(scroll).toBe(300);
+});
+
+it("captures handled gamepad buttons, propagates others and resets input before pooling", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	const scripts = new Map<
+		string,
+		((frame: unknown, button: string) => void) | undefined
+	>();
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		SetSize: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+		EnableGamePadButton: vi.fn(),
+		SetPropagateKeyboardInput: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetFrameLevel: vi.fn(),
+		SetScript: (
+			script: string,
+			handler?: (frame: unknown, button: string) => void,
+		) => scripts.set(script, handler),
+	};
+	const frame = new Frame(
+		"controller",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	frame.setGamePadInput((button) => button === "PADDUP");
+	scripts.get("OnGamePadButtonDown")?.(native, "PADDUP");
+	expect(native.SetPropagateKeyboardInput).toHaveBeenLastCalledWith(false);
+	scripts.get("OnGamePadButtonDown")?.(native, "PAD2");
+	expect(native.SetPropagateKeyboardInput).toHaveBeenLastCalledWith(true);
+	frame.destroy();
+	expect(native.EnableGamePadButton).toHaveBeenLastCalledWith(false);
+	expect(scripts.get("OnGamePadButtonDown")).toBeUndefined();
+	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(0);
+	expect(native.SetFrameStrata).toHaveBeenLastCalledWith("PARENT");
+});
+
 it("registers Escape closing once and removes its handler and global alias before pooled reuse", () => {
 	const globals: Record<string, unknown> = {};
 	const specialFrames: string[] = [];

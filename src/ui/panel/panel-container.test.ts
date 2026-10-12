@@ -1,10 +1,13 @@
 import { expect, it, vi } from "vitest";
+import { createTestEventBus } from "../../events/test-event-bus";
 import type { Frame } from "../components/frame";
+import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
 it.each(["left", "right"] as const)(
 	"keeps %s tabs flush against the container while switching panels",
 	(position) => {
+		const navigation = new NavigationManager(createTestEventBus());
 		const frame = {
 			onClose: vi.fn(),
 			dock: vi.fn(),
@@ -34,11 +37,19 @@ it.each(["left", "right"] as const)(
 					hide: vi.fn(),
 					destroy: vi.fn(),
 					onClick: vi.fn(),
+					navigationNode: vi.fn((navId: string, interact: () => void) => ({
+						navId,
+						onFocus: vi.fn(),
+						onBlur: vi.fn(),
+						onInteract: interact,
+					})),
 				};
 				if (isButton) buttons.push(button);
 				else borders.push(button as unknown as Frame);
 				return button as unknown as Frame;
 			},
+			undefined,
+			navigation,
 		);
 		const first = {
 			id: "first",
@@ -91,7 +102,13 @@ it.each(["left", "right"] as const)(
 		expect(frame.hide).toHaveBeenCalled();
 		container.swapPanel(first);
 		expect(buttons).toHaveLength(2);
+		navigation.moveDown();
+		expect(navigation.focusedId).toBe(`${position}-tab-second`);
+		navigation.interact();
+		expect(container.activePanelId).toBe("second");
+		expect(navigation.focusedId).toBe(`${position}-tab-second`);
 		container.clear();
+		expect(navigation.focusedId).toBeUndefined();
 	},
 );
 

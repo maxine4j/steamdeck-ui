@@ -78,6 +78,7 @@ export class WowEventBus implements IEventBus {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
 		this.frame.RegisterEvent("PLAYER_LOGIN");
+		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
 		this.frame.RegisterEvent("BAG_OPEN");
 		this.frame.RegisterEvent("BAG_CLOSED");
@@ -96,6 +97,7 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
+			if (event === "PLAYER_REGEN_DISABLED") this.emit("COMBAT_STARTED");
 			if (actionBarEvents.includes(event)) this.emit("ACTION_BAR_CHANGED");
 			if (actionCursorEvents.includes(event))
 				this.emit("ACTION_BAR_CURSOR_CHANGED");

@@ -5,6 +5,7 @@ import type {
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import {
 	commaNumber,
@@ -39,6 +40,8 @@ export class BagsPanel implements IPanel {
 	private mode: GroupMode = "category";
 	private money = 0;
 	private mounted = false;
+	private navGrid: NavGrid = [];
+	private navigationChanged?: () => void;
 	constructor(
 		public readonly id: string,
 		public readonly title: string,
@@ -69,9 +72,7 @@ export class BagsPanel implements IPanel {
 		this.toggle.setColor(0.15, 0.18, 0.24);
 		this.toggle.onClick((button) => {
 			if (button !== "LeftButton") return;
-			this.mode = this.mode === "category" ? "expansion" : "category";
-			this.viewport.resetScroll();
-			this.render();
+			this.toggleGrouping();
 		});
 		this.toggle.show();
 		this.viewport.inset(this.frame, 16, 58, 16, 48);
@@ -97,6 +98,15 @@ export class BagsPanel implements IPanel {
 		);
 	}
 	private render(): void {
+		const grid: NavGrid = [
+			[
+				this.toggle.navigationNode(`${this.id}-group-toggle`, () =>
+					this.toggleGrouping(),
+				),
+			],
+		];
+		let navRow = 1;
+		let navRowHeight = 0;
 		this.toggle.setLabel(
 			"mode",
 			this.mode === "category" ? "Group: Category" : "Group: Expansion",
@@ -140,6 +150,21 @@ export class BagsPanel implements IPanel {
 				cell.icon.layout(38, 38, "CENTER", cell.border);
 				cell.icon.setIcon(item.iconFileId);
 				const source = item.sources.at(0);
+				const top = y + 28 + Math.floor(itemIndex / itemsPerRow) * itemSpacing;
+				const row = navRow + Math.floor(itemIndex / itemsPerRow);
+				const cells = grid.at(row) ?? [];
+				grid[row] = cells;
+				const node = cell.icon.navigationNode(
+					`${this.id}-item-${item.itemId}-${source?.bagId}-${source?.slotId}`,
+					() => {
+						if (this.mounted && source) this.actions.useItem(source);
+					},
+					() => this.viewport.revealVerticalRange(top, top + 42, y),
+				);
+				cells.push({
+					...node,
+					navColumn: (groupIndex % 2) * itemsPerRow + (itemIndex % itemsPerRow),
+				});
 				cell.icon.onClick((button) => {
 					if (this.mounted && source && button === "RightButton")
 						this.actions.useItem(source);
@@ -171,9 +196,15 @@ export class BagsPanel implements IPanel {
 				rowHeight,
 				28 + Math.ceil(group.items.length / itemsPerRow) * itemSpacing + 14,
 			);
+			navRowHeight = Math.max(
+				navRowHeight,
+				Math.ceil(group.items.length / itemsPerRow),
+			);
 			if (groupIndex % 2 === 1 || groupIndex === groups.length - 1) {
 				y += rowHeight;
 				rowHeight = 0;
+				navRow += navRowHeight;
+				navRowHeight = 0;
 			}
 		});
 		this.content.layoutVerticallyCentered(460, Math.max(1, y), this.viewport);
@@ -191,13 +222,25 @@ export class BagsPanel implements IPanel {
 		}
 		for (let i = groups.length; i < this.headers.length; i++)
 			this.headers.at(i)?.hide();
+		this.navGrid = grid;
+		this.navigationChanged?.();
+	}
+	private toggleGrouping(): void {
+		if (!this.mounted) return;
+		this.mode = this.mode === "category" ? "expansion" : "category";
+		this.viewport.resetScroll();
+		this.render();
+	}
+	setNavigationChanged(callback?: () => void): void {
+		this.navigationChanged = callback;
 	}
 	onUnmount(): void {
 		this.mounted = false;
 		this.frame.hide();
+		this.navGrid = [];
 	}
-	getNavGrid(): [] {
-		return [];
+	getNavGrid(): NavGrid {
+		return this.navGrid;
 	}
 	destroy(): void {
 		this.onUnmount();

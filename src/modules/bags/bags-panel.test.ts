@@ -6,6 +6,9 @@ import { BagsPanel } from "./bags-panel";
 
 it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
 	const layout = vi.spyOn(Frame.prototype, "layout");
+	const focus = vi
+		.spyOn(Frame.prototype, "setFocused")
+		.mockImplementation(() => {});
 	const labels: { text: string }[] = [];
 	const colors = vi.fn();
 	let viewportHeight = 600;
@@ -136,7 +139,20 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(texts()).toContain("Group: Expansion");
 	expect(texts()).toContain("The War Within");
 	expect(factory.createFrame).toHaveBeenCalledTimes(count);
+	const grid = panel.getNavGrid();
+	expect(grid.at(0)?.at(0)?.navId).toBe("bags-group-toggle");
+	expect(grid.flat().filter(Boolean)).toHaveLength(3);
+	const reagent = grid.flat().find((node) => node?.navId.includes("item-42"));
+	reagent?.onFocus();
+	expect(focus).toHaveBeenLastCalledWith(true);
+	reagent?.onInteract();
+	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	reagent?.onBlur();
+	expect(focus).toHaveBeenLastCalledWith(false);
 	panel.onUnmount();
+	expect(panel.getNavGrid()).toEqual([]);
+	reagent?.onInteract();
+	expect(actions.useItem).toHaveBeenCalledTimes(2);
 	panel.onMount(parent);
 	expect(factory.createFrame).toHaveBeenCalledTimes(count);
 	panel.setItems([{ ...cloth, count: 1 }]);
@@ -172,6 +188,11 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(positions("bags-border-6")).toEqual([
 		[42, 42, "TOPLEFT", expect.any(Frame), 234, -28],
 	]);
+	const groupedGrid = panel.getNavGrid();
+	expect(groupedGrid.at(1)?.at(4)?.navId).toContain("item-104");
+	expect(groupedGrid.at(2)?.at(0)?.navId).toContain("item-105");
+	expect(groupedGrid.at(2)?.at(5)).toBeUndefined();
+	expect(groupedGrid.at(3)?.at(0)?.navId).toContain("item-200");
 	expect(positions("bags-header-2")).toEqual([
 		[226, 24, "TOPLEFT", expect.any(Frame), 0, -134],
 	]);
@@ -208,4 +229,5 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	).toBe(true);
 	expect(labels.every((label) => label.text === "")).toBe(true);
 	layout.mockRestore();
+	focus.mockRestore();
 });

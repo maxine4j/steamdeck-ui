@@ -6,6 +6,8 @@ Run `yarn build`, then copy the contents of `dist/` into an `Interface/AddOns/St
 
 Startup injects the native frame factory, event bus, frame pool, panel orchestrator, clients, and module manager. `PLAYER_LOGIN` starts the modules once. Bags and character-related features use docked side panels. Frames and background textures are pooled.
 
+With a panel open, the D-pad moves a gold focus highlight and A activates the focused control. Bags support the grouping toggle and every displayed item; A uses an item. Focused items scroll into view, and focus follows the item when bags refresh. Move toward the dock tabs to select them, then press A to switch panels. At the outer navigation edge you can move between open side containers. Other panel contents do not expose navigation yet. Navigation pauses during combat and resumes afterward; modifier combinations continue to use the action bar. WoW's native gamepad input must be enabled.
+
 The cross bar replaces the eight standard action bars using ConsolePort's Crossbar: Minimal layout: two four-button crosses with bumpers above triggers between them. Default bars remain hidden except while dragging spells or other actions; dropping or canceling the drag hides them again. Slots 1–4 map clockwise to D-pad Up, Right, Down, Left; slots 5–8 map to Y, B, A, X in their Xbox positions. RT uses slot 9 and RB uses slot 10. LT and LB display their Shift and Control modifier roles without action bindings. Place actions in the first ten slots of each Retail Edit Mode bar:
 
 | Hold | Action bar |

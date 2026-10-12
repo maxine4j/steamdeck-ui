@@ -16,6 +16,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			const texts: string[] = [];
 			labels.push(texts);
 			const texture = {
+				ClearAllPoints: vi.fn(),
 				SetAllPoints: vi.fn(),
 				SetColorTexture: vi.fn(),
 				SetTexture: vi.fn(),
@@ -168,6 +169,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			bind: vi.fn(),
 			getSlotDriver: vi.fn(),
 		},
+		{ setActive: vi.fn(), shutdown: vi.fn() },
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -216,7 +218,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	);
 	const count = frames.length;
 	const bagIcon = frames.at(-1);
+	expect(app.navigation.focusedId).toBe("bags-group-toggle");
+	app.navigation.moveDown();
+	expect(app.navigation.focusedId).toContain("bags-item-42");
 	events.emit("BAG_UPDATE_DELAYED");
+	expect(app.navigation.focusedId).toContain("bags-item-42");
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	expect(frames).toHaveLength(count);
 	const rightFrame = frames.at(1);
@@ -281,6 +287,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	inventory.getItems.mockReturnValue([]);
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(bagIcon?.Hide).toHaveBeenCalled();
+	expect(app.navigation.focusedId).not.toContain("bags-item-");
 	app.stop();
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(inventory.getItems).toHaveBeenCalledTimes(4);

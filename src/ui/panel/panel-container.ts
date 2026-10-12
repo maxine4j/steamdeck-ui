@@ -1,9 +1,15 @@
 import type { Frame } from "../components/frame";
+import type {
+	GridNeighbors,
+	INavManager,
+} from "../navigation/navigation-manager";
+import type { NavGrid } from "../navigation/types";
 import type { DockPosition, IPanel, IPanelContainer } from "./types";
 export class PanelContainer implements IPanelContainer {
 	private readonly panels: IPanel[] = [];
 	private readonly tabs: { border: Frame; button: Frame }[] = [];
 	private readonly stack: IPanel[] = [];
+	private tabGrid: NavGrid = [];
 	get activePanelId(): string | undefined {
 		return this.stack.at(-1)?.id;
 	}
@@ -13,9 +19,12 @@ export class PanelContainer implements IPanelContainer {
 		private readonly frame: Frame,
 		private readonly createTab?: (id: string, button: boolean) => Frame,
 		private readonly onTabSelected?: (panel: IPanel) => void,
+		private readonly navigation?: INavManager,
+		private readonly navigationNeighbors?: GridNeighbors,
 	) {
 		this.frame.dock(position, 500);
 		this.frame.onClose(() => {
+			this.releaseNavigation();
 			const active = this.stack.at(-1);
 			this.stack.length = 0;
 			active?.onUnmount();
@@ -28,10 +37,14 @@ export class PanelContainer implements IPanelContainer {
 	registerPanel(panel: IPanel): void {
 		if (this.panels.some((existing) => existing.id === panel.id)) return;
 		this.panels.push(panel);
-		if (this.stack.length > 0) this.renderTabs();
+		if (this.stack.length > 0) {
+			this.renderTabs();
+			this.navigation?.refreshGrid(this.id);
+		}
 	}
 	pushPanel(panel: IPanel): void {
 		this.registerPanel(panel);
+		this.stack.at(-1)?.setNavigationChanged?.();
 		this.stack.at(-1)?.onUnmount();
 		this.stack.push(panel);
 		this.mount(panel);
@@ -40,12 +53,15 @@ export class PanelContainer implements IPanelContainer {
 		this.frame.show();
 		this.renderTabs();
 		panel.onMount(this.frame);
+		panel.setNavigationChanged?.(() => this.navigation?.refreshGrid(this.id));
+		this.focus();
 	}
 	private renderTabs(): void {
 		const createTab = this.createTab;
 		if (!createTab || this.position === "fullscreen") return;
 		const edge = this.position === "left" ? "RIGHT" : "LEFT";
 		const x = this.position === "left" ? 44 : -44;
+		this.tabGrid = [];
 		this.panels.forEach((panel, index) => {
 			let tab = this.tabs.at(index);
 			if (!tab) {
@@ -71,11 +87,19 @@ export class PanelContainer implements IPanelContainer {
 					this.swapPanel(panel);
 				}
 			});
+			this.tabGrid.push([
+				tab.button.navigationNode(`${this.id}-tab-${panel.id}`, () => {
+					if (this.stack.length === 0) return;
+					this.onTabSelected?.(panel);
+					this.swapPanel(panel);
+				}),
+			]);
 			tab.border.show();
 			tab.button.show();
 		});
 	}
 	popPanel(): void {
+		this.releaseNavigation();
 		this.stack.pop()?.onUnmount();
 		const previous = this.stack.at(-1);
 		if (previous) this.mount(previous);
@@ -88,14 +112,52 @@ export class PanelContainer implements IPanelContainer {
 		}
 	}
 	swapPanel(panel: IPanel): void {
-		if (this.stack.at(-1) === panel) return;
+		if (this.stack.at(-1) === panel) {
+			this.focus();
+			return;
+		}
+		this.stack.at(-1)?.setNavigationChanged?.();
 		this.registerPanel(panel);
 		this.stack.pop()?.onUnmount();
 		this.stack.push(panel);
 		this.mount(panel);
 	}
-	focus(): void {}
+	private getNavGrid(): NavGrid {
+		const content = this.stack.at(-1)?.getNavGrid() ?? [];
+		let width = 1;
+		for (const row of content)
+			row.forEach((node, index) => {
+				width = Math.max(width, (node.navColumn ?? index) + 1);
+			});
+		const grid: NavGrid = [];
+		for (let i = 0; i < Math.max(content.length, this.tabGrid.length); i++) {
+			const row = (content.at(i) ?? []).map((node, index) => ({
+				...node,
+				navColumn:
+					(node.navColumn ?? index) + (this.position === "right" ? 1 : 0),
+			}));
+			const tab = this.tabGrid.at(i)?.at(0);
+			if (tab)
+				row.push({ ...tab, navColumn: this.position === "right" ? 0 : width });
+			grid.push(row);
+		}
+		return grid;
+	}
+	focus(): void {
+		if (!this.stack.length) return;
+		this.navigation?.registerGrid(
+			this.id,
+			() => this.getNavGrid(),
+			this.navigationNeighbors,
+		);
+		this.navigation?.setActiveGrid(this.id);
+	}
+	private releaseNavigation(): void {
+		this.stack.at(-1)?.setNavigationChanged?.();
+		this.navigation?.unregisterGrid(this.id);
+	}
 	clear(): void {
+		this.releaseNavigation();
 		this.stack.at(-1)?.onUnmount();
 		this.stack.length = 0;
 		for (const tab of this.tabs) {

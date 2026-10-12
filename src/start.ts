@@ -1,5 +1,6 @@
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
+import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
@@ -26,6 +27,7 @@ import { TitlesPanel } from "./modules/titles/titles-panel";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
+import { NavigationManager } from "./ui/navigation/navigation-manager";
 import { PanelContainer } from "./ui/panel/panel-container";
 import { UIOrchestrator } from "./ui/ui-orchestrator";
 export function startSteamDeckUI(
@@ -37,7 +39,11 @@ export function startSteamDeckUI(
 	titles: ITitlesClient,
 	mounts: IMountsClient,
 	actions: IActionBarClient,
+	controller: IControllerInputClient,
 ) {
+	const navigation = new NavigationManager(events, (active) =>
+		controller.setActive(active),
+	);
 	const pool = new FramePoolManager(factory);
 	const characterSuppression = new FrameSuppression(pool);
 	const builtInReputation = new BuiltInReputation(characterSuppression, events);
@@ -53,6 +59,12 @@ export function startSteamDeckUI(
 					else if (selected.id === "paper-doll" || selected.id === "titles")
 						character.open();
 				},
+				navigation,
+				position === "left"
+					? { right: "right" }
+					: position === "right"
+						? { left: "left" }
+						: {},
 			),
 	);
 	const panel = new BagsPanel(
@@ -116,9 +128,12 @@ export function startSteamDeckUI(
 	events.subscribe("PLAYER_LOGIN", login);
 	return {
 		ui,
+		navigation,
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			navigation.destroy();
+			controller.shutdown();
 			ui.destroy();
 			panel.destroy();
 			paperDoll.destroy();

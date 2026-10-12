@@ -1,4 +1,10 @@
 export type ApplicationEvent =
+	| "NAV_UP"
+	| "NAV_DOWN"
+	| "NAV_LEFT"
+	| "NAV_RIGHT"
+	| "NAV_INTERACT"
+	| "COMBAT_STARTED"
 	| "ACTION_BAR_CHANGED"
 	| "ACTION_BAR_CURSOR_CHANGED"
 	| "COMBAT_ENDED"

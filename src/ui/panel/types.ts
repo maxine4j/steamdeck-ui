@@ -1,5 +1,5 @@
 import type { IUIComponent } from "../components/types";
-import type { INavigable } from "../navigation/types";
+import type { NavGrid } from "../navigation/types";
 
 export type DockPosition = "left" | "right" | "fullscreen";
 
@@ -13,7 +13,8 @@ export interface IPanel {
 	onUnmount(): void;
 
 	// Returns the D-Pad routable elements for this panel
-	getNavGrid(): INavigable[][];
+	getNavGrid(): NavGrid;
+	setNavigationChanged?(callback?: () => void): void;
 }
 
 export interface IPanelContainer {
