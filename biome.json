@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": true,
-		"includes": ["src/**/*.ts", "!src/wow.d.ts"]
+		"includes": ["src/**/*.ts", "scripts/**/*.mjs", "!src/wow.d.ts"]
 	},
 	"formatter": { "enabled": true, "indentStyle": "tab" },
 	"linter": {

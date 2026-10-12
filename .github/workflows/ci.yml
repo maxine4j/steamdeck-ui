@@ -1,0 +1,73 @@
+name: CI and releases
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn test
+      - run: yarn typecheck
+      - run: yarn lint
+      - run: yarn build
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: addon-dist
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: addon-dist
+          path: dist/
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$REF_TYPE" == tag ]]; then
+            version="$REF_NAME"
+            options=(--verify-tag)
+          else
+            version="main-${GITHUB_SHA:0:12}"
+            options=(--target "$GITHUB_SHA" --prerelease --latest=false)
+          fi
+          node scripts/package-addon.mjs dist SteamDeckUI.zip "$version"
+          if gh release view "$version" >/dev/null 2>&1; then
+            gh release upload "$version" SteamDeckUI.zip --clobber
+          else
+            gh release create "$version" SteamDeckUI.zip --title "$version" --generate-notes "${options[@]}"
+          fi
