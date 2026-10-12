@@ -31,6 +31,7 @@ function setup(className = "HUNTER") {
 		GetContainerItemQuestInfo: () => ({ isQuestItem: true }),
 	});
 	vi.stubGlobal("C_Item", {
+		GetItemIDForItemInfo: () => 100,
 		IsUsableItem: (item: number) => [item !== 102],
 		GetItemIconByID: (item: number) => item + 1,
 	});

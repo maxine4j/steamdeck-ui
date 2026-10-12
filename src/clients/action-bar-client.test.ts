@@ -7,11 +7,26 @@ it("routes the extra-action control through a secure extra-bar state with a zone
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getSlotDriver(6, "EXTRA");
 	expect(driver.condition).toBe(
-		"[mod:shift,mod:ctrl] 178; [mod:shift] 170; [mod:ctrl] 162; [extrabar] 169; -2",
+		"[mod:shift,mod:ctrl] 178; [mod:shift] 170; [mod:ctrl] 162; [extrabar] 217; -2",
 	);
 	expect(driver.response).toContain(
 		'self:SetAttribute("type", action == -2 and "spell" or "action")',
 	);
+});
+
+it("keeps unmodified Down on random favourite mount during all main-bar states", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	const driver = client.getSlotDriver(7, "MOUNT");
+	expect(driver.condition).toBe(
+		"[mod:shift,mod:ctrl] 179; [mod:shift] 171; [mod:ctrl] 163; -3",
+	);
+	expect(driver.response).toContain(
+		'self:SetAttribute("spell", action == -3 and 150544 or nil)',
+	);
+	expect(driver.response).toContain(
+		'self:SetAttribute("type", action == -3 and "spell" or "action")',
+	);
+	expect(client.read(-3).icon).toBeDefined();
 });
 
 it("reads the highest-priority zone spell and leaves an absent zone ability empty", () => {

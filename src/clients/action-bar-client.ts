@@ -78,7 +78,7 @@ export interface IActionBarClient {
 	syncBuiltInVisibility(): void;
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
 	): SlotDriver;
 	getRingDriver(kind?: ActionRingKind): RadialDriver;
 	readRing(kind: ActionRingKind, slot: number): SlotVisual;
@@ -113,7 +113,7 @@ export class ActionBarClient implements IActionBarClient {
 	}
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
 	): SlotDriver {
 		// Retail Edit Mode bars 6/7/8 use action pages 13/14/15 (ConsolePort Actionbar.lua).
 		// Distinct states trigger the secure handler when the main bar changes.
@@ -127,7 +127,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "EXTRA" ? "[extrabar] 169; -2" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "MOUNT" ? "-3" : defaultCommand === "EXTRA" ? "[extrabar] 217; -2" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -147,7 +147,7 @@ if not action then
 	end
 	action = (page - 1) * 12 + ${slot}
 end
-${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
+${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spell" or "action")\n' : defaultCommand === "MOUNT" ? 'self:SetAttribute("spell", action == -3 and 150544 or nil)\nself:SetAttribute("type", action == -3 and "spell" or "action")\n' : ""}self:SetAttribute("action", action)`,
 		};
 	}
 	getRingDriver(kind: ActionRingKind = "abilities"): RadialDriver {
@@ -248,8 +248,14 @@ if pos then return pos.x, pos.y, pos.len end`,
 		const [count] = C_QuestLog.GetNumQuestLogEntries();
 		for (let index = 1; index <= count; index++) {
 			const [link, icon] = GetQuestLogSpecialItemInfo(index);
-			const id = link?.match(/item:(\d+)/)?.at(1);
-			if (id) addItem(Number(id), icon);
+			if (!link) continue;
+			const id = (
+				C_Item.GetItemIDForItemInfo as unknown as (
+					this: void,
+					info: string,
+				) => number | undefined
+			)(link);
+			if (id) addItem(id, icon);
 		}
 		for (let bag = 0; bag <= 5; bag++) {
 			for (
@@ -345,6 +351,8 @@ if pos then return pos.x, pos.y, pos.len end`,
 		} else this.disableBuiltIn();
 	}
 	read(slot: number): SlotVisual {
+		if (slot === -3)
+			return { icon: "Interface\\Icons\\Ability_Mount_RidingHorse" };
 		if (slot === -2) {
 			// Generated declarations flatten this table and alter Blizzard's field casing.
 			const abilities = C_ZoneAbility.GetActiveAbilities() as unknown as {

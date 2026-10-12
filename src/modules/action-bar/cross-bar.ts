@@ -13,12 +13,13 @@ const controls: readonly {
 	y: number;
 	slot: number;
 	defaultCommand?: "JUMP";
+	utility?: "RING" | "MOUNT";
 }[] = [
 	// ConsolePort's Crossbar: Minimal uses 50px horizontal / 25px vertical offsets.
-	{ key: "PADDUP", label: "↑", x: -200, y: 106, slot: 5 },
-	{ key: "PADDRIGHT", label: "→", x: -150, y: 81, slot: 6 },
-	{ key: "PADDDOWN", label: "↓", x: -200, y: 56, slot: 7 },
-	{ key: "PADDLEFT", label: "←", x: -250, y: 81, slot: 8 },
+	{ key: "PADDUP", label: "↑", x: -200, y: 106, slot: 5, utility: "RING" },
+	{ key: "PADDRIGHT", label: "→", x: -150, y: 81, slot: 6, utility: "RING" },
+	{ key: "PADDDOWN", label: "↓", x: -200, y: 56, slot: 7, utility: "MOUNT" },
+	{ key: "PADDLEFT", label: "←", x: -250, y: 81, slot: 8, utility: "RING" },
 	{ key: "PAD4", label: "|cffffe74fY|r", x: 200, y: 106, slot: 2 },
 	{ key: "PAD2", label: "|cffff4451B|r", x: 250, y: 81, slot: 3 },
 	{
@@ -38,7 +39,6 @@ const modifiers = [
 	{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 },
 ];
 export class CrossBar {
-	private extraButton?: SecureSlotButton;
 	private readonly buttons: SecureSlotButton[] = [];
 	private readonly indicators: Frame[] = [];
 	private readonly read: SlotReader = (slot) => this.client.read(slot);
@@ -65,46 +65,34 @@ export class CrossBar {
 					control.label,
 					control.x,
 					control.y,
-					control.key === "PADDUP"
+					control.utility === "RING"
 						? -1
-						: control.key === "PADDRIGHT"
-							? -2
+						: control.utility === "MOUNT"
+							? -3
 							: control.defaultCommand
 								? 0
 								: control.slot,
 					this.client.getSlotDriver(
 						control.slot,
-						control.key === "PADDUP"
-							? "RING"
-							: control.key === "PADDRIGHT"
-								? "EXTRA"
-								: control.defaultCommand,
+						control.utility ?? control.defaultCommand,
 					),
 					this.read,
 				);
-				if (control.key === "PADDRIGHT") this.extraButton = button;
 				return {
 					key: control.key,
 					target: button.getBindingTarget(),
 					defaultCommand: control.defaultCommand,
-					...(control.key === "PADDUP"
+					...(control.utility === "RING"
 						? { prefixes: ["SHIFT-", "CTRL-", "CTRL-SHIFT-"] as const }
 						: {}),
 				};
 			}),
 		);
-		this.syncZoneSpell();
-	}
-	private syncZoneSpell(): void {
-		if (this.extraButton && this.client.canModify())
-			this.extraButton.setSpell(this.client.read(-2).spell);
 	}
 	refresh(): void {
-		this.syncZoneSpell();
 		for (const button of this.buttons) button.refresh(this.read);
 	}
 	destroy(): void {
-		this.extraButton = undefined;
 		for (const button of this.buttons) button.destroy();
 		this.buttons.length = 0;
 		for (const indicator of this.indicators) indicator.destroy();
