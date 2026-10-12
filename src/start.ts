@@ -246,6 +246,9 @@ export function startSteamDeckUI(
 				crossBar.refresh();
 				abilityRing.refresh();
 			},
+			refreshContents(): void {
+				abilityRing.refreshContents();
+			},
 			destroy(): void {
 				abilityRing.destroy();
 				crossBar.destroy();
