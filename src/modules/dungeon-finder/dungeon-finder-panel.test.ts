@@ -23,7 +23,12 @@ it("renders ordered sections with margins and selects a dungeon without joining 
 			{ id: 3, name: "Timewalking", section: "special", available: true },
 		],
 		getSelected: () => 3,
-		getRoles: () => ({ tank: false, healer: false, damage: true }),
+		getRoles: () => ({
+			leader: false,
+			tank: false,
+			healer: false,
+			damage: true,
+		}),
 		toggleRole: vi.fn(),
 		isQueued: () => false,
 		select: vi.fn(),
