@@ -67,6 +67,9 @@ export type ApplicationEvent =
 	| "TALENTS_CHANGED"
 	| "TALENTS_VISIBILITY_CHANGED"
 	| "MOUNTS_CHANGED"
+	| "TOYS_CHANGED"
+	| "TOYS_COOLDOWN_CHANGED"
+	| "TOYS_VISIBILITY_CHANGED"
 	| "MOUNTS_VISIBILITY_CHANGED"
 	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventPayload<E extends ApplicationEvent> =
