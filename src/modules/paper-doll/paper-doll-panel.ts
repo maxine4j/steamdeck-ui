@@ -47,6 +47,9 @@ export class PaperDollPanel implements IPanel {
 	readonly title = "Character";
 	readonly icon = 135906;
 	private mounted = false;
+	private equipmentDirty = true;
+	private statsDirty = true;
+	private previewDirty = true;
 	private equipment: readonly EquipmentSlot[] = [];
 	private stats: readonly CharacterStat[] = [];
 	private readonly slots: {
@@ -70,14 +73,20 @@ export class PaperDollPanel implements IPanel {
 	}
 	setEquipment(equipment: readonly EquipmentSlot[]): void {
 		this.equipment = equipment;
+		this.equipmentDirty = true;
 		if (this.mounted) this.renderEquipment();
 	}
 	setStats(stats: readonly CharacterStat[]): void {
 		this.stats = stats;
+		this.statsDirty = true;
 		if (this.mounted) this.renderStats();
 	}
 	refreshPreview(): void {
-		if (this.mounted) this.preview.setModelUnit("player");
+		this.previewDirty = true;
+		if (this.mounted) {
+			this.preview.setModelUnit("player");
+			this.previewDirty = false;
+		}
 	}
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
@@ -101,11 +110,13 @@ export class PaperDollPanel implements IPanel {
 		this.preview.layout(332, 364, "TOPLEFT", this.content, 84, 0);
 		this.preview.show();
 		this.mounted = true;
-		this.refreshPreview();
-		this.renderEquipment();
-		this.renderStats();
+		if (this.previewDirty) this.refreshPreview();
+		if (this.equipmentDirty) this.renderEquipment();
+		if (this.statsDirty) this.renderStats();
+		this.layoutContent();
 	}
 	private renderEquipment(): void {
+		this.equipmentDirty = false;
 		this.equipment.forEach((slot, index) => {
 			let cell = this.slots.at(index);
 			if (!cell) {
@@ -191,6 +202,7 @@ export class PaperDollPanel implements IPanel {
 		this.layoutContent();
 	}
 	private renderStats(): void {
+		this.statsDirty = false;
 		this.stats.forEach((stat, index) => {
 			let row = this.statRows.at(index);
 			if (!row) {

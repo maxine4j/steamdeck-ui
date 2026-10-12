@@ -77,6 +77,21 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		destroyItem: vi.fn(),
 	};
 	const menu = { open: vi.fn(), close: vi.fn() };
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const flush = () => {
+		while (pending.length) pending.shift()?.();
+	};
 	const panel = new BagsPanel(
 		"bags",
 		"Bags",
@@ -84,6 +99,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		pool,
 		actions,
 		menu,
+		scheduler,
 	);
 	const cloth: InventoryItem = {
 		bagId: 0,
@@ -114,6 +130,8 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	]);
 	panel.setMoney(123456789);
 	panel.onMount(parent);
+	expect(panel.getNavGrid()).toEqual([]);
+	flush();
 	const itemScripts = handlers.filter((scripts) => scripts.has("OnDragStart"));
 	const reagentScripts = itemScripts.at(1);
 	reagentScripts?.get("OnClick")?.(undefined, "LeftButton");
@@ -142,6 +160,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(colors).toHaveBeenCalledWith(0.64, 0.21, 0.93, 1);
 	const count = factory.createFrame.mock.calls.length;
 	click?.();
+	flush();
 	expect(texts()).toContain("Group: Expansion");
 	expect(texts()).toContain("The War Within");
 	expect(factory.createFrame).toHaveBeenCalledTimes(count);
@@ -167,12 +186,22 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	reagent?.onContext?.();
 	expect(menu.open).toHaveBeenCalledOnce();
 	panel.onMount(parent);
+	flush();
 	expect(factory.createFrame).toHaveBeenCalledTimes(count);
+	layout.mockClear();
+	panel.onUnmount();
+	panel.onMount(parent);
+	flush();
+	expect(
+		layout.mock.contexts.some((frame) => frame.id.startsWith("bags-border-")),
+	).toBe(false);
 	panel.setItems([{ ...cloth, count: 1 }]);
+	flush();
 	itemScripts.at(0)?.get("OnClick")?.(undefined, "RightButton");
 	expect(actions.useItem).toHaveBeenLastCalledWith({ ...cloth, count: 1 });
 	expect(texts()).not.toContain("453");
 	click?.();
+	flush();
 	layout.mockClear();
 	panel.setItems([
 		...Array.from({ length: 6 }, (_, index) => ({
@@ -182,6 +211,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		cloth,
 		{ ...cloth, itemId: 200, category: "Consumables" },
 	]);
+	flush();
 	const positions = (id: string) =>
 		layout.mock.calls.filter(
 			(_, index) => layout.mock.contexts.at(index)?.id === id,
@@ -213,9 +243,11 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		[460, 222, "TOPLEFT", expect.any(Frame), 0, -189],
 	]);
 	viewportHeight = 100;
+	layout.mockClear();
 	handlers
 		.find((scripts) => scripts.has("OnSizeChanged"))
 		?.get("OnSizeChanged")?.(undefined, "");
+	expect(positions("bags-border-0")).toEqual([]);
 	expect(positions("bags-content").at(-1)).toEqual([
 		460,
 		222,
@@ -226,6 +258,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	]);
 	viewportHeight = 600;
 	panel.setItems([cloth]);
+	flush();
 	expect(positions("bags-content").at(-1)).toEqual([
 		460,
 		88,
@@ -234,6 +267,26 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		0,
 		-256,
 	]);
+	const beforeBatch = factory.createFrame.mock.calls.length;
+	panel.setItems(
+		Array.from({ length: 40 }, (_, index) => ({
+			...gear,
+			itemId: 300 + index,
+			slotId: index + 1,
+		})),
+	);
+	pending.shift()?.();
+	expect(
+		factory.createFrame.mock.calls.length - beforeBatch,
+	).toBeLessThanOrEqual(20);
+	expect(pending).toHaveLength(1);
+	const partial = factory.createFrame.mock.calls.length;
+	panel.onUnmount();
+	flush();
+	expect(factory.createFrame).toHaveBeenCalledTimes(partial);
+	panel.onMount(parent);
+	flush();
+	expect(panel.getNavGrid().flat().filter(Boolean)).toHaveLength(41);
 	panel.destroy();
 	expect(
 		itemScripts.every(

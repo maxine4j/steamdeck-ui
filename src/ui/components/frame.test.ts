@@ -5,6 +5,51 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("only updates changed label content or layout and resets cached state on release", () => {
+	const label = {
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetFont: vi.fn(),
+		SetJustifyH: vi.fn(),
+		SetWidth: vi.fn(),
+		SetText: vi.fn(),
+	};
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		CreateFontString: vi.fn(() => label),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"cached-label",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	frame.setLabel("value", "10");
+	frame.setLabel("value", "10");
+	frame.setLabel("value", "11");
+	expect(label.SetPoint).toHaveBeenCalledOnce();
+	expect(label.SetText.mock.calls).toEqual([["10"], ["11"]]);
+	frame.setLabel("value", "11", "LEFT", 4);
+	expect(label.SetPoint).toHaveBeenCalledTimes(2);
+	expect(label.SetText).toHaveBeenCalledTimes(2);
+	frame.destroy();
+	label.SetPoint.mockClear();
+	label.SetText.mockClear();
+	frame.setLabel("value", "11", "LEFT", 4);
+	expect(label.SetPoint).toHaveBeenCalledOnce();
+	expect(label.SetText).toHaveBeenCalledExactlyOnceWith("11");
+});
+
 it("draws and clears a gold focus border with a soft glow using reusable pooled decorations", () => {
 	const decorations: { SetColorTexture: ReturnType<typeof vi.fn> }[] = [];
 	const makeNative = () => ({

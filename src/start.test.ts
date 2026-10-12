@@ -12,6 +12,21 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
 	const labels: string[][] = [];
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const flush = () => {
+		while (pending.length) pending.shift()?.();
+	};
 	const factory = {
 		createFrame: (type: FrameType) => {
 			const texts: string[] = [];
@@ -194,7 +209,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			getSlotDriver: vi.fn(),
 		},
 		controller,
-		{ nextFrame: vi.fn(() => vi.fn()) },
+		scheduler,
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -229,12 +244,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("PLAYER_LOGIN");
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
-	expect(inventory.getItems).toHaveBeenCalledOnce();
+	expect(inventory.getItems).not.toHaveBeenCalled();
 	expect(frames).toHaveLength(3);
 	for (const frame of builtIns)
 		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(2));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
+	flush();
 	const bagIconIndex = textures.findIndex((texture) =>
 		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 123),
 	);
@@ -251,8 +267,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.navigation.moveDown();
 	expect(app.navigation.focusedId).toContain("bags-item-42");
 	events.emit("BAG_UPDATE_DELAYED");
+	flush();
 	expect(app.navigation.focusedId).toContain("bags-item-42");
-	expect(inventory.getItems).toHaveBeenCalledTimes(3);
+	expect(inventory.getItems).toHaveBeenCalledTimes(2);
 	expect(frames).toHaveLength(count);
 	events.emit("NAV_INTERACT");
 	expect(inventory.useItem).not.toHaveBeenCalled();
@@ -345,6 +362,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			?.at(1) as ((frame: unknown, button: string) => void) | undefined;
 		if (!handler) throw new Error("Missing tab button");
 		handler(native, "LeftButton");
+		flush();
 	};
 	clickTab(133784);
 	expect(reputation.getReputations).toHaveBeenCalledOnce();
@@ -356,7 +374,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			.mock.calls.find((call) => call.at(0) === "OnClick")
 			?.at(1) as ((frame: unknown, button: string) => void) | undefined;
 		if (!handler) throw new Error("Missing list row action");
-		return () => handler(native, "LeftButton");
+		return () => {
+			handler(native, "LeftButton");
+			flush();
+		};
 	};
 	const clickFaction = clickRow("Faction");
 	clickFaction();
@@ -384,17 +405,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.ui.closePanel("right");
 	expect(app.navigation.focusedId).toBeUndefined();
 	app.ui.openPanel("bags", "right");
+	flush();
 	expect(frames).toHaveLength(withPaperDoll);
 	events.emit("NAV_CONTEXT");
 	expect(app.navigation.focusedId).toBe("item-actions-use");
 	inventory.getItems.mockReturnValue([]);
 	events.emit("BAG_UPDATE_DELAYED");
+	flush();
 	expect(bagIcon?.Hide).toHaveBeenCalled();
 	expect(app.navigation.focusedId).not.toContain("bags-item-");
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");
-	expect(inventory.getItems).toHaveBeenCalledTimes(4);
+	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	for (const frame of builtIns)
 		expect(frame.SetParent).toHaveBeenLastCalledWith(nativeParent);
 });

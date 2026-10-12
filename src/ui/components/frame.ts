@@ -24,6 +24,17 @@ export class Frame implements IUIComponent {
 	private texture?: WowTexture;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
+	private readonly labelState = new Map<
+		string,
+		{
+			text: string;
+			point: string;
+			x: number;
+			y: number;
+			size: number;
+			width: number;
+		}
+	>();
 	constructor(
 		public readonly id: string,
 		private readonly pool: IFramePoolManager,
@@ -359,18 +370,29 @@ export class Frame implements IUIComponent {
 			label = native.CreateFontString(undefined, "OVERLAY", "GameFontNormal");
 			this.labels.set(key, label);
 		}
-		label.ClearAllPoints();
-		label.SetPoint(point, native, point, x, y);
-		label.SetFont("Fonts\\FRIZQT__.TTF", size, "OUTLINE");
-		label.SetJustifyH(
-			point.includes("LEFT")
-				? "LEFT"
-				: point.includes("RIGHT")
-					? "RIGHT"
-					: "CENTER",
-		);
-		label.SetWidth(width);
-		label.SetText(text);
+		const previous = this.labelState.get(key);
+		if (
+			!previous ||
+			previous.point !== point ||
+			previous.x !== x ||
+			previous.y !== y ||
+			previous.size !== size ||
+			previous.width !== width
+		) {
+			label.ClearAllPoints();
+			label.SetPoint(point, native, point, x, y);
+			label.SetFont("Fonts\\FRIZQT__.TTF", size, "OUTLINE");
+			label.SetJustifyH(
+				point.includes("LEFT")
+					? "LEFT"
+					: point.includes("RIGHT")
+						? "RIGHT"
+						: "CENTER",
+			);
+			label.SetWidth(width);
+		}
+		if (!previous || previous.text !== text) label.SetText(text);
+		this.labelState.set(key, { text, point, x, y, size, width });
 	}
 	setLabelWordWrap(key: string, wrap: boolean): void {
 		this.labels.get(key)?.SetWordWrap(wrap);
@@ -515,6 +537,7 @@ export class Frame implements IUIComponent {
 		this.texture?.SetColorTexture(0, 0, 0, 0);
 		for (const label of this.labels.values()) label.SetText("");
 		this.labels.clear();
+		this.labelState.clear();
 		this.native.SetScript("OnEnter", undefined);
 		this.native.SetScript("OnLeave", undefined);
 		if (this.frameType === "Button") {

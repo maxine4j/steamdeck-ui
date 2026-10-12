@@ -3,7 +3,9 @@ import type {
 	EquipmentSlot,
 	ICharacterClient,
 } from "../../clients/character-client";
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IEventBus } from "../../events/types";
+import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 import type { IBuiltInPaperDoll } from "./built-in-paper-doll";
@@ -16,24 +18,48 @@ export interface PaperDollView {
 export class PaperDollModule implements IModule {
 	readonly id = "paper-doll";
 	private open = false;
+	private equipmentDirty = true;
+	private statsDirty = true;
+	private previewDirty = true;
+	private readonly task: DeferredRefresh;
+	private updateStats(): void {
+		if (!this.open || !this.statsDirty) return;
+		this.view.setStats(this.character.getStats());
+		this.statsDirty = false;
+	}
+	private update(): void {
+		if (!this.open) return;
+		if (this.equipmentDirty) {
+			this.view.setEquipment(this.character.getEquipment());
+			this.equipmentDirty = false;
+			this.previewDirty = true;
+		}
+		this.updateStats();
+		if (this.previewDirty) {
+			this.view.refreshPreview();
+			this.previewDirty = false;
+		}
+	}
 	private readonly refreshStats = () => {
-		if (this.open) this.view.setStats(this.character.getStats());
+		this.statsDirty = true;
+		this.task.invalidate();
 	};
 	private readonly refreshPreview = () => {
-		if (this.open) this.view.refreshPreview();
+		this.previewDirty = true;
+		this.task.invalidate();
 	};
 	private readonly refresh = () => {
-		if (!this.open) return;
-		this.view.setEquipment(this.character.getEquipment());
-		this.refreshStats();
-		this.refreshPreview();
+		this.equipmentDirty = true;
+		this.statsDirty = true;
+		this.task.invalidate();
 	};
 	private readonly syncVisibility = () => {
 		const open = this.character.isOpen();
 		if (open === this.open) return;
 		this.open = open;
+		this.task.setActive(open);
 		if (open) {
-			this.refresh();
+			this.update();
 			this.ui.openPanel(this.id, "left");
 		} else this.ui.closePanel("left");
 	};
@@ -46,7 +72,10 @@ export class PaperDollModule implements IModule {
 		>,
 		private readonly view: PaperDollView,
 		private readonly builtIn: IBuiltInPaperDoll,
-	) {}
+		scheduler: ITaskScheduler,
+	) {
+		this.task = new DeferredRefresh(scheduler, () => this.update());
+	}
 	disableBuiltIn(): void {
 		this.builtIn.disable();
 	}
@@ -59,6 +88,7 @@ export class PaperDollModule implements IModule {
 		this.syncVisibility();
 	}
 	shutdown(): void {
+		this.task.setActive(false);
 		this.events.unsubscribe(
 			"CHARACTER_VISIBILITY_CHANGED",
 			this.syncVisibility,

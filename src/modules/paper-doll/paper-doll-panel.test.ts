@@ -208,10 +208,15 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
 	expect(actions.pickup).toHaveBeenLastCalledWith(equipment.at(16));
 	const count = factory.createFrame.mock.calls.length;
+	const layouts = vi.spyOn(Frame.prototype, "layout");
 	panel.onUnmount();
 	equipmentButtons.at(0)?.handlers.get("OnClick")?.(undefined, "RightButton");
 	expect(actions.use).toHaveBeenCalledOnce();
 	panel.onMount(new Frame("parent-again", pool));
+	expect(
+		layouts.mock.contexts.some((frame) => frame.id.startsWith("equipment-")),
+	).toBe(false);
+	layouts.mockRestore();
 	expect(factory.createFrame).toHaveBeenCalledTimes(count + 1);
 	panel.setEquipment(
 		equipment.map((slot) => ({

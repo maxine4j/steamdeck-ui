@@ -11,7 +11,8 @@ export class TitlesClient implements ITitlesClient {
 	getTitles(): PlayerTitle[] {
 		const current = GetCurrentTitle();
 		const titles: PlayerTitle[] = [];
-		for (let id = 1; id <= GetNumTitles(); id++) {
+		const count = GetNumTitles();
+		for (let id = 1; id <= count; id++) {
 			if (!IsTitleKnown(id)) continue;
 			const [name, playerTitle] = GetTitleName(id);
 			if (name && playerTitle)

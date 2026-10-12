@@ -1,6 +1,8 @@
 import type { IReputationClient } from "../../clients/reputation-client";
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
+import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
 
@@ -27,16 +29,25 @@ export class ReputationPanel implements IPanel {
 	readonly title = "Reputation";
 	readonly icon = 133784;
 	private readonly list: ScrollList;
+	private readonly update: DeferredRefresh;
+	private navigationChanged?: () => void;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IReputationClient,
 		close: () => void,
+		scheduler: ITaskScheduler,
 	) {
+		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 20,
+			scheduler,
+			onChanged: () => this.navigationChanged?.(),
 		});
 	}
 	refresh(): void {
+		this.update.invalidate();
+	}
+	private render(): void {
 		this.list.setRows(
 			this.client.getReputations().map((reputation) => ({
 				id: `reputation-${reputation.index}`,
@@ -86,16 +97,21 @@ export class ReputationPanel implements IPanel {
 		);
 	}
 	onMount(parent: IUIComponent): void {
-		this.refresh();
 		this.list.mount(parent);
+		this.update.setActive(true);
 	}
 	onUnmount(): void {
+		this.update.setActive(false);
 		this.list.unmount();
 	}
 	getNavGrid() {
 		return this.list.getNavGrid();
 	}
+	setNavigationChanged(callback?: () => void): void {
+		this.navigationChanged = callback;
+	}
 	destroy(): void {
+		this.update.setActive(false);
 		this.list.destroy();
 	}
 }

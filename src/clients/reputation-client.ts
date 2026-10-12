@@ -41,7 +41,8 @@ const standings = [
 export class ReputationClient implements IReputationClient {
 	getReputations(): Reputation[] {
 		const rows: Reputation[] = [];
-		for (let index = 1; index <= C_Reputation.GetNumFactions(); index++) {
+		const count = C_Reputation.GetNumFactions();
+		for (let index = 1; index <= count; index++) {
 			const data = factionAt(index);
 			if (!data) continue;
 			const hasReputation = !data.isHeader || data.isHeaderWithRep === true;

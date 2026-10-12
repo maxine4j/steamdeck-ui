@@ -3,7 +3,8 @@ import { TitlesClient } from "./titles-client";
 
 afterEach(() => vi.unstubAllGlobals());
 it("lists only earned player titles sorted by name, includes None and validates selection", () => {
-	vi.stubGlobal("GetNumTitles", () => 3);
+	const count = vi.fn(() => 3);
+	vi.stubGlobal("GetNumTitles", count);
 	vi.stubGlobal("IsTitleKnown", (id: number) => id !== 2);
 	vi.stubGlobal("GetTitleName", (id: number) => [
 		id === 1 ? " Zulu " : " Alpha ",
@@ -18,6 +19,7 @@ it("lists only earned player titles sorted by name, includes None and validates 
 		{ id: 3, name: "Alpha", selected: false },
 		{ id: 1, name: "Zulu", selected: true },
 	]);
+	expect(count).toHaveBeenCalledOnce();
 	client.select(2);
 	expect(select).not.toHaveBeenCalled();
 	client.select(3);

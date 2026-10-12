@@ -20,7 +20,26 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	};
 	const view = { setItems: vi.fn(), setMoney: vi.fn() };
 	const builtIn = { disable: vi.fn(), restore: vi.fn() };
-	const module = new BagsModule(ui, events, inventory, view, builtIn);
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const module = new BagsModule(
+		ui,
+		events,
+		inventory,
+		view,
+		builtIn,
+		scheduler,
+	);
 	module.disableBuiltIn();
 	module.initialize();
 	expect(builtIn.disable).toHaveBeenCalledOnce();
@@ -29,18 +48,40 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	events.emit("PLAYER_MONEY");
 	expect(view.setMoney).toHaveBeenLastCalledWith(67890);
 	events.emit("ITEM_DATA_LOAD_RESULT");
-	expect(inventory.getItems).toHaveBeenCalledTimes(2);
+	expect(inventory.getItems).not.toHaveBeenCalled();
 	expect(ui.openPanel).not.toHaveBeenCalled();
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	events.emit("BAG_VISIBILITY_CHANGED");
 	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("bags", "right");
+	expect(inventory.getItems).toHaveBeenCalledOnce();
 	inventory.isOpen.mockReturnValue(false);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("right");
+	inventory.isOpen.mockReturnValue(true);
+	events.emit("BAG_VISIBILITY_CHANGED");
+	expect(inventory.getItems).toHaveBeenCalledOnce();
+	inventory.isOpen.mockReturnValue(false);
+	events.emit("BAG_VISIBILITY_CHANGED");
+	events.emit("BAG_UPDATE_DELAYED");
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	expect(inventory.getItems).toHaveBeenCalledOnce();
+	inventory.isOpen.mockReturnValue(true);
+	events.emit("BAG_VISIBILITY_CHANGED");
+	expect(inventory.getItems).toHaveBeenCalledTimes(2);
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	events.emit("BAG_UPDATE_DELAYED");
+	expect(inventory.getItems).toHaveBeenCalledTimes(2);
+	expect(pending).toHaveLength(1);
+	pending.shift()?.();
+	expect(inventory.getItems).toHaveBeenCalledTimes(3);
+	events.emit("BAG_UPDATE_DELAYED");
 	module.shutdown();
+	pending.shift()?.();
+	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	expect(builtIn.restore).toHaveBeenCalledOnce();
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
-	expect(ui.openPanel).toHaveBeenCalledOnce();
+	expect(ui.openPanel).toHaveBeenCalledTimes(3);
 });

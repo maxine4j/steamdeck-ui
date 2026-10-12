@@ -81,6 +81,7 @@ export function startSteamDeckUI(
 		pool,
 		inventory,
 		itemMenu,
+		scheduler,
 	);
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
@@ -112,14 +113,20 @@ export function startSteamDeckUI(
 			character,
 			paperDoll,
 			new BuiltInPaperDoll(characterSuppression, events),
+			scheduler,
 		),
 	);
 	const closeCharacter = () => {
 		builtInReputation.close();
 		ui.closePanel("left");
 	};
-	const reputationPanel = new ReputationPanel(pool, reputation, closeCharacter);
-	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter);
+	const reputationPanel = new ReputationPanel(
+		pool,
+		reputation,
+		closeCharacter,
+		scheduler,
+	);
+	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
 	ui.registerPanel(mountsPanel, "left");
@@ -136,6 +143,7 @@ export function startSteamDeckUI(
 			inventory,
 			panel,
 			new BuiltInBags(new FrameSuppression(pool), events),
+			scheduler,
 		),
 	);
 	const login = () => modules.start();

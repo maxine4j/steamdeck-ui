@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { ReputationPanel } from "./reputation-panel";
 
@@ -6,9 +7,26 @@ const { setRows, construct } = vi.hoisted(() => ({
 	setRows: vi.fn(),
 	construct: vi.fn(),
 }));
+const pending: (() => void)[] = [];
+const scheduler = {
+	nextFrame: (callback: () => void) => {
+		let cancelled = false;
+		pending.push(() => {
+			if (!cancelled) callback();
+		});
+		return () => {
+			cancelled = true;
+		};
+	},
+};
+const flush = () => {
+	while (pending.length) pending.shift()?.();
+};
 vi.mock("../../ui/components/scroll-list", () => ({
 	ScrollList: class {
 		setRows = setRows;
+		mount = vi.fn();
+		unmount = vi.fn();
 		constructor(...args: unknown[]) {
 			construct(...args);
 		}
@@ -44,14 +62,17 @@ it("distinguishes section headings, child headings and faction rows with padded 
 				})),
 		},
 		close,
+		scheduler,
 	);
 	panel.refresh();
+	panel.onMount({} as IUIComponent);
+	flush();
 	expect(construct).toHaveBeenCalledWith(
 		"reputation",
 		pool,
 		"Reputation",
 		close,
-		{ padding: 20 },
+		{ padding: 20, scheduler, onChanged: expect.any(Function) },
 	);
 	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
 		{ label: "− Expansion", fontSize: 18, indent: 0 },
@@ -94,8 +115,11 @@ it("colours reputation progress by standing and cap, with themed expansion heade
 				})),
 		},
 		vi.fn(),
+		scheduler,
 	);
 	panel.refresh();
+	panel.onMount({} as IUIComponent);
+	flush();
 	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
 		{ background: [0.12, 0.22, 0.06], progress: undefined, detail: "" },
 		{ progress: { value: 0.25, color: [0.15, 0.7, 0.25] } },
@@ -132,8 +156,11 @@ it("keeps progress bars and numbers for headers with their own reputation", () =
 			],
 		},
 		vi.fn(),
+		scheduler,
 	);
 	panel.refresh();
+	panel.onMount({} as IUIComponent);
+	flush();
 	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
 		{
 			label: "− Cartels of Undermine",
@@ -141,4 +168,29 @@ it("keeps progress bars and numbers for headers with their own reputation", () =
 			progress: { value: 0.25, color: [0.15, 0.7, 0.25] },
 		},
 	]);
+});
+
+it("caches reopened data and coalesces changes while hidden", () => {
+	const client = { getReputations: vi.fn(() => []), activate: vi.fn() };
+	const panel = new ReputationPanel(
+		{} as IFramePoolManager,
+		client,
+		vi.fn(),
+		scheduler,
+	);
+	panel.refresh();
+	flush();
+	expect(client.getReputations).not.toHaveBeenCalled();
+	panel.onMount({} as IUIComponent);
+	flush();
+	panel.onUnmount();
+	panel.onMount({} as IUIComponent);
+	flush();
+	expect(client.getReputations).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	panel.refresh();
+	panel.refresh();
+	panel.onMount({} as IUIComponent);
+	flush();
+	expect(client.getReputations).toHaveBeenCalledTimes(2);
 });
