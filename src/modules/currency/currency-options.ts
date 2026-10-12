@@ -62,7 +62,12 @@ export class CurrencyOptions {
 				},
 			});
 		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
-		this.modal.open(currency.name, options);
+		this.modal.open(
+			`${currency.name} • ${currency.quantity}${currency.maximum > 0 ? ` / ${currency.maximum}` : ""}`,
+			options,
+			undefined,
+			"left",
+		);
 	}
 	private sources(currency: Currency, offset = 0): void {
 		if (!this.client.sourcesReady()) {
