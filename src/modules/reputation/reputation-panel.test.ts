@@ -126,6 +126,7 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 		columns: 2,
 		gap: 12,
 		edgeProgress: true,
+		progressInset: { horizontal: 10, bottom: 7 },
 	});
 	for (const row of rows.filter((row) => !row.heading)) {
 		expect(row.backgroundAtlas).toBe("ui-journeys-renown-button");

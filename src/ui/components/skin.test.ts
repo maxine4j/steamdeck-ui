@@ -53,6 +53,20 @@ it("replaces a sliced button with a full-frame atlas and clears its old caps", (
 it("uses character window artwork and reuses its corners and edges", () => {
 	const { native, pool, textures } = setup();
 	applyWindowSkin(pool, native);
+	expect(textures.at(0)?.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		textures.at(1),
+		"BOTTOMRIGHT",
+		0,
+		0,
+	);
+	expect(textures.at(0)?.SetPoint).toHaveBeenCalledWith(
+		"BOTTOMRIGHT",
+		textures.at(4),
+		"TOPLEFT",
+		0,
+		0,
+	);
 	expect(textures.at(0)?.SetAtlas).toHaveBeenCalledWith(
 		"character-panel-background",
 		false,

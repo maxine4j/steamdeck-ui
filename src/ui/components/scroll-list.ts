@@ -82,6 +82,7 @@ export class ScrollList {
 			readonly columns?: number;
 			readonly gap?: number;
 			readonly edgeProgress?: boolean;
+			readonly progressInset?: { horizontal: number; bottom: number };
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -384,14 +385,21 @@ export class ScrollList {
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
 				if (row.progress) {
+					const horizontal = this.options.progressInset?.horizontal ?? 0;
+					const progressWidth = Math.max(
+						0,
+						(this.options.edgeProgress ? rowWidth - indent : textWidth) -
+							2 * horizontal,
+					);
 					button.track.setParent(button.frame);
 					button.track.layout(
-						this.options.edgeProgress ? rowWidth - indent : textWidth,
+						progressWidth,
 						6,
 						"BOTTOMLEFT",
 						button.frame,
-						this.options.edgeProgress ? 0 : textLeft,
-						this.options.edgeProgress ? 0 : 6,
+						(this.options.edgeProgress ? 0 : textLeft) + horizontal,
+						this.options.progressInset?.bottom ??
+							(this.options.edgeProgress ? 0 : 6),
 					);
 					button.track.setColor(0.025, 0.025, 0.025);
 					button.track.show();
@@ -399,8 +407,7 @@ export class ScrollList {
 					if (value > 0) {
 						button.progress.setParent(button.track);
 						button.progress.layout(
-							(this.options.edgeProgress ? rowWidth - indent : textWidth) *
-								value,
+							progressWidth * value,
 							6,
 							"BOTTOMLEFT",
 							button.track,

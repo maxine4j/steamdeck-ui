@@ -3,6 +3,45 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("insets tile progress tracks and sizes the fill within the padded width", () => {
+	const list = new ScrollList(
+		"padded",
+		{} as IFramePoolManager,
+		"Test",
+		vi.fn(),
+		{
+			edgeProgress: true,
+			progressInset: { horizontal: 10, bottom: 7 },
+		},
+	);
+	list.setRows([
+		{
+			id: "rep",
+			label: "Rep",
+			indent: 12,
+			progress: { value: 0.5, color: [0, 1, 0] },
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("padded-parent", {} as IFramePoolManager));
+	expect(frames.get("padded-track-0")?.layout).toHaveBeenLastCalledWith(
+		424,
+		6,
+		"BOTTOMLEFT",
+		expect.anything(),
+		10,
+		7,
+	);
+	expect(frames.get("padded-progress-0")?.layout).toHaveBeenLastCalledWith(
+		212,
+		6,
+		"BOTTOMLEFT",
+		expect.anything(),
+		0,
+		0,
+	);
+});
+
 it("preserves a row's atlas artwork across focus and clears it when reused as a heading", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("atlas", pool, "Test", vi.fn());

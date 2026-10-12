@@ -54,7 +54,6 @@ export function applyWindowSkin(
 ): void {
 	const background = pool.getBackground(frame);
 	background.ClearAllPoints();
-	background.SetAllPoints();
 	background.SetAtlas("character-panel-background", false);
 	const parts: WowTexture[] = [];
 	for (const [point, atlas, x, y] of corners) {
@@ -63,6 +62,12 @@ export function applyWindowSkin(
 		texture.SetAtlas(atlas, true);
 		texture.SetPoint(point, frame, point, x, y);
 		parts.push(texture);
+	}
+	const topLeft = parts.at(0);
+	const bottomRight = parts.at(3);
+	if (topLeft && bottomRight) {
+		background.SetPoint("TOPLEFT", topLeft, "BOTTOMRIGHT", 0, 0);
+		background.SetPoint("BOTTOMRIGHT", bottomRight, "TOPLEFT", 0, 0);
 	}
 	for (const [
 		atlas,

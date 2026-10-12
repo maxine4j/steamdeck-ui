@@ -30,6 +30,7 @@ export class ReputationPanel implements IPanel {
 			columns: 2,
 			gap: 12,
 			edgeProgress: true,
+			progressInset: { horizontal: 10, bottom: 7 },
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
