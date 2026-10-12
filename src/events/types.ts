@@ -1,4 +1,5 @@
 export interface DialogueEventPayloads {
+	ACHIEVEMENTS_SELECTED: { id: number };
 	GOSSIP_SHOW: undefined;
 	GOSSIP_OPTIONS_REFRESHED: undefined;
 	GOSSIP_CLOSED: { continuing: boolean };
@@ -62,6 +63,8 @@ export type ApplicationEvent =
 	| "REPUTATION_VISIBILITY_CHANGED"
 	| "TITLES_CHANGED"
 	| "TITLES_OPEN"
+	| "ACHIEVEMENTS_CHANGED"
+	| "ACHIEVEMENTS_VISIBILITY_CHANGED"
 	| "DUNGEON_FINDER_CHANGED"
 	| "DUNGEON_FINDER_VISIBILITY_CHANGED"
 	| "TALENTS_CHANGED"

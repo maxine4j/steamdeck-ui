@@ -24,6 +24,17 @@ it("forwards native login events through the hidden event frame", () => {
 	};
 	const bus = new WowEventBus({ createEventFrame: () => frame });
 	const login = vi.fn();
+	const achievements = vi.fn();
+	bus.subscribe("ACHIEVEMENTS_CHANGED", achievements);
+	for (const event of [
+		"ACHIEVEMENT_EARNED",
+		"CRITERIA_UPDATE",
+		"RECEIVED_ACHIEVEMENT_LIST",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(achievements).toHaveBeenCalledTimes(3);
 	bus.subscribe("PLAYER_LOGIN", login);
 	expect(frame.Hide).toHaveBeenCalledOnce();
 	expect(frame.RegisterEvent).toHaveBeenCalledWith("PLAYER_LOGIN");

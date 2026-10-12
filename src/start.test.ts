@@ -9,6 +9,8 @@ afterEach(() => vi.unstubAllGlobals());
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	vi.stubGlobal("_G", {});
 	vi.stubGlobal("UISpecialFrames", []);
+	vi.stubGlobal("AchievementFrame_LoadUI", () => false);
+	vi.stubGlobal("AchievementFrame", undefined);
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
 	const labels: string[][] = [];
@@ -53,6 +55,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 					SetJustifyH: vi.fn(),
 					SetWidth: vi.fn(),
 					SetWordWrap: vi.fn(),
+					GetStringHeight: () => 18,
 				}),
 				SetScript: vi.fn(),
 				SetAutoFocus: vi.fn(),
@@ -328,6 +331,31 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			ensureBagsOpen: () => inventory.isOpen.mockReturnValue(true),
 			close: vi.fn(),
 		},
+		{
+			categories: () => [],
+			totals: () => ({ total: 0, completed: 0 }),
+			achievements: () => [],
+			summary: () => ({
+				points: 123,
+				totals: { total: 10, completed: 2 },
+				recent: [],
+				categories: [],
+			}),
+			criteria: () => [],
+			chain: () => [],
+			categoryFor: () => 92,
+			selection: (id) => id,
+			achievement: () => ({
+				id: 1,
+				name: "Test",
+				points: 0,
+				completed: false,
+				date: "",
+				description: "",
+				icon: 1,
+				reward: "",
+			}),
+		},
 	);
 	expect(frames).toHaveLength(3);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -600,6 +628,16 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("left", "merchant").activePanelId).toBeUndefined();
 	events.emit("NAV_CONTAINER_LEFT");
 	expect(app.navigation.focusedId).not.toContain("vendor");
+	app.ui.openPanel("achievements", "fullscreen");
+	flush();
+	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("achievements");
+	expect(labels.flat()).toContain("123 points • 2 / 10 achievements");
+	const achievementFrames = frames.length;
+	app.ui.closePanel("fullscreen");
+	app.ui.openPanel("achievements", "fullscreen");
+	flush();
+	expect(frames).toHaveLength(achievementFrames);
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");

@@ -1,3 +1,4 @@
+import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { CharacterClient } from "./clients/character-client";
 import { ControllerInputClient } from "./clients/controller-input-client";
@@ -46,4 +47,5 @@ startSteamDeckUI(
 	new DialogueClient(),
 	new DialogueCamera(),
 	new VendorClient(),
+	new AchievementsClient(),
 );

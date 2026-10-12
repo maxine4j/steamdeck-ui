@@ -48,6 +48,7 @@ export class ScrollList {
 	private cancelRender?: () => void;
 	private renderedRows = 0;
 	private contentHeight = 1;
+	private width?: number;
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
@@ -64,6 +65,7 @@ export class ScrollList {
 			readonly verticallyCentered?: boolean;
 			readonly scheduler?: ITaskScheduler;
 			readonly onChanged?: (complete: boolean) => void;
+			readonly showClose?: boolean;
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -79,6 +81,12 @@ export class ScrollList {
 		this.dirty = true;
 		if (this.mounted) this.render(preserve ? this.renderedRows : 0);
 	}
+	setWidth(width: number): void {
+		if (this.width === width) return;
+		this.width = width;
+		this.dirty = true;
+		if (this.mounted) this.render();
+	}
 	mount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
 			throw new Error("List requires a frame parent");
@@ -91,7 +99,8 @@ export class ScrollList {
 		this.close.onClick(() => {
 			if (this.mounted) this.onClose();
 		});
-		this.close.show();
+		if (this.options.showClose !== false) this.close.show();
+		else this.close.hide();
 		const padding = this.options.padding;
 		this.scroll.inset(
 			this.frame,
@@ -120,7 +129,8 @@ export class ScrollList {
 	}
 	private layoutContent(): void {
 		const width =
-			(this.options.width ?? 480) - 2 * (this.options.padding ?? 12);
+			(this.width ?? this.options.width ?? 480) -
+			2 * (this.options.padding ?? 12);
 		if (this.options.verticallyCentered)
 			this.content.layoutVerticallyCentered(
 				width,
@@ -135,7 +145,8 @@ export class ScrollList {
 		this.renderedRows = startRow;
 		this.options.onChanged?.(false);
 		const width =
-			(this.options.width ?? 480) - 2 * (this.options.padding ?? 12);
+			(this.width ?? this.options.width ?? 480) -
+			2 * (this.options.padding ?? 12);
 		this.contentHeight = Math.max(
 			1,
 			this.rows.reduce(
@@ -375,6 +386,10 @@ export class ScrollList {
 				button.bottom,
 				this.contentHeight,
 			);
+	}
+	revealRow(id: string): void {
+		const index = this.rows.findIndex((row) => row.id === id);
+		if (index >= 0 && index < this.renderedRows) this.reveal(index);
 	}
 	private isReady(index: number): boolean {
 		return (
