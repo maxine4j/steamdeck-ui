@@ -4,6 +4,7 @@ import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
+import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IEventBus } from "./events/types";
@@ -25,6 +26,9 @@ import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
 import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
+import { BuiltInTalents } from "./modules/talents/built-in-talents";
+import { TalentsModule } from "./modules/talents/talents-module";
+import { TalentsPanel } from "./modules/talents/talents-panel";
 import { BuiltInTitles } from "./modules/titles/built-in-titles";
 import { TitlesModule } from "./modules/titles/titles-module";
 import { TitlesPanel } from "./modules/titles/titles-panel";
@@ -46,6 +50,7 @@ export function startSteamDeckUI(
 	actions: IActionBarClient,
 	controller: IControllerInputClient,
 	scheduler: ITaskScheduler,
+	talents: ITalentsClient,
 ) {
 	const navigation = new NavigationManager(events, (active) =>
 		controller.setActive(active),
@@ -55,6 +60,7 @@ export function startSteamDeckUI(
 	const itemMenu = new ItemActionMenu(itemModal, inventory);
 	const characterSuppression = new FrameSuppression(pool);
 	const builtInReputation = new BuiltInReputation(characterSuppression, events);
+	const builtInTalents = new BuiltInTalents(new FrameSuppression(pool), events);
 	const ui = new UIOrchestrator(
 		(position) =>
 			new PanelContainer(
@@ -63,7 +69,8 @@ export function startSteamDeckUI(
 				new Frame(`container-${position}`, pool),
 				(id, button) => new Frame(id, pool, button ? "Button" : "Frame"),
 				(selected) => {
-					if (selected.id === "reputation") builtInReputation.open();
+					if (selected.id === "talents") builtInTalents.open();
+					else if (selected.id === "reputation") builtInReputation.open();
 					else if (selected.id === "paper-doll" || selected.id === "titles")
 						character.open();
 				},
@@ -146,6 +153,21 @@ export function startSteamDeckUI(
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
 	ui.registerPanel(mountsPanel, "left");
+	const talentsPanel = new TalentsPanel(
+		pool,
+		talents,
+		() => {
+			builtInTalents.close();
+			ui.closePanel("left", "talents");
+		},
+		() => builtInTalents.openFull(),
+		scheduler,
+		() => {
+			if (builtInTalents.isOpen()) builtInTalents.close();
+		},
+	);
+	ui.registerPanel(talentsPanel, "left");
+	modules.register(new TalentsModule(ui, events, talentsPanel, builtInTalents));
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
 	);
@@ -178,6 +200,7 @@ export function startSteamDeckUI(
 			reputationPanel.destroy();
 			titlesPanel.destroy();
 			mountsPanel.destroy();
+			talentsPanel.destroy();
 		},
 	};
 }

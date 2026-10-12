@@ -1,0 +1,3 @@
+interface:
+  display_name: "WoW AddOn Architect"
+  short_description: "Research and advise on verified World of Warcraft addon APIs, widgets, Lua 5.1, and Blizzard UI implementations, especially when edition compatibility or controller UI behaviour matters"

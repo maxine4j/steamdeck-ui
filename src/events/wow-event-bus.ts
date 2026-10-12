@@ -43,6 +43,20 @@ const reputationEvents = [
 	"QUEST_LOG_UPDATE",
 ];
 const titleEvents = ["KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE"];
+const talentEvents = [
+	"PLAYER_TALENT_UPDATE",
+	"ACTIVE_TALENT_GROUP_CHANGED",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"SELECTED_LOADOUT_CHANGED",
+	"TRAIT_CONFIG_CREATED",
+	"TRAIT_CONFIG_UPDATED",
+	"TRAIT_CONFIG_DELETED",
+	"TRAIT_CONFIG_LIST_UPDATED",
+	"ACTIVE_COMBAT_CONFIG_CHANGED",
+	"CONFIG_COMMIT_FAILED",
+	"STARTER_BUILD_ACTIVATION_FAILED",
+	"PLAYER_ENTERING_WORLD",
+];
 const mountEvents = [
 	"COMPANION_LEARNED",
 	"COMPANION_UNLEARNED",
@@ -94,6 +108,8 @@ export class WowEventBus implements IEventBus {
 			...reputationEvents,
 			...titleEvents,
 			...mountEvents,
+			...talentEvents,
+			"PLAYER_SPECIALIZATION_CHANGED",
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
@@ -102,6 +118,11 @@ export class WowEventBus implements IEventBus {
 			if (actionCursorEvents.includes(event))
 				this.emit("ACTION_BAR_CURSOR_CHANGED");
 			if (event === "PLAYER_REGEN_ENABLED") this.emit("COMBAT_ENDED");
+			if (
+				talentEvents.includes(event) ||
+				(event === "PLAYER_SPECIALIZATION_CHANGED" && unit === "player")
+			)
+				this.emit("TALENTS_CHANGED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");
 			if (

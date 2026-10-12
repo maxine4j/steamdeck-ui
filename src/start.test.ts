@@ -110,6 +110,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	});
 	vi.stubGlobal("hooksecurefunc", vi.fn());
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
+	vi.stubGlobal("PlayerSpellsFrame", undefined);
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("CollectionsJournal", {
 		IsShown: () => false,
@@ -210,6 +211,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		controller,
 		scheduler,
+		{
+			read: () => ({
+				specs: [],
+				loadouts: [],
+				starterAvailable: false,
+				starterSelected: false,
+			}),
+			selectSpec: vi.fn(),
+			selectLoadout: vi.fn(),
+			selectStarter: vi.fn(),
+		},
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -393,7 +405,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const withTabs = frames.length;
 	clickTab(133784);
 	clickTab(133759);
-	clickTab(135906);
+	clickTab(133127);
 	expect(frames).toHaveLength(withTabs);
 	character.isOpen.mockReturnValue(false);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");

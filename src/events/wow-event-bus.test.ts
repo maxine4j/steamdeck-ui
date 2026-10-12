@@ -115,6 +115,27 @@ it("forwards native login events through the hidden event frame", () => {
 		dispatch(frame, event);
 	}
 	expect(cursor).toHaveBeenCalledTimes(3);
+	const talents = vi.fn();
+	bus.subscribe("TALENTS_CHANGED", talents);
+	for (const event of [
+		"TRAIT_CONFIG_CREATED",
+		"TRAIT_CONFIG_UPDATED",
+		"TRAIT_CONFIG_DELETED",
+		"TRAIT_CONFIG_LIST_UPDATED",
+		"ACTIVE_COMBAT_CONFIG_CHANGED",
+		"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+		"SELECTED_LOADOUT_CHANGED",
+		"CONFIG_COMMIT_FAILED",
+		"STARTER_BUILD_ACTIVATION_FAILED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(talents).toHaveBeenCalledTimes(9);
+	dispatch(frame, "PLAYER_SPECIALIZATION_CHANGED", "target");
+	expect(talents).toHaveBeenCalledTimes(9);
+	dispatch(frame, "PLAYER_SPECIALIZATION_CHANGED", "player");
+	expect(talents).toHaveBeenCalledTimes(10);
 });
 
 it("deduplicates subscriptions and removes unsubscribed handlers", () => {

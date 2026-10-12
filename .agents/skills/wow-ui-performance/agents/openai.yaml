@@ -1,0 +1,3 @@
+interface:
+  display_name: "WoW UI Performance"
+  short_description: "Optimize WoW panel rendering, caching, and navigation"
