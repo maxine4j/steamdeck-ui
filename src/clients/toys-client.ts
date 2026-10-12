@@ -28,7 +28,10 @@ export interface Toy {
 }
 export interface IToysClient {
 	isInCombat(): boolean;
-	load(callback: (toys: Toy[]) => void): () => void;
+	load(
+		callback: (toys: Toy[]) => void,
+		onProgress?: (completed: number, total: number) => void,
+	): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
 	getCooldown(id: number): { start: number; duration: number };
@@ -37,7 +40,10 @@ export interface IToysClient {
 export class ToysClient implements IToysClient {
 	private readonly requestedItems = new Set<number>();
 	constructor(private readonly scheduler: ITaskScheduler) {}
-	load(callback: (toys: Toy[]) => void): () => void {
+	load(
+		callback: (toys: Toy[]) => void,
+		onProgress?: (completed: number, total: number) => void,
+	): () => void {
 		const toys: Toy[] = [];
 		let index = 1;
 		let count: number | undefined;
@@ -67,6 +73,8 @@ export class ToysClient implements IToysClient {
 					expansionId: loaded ? expansionId : undefined,
 				});
 			}
+			onProgress?.(Math.min(count, index - 1), count);
+			if (cancelled) return;
 			if (index <= count) cancel = this.scheduler.nextFrame(step);
 			else callback(toys);
 		};

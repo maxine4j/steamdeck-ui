@@ -23,6 +23,8 @@ export class ToysPanel implements IPanel {
 	private readonly frame: Frame;
 	private readonly viewport: Frame;
 	private readonly content: Frame;
+	private readonly loadingTrack: Frame;
+	private readonly loadingProgress: Frame;
 	private readonly cells: ToyCell[] = [];
 	private readonly headers: Frame[] = [];
 	private toys: readonly Toy[] = [];
@@ -47,6 +49,8 @@ export class ToysPanel implements IPanel {
 		this.frame = new Frame("toys-root", pool);
 		this.viewport = new Frame("toys-scroll", pool, "ScrollFrame");
 		this.content = new Frame("toys-content", pool);
+		this.loadingTrack = new Frame("toys-loading-track", pool);
+		this.loadingProgress = new Frame("toys-loading-progress", pool);
 	}
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
@@ -89,6 +93,8 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.menu.close();
+		this.grid = [];
+		this.displayed = [];
 		this.navigationChanged?.();
 		if (!this.mounted || this.client.isInCombat()) return;
 		this.frame.setLabel(
@@ -99,17 +105,46 @@ export class ToysPanel implements IPanel {
 			16,
 			12,
 		);
-		this.cancelLoad = this.client.load((toys) => {
-			if (!this.mounted || generation !== this.generation) return;
-			this.cancelLoad = undefined;
-			this.toys = toys;
-			if (!this.client.isInCombat()) this.render(generation);
-		});
+		this.loadingTrack.setParent(this.frame);
+		this.loadingTrack.layout(140, 4, "BOTTOMRIGHT", this.frame, -16, 8);
+		this.loadingTrack.setColor(0.12, 0.12, 0.12);
+		this.loadingProgress.setParent(this.loadingTrack);
+		this.loadingProgress.setColor(1, 0.82, 0);
+		this.loadingTrack.show();
+		this.setLoadingProgress(0);
+		this.cancelLoad = this.client.load(
+			(toys) => {
+				if (!this.mounted || generation !== this.generation) return;
+				this.cancelLoad = undefined;
+				this.toys = toys;
+				if (!this.client.isInCombat()) this.render(generation);
+			},
+			(completed, total) => {
+				if (!this.mounted || generation !== this.generation) return;
+				// Scanning and rendering each occupy half the bar. These are work
+				// fractions, not an estimate of elapsed time.
+				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
+			},
+		);
+	}
+	private setLoadingProgress(progress: number): void {
+		if (progress <= 0) this.loadingProgress.hide();
+		else {
+			this.loadingProgress.layout(
+				140 * Math.min(1, progress),
+				4,
+				"TOPLEFT",
+				this.loadingTrack,
+			);
+			this.loadingProgress.show();
+		}
 	}
 	private render(generation: number): void {
 		const grid: NavGrid = [];
 		const displayed: Toy[] = [];
 		const jobs: (() => void)[] = [];
+		let renderedToys = 0;
+		let renderedRows = 0;
 		const groups = groupToys(this.toys);
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
@@ -184,8 +219,9 @@ export class ToysPanel implements IPanel {
 					cell.icon.show();
 					cell.cooldown.show();
 					const control = cell.icon;
-					const current = () =>
-						this.mounted && !this.dirty && generation === this.generation;
+					// This control is ready once its render job finishes. Dirty tracks
+					// unfinished work for reopening, not readiness of rendered controls.
+					const current = () => this.mounted && generation === this.generation;
 					control.setHoverTooltip(() =>
 						current() ? { toy: toy.id } : undefined,
 					);
@@ -213,6 +249,8 @@ export class ToysPanel implements IPanel {
 							if (current()) this.menu.open(toy);
 						},
 					});
+					renderedToys++;
+					renderedRows = firstRow + row + 1;
 				});
 			});
 			y += 28 + Math.ceil(group.toys.length / columns) * spacing + 14;
@@ -247,15 +285,24 @@ export class ToysPanel implements IPanel {
 			)
 				return;
 			this.cancelRender = undefined;
+			const previousCount = renderedToys;
 			const end = Math.min(jobs.length, cursor + 10);
 			while (cursor < end) jobs.at(cursor++)?.();
+			this.setLoadingProgress(
+				jobs.length === 0 ? 1 : 0.5 + (cursor / jobs.length) * 0.5,
+			);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else {
-				this.grid = grid;
-				this.displayed = displayed;
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
+				this.loadingTrack.hide();
+			}
+			if (renderedToys !== previousCount || cursor === jobs.length) {
+				// Publish only rendered controls, keeping their identities stable as
+				// later batches extend the grid. Cleanup jobs add no navigation work.
+				this.grid = grid.slice(0, renderedRows);
+				this.displayed = displayed.slice(0, renderedToys);
 				this.navigationChanged?.();
 			}
 		};
@@ -266,7 +313,7 @@ export class ToysPanel implements IPanel {
 		this.viewport.clampScroll();
 	}
 	refreshCooldowns(): void {
-		if (!this.mounted || this.dirty) return;
+		if (!this.mounted) return;
 		this.displayed.forEach((toy, index) => {
 			const cooldown = this.client.getCooldown(toy.id);
 			this.cells
@@ -309,6 +356,8 @@ export class ToysPanel implements IPanel {
 		this.headers.length = 0;
 		this.content.destroy();
 		this.viewport.destroy();
+		this.loadingProgress.destroy();
+		this.loadingTrack.destroy();
 		this.frame.destroy();
 	}
 }

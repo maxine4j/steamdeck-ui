@@ -66,7 +66,7 @@ function setup() {
 		while (pending.length) pending.shift()?.();
 	};
 	const publish = (toys: Toy[]) => {
-		vi.mocked(client.load).mock.calls.at(-1)?.at(0)(toys);
+		vi.mocked(client.load).mock.calls.at(-1)?.[0](toys);
 		flush();
 	};
 	return { panel, parent, client, menu, flush, publish, pending, close };
@@ -218,22 +218,122 @@ it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without
 	).toEqual(["toy-2"]);
 });
 
+it("makes the first rendered batch interactive while remaining toys render", () => {
+	const { panel, parent, client, menu, pending, flush } = setup();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	panel.onMount(parent);
+	changed.mockClear();
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
+	);
+	expect(panel.getNavGrid()).toEqual([]);
+	pending.shift()?.();
+	const firstBatch = panel.getNavGrid().flat();
+	expect(firstBatch).toHaveLength(9); // One header and nine icons per batch.
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(9);
+	expect(changed).toHaveBeenCalledOnce();
+	const first = firstBatch.at(0);
+	expect(first?.tooltipItem?.()).toEqual({ toy: 1 });
+	expect(first?.secureActions?.().alternate).toBeDefined();
+	first?.onContext?.();
+	expect(menu.open).toHaveBeenCalledWith(toy(1));
+	vi.mocked(client.getCooldown).mockClear();
+	panel.refreshCooldowns();
+	expect(client.getCooldown).toHaveBeenCalledTimes(9);
+	pending.shift()?.();
+	expect(panel.getNavGrid().flat()).toHaveLength(19);
+	expect(panel.getNavGrid().at(0)?.at(0)).toBe(first);
+	flush();
+	expect(panel.getNavGrid().map((row) => row.length)).toEqual([10, 10, 5]);
+	expect(first?.secureActions?.().alternate).toBeDefined();
+});
+
+it("invalidates a partial grid before replacing its controls", () => {
+	const { panel, parent, client, menu, pending, publish } = setup();
+	panel.onMount(parent);
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
+	);
+	pending.shift()?.();
+	const first = panel.getNavGrid().at(0)?.at(0);
+	expect(first?.secureActions?.().alternate).toBeDefined();
+	panel.refresh();
+	expect(panel.getNavGrid()).toEqual([]);
+	expect(first?.secureActions?.().alternate).toBeUndefined();
+	expect(first?.tooltipItem?.()).toBeUndefined();
+	first?.onContext?.();
+	expect(menu.open).not.toHaveBeenCalled();
+	publish([toy(99)]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["toy-99"]);
+});
+
+it("shows loading progress through scanning and rendering, then hides the bar", () => {
+	const { panel, parent, client, pending, flush } = setup();
+	const widths = () =>
+		vi
+			.mocked(Frame.prototype.layout)
+			.mock.calls.filter(
+				(_, index) =>
+					vi.mocked(Frame.prototype.layout).mock.contexts.at(index)?.id ===
+					"toys-loading-progress",
+			)
+			.map(([width]) => width);
+	panel.onMount(parent);
+	const progress = vi.mocked(client.load).mock.calls.at(-1)?.[1];
+	progress?.(20, 40);
+	expect(widths().at(-1)).toBe(35);
+	progress?.(40, 40);
+	expect(widths().at(-1)).toBe(70);
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
+	);
+	pending.shift()?.();
+	expect(widths().at(-1)).toBeCloseTo(70 + 70 * (10 / 26));
+	flush();
+	expect(widths().at(-1)).toBe(140);
+	expect(Frame.prototype.setLabel).toHaveBeenLastCalledWith(
+		"loading",
+		"",
+		"BOTTOMRIGHT",
+		-16,
+		16,
+		12,
+	);
+	expect(
+		vi.mocked(Frame.prototype.hide).mock.contexts.map((frame) => frame.id),
+	).toContain("toys-loading-track");
+	panel.refresh();
+	const before = widths().length;
+	progress?.(40, 40);
+	expect(widths()).toHaveLength(before);
+	const latestProgress = vi.mocked(client.load).mock.calls.at(-1)?.[1];
+	panel.onUnmount();
+	latestProgress?.(20, 40);
+	expect(widths()).toHaveLength(before);
+});
+
 it("rejects stale loads and cancels rendering on unmount, reloading interrupted work", () => {
 	const { panel, parent, client, publish, pending, flush } = setup();
 	const changed = vi.fn();
 	panel.setNavigationChanged(changed);
 	panel.onMount(parent);
-	const old = vi.mocked(client.load).mock.calls.at(-1)?.at(0);
+	const old = vi.mocked(client.load).mock.calls.at(-1)?.[0];
 	panel.refresh();
 	changed.mockClear();
 	old?.([toy(99)]);
 	flush();
 	expect(panel.getNavGrid()).toEqual([]);
-	vi.mocked(client.load).mock.calls.at(-1)?.at(0)(
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
 	pending.shift()?.();
-	expect(changed).not.toHaveBeenCalled();
+	expect(changed).toHaveBeenCalledOnce();
 	panel.onUnmount();
 	flush();
 	expect(panel.getNavGrid()).toEqual([]);

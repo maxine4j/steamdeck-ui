@@ -97,6 +97,37 @@ it("bounds enumeration per frame and cancels work without publishing partial col
 	expect(done).not.toHaveBeenCalled();
 });
 
+it("reports scanned entries against the total each frame, including skipped entries", () => {
+	const { client, api, pending } = setup(45);
+	api.GetToyFromIndex = (index) => (index === 1 ? 0 : index);
+	const progress = vi.fn();
+	const done = vi.fn();
+	client.load(done, progress);
+	pending.shift()?.();
+	expect(progress).toHaveBeenLastCalledWith(20, 45);
+	expect(done).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(progress).toHaveBeenLastCalledWith(40, 45);
+	pending.shift()?.();
+	expect(progress).toHaveBeenLastCalledWith(45, 45);
+	expect(done.mock.calls.at(0)?.at(0)).toHaveLength(44);
+});
+
+it("reports an empty collection and stops reporting after cancellation", () => {
+	const { client, pending } = setup(0);
+	const progress = vi.fn();
+	const done = vi.fn();
+	client.load(done, progress);
+	pending.shift()?.();
+	expect(progress).toHaveBeenCalledExactlyOnceWith(0, 0);
+	expect(done).toHaveBeenCalledExactlyOnceWith([]);
+	const cancel = client.load(done, progress);
+	cancel();
+	pending.shift()?.();
+	expect(progress).toHaveBeenCalledTimes(1);
+	expect(done).toHaveBeenCalledTimes(1);
+});
+
 it("requests missing metadata once and re-reads loaded expansion data", () => {
 	const { client, pending } = setup(1);
 	const request = vi.fn();
