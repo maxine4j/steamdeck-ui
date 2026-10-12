@@ -4,6 +4,8 @@ import type {
 	IDungeonFinderClient,
 } from "../../clients/dungeon-finder-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
+import { Frame } from "../../ui/components/frame";
+import { IconCheckbox } from "../../ui/components/icon-checkbox";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
@@ -16,11 +18,34 @@ const sections: readonly { id: DungeonSection; label: string }[] = [
 	{ id: "normal", label: "Normal random" },
 ];
 
+const roleControls: readonly {
+	role: DungeonRole;
+	label: string;
+	icon: string;
+}[] = [
+	{ role: "tank", label: "Tank", icon: "|A:roleicon-tiny-tank:40:40:0:0|a" },
+	{
+		role: "healer",
+		label: "Healer",
+		icon: "|A:roleicon-tiny-healer:40:40:0:0|a",
+	},
+	{ role: "damage", label: "Damage", icon: "|A:roleicon-tiny-dps:40:40:0:0|a" },
+	{
+		role: "leader",
+		label: "Request Leader",
+		icon: "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:40:40|t",
+	},
+];
+
 export class DungeonFinderPanel implements IPanel {
 	readonly id = "dungeon-finder";
 	readonly title = "Dungeon Finder";
 	readonly icon = 237538;
 	private readonly list: ScrollList;
+	private readonly frame: Frame;
+	private readonly action: Frame;
+	private readonly checkboxes: IconCheckbox[];
+	private mounted = false;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
 	constructor(
@@ -29,9 +54,22 @@ export class DungeonFinderPanel implements IPanel {
 		close: () => void,
 		scheduler: ITaskScheduler,
 	) {
+		this.frame = new Frame(`${this.id}-root`, pool);
+		this.action = new Frame("queue-action", pool, "Button");
+		this.checkboxes = roleControls.map(
+			({ role, label, icon }) =>
+				new IconCheckbox(`role-${role}`, pool, label, icon, () => {
+					if (!this.mounted || this.client.isQueued()) return;
+					this.client.toggleRole(role);
+					this.refresh();
+				}),
+		);
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
+			top: 190,
+			bottom: 120,
+			background: false,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
@@ -83,65 +121,75 @@ export class DungeonFinderPanel implements IPanel {
 				marginBottom: 20,
 				activate: () => {},
 			});
-		rows.push({
-			id: "heading-queue",
-			label: "Queue",
-			heading: true,
-			marginBottom: 8,
-			activate: () => {},
-		});
 		const roles = this.client.getRoles();
-		for (const role of [
-			"tank",
-			"healer",
-			"damage",
-		] as const satisfies readonly DungeonRole[]) {
-			rows.push({
-				id: `role-${role}`,
-				label:
-					role === "tank" ? "Tank" : role === "healer" ? "Healer" : "Damage",
-				selected: roles[role],
-				detail: queued
-					? "Roles locked while queued"
-					: roles[role]
-						? "Selected role"
-						: "Select role",
-				activate: () => {
-					this.client.toggleRole(role);
-					this.refresh();
-				},
-			});
-		}
-		rows.push({
-			id: "queue-action",
-			label: queued ? "Leave queue" : "Find a group",
-			detail: queued
-				? "Currently queued"
-				: "Choose a dungeon and at least one role",
-			activate: () => {
-				if (queued) this.client.leave();
-				else this.client.join();
-				this.refresh();
-			},
+		roleControls.forEach(({ role }, index) => {
+			this.checkboxes.at(index)?.setChecked(roles[role], !queued);
 		});
+		this.action.setLabel(
+			"action",
+			queued ? "Leave Queue" : "Find Dungeon",
+			"CENTER",
+			0,
+			0,
+			20,
+		);
 		this.list.setRows(rows);
 	}
+	private activateQueue(): void {
+		if (!this.mounted) return;
+		if (this.client.isQueued()) this.client.leave();
+		else this.client.join();
+		this.refresh();
+	}
 	onMount(parent: IUIComponent): void {
-		this.list.mount(parent);
+		if (!(parent instanceof Frame))
+			throw new Error("Dungeon finder requires a frame parent");
+		this.frame.fill(parent);
+		this.frame.setBlackBackground();
+		this.list.mount(this.frame);
+		this.checkboxes.forEach((control, index) => {
+			control.mount(this.frame, 30 + index * 108, 70);
+		});
+		this.action.setParent(this.frame);
+		this.action.layout(420, 56, "BOTTOM", this.frame, 0, 30);
+		this.action.setColor(0.3, 0.22, 0.06);
+		this.action.setBorder([1, 0.82, 0, 1]);
+		this.action.onClick((button) => {
+			if (button === "LeftButton") this.activateQueue();
+		});
+		this.action.show();
+		this.frame.show();
+		this.mounted = true;
 		this.update.setActive(true);
 	}
 	onUnmount(): void {
+		this.mounted = false;
 		this.update.setActive(false);
 		this.list.unmount();
+		for (const control of this.checkboxes) control.unmount();
+		this.frame.hide();
 	}
 	getNavGrid() {
-		return this.list.getNavGrid();
+		return this.mounted
+			? [
+					this.checkboxes,
+					...this.list.getNavGrid(),
+					[
+						this.action.navigationNode("queue-action", () =>
+							this.activateQueue(),
+						),
+					],
+				]
+			: [];
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {
-		this.update.setActive(false);
+		this.onUnmount();
 		this.list.destroy();
+		for (const control of this.checkboxes) control.destroy();
+		this.action.destroy();
+		this.frame.destroy();
 	}
 }
