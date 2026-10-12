@@ -91,7 +91,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "EXTRA" ? "[extrabar] 169; -2" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "EXTRA" ? "[extrabar] 169; -2" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -115,7 +115,7 @@ ${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spel
 		};
 	}
 	getRingDriver(): RadialDriver {
-		// Edit Mode bar 5 is MultiBarLeft, action page 4 (slots 37–48).
+		// Edit Mode bar 6 is MultiBar5, action page 13 (slots 145–156).
 		let rightStick = 2;
 		for (let index = 0; index < 8; index++) {
 			const name = C_GamePad.StickIndexToConfigName(index);
@@ -126,7 +126,7 @@ ${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spel
 			}
 		}
 		return {
-			slots: Array.from({ length: 12 }, (_, i) => 37 + i),
+			slots: Array.from({ length: 12 }, (_, i) => 145 + i),
 			occupied: "return HasAction(slot)",
 			position: `local state = GetGamePadState()
 local pos = state and state.sticks and state.sticks[${rightStick}]
