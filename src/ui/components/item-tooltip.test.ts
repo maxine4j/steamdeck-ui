@@ -21,6 +21,7 @@ function setup() {
 			SetOwner: vi.fn(),
 			SetHyperlink: vi.fn(),
 			SetToyByItemID: vi.fn(),
+			SetMountBySpellID: vi.fn(),
 			ClearLines: vi.fn(),
 			SetScale: vi.fn(),
 			SetParent: vi.fn(),
@@ -58,6 +59,14 @@ function setup() {
 	const tooltip = new ItemTooltip(pool, events);
 	return { tooltip, frames, factory, screen, compare, pool, events };
 }
+
+it("renders mount collection details without equipment comparisons", () => {
+	const { tooltip, frames, compare } = setup();
+	tooltip.setItem({ mountSpell: 123 });
+	expect(frames.at(0)?.SetMountBySpellID).toHaveBeenCalledExactlyOnceWith(123);
+	expect(frames.at(0)?.SetHyperlink).not.toHaveBeenCalled();
+	expect(compare).not.toHaveBeenCalled();
+});
 
 it("renders and refreshes toy details without item links or equipment comparisons", () => {
 	const { tooltip, frames, compare, events } = setup();

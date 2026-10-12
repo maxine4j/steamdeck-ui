@@ -621,6 +621,11 @@ export class Frame implements IUIComponent {
 	focusInput(): void {
 		(this.acquire() as WowFrame & { SetFocus(): void }).SetFocus();
 	}
+	blurInput(): void {
+		(
+			this.native as (WowFrame & { ClearFocus(): void }) | undefined
+		)?.ClearFocus();
+	}
 	clearInput(): void {
 		const input = this.acquire() as WowFrame & {
 			SetText(value: string): void;

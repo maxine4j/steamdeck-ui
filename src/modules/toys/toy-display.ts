@@ -1,24 +1,11 @@
 import type { Toy } from "../../clients/toys-client";
+import { expansionNames } from "../expansion-names";
 
 export interface ToyGroup {
 	readonly id: number;
 	readonly label: string;
 	readonly toys: Toy[];
 }
-const expansions = [
-	"Classic",
-	"The Burning Crusade",
-	"Wrath of the Lich King",
-	"Cataclysm",
-	"Mists of Pandaria",
-	"Warlords of Draenor",
-	"Legion",
-	"Battle for Azeroth",
-	"Shadowlands",
-	"Dragonflight",
-	"The War Within",
-	"Midnight",
-];
 
 export function groupToys(toys: readonly Toy[]): ToyGroup[] {
 	const groups = new Map<number, ToyGroup>();
@@ -34,7 +21,7 @@ export function groupToys(toys: readonly Toy[]): ToyGroup[] {
 							? "Favourites"
 							: key === -2
 								? "Unknown expansion"
-								: (expansions.at(key) ?? `Expansion ${key}`),
+								: (expansionNames.at(key) ?? `Expansion ${key}`),
 					toys: [],
 				};
 				groups.set(key, group);

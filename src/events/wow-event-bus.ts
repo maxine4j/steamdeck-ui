@@ -130,15 +130,7 @@ const talentEvents = [
 	"STARTER_BUILD_ACTIVATION_FAILED",
 	"PLAYER_ENTERING_WORLD",
 ];
-const mountEvents = [
-	"COMPANION_LEARNED",
-	"COMPANION_UNLEARNED",
-	"COMPANION_UPDATE",
-	"MOUNT_JOURNAL_USABILITY_CHANGED",
-	"MOUNT_JOURNAL_SEARCH_UPDATED",
-	"MOUNT_EQUIPMENT_APPLY_RESULT",
-	"PLAYER_REGEN_ENABLED",
-];
+const mountEvents = ["COMPANION_LEARNED", "COMPANION_UNLEARNED"];
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {
 	private readonly handlers = new Map<ApplicationEvent, EventHandler[]>();
@@ -201,6 +193,8 @@ export class WowEventBus implements IEventBus {
 			...achievementEvents,
 			...dungeonFinderEvents,
 			...mountEvents,
+			"MOUNT_JOURNAL_SEARCH_UPDATED",
+			"MOUNT_EQUIPMENT_APPLY_RESULT",
 			...talentEvents,
 			...vendorEvents,
 			"PLAYER_SPECIALIZATION_CHANGED",
@@ -280,6 +274,10 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("TALENTS_CHANGED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
+			if (event === "MOUNT_JOURNAL_SEARCH_UPDATED")
+				this.emit("MOUNTS_SEARCH_CHANGED");
+			if (event === "MOUNT_EQUIPMENT_APPLY_RESULT")
+				this.emit("MOUNTS_EQUIPMENT_CHANGED");
 			if (achievementEvents.includes(event)) this.emit("ACHIEVEMENTS_CHANGED");
 			if (event === "TOYS_UPDATED") this.emit("TOYS_CHANGED");
 			if (event === "SPELL_UPDATE_COOLDOWN") this.emit("TOYS_COOLDOWN_CHANGED");

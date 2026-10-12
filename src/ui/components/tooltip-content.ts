@@ -3,11 +3,13 @@ export type TooltipContent =
 	| string
 	| number
 	| { readonly toy: number }
+	| { readonly mountSpell: number }
 	| { readonly item: string | number };
 
 export interface TooltipDataFrame {
 	SetHyperlink(link: string): void;
 	SetToyByItemID(id: number): boolean;
+	SetMountBySpellID(spell: number): void;
 }
 
 export function setTooltipContent(
@@ -16,6 +18,10 @@ export function setTooltipContent(
 ): void {
 	if (typeof content === "object" && "toy" in content) {
 		frame.SetToyByItemID(content.toy);
+		return;
+	}
+	if (typeof content === "object" && "mountSpell" in content) {
+		frame.SetMountBySpellID(content.mountSpell);
 		return;
 	}
 	const item = typeof content === "object" ? content.item : content;

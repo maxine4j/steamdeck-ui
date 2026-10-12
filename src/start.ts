@@ -37,6 +37,7 @@ import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-mod
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
 import { ModuleManager } from "./modules/module-manager";
 import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
+import { MountActionMenu } from "./modules/mounts/mount-action-menu";
 import { MountsModule } from "./modules/mounts/mounts-module";
 import { MountsPanel } from "./modules/mounts/mounts-panel";
 import { BuiltInDialogue } from "./modules/npc-dialogue/built-in-dialogue";
@@ -261,6 +262,10 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(toysPanel, "right");
 	modules.register(new ToysModule(ui, events, toysPanel, builtInToys));
+	const mountModal = new Modal("mount-actions", pool, navigation, events);
+	const mountMenu = new MountActionMenu(mountModal, mounts, (id) =>
+		mountsPanel.toggleFavourite(id),
+	);
 	const mountsPanel = new MountsPanel(
 		pool,
 		mounts,
@@ -269,6 +274,7 @@ export function startSteamDeckUI(
 			ui.closePanel("right", "mounts");
 		},
 		scheduler,
+		mountMenu,
 	);
 	modules.register(new MountsModule(ui, events, mountsPanel, builtInMounts));
 	const paperDoll = new PaperDollPanel(
@@ -350,6 +356,7 @@ export function startSteamDeckUI(
 			itemModal.destroy();
 			currencyModal.destroy();
 			toyModal.destroy();
+			mountModal.destroy();
 			navigation.destroy();
 			itemTooltip.destroy();
 			ui.destroy();

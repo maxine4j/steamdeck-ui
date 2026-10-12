@@ -36,6 +36,19 @@ it("forwards native login events through the hidden event frame", () => {
 	}
 	expect(achievements).toHaveBeenCalledTimes(3);
 	bus.subscribe("PLAYER_LOGIN", login);
+	const mounts = vi.fn();
+	const mountSearch = vi.fn();
+	bus.subscribe("MOUNTS_CHANGED", mounts);
+	bus.subscribe("MOUNTS_SEARCH_CHANGED", mountSearch);
+	dispatch(frame, "MOUNT_JOURNAL_SEARCH_UPDATED");
+	expect(mountSearch).toHaveBeenCalledOnce();
+	expect(mounts).not.toHaveBeenCalled();
+	dispatch(frame, "COMPANION_LEARNED", "MOUNT");
+	expect(mounts).toHaveBeenCalledOnce();
+	dispatch(frame, "COMPANION_UPDATE", "MOUNT");
+	dispatch(frame, "MOUNT_JOURNAL_USABILITY_CHANGED");
+	dispatch(frame, "PLAYER_REGEN_ENABLED");
+	expect(mounts).toHaveBeenCalledOnce();
 	expect(frame.Hide).toHaveBeenCalledOnce();
 	expect(frame.RegisterEvent).toHaveBeenCalledWith("PLAYER_LOGIN");
 	dispatch(frame, "OTHER_EVENT");

@@ -6,6 +6,8 @@ import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import type { IMountActionMenu } from "./mount-action-menu";
+import { groupMounts } from "./mount-display";
 
 const columns = 10;
 const spacing = 46;
@@ -19,7 +21,9 @@ export class MountsPanel implements IPanel {
 	readonly title = "Mounts";
 	readonly icon = 132261;
 	private readonly frame: Frame;
+	private readonly closeButton: Frame;
 	private readonly search: Frame;
+	private readonly searchNavigation: INavigable;
 	private readonly filters: Dropdown;
 	private readonly footer: Frame;
 	private readonly equipment: Frame;
@@ -38,6 +42,17 @@ export class MountsPanel implements IPanel {
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private loadGeneration = 0;
+	private renderGeneration = 0;
+	private mounts: readonly Mount[] = [];
+	private snapshotComplete = false;
+	private queuedRefresh = false;
+	private cancelRefresh?: () => void;
+	private cancelReconcile?: () => void;
+	private readonly favouriteOverrides = new Map<number, boolean>();
+	private readonly pendingFavourites = new Map<
+		number,
+		{ previous: boolean; value: boolean; accepted: boolean }
+	>();
 	private navigationChanged?: () => void;
 
 	constructor(
@@ -45,9 +60,22 @@ export class MountsPanel implements IPanel {
 		private readonly client: IMountsClient,
 		private readonly close: () => void,
 		private readonly scheduler: ITaskScheduler,
+		private readonly menu: IMountActionMenu,
 	) {
 		this.frame = new Frame("mounts-root", pool);
+		this.closeButton = new Frame("mounts-close", pool, "Button");
 		this.search = new Frame("mounts-search", pool, "EditBox");
+		this.searchNavigation = {
+			navId: this.search.id,
+			onFocus: () => this.search.setColor(0.3, 0.25, 0),
+			onBlur: () => {
+				this.search.setColor(0.12, 0.12, 0.12);
+				this.search.blurInput();
+			},
+			onInteract: () => {
+				if (this.mounted) this.search.focusInput();
+			},
+		};
 		this.filters = new Dropdown("mounts-filters", pool);
 		this.footer = new Frame("mounts-footer", pool);
 		this.equipment = new Frame("mounts-equipment", pool, "Button");
@@ -61,6 +89,12 @@ export class MountsPanel implements IPanel {
 
 	refresh(): void {
 		const generation = ++this.loadGeneration;
+		this.renderGeneration++;
+		this.cancelRefresh?.();
+		this.cancelRefresh = undefined;
+		this.queuedRefresh = false;
+		this.snapshotComplete = false;
+		this.menu.close();
 		this.dirty = true;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
@@ -96,11 +130,15 @@ export class MountsPanel implements IPanel {
 					-44,
 					14,
 				);
-				this.render(mounts, generation, true);
+				this.snapshotComplete = true;
+				this.acceptSnapshot(mounts, true);
+				this.render(this.mounts, generation, true);
 			},
 			(mounts) => {
-				if (this.mounted && generation === this.loadGeneration)
-					this.render(mounts, generation, false);
+				if (this.mounted && generation === this.loadGeneration) {
+					this.acceptSnapshot(mounts);
+					this.render(this.mounts, generation, false);
+				}
 			},
 			(completed, total) => {
 				if (this.mounted && generation === this.loadGeneration)
@@ -119,10 +157,99 @@ export class MountsPanel implements IPanel {
 				},
 			})),
 		);
+		this.refreshEquipment();
+	}
+
+	refreshEquipment(): void {
+		if (!this.mounted) return;
 		const equipment = this.client.getEquipment();
 		this.equipment.setIcon(equipment.icon);
 		this.equipment.setTooltip(equipment.label, equipment.link);
 		this.flight.setSpell(this.client.getUtilitySpells().flight);
+	}
+
+	/** Event bursts must not repeatedly cancel an unfinished journal scan. */
+	invalidate(): void {
+		this.dirty = true;
+		if (!this.mounted) return;
+		if (this.cancelLoad || this.cancelRender) {
+			this.queuedRefresh = true;
+			return;
+		}
+		if (this.cancelRefresh) return;
+		this.cancelRefresh = this.scheduler.nextFrame(() => {
+			this.cancelRefresh = undefined;
+			if (this.mounted) this.refresh();
+		});
+	}
+
+	private acceptSnapshot(mounts: readonly Mount[], complete = false): void {
+		this.mounts = mounts.map((mount) => {
+			const favourite = this.favouriteOverrides.get(mount.id);
+			if (favourite === undefined) return mount;
+			if (
+				mount.favourite === favourite ||
+				(complete && !this.pendingFavourites.has(mount.id))
+			)
+				this.favouriteOverrides.delete(mount.id);
+			return mount.favourite === favourite ? mount : { ...mount, favourite };
+		});
+	}
+
+	toggleFavourite(id: number): void {
+		const mount = this.mounts.find((mount) => mount.id === id);
+		if (!this.mounted || !mount?.collected) return;
+		const request = {
+			previous: mount.favourite,
+			value: !mount.favourite,
+			accepted: false,
+		};
+		this.pendingFavourites.set(id, request);
+		this.favouriteOverrides.set(id, request.value);
+		this.updateFavourite(id, request.value);
+		this.client.setFavourite(id, request.value, (accepted) => {
+			if (this.pendingFavourites.get(id) !== request) return;
+			request.accepted = accepted;
+			if (!accepted) {
+				this.pendingFavourites.delete(id);
+				this.favouriteOverrides.delete(id);
+				this.updateFavourite(id, request.previous);
+			}
+		});
+	}
+
+	private updateFavourite(id: number, favourite: boolean): void {
+		this.mounts = this.mounts.map((mount) =>
+			mount.id === id && mount.favourite !== favourite
+				? { ...mount, favourite }
+				: mount,
+		);
+		if (this.mounted)
+			this.render(this.mounts, this.loadGeneration, this.snapshotComplete);
+		else this.dirty = true;
+	}
+
+	onJournalSearchUpdated(): void {
+		if (
+			this.pendingFavourites.size === 0 &&
+			this.favouriteOverrides.size === 0
+		) {
+			this.invalidate();
+			return;
+		}
+		if (this.cancelReconcile) return;
+		this.cancelReconcile = this.scheduler.nextFrame(() => {
+			this.cancelReconcile = undefined;
+			for (const [id, request] of this.pendingFavourites) {
+				if (!request.accepted) continue;
+				const actual = this.client.getFavourite(id);
+				this.pendingFavourites.delete(id);
+				// A scan started before the request can still publish stale data.
+				if (this.cancelLoad) this.favouriteOverrides.set(id, actual);
+				else this.favouriteOverrides.delete(id);
+				if (actual !== request.value) this.updateFavourite(id, actual);
+			}
+		});
 	}
 
 	private setLoadingProgress(progress: number): void {
@@ -144,18 +271,10 @@ export class MountsPanel implements IPanel {
 		complete: boolean,
 	): void {
 		this.cancelRender?.();
+		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const jobs: (() => void)[] = [];
-		const favourites = mounts.filter((mount) => mount.favourite);
-		// Favourites are repeated here and in the full collection.
-		const groups = [
-			...(favourites.length > 0
-				? [{ label: "Favourites", mounts: favourites, favourite: true }]
-				: []),
-			...(mounts.length > 0
-				? [{ label: "Mounts", mounts, favourite: false }]
-				: []),
-		];
+		const groups = groupMounts(mounts);
 		let y = 0;
 		let cellIndex = 0;
 		let renderedRows = 0;
@@ -221,31 +340,26 @@ export class MountsPanel implements IPanel {
 							? "Not collected"
 							: !mount.usable
 								? "Unavailable here"
-								: "Y: Toggle favourite",
+								: "Y: Actions",
 					);
 					const current = () =>
-						this.mounted && generation === this.loadGeneration;
+						this.mounted &&
+						generation === this.loadGeneration &&
+						renderGeneration === this.renderGeneration;
 					const summon = () => {
-						if (current() && mount.collected && mount.usable)
+						if (current() && mount.collected && this.client.canUse(mount.id))
 							this.client.summon(mount.id);
 					};
-					const favourite = () => {
-						if (current() && mount.collected) {
-							this.client.toggleFavourite(mount.id);
-							this.refresh();
-						}
-					};
 					cell.icon.onClick((button) => {
-						if (button === "LeftButton") summon();
-						else if (button === "RightButton") favourite();
+						if (button === "LeftButton" || button === "RightButton") summon();
 					});
 					cell.border.show();
 					cell.icon.show();
 					const node = cell.icon.navigationNode(
-						group.favourite
+						group.id === -1
 							? `mount-favourite-${mount.id}`
 							: `mount-${mount.id}`,
-						summon,
+						() => {},
 						() =>
 							this.viewport.revealVerticalRange(
 								cellTop,
@@ -256,8 +370,12 @@ export class MountsPanel implements IPanel {
 					grid.at(row)?.push({
 						...node,
 						navColumn: index % columns,
-						tooltipItem: () => (current() ? `spell:${mount.spell}` : undefined),
-						onContext: favourite,
+						onAlternate: summon,
+						tooltipItem: () =>
+							current() ? { mountSpell: mount.spell } : undefined,
+						onContext: () => {
+							if (current()) this.menu.open(mount);
+						},
 					});
 					renderedRows = row + 1;
 				});
@@ -286,7 +404,12 @@ export class MountsPanel implements IPanel {
 		}
 		let cursor = 0;
 		const step = () => {
-			if (!this.mounted || generation !== this.loadGeneration) return;
+			if (
+				!this.mounted ||
+				generation !== this.loadGeneration ||
+				renderGeneration !== this.renderGeneration
+			)
+				return;
 			this.cancelRender = undefined;
 			const end = Math.min(jobs.length, cursor + 10);
 			while (cursor < end) jobs.at(cursor++)?.();
@@ -302,6 +425,10 @@ export class MountsPanel implements IPanel {
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 				this.loadingTrack.hide();
+				if (this.queuedRefresh) {
+					this.queuedRefresh = false;
+					this.invalidate();
+				}
 			}
 		};
 		this.cancelRender = this.scheduler.nextFrame(step);
@@ -320,9 +447,16 @@ export class MountsPanel implements IPanel {
 		this.frame.fill(parent);
 		this.frame.setBlackBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -12, 20);
+		this.closeButton.setParent(this.frame);
+		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
+		this.closeButton.setLabel("close", "X");
+		this.closeButton.onClick(() => {
+			if (this.mounted) this.close();
+		});
+		this.closeButton.show();
 		this.frame.setLabel(
 			"actions",
-			"A: Summon   Y: Favourite",
+			"X: Summon   Y: Actions",
 			"BOTTOMLEFT",
 			16,
 			16,
@@ -346,6 +480,7 @@ export class MountsPanel implements IPanel {
 			}
 		});
 		this.search.setTooltip("Search mounts");
+		this.search.blurInput();
 		this.search.show();
 		this.footer.setParent(this.frame);
 		this.footer.layout(456, 70, "BOTTOMLEFT", this.frame, 12, 32);
@@ -385,7 +520,7 @@ export class MountsPanel implements IPanel {
 		const applyEquipment = () => {
 			if (this.mounted) {
 				this.client.applyEquipment();
-				this.refresh();
+				this.refreshEquipment();
 			}
 		};
 		this.equipment.onClick(applyEquipment);
@@ -402,6 +537,10 @@ export class MountsPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.search.blurInput();
+		this.menu.close();
+		this.cancelRefresh?.();
+		this.cancelRefresh = undefined;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
 		this.filters.hide();
@@ -409,38 +548,45 @@ export class MountsPanel implements IPanel {
 		this.cancelRender = undefined;
 		this.frame.hide();
 	}
-	private nav(button: Frame): INavigable {
+	private nav(button: Frame, alternate = false): INavigable {
 		return {
 			navId: button.id,
+			secureActions:
+				button === this.flight
+					? () => ({ interact: this.mounted ? button : undefined })
+					: undefined,
 			onFocus: () => button.setLabel("focus", ">", "BOTTOM", 0, 0),
 			onBlur: () => button.setLabel("focus", ""),
 			onInteract: () => {
-				if (this.mounted) button.click();
+				if (this.mounted && !alternate && button !== this.flight)
+					button.click();
 			},
+			onAlternate: alternate
+				? () => {
+						if (this.mounted) button.click();
+					}
+				: undefined,
 		};
 	}
 	getNavGrid(): INavigable[][] {
 		if (!this.mounted) return [];
 		return [
-			[
-				{
-					navId: this.search.id,
-					onFocus: () => this.search.setColor(0.3, 0.25, 0),
-					onBlur: () => this.search.setColor(0.12, 0.12, 0.12),
-					onInteract: () => this.search.focusInput(),
-				},
-			],
+			[this.searchNavigation],
 			...this.filters.getNavGrid(),
 			...(this.filters.isOpen() ? [] : this.grid),
 			[
 				this.nav(this.equipment),
-				this.nav(this.favourite),
+				this.nav(this.favourite, true),
 				this.nav(this.flight),
 			],
 		];
 	}
 	destroy(): void {
 		this.onUnmount();
+		this.cancelReconcile?.();
+		this.cancelReconcile = undefined;
+		this.pendingFavourites.clear();
+		this.favouriteOverrides.clear();
 		for (const cell of this.cells) {
 			cell.icon.destroy();
 			cell.border.destroy();
@@ -448,6 +594,7 @@ export class MountsPanel implements IPanel {
 		for (const header of this.headers) header.destroy();
 		this.filters.destroy();
 		for (const frame of [
+			this.closeButton,
 			this.viewport,
 			this.content,
 			this.loadingProgress,

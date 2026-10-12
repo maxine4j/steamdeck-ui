@@ -14,6 +14,7 @@ const mount = (id: number, favourite = false): Mount => ({
 	collected: true,
 	usable: true,
 	favourite,
+	expansionId: 0,
 });
 
 function setup() {
@@ -42,6 +43,8 @@ function setup() {
 		"onReceiveDrag",
 		"setSpell",
 		"click",
+		"focusInput",
+		"blurInput",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
@@ -64,7 +67,9 @@ function setup() {
 		search: vi.fn(),
 		getFilters: vi.fn(() => []),
 		toggleFilter: vi.fn(),
-		toggleFavourite: vi.fn(),
+		setFavourite: vi.fn((_id, _favourite, onResult) => onResult(true)),
+		getFavourite: vi.fn(() => true),
+		canUse: vi.fn((id) => id !== 2),
 		getEquipment: () => ({ icon: 789, label: "Equipment", link: "item:1" }),
 		applyEquipment: vi.fn(),
 		getUtilitySpells: () => ({ favourite: 150544, flight: 460002 }),
@@ -73,7 +78,8 @@ function setup() {
 	};
 	const pool = {} as IFramePoolManager;
 	const close = vi.fn();
-	const panel = new MountsPanel(pool, client, close, scheduler);
+	const menu = { open: vi.fn(), close: vi.fn() };
+	const panel = new MountsPanel(pool, client, close, scheduler, menu);
 	const parent = new Frame("parent", pool);
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
@@ -85,7 +91,17 @@ function setup() {
 		});
 		flush();
 	};
-	return { panel, parent, client, pending, flush, publish, cancel, close };
+	return {
+		panel,
+		parent,
+		client,
+		pending,
+		flush,
+		publish,
+		cancel,
+		close,
+		menu,
+	};
 }
 
 it("shows favourites first without removing them from the ten-column collection grid", () => {
@@ -114,7 +130,7 @@ it("shows favourites first without removing them from the ten-column collection 
 	);
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"title",
-		"Mounts (12 / 12)",
+		"Classic (12 / 12)",
 		"LEFT",
 		0,
 		0,
@@ -125,8 +141,8 @@ it("shows favourites first without removing them from the ten-column collection 
 	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
 });
 
-it("dims missing mounts, prevents unavailable summons and toggles favourites through context actions", () => {
-	const { panel, parent, client, publish } = setup();
+it("dims missing mounts, prevents unavailable summons and opens options on controller context", () => {
+	const { panel, parent, client, publish, menu } = setup();
 	panel.onMount(parent);
 	publish([
 		mount(1),
@@ -138,15 +154,114 @@ it("dims missing mounts, prevents unavailable summons and toggles favourites thr
 		.flat()
 		.filter((node) => /^mount-\d+$/.test(node.navId));
 	for (const node of nodes) node.onInteract();
+	expect(client.summon).not.toHaveBeenCalled();
+	for (const node of nodes) node.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
 	expect(Frame.prototype.setOpacity).toHaveBeenCalledWith(0.2);
 	nodes.at(2)?.onContext?.();
-	expect(client.toggleFavourite).not.toHaveBeenCalled();
+	expect(menu.open).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
 	nodes.at(0)?.onContext?.();
-	expect(client.toggleFavourite).toHaveBeenCalledExactlyOnceWith(1);
+	expect(menu.open).toHaveBeenLastCalledWith(
+		expect.objectContaining({ id: 1 }),
+	);
+	expect(client.setFavourite).not.toHaveBeenCalled();
+	const iconClick = vi
+		.mocked(Frame.prototype.onClick)
+		.mock.calls.find(
+			(_call, index) =>
+				vi.mocked(Frame.prototype.onClick).mock.contexts.at(index)?.id ===
+				"mounts-icon-0",
+		)
+		?.at(0);
+	iconClick?.("RightButton");
+	expect(client.summon).toHaveBeenCalledTimes(2);
 	panel.onUnmount();
 	nodes.at(0)?.onInteract();
-	expect(client.summon).toHaveBeenCalledTimes(1);
+	expect(client.summon).toHaveBeenCalledTimes(2);
+});
+
+it("optimistically changes both favourite copies without reloading, including during a 20-mount preview", () => {
+	const { panel, parent, client, flush } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	const mounts = Array.from({ length: 45 }, (_, i) => mount(i + 1));
+	load?.[1]?.(mounts.slice(0, 20));
+	flush();
+	panel.toggleFavourite(1);
+	flush();
+	expect(client.setFavourite).toHaveBeenCalledWith(
+		1,
+		true,
+		expect.any(Function),
+	);
+	expect(client.load).toHaveBeenCalledOnce();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-favourite-1"),
+	).toBe(true);
+	// The favourite event must not cancel the ongoing scan or reset to its preview.
+	panel.onJournalSearchUpdated();
+	panel.onJournalSearchUpdated();
+	load?.[0](mounts, { collected: 45, total: 100 });
+	flush();
+	expect(client.load).toHaveBeenCalledOnce();
+	expect(client.getFavourite).toHaveBeenCalledExactlyOnceWith(1);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)),
+	).toHaveLength(45);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-favourite-1"),
+	).toBe(true);
+});
+
+it("rolls back rejected favourite requests and reconciles server disagreement using only the changed ID", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([mount(1)]);
+	vi.mocked(client.setFavourite).mockImplementationOnce((_id, _value, done) =>
+		done(false),
+	);
+	panel.toggleFavourite(1);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-favourite-1"),
+	).toBe(false);
+	panel.toggleFavourite(1);
+	flush();
+	vi.mocked(client.getFavourite).mockReturnValue(false);
+	panel.onJournalSearchUpdated();
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-favourite-1"),
+	).toBe(false);
+	expect(client.load).toHaveBeenCalledOnce();
+});
+
+it("coalesces event bursts and completes an active scan before performing one queued refresh", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	for (let i = 0; i < 10; i++) panel.invalidate();
+	expect(client.load).toHaveBeenCalledOnce();
+	publish([mount(1)]);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([mount(1)]);
+	for (let i = 0; i < 10; i++) panel.invalidate();
+	flush();
+	expect(client.load).toHaveBeenCalledTimes(3);
 });
 
 it("keeps a first page usable, displays bottom progress, rejects stale loads and reuses completed controls", () => {
@@ -166,7 +281,7 @@ it("keeps a first page usable, displays bottom progress, rejects stale loads and
 		.getNavGrid()
 		.flat()
 		.find((node) => node.navId === "mount-1")
-		?.onInteract();
+		?.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
 		140,
@@ -235,7 +350,7 @@ it("keeps a first page usable, displays bottom progress, rejects stale loads and
 		.getNavGrid()
 		.flat()
 		.find((node) => node.navId === "mount-1")
-		?.onInteract();
+		?.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledTimes(2);
 	panel.refresh();
 	publish([mount(1)]);
@@ -313,6 +428,33 @@ it("preserves search, filters, equipment and extra actions in a 70px footer", ()
 	expect(close).not.toHaveBeenCalled();
 	panel.onContainerClosed();
 	expect(close).toHaveBeenCalledOnce();
+});
+
+it("only enters the search box after A, and clears text focus on blur and reopen", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([mount(1)]);
+	const search = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mounts-search");
+	search?.onFocus();
+	expect(Frame.prototype.focusInput).not.toHaveBeenCalled();
+	search?.onInteract();
+	expect(Frame.prototype.focusInput).toHaveBeenCalledOnce();
+	panel.refresh();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "mounts-search"),
+	).toBe(search);
+	search?.onBlur();
+	expect(Frame.prototype.blurInput).toHaveBeenCalled();
+	panel.onUnmount();
+	vi.mocked(Frame.prototype.focusInput).mockClear();
+	panel.onMount(parent);
+	expect(Frame.prototype.focusInput).not.toHaveBeenCalled();
 });
 
 it("renders an empty collection without an empty group header", () => {

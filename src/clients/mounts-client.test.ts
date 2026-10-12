@@ -73,6 +73,7 @@ it("uses displayed indices for favourites, preserves mount IDs and counts the fu
 			id === 10,
 		],
 		GetNumDisplayedMounts: displayedCount,
+		GetDisplayedMountID: () => 20,
 		GetDisplayedMountInfo: () => [
 			"Horse",
 			123,
@@ -102,14 +103,177 @@ it("uses displayed indices for favourites, preserves mount IDs and counts the fu
 			collected: true,
 			usable: true,
 			favourite: true,
+			expansionId: 0,
 		},
 	]);
-	client.toggleFavourite(20);
+	const result = vi.fn();
+	client.setFavourite(20, false, result);
 	expect(favourite).toHaveBeenCalledWith(1, false);
-	client.toggleFavourite(999);
+	expect(result).toHaveBeenCalledExactlyOnceWith(true);
+	client.setFavourite(999, true, result);
 	expect(favourite).toHaveBeenCalledTimes(1);
-	// One journal-size query per load, rather than one per loop iteration.
-	expect(displayedCount).toHaveBeenCalledTimes(3);
+	// Cached writes do not enumerate the journal; an unknown ID only queries size.
+	expect(displayedCount).toHaveBeenCalledTimes(2);
+});
+
+it("updates a cached favourite without rescanning mount details or collection counts", () => {
+	const details = vi.fn(() => [
+		"Horse",
+		123,
+		1,
+		false,
+		true,
+		1,
+		false,
+		false,
+		null,
+		false,
+		true,
+		6,
+	]);
+	const info = vi.fn(() => ["Horse", 123, 1, false, true, 1, true]);
+	const set = vi.fn();
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => 1,
+		GetDisplayedMountInfo: details,
+		GetDisplayedMountID: () => 6,
+		GetIsFavorite: () => [false, true],
+		SetIsFavorite: set,
+		GetMountInfoByID: info,
+	});
+	const client = new MountsClient(scheduler);
+	client.getMounts();
+	details.mockClear();
+	client.setFavourite(6, true, vi.fn());
+	expect(set).toHaveBeenCalledExactlyOnceWith(1, true);
+	expect(details).not.toHaveBeenCalled();
+	expect(info).not.toHaveBeenCalled();
+	expect(client.getFavourite(6)).toBe(true);
+	expect(info).toHaveBeenCalledExactlyOnceWith(6);
+});
+
+it("checks current summon eligibility by ID without enumerating the journal", () => {
+	const info = vi.fn(() => [
+		"Horse",
+		123,
+		1,
+		false,
+		true,
+		1,
+		false,
+		false,
+		null,
+		false,
+		true,
+	]);
+	vi.stubGlobal("C_MountJournal", { GetMountInfoByID: info });
+	const client = new MountsClient(scheduler);
+	expect(client.canUse(6)).toBe(true);
+	info.mockReturnValue([
+		"Horse",
+		123,
+		1,
+		false,
+		false,
+		1,
+		false,
+		false,
+		null,
+		false,
+		true,
+	]);
+	expect(client.canUse(6)).toBe(false);
+	expect(info.mock.calls).toEqual([[6], [6]]);
+});
+
+it("resolves reordered indices in bounded ID-only batches and never favourites the wrong mount", () => {
+	const pending: (() => void)[] = [];
+	const client = new MountsClient({
+		nextFrame: (step) => {
+			pending.push(step);
+			return vi.fn();
+		},
+	});
+	const displayedID = vi.fn((index: number) =>
+		index === 45 ? 6 : index + 100,
+	);
+	const set = vi.fn();
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => 45,
+		GetDisplayedMountInfo: (index: number) => [
+			"Horse",
+			123,
+			1,
+			false,
+			true,
+			1,
+			false,
+			false,
+			null,
+			false,
+			true,
+			index === 1 ? 6 : index + 100,
+		],
+		GetDisplayedMountID: displayedID,
+		GetIsFavorite: () => [false, true],
+		SetIsFavorite: set,
+	});
+	client.getMounts();
+	const done = vi.fn();
+	client.setFavourite(6, true, done);
+	expect(set).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(displayedID).toHaveBeenCalledTimes(21);
+	expect(done).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(set).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(set).toHaveBeenCalledExactlyOnceWith(45, true);
+	expect(done).toHaveBeenCalledExactlyOnceWith(true);
+});
+
+it("finishes the full scan without duplicate or skipped IDs when unfavouriting reorders the preview", () => {
+	const pending: (() => void)[] = [];
+	const client = new MountsClient({
+		nextFrame: (step) => {
+			pending.push(step);
+			return vi.fn();
+		},
+	});
+	const ids = Array.from({ length: 45 }, (_, i) => i + 1);
+	const info = (id: number) => [
+		`Mount ${id}`,
+		id,
+		1,
+		false,
+		true,
+		1,
+		id === 1,
+		false,
+		null,
+		false,
+		true,
+		id,
+	];
+	vi.stubGlobal("C_MountJournal", {
+		GetNumDisplayedMounts: () => ids.length,
+		GetDisplayedMountID: (index: number) => ids.at(index - 1),
+		GetDisplayedMountInfo: (index: number) => info(ids.at(index - 1) ?? 0),
+		GetMountIDs: () => Array.from({ length: 45 }, (_, i) => i + 1),
+		GetMountInfoByID: info,
+		GetIsFavorite: () => [true, true],
+		SetIsFavorite: () => {
+			const first = ids.shift();
+			if (first !== undefined) ids.push(first);
+		},
+	});
+	const done = vi.fn();
+	client.load(done, () => client.setFavourite(1, false, vi.fn()));
+	while (pending.length) pending.shift()?.();
+	const result = done.mock.calls.at(0)?.at(0) as { id: number }[];
+	expect(result).toHaveLength(45);
+	expect(new Set(result.map((mount) => mount.id)).size).toBe(45);
+	expect(result.map((mount) => mount.id)).toContain(21);
 });
 
 it("loads the journal across frames and cancels an obsolete load", () => {

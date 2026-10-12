@@ -5,7 +5,11 @@ import { MountsModule } from "./mounts-module";
 it("opens and closes mounts on the right, refreshes journal events and restores the native pane", () => {
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
-	const view = { refresh: vi.fn() };
+	const view = {
+		invalidate: vi.fn(),
+		onJournalSearchUpdated: vi.fn(),
+		refreshEquipment: vi.fn(),
+	};
 	const native = {
 		disable: vi.fn(),
 		restore: vi.fn(),
@@ -20,9 +24,15 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 	events.emit("MOUNTS_VISIBILITY_CHANGED");
 	expect(ui.closePanel).toHaveBeenCalledWith("right", "mounts");
 	events.emit("MOUNTS_CHANGED");
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.invalidate).toHaveBeenCalledOnce();
+	events.emit("MOUNTS_SEARCH_CHANGED");
+	expect(view.onJournalSearchUpdated).toHaveBeenCalledOnce();
+	events.emit("MOUNTS_EQUIPMENT_CHANGED");
+	expect(view.refreshEquipment).toHaveBeenCalledOnce();
 	module.shutdown();
 	events.emit("MOUNTS_CHANGED");
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.invalidate).toHaveBeenCalledOnce();
+	events.emit("MOUNTS_SEARCH_CHANGED");
+	expect(view.onJournalSearchUpdated).toHaveBeenCalledOnce();
 	expect(native.restore).toHaveBeenCalledOnce();
 });
