@@ -51,6 +51,9 @@ function setup() {
 		},
 	};
 	const client: IToysClient = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
 		isInCombat: vi.fn(() => false),
 		load: vi.fn(() => vi.fn()),
 		canUse: vi.fn(() => true),

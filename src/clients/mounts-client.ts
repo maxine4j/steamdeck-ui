@@ -1,3 +1,4 @@
+import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getMountExpansion } from "./mount-expansions";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -17,7 +18,7 @@ export interface MountFilter {
 	readonly label: string;
 	readonly checked: boolean;
 }
-export interface IMountsClient {
+export interface IMountsClient extends IJournalPrefetch {
 	load(
 		callback: (
 			mounts: Mount[],
@@ -47,8 +48,42 @@ export interface IMountsClient {
 export class MountsClient implements IMountsClient {
 	private readonly indices = new Map<number, number>();
 	private displayRevision = 0;
-	constructor(private readonly scheduler: ITaskScheduler) {}
+	private readonly journal: JournalPrefetch<
+		{
+			mounts: Mount[];
+			count: { collected: number; total: number };
+		},
+		Mount[]
+	>;
+	constructor(private readonly scheduler: ITaskScheduler) {
+		this.journal = new JournalPrefetch(scheduler, (done, preview, progress) =>
+			this.scan((mounts, count) => done({ mounts, count }), preview, progress),
+		);
+	}
+	prefetch(): void {
+		this.journal.prefetch();
+	}
+	invalidate(): void {
+		this.journal.invalidate();
+	}
+	stop(): void {
+		this.journal.stop();
+	}
 	load(
+		callback: (
+			mounts: Mount[],
+			count: { collected: number; total: number },
+		) => void,
+		onFirstPage?: (mounts: Mount[]) => void,
+		onProgress?: (completed: number, total: number) => void,
+	): () => void {
+		return this.journal.load(
+			({ mounts, count }) => callback(mounts, count),
+			onFirstPage,
+			onProgress,
+		);
+	}
+	private scan(
 		callback: (
 			mounts: Mount[],
 			count: { collected: number; total: number },
@@ -184,6 +219,7 @@ export class MountsClient implements IMountsClient {
 		return { collected, total };
 	}
 	search(text: string): void {
+		this.invalidate();
 		C_MountJournal.SetSearch(text);
 	}
 	getFilters(): MountFilter[] {
@@ -222,6 +258,7 @@ export class MountsClient implements IMountsClient {
 		const [kind, value] = id.split(":");
 		const index = Number(value);
 		if (!this.getFilters().some((filter) => filter.id === id)) return;
+		this.invalidate();
 		if (kind === "collection")
 			C_MountJournal.SetCollectedFilterSetting(
 				index,
@@ -243,6 +280,7 @@ export class MountsClient implements IMountsClient {
 		const apply = (index: number) => {
 			const [, allowed] = C_MountJournal.GetIsFavorite(index);
 			if (allowed) {
+				this.invalidate();
 				this.displayRevision++;
 				C_MountJournal.SetIsFavorite(index, favourite);
 			}

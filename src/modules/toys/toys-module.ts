@@ -1,3 +1,4 @@
+import type { IJournalPrefetch } from "../../clients/journal-prefetch";
 import type { IEventBus } from "../../events/types";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
@@ -5,7 +6,10 @@ import type { IBuiltInToys } from "./built-in-toys";
 
 export class ToysModule implements IModule {
 	readonly id = "toys";
-	private readonly refresh = () => this.view.refresh();
+	private readonly refresh = () => {
+		this.journal.invalidate();
+		this.view.refresh();
+	};
 	private readonly cooldown = () => this.view.refreshCooldowns();
 	private readonly resume = () => this.view.resume();
 	private readonly sync = () => {
@@ -21,6 +25,7 @@ export class ToysModule implements IModule {
 			resume(): void;
 		},
 		private readonly native: IBuiltInToys,
+		private readonly journal: IJournalPrefetch,
 	) {}
 	disableBuiltIn(): void {
 		this.native.disable();
@@ -31,6 +36,7 @@ export class ToysModule implements IModule {
 		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.subscribe("TOYS_COOLDOWN_CHANGED", this.cooldown);
 		this.events.subscribe("TOYS_VISIBILITY_CHANGED", this.sync);
+		this.journal.prefetch();
 		if (this.native.isOpen()) this.sync();
 	}
 	shutdown(): void {
@@ -39,6 +45,7 @@ export class ToysModule implements IModule {
 		this.events.unsubscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.unsubscribe("TOYS_COOLDOWN_CHANGED", this.cooldown);
 		this.events.unsubscribe("TOYS_VISIBILITY_CHANGED", this.sync);
+		this.journal.stop();
 		this.native.restore();
 	}
 }

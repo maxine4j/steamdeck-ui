@@ -261,7 +261,7 @@ export function startSteamDeckUI(
 		builtInToys.close(),
 	);
 	ui.registerPanel(toysPanel, "right");
-	modules.register(new ToysModule(ui, events, toysPanel, builtInToys));
+	modules.register(new ToysModule(ui, events, toysPanel, builtInToys, toys));
 	const mountModal = new Modal("mount-actions", pool, navigation, events);
 	const mountMenu = new MountActionMenu(mountModal, mounts, (id) =>
 		mountsPanel.toggleFavourite(id),
@@ -276,7 +276,9 @@ export function startSteamDeckUI(
 		scheduler,
 		mountMenu,
 	);
-	modules.register(new MountsModule(ui, events, mountsPanel, builtInMounts));
+	modules.register(
+		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
+	);
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),
 		pool,

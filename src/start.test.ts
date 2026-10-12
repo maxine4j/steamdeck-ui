@@ -242,6 +242,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		shutdown: vi.fn(),
 	};
 	const toys = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
 		isInCombat: () => false,
 		load: vi.fn((callback: (toys: Toy[]) => void) =>
 			scheduler.nextFrame(() =>
@@ -270,6 +273,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		titles,
 		{
 			load: vi.fn(() => vi.fn()),
+			prefetch: vi.fn(),
+			invalidate: vi.fn(),
+			stop: vi.fn(),
 			getMounts: () => [],
 			summon: vi.fn(),
 			pickupRandom: vi.fn(),
@@ -441,6 +447,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 	);
 	events.emit("PLAYER_LOGIN");
+	expect(toys.prefetch).toHaveBeenCalledOnce();
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();

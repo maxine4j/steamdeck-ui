@@ -3,6 +3,25 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("prefetches in twenty-entry batches and reuses the snapshot on opening", () => {
+	const { client, api, pending } = setup(45);
+	const info = vi.spyOn(api, "GetToyInfo");
+	client.prefetch();
+	expect(info).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(20);
+	const done = vi.fn();
+	client.load(done);
+	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(40);
+	pending.shift()?.();
+	expect(done).toHaveBeenCalledOnce();
+	client.load(done);
+	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(45);
+	expect(done).toHaveBeenCalledTimes(2);
+});
+
 it("passes item cooldown values through without arithmetic", () => {
 	const { client } = setup();
 	vi.stubGlobal("C_Container", {

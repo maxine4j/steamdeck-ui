@@ -1,11 +1,18 @@
+import type { IJournalPrefetch } from "../../clients/journal-prefetch";
 import type { IEventBus } from "../../events/types";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 import type { IBuiltInMounts } from "./built-in-mounts";
 export class MountsModule implements IModule {
 	readonly id = "mounts";
-	private readonly refresh = () => this.view.invalidate();
-	private readonly searchUpdated = () => this.view.onJournalSearchUpdated();
+	private readonly refresh = () => {
+		this.journal.invalidate();
+		this.view.invalidate();
+	};
+	private readonly searchUpdated = () => {
+		this.journal.invalidate();
+		this.view.onJournalSearchUpdated();
+	};
 	private readonly equipmentChanged = () => this.view.refreshEquipment();
 	private readonly sync = () => {
 		if (this.native.isOpen()) this.ui.openPanel(this.id, "right");
@@ -20,6 +27,7 @@ export class MountsModule implements IModule {
 			refreshEquipment(): void;
 		},
 		private readonly native: IBuiltInMounts,
+		private readonly journal: IJournalPrefetch,
 	) {}
 	disableBuiltIn(): void {
 		this.native.disable();
@@ -29,6 +37,7 @@ export class MountsModule implements IModule {
 		this.events.subscribe("MOUNTS_SEARCH_CHANGED", this.searchUpdated);
 		this.events.subscribe("MOUNTS_EQUIPMENT_CHANGED", this.equipmentChanged);
 		this.events.subscribe("MOUNTS_VISIBILITY_CHANGED", this.sync);
+		this.journal.prefetch();
 		if (this.native.isOpen()) this.sync();
 	}
 	shutdown(): void {
@@ -36,6 +45,7 @@ export class MountsModule implements IModule {
 		this.events.unsubscribe("MOUNTS_SEARCH_CHANGED", this.searchUpdated);
 		this.events.unsubscribe("MOUNTS_EQUIPMENT_CHANGED", this.equipmentChanged);
 		this.events.unsubscribe("MOUNTS_VISIBILITY_CHANGED", this.sync);
+		this.journal.stop();
 		this.native.restore();
 	}
 }
