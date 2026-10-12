@@ -361,10 +361,7 @@ it("scrolls focused ranges into view and clamps them to the scroll bounds", () =
 
 it("captures handled gamepad buttons, propagates others and resets input before pooling", () => {
 	vi.stubGlobal("InCombatLockdown", () => false);
-	const scripts = new Map<
-		string,
-		((frame: unknown, button: string) => void) | undefined
-	>();
+	const scripts = new Map<string, unknown>();
 	const native = {
 		Hide: vi.fn(),
 		Show: vi.fn(),
@@ -381,23 +378,50 @@ it("captures handled gamepad buttons, propagates others and resets input before 
 		SetPropagateKeyboardInput: vi.fn(),
 		SetFrameStrata: vi.fn(),
 		SetFrameLevel: vi.fn(),
-		SetScript: (
-			script: string,
-			handler?: (frame: unknown, button: string) => void,
-		) => scripts.set(script, handler),
+		SetScript: (script: string, handler?: unknown) =>
+			scripts.set(script, handler),
 	};
 	const frame = new Frame(
 		"controller",
 		new FramePoolManager({ createFrame: () => native }),
 	);
-	frame.setGamePadInput((button) => button === "PADDUP");
-	scripts.get("OnGamePadButtonDown")?.(native, "PADDUP");
+	const released = vi.fn();
+	const onButtonDown = vi.fn((button: string) => button === "PADDUP");
+	frame.setGamePadInput(onButtonDown, released, {
+		buttons: ["PADDUP"],
+		delaySeconds: 0.5,
+		intervalSeconds: 0.05,
+	});
+	const buttonScript = scripts.get("OnGamePadButtonDown") as
+		| ((frame: unknown, button: string) => void)
+		| undefined;
+	const updateScript = scripts.get("OnUpdate") as
+		| ((frame: unknown, elapsed: number) => void)
+		| undefined;
+	const releaseScript = scripts.get("OnGamePadButtonUp") as
+		| ((frame: unknown, button: string) => void)
+		| undefined;
+	buttonScript?.(native, "PADDUP");
 	expect(native.SetPropagateKeyboardInput).toHaveBeenLastCalledWith(false);
-	scripts.get("OnGamePadButtonDown")?.(native, "PAD2");
+	buttonScript?.(native, "PADDUP");
+	buttonScript?.(native, "PAD2");
 	expect(native.SetPropagateKeyboardInput).toHaveBeenLastCalledWith(true);
+	expect(onButtonDown).toHaveBeenCalledTimes(2);
+	updateScript?.(native, 0.49);
+	expect(onButtonDown).toHaveBeenCalledTimes(2);
+	updateScript?.(native, 0.01);
+	expect(onButtonDown).toHaveBeenCalledTimes(3);
+	updateScript?.(native, 0.05);
+	expect(onButtonDown).toHaveBeenCalledTimes(4);
+	releaseScript?.(native, "PADDUP");
+	expect(released).toHaveBeenCalledOnce();
+	updateScript?.(native, 1);
+	expect(onButtonDown).toHaveBeenCalledTimes(4);
 	frame.destroy();
 	expect(native.EnableGamePadButton).toHaveBeenLastCalledWith(false);
 	expect(scripts.get("OnGamePadButtonDown")).toBeUndefined();
+	expect(scripts.get("OnGamePadButtonUp")).toBeUndefined();
+	expect(scripts.get("OnUpdate")).toBeUndefined();
 	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(0);
 	expect(native.SetFrameStrata).toHaveBeenLastCalledWith("PARENT");
 });

@@ -1,4 +1,5 @@
 import type { ApplicationEvent, IEventBus } from "../events/types";
+import type { GamePadRepeatOptions } from "../ui/components/gamepad-input";
 
 // Undocumented globals used by Blizzard's UIParentPanelManager/Game.lua.
 declare global {
@@ -12,7 +13,11 @@ declare global {
 }
 
 export interface IGamePadInput {
-	setGamePadInput(callback?: (button: string) => boolean): void;
+	setGamePadInput(
+		onButtonDown?: (button: string) => boolean,
+		onButtonUp?: (button: string) => void,
+		repeat?: GamePadRepeatOptions,
+	): void;
 	destroy(): void;
 }
 export interface IControllerInputClient {
@@ -61,6 +66,13 @@ const buttons: Readonly<Record<string, ApplicationEvent | undefined>> = {
 	PAD2: "NAV_CANCEL",
 };
 
+const directionalButtons = ["PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT"];
+const repeatOptions: GamePadRepeatOptions = {
+	buttons: directionalButtons,
+	delaySeconds: 0.5,
+	intervalSeconds: 0.05,
+};
+
 /** Owns controller-specific names and publishes input through the injected bus. */
 export class ControllerInputClient implements IControllerInputClient {
 	private readonly originalCVars = new Map<string, string>();
@@ -75,16 +87,9 @@ export class ControllerInputClient implements IControllerInputClient {
 		this.listening = listening;
 		this.syncModifiers();
 		this.surface.setGamePadInput(
-			listening
-				? (button) => {
-						if (!this.active || InCombatLockdown() || IsModifierKeyDown())
-							return false;
-						const event = buttons[button];
-						if (!event) return false;
-						this.events.emit(event);
-						return true;
-					}
-				: undefined,
+			listening ? (button) => this.handleButtonDown(button) : undefined,
+			undefined,
+			listening ? repeatOptions : undefined,
 		);
 	};
 	private syncModifiers(): void {
@@ -102,6 +107,16 @@ export class ControllerInputClient implements IControllerInputClient {
 	) {
 		events.subscribe("COMBAT_STARTED", this.sync);
 		events.subscribe("COMBAT_ENDED", this.sync);
+	}
+	private canHandleInput(): boolean {
+		return this.active && !InCombatLockdown() && !IsModifierKeyDown();
+	}
+	private handleButtonDown(button: string): boolean {
+		if (!this.canHandleInput()) return false;
+		const event = buttons[button];
+		if (!event) return false;
+		this.events.emit(event);
+		return true;
 	}
 	private configure(settings: Readonly<Record<string, string>>): void {
 		for (const [name, value] of Object.entries(settings)) {
