@@ -1,0 +1,156 @@
+import { afterEach, expect, it, vi } from "vitest";
+import type { IToysClient, Toy } from "../../clients/toys-client";
+import { Frame } from "../../ui/components/frame";
+import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { ToysPanel } from "./toys-panel";
+
+afterEach(() => vi.restoreAllMocks());
+const toy = (id: number, expansionId = 10, favourite = false): Toy => ({
+	id,
+	name: `Toy ${id}`,
+	icon: id,
+	collected: true,
+	favourite,
+	expansionId,
+});
+
+function setup() {
+	for (const method of [
+		"fill",
+		"setBlackBackground",
+		"setParent",
+		"layout",
+		"setColor",
+		"inset",
+		"onSizeChanged",
+		"setScrollContent",
+		"clampScroll",
+		"setIcon",
+		"setOpacity",
+		"setItem",
+		"setCooldown",
+		"setLabel",
+		"show",
+		"hide",
+		"setFocused",
+		"destroy",
+		"revealVerticalRange",
+	] as const)
+		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	};
+	const client: IToysClient = {
+		load: vi.fn(() => vi.fn()),
+		canUse: vi.fn(() => true),
+		toggleFavourite: vi.fn(),
+		getCooldown: vi.fn(() => ({ start: 10, duration: 60 })),
+	};
+	const menu = { open: vi.fn(), close: vi.fn() };
+	const pool = {} as IFramePoolManager;
+	const panel = new ToysPanel(pool, client, menu, scheduler);
+	const parent = new Frame("parent", pool);
+	const flush = () => {
+		while (pending.length) pending.shift()?.();
+	};
+	const publish = (toys: Toy[]) => {
+		vi.mocked(client.load).mock.calls.at(-1)?.at(0)(toys);
+		flush();
+	};
+	return { panel, parent, client, menu, flush, publish, pending };
+}
+
+it("renders favourite and expansion grids with X use, Y tooltip actions and scrolling focus", () => {
+	const { panel, parent, client, menu, publish } = setup();
+	panel.onMount(parent);
+	const favourite = toy(1, 0, true);
+	publish([toy(3, 0), toy(2, 11), favourite]);
+	expect(
+		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
+	).toEqual([["toy-1"], ["toy-2"], ["toy-3"]]);
+	const node = panel.getNavGrid().at(0)?.at(0);
+	expect(node?.tooltipItem?.()).toBe(1);
+	node?.onContext?.();
+	expect(menu.open).toHaveBeenCalledExactlyOnceWith(favourite);
+	node?.onFocus();
+	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
+	const click = vi.spyOn(Frame.prototype, "click").mockImplementation(() => {});
+	node?.onAlternate?.();
+	expect(client.canUse).toHaveBeenCalledWith(1);
+	expect(click).toHaveBeenCalledOnce();
+	expect(click.mock.contexts.at(0)?.id).toBe("toys-icon-0");
+	vi.mocked(client.canUse).mockReturnValue(false);
+	node?.onAlternate?.();
+	expect(click).toHaveBeenCalledTimes(1);
+	panel.onUnmount();
+	node?.onContext?.();
+	node?.onAlternate?.();
+	expect(menu.open).toHaveBeenCalledTimes(1);
+	expect(click).toHaveBeenCalledTimes(1);
+});
+
+it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([toy(1, 0, true), toy(2, 11), toy(3, 0)]);
+	const icons = vi.mocked(Frame.prototype.setIcon).mock.contexts.slice();
+	panel.onUnmount();
+	panel.onMount(parent);
+	flush();
+	expect(client.load).toHaveBeenCalledTimes(1);
+	panel.refreshCooldowns();
+	expect(client.load).toHaveBeenCalledTimes(1);
+	expect(client.getCooldown).toHaveBeenCalledWith(3);
+	panel.refresh();
+	publish([toy(2, 11)]);
+	expect(vi.mocked(Frame.prototype.setIcon).mock.contexts.at(-1)).toBe(
+		icons.at(0),
+	);
+	expect(
+		vi.mocked(Frame.prototype.hide).mock.contexts.map((frame) => frame.id),
+	).toContain("toys-header-2");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["toy-2"]);
+});
+
+it("rejects stale loads and cancels rendering on unmount, reloading interrupted work", () => {
+	const { panel, parent, client, publish, pending, flush } = setup();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	panel.onMount(parent);
+	const old = vi.mocked(client.load).mock.calls.at(-1)?.at(0);
+	panel.refresh();
+	old?.([toy(99)]);
+	flush();
+	expect(panel.getNavGrid()).toEqual([]);
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)(
+		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
+	);
+	pending.shift()?.();
+	expect(changed).not.toHaveBeenCalled();
+	panel.onUnmount();
+	flush();
+	expect(panel.getNavGrid()).toEqual([]);
+	panel.onMount(parent);
+	publish([toy(1)]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["toy-1"]);
+	expect(changed).toHaveBeenCalledOnce();
+});
