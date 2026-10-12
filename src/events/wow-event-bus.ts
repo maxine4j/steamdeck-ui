@@ -28,6 +28,14 @@ const dialogueEvents = [
 	"PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
 	"UI_ERROR_MESSAGE",
 ];
+const vendorEvents = [
+	"MERCHANT_SHOW",
+	"MERCHANT_CLOSED",
+	"MERCHANT_UPDATE",
+	"MERCHANT_FILTER_ITEM_UPDATE",
+	"GUILDBANK_UPDATE_MONEY",
+	"GUILDBANK_UPDATE_WITHDRAWMONEY",
+] as const;
 export interface EventFrameFactory {
 	createEventFrame(): WowEventFrame;
 }
@@ -186,10 +194,13 @@ export class WowEventBus implements IEventBus {
 			...dungeonFinderEvents,
 			...mountEvents,
 			...talentEvents,
+			...vendorEvents,
 			"PLAYER_SPECIALIZATION_CHANGED",
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			if ((vendorEvents as readonly string[]).includes(event))
+				this.emit(event as (typeof vendorEvents)[number]);
 			const unit = args.at(0);
 			if (
 				event === "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" &&

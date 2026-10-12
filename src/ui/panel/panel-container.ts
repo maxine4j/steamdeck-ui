@@ -26,6 +26,7 @@ export class PanelContainer implements IPanelContainer {
 			const active = this.stack.at(-1);
 			this.stack.length = 0;
 			active?.onUnmount();
+			active?.onContainerClosed?.();
 			for (const tab of this.tabs) {
 				tab.button.hide();
 				tab.border.hide();
@@ -90,7 +91,8 @@ export class PanelContainer implements IPanelContainer {
 	}
 	popPanel(): void {
 		this.releaseNavigation();
-		this.stack.pop()?.onUnmount();
+		const active = this.stack.pop();
+		active?.onUnmount();
 		const previous = this.stack.at(-1);
 		if (previous) this.mount(previous);
 		else {
@@ -99,6 +101,7 @@ export class PanelContainer implements IPanelContainer {
 				tab.border.hide();
 			}
 			this.frame.hide();
+			active?.onContainerClosed?.();
 		}
 	}
 	swapPanel(panel: IPanel): void {
