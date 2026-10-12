@@ -383,3 +383,35 @@ it("removes navigation and guards retained controls when unmounted", () => {
 	expect(client.toggleRole).not.toHaveBeenCalled();
 	expect(client.join).not.toHaveBeenCalled();
 });
+
+it.each(["specific", "follower"] as const)(
+	"shows the active %s queue in blue and leaves it from its bottom action",
+	(list) => {
+		const { panel, client, rows, callbacks } = setup();
+		rows.find((row) => row.id === `list-${list}`)?.activate();
+		callbacks.shift()?.();
+		client.getSelected = () => list;
+		client.isQueued = () => true;
+		panel.refresh();
+		callbacks.shift()?.();
+		const choices = setRows.mock.lastCall?.at(0) as ListRow[];
+		expect(choices.at(-1)).toMatchObject({
+			id: "queue-action",
+			label: "Leave Queue",
+			enabled: true,
+			background: [0.05, 0.25, 0.5],
+			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
+		});
+		choices.at(-1)?.activate();
+		expect(client.leave).toHaveBeenCalledOnce();
+		expect(client.join).not.toHaveBeenCalled();
+		panel.onBack();
+		callbacks.shift()?.();
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.some((node) => node.navId === `list-${list}`),
+		).toBe(true);
+	},
+);
