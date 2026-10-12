@@ -10,15 +10,17 @@ import type { IBuiltInBags } from "./built-in-bags";
 export interface BagsView {
 	setItems(items: readonly InventoryItem[]): void;
 	setMoney(copper: number): void;
+	setVisibilityChanged(callback?: (visible: boolean) => void): void;
 }
 export class BagsModule implements IModule {
 	readonly id = "bags";
 	private open = false;
+	private visible = false;
 	private dirty = true;
 	private cancelRefresh?: () => void;
 	private readonly refresh = () => {
 		this.dirty = true;
-		if (!this.open || this.cancelRefresh) return;
+		if ((!this.open && !this.visible) || this.cancelRefresh) return;
 		this.cancelRefresh = this.scheduler.nextFrame(() => {
 			this.cancelRefresh = undefined;
 			this.load();
@@ -31,6 +33,15 @@ export class BagsModule implements IModule {
 	}
 	private readonly refreshMoney = () =>
 		this.view.setMoney(this.inventory.getMoney());
+	private readonly panelVisibilityChanged = (visible: boolean) => {
+		this.visible = visible;
+		if (visible) {
+			if (this.dirty) this.load();
+		} else {
+			this.cancelRefresh?.();
+			this.cancelRefresh = undefined;
+		}
+	};
 	private readonly syncVisibility = () => {
 		const open = this.inventory.isOpen();
 		if (open === this.open) return;
@@ -56,6 +67,7 @@ export class BagsModule implements IModule {
 		this.builtIn.disable();
 	}
 	initialize(): void {
+		this.view.setVisibilityChanged(this.panelVisibilityChanged);
 		this.events.subscribe("BAG_UPDATE_DELAYED", this.refresh);
 		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.subscribe("PLAYER_MONEY", this.refreshMoney);
@@ -67,6 +79,8 @@ export class BagsModule implements IModule {
 		this.syncVisibility();
 	}
 	shutdown(): void {
+		this.view.setVisibilityChanged();
+		this.visible = false;
 		this.cancelRefresh?.();
 		this.cancelRefresh = undefined;
 		this.events.unsubscribe("BAG_UPDATE_DELAYED", this.refresh);

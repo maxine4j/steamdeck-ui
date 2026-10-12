@@ -57,6 +57,15 @@ it("forwards native login events through the hidden event frame", () => {
 		expect(callback).toHaveBeenCalledOnce();
 	}
 	const bagUpdate = vi.fn();
+	const toys = vi.fn();
+	const toyCooldown = vi.fn();
+	bus.subscribe("TOYS_CHANGED", toys);
+	bus.subscribe("TOYS_COOLDOWN_CHANGED", toyCooldown);
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("TOYS_UPDATED");
+	dispatch(frame, "TOYS_UPDATED");
+	expect(toys).toHaveBeenCalledOnce();
+	dispatch(frame, "SPELL_UPDATE_COOLDOWN");
+	expect(toyCooldown).toHaveBeenCalledOnce();
 	bus.subscribe("BAG_UPDATE_DELAYED", bagUpdate);
 	expect(frame.RegisterEvent).toHaveBeenCalledWith("BAG_UPDATE_DELAYED");
 	dispatch(frame, "BAG_UPDATE_DELAYED");

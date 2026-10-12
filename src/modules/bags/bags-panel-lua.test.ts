@@ -1,7 +1,10 @@
 import { transpileProject } from "typescript-to-lua";
 import { expect, it } from "vitest";
 
-it("does not defer bag cleanup using a shared Lua loop counter", () => {
+// Compiles the whole addon; shared CI runners can exceed the unit-test timeout.
+it("does not defer bag cleanup using a shared Lua loop counter", {
+	timeout: 30_000,
+}, () => {
 	let lua = "";
 	const result = transpileProject("tsconfig.json", {}, (name, content) => {
 		if (name.endsWith("main.lua")) lua = content;

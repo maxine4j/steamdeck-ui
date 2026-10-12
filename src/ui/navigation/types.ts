@@ -3,7 +3,7 @@ export interface INavigable {
 	/** Logical column; gaps are explicit because Lua arrays cannot retain holes. */
 	navColumn?: number;
 	/** Resolve current item data when focus or the navigation graph refreshes. */
-	tooltipItem?(): string | number | undefined;
+	tooltipItem?(): TooltipContent | undefined;
 	onFocus(): void;
 	onBlur(): void;
 	onInteract(): void; // Maps to A button
@@ -13,3 +13,5 @@ export interface INavigable {
 
 export type NavGrid = INavigable[][];
 export type NavDirection = "up" | "down" | "left" | "right";
+
+import type { TooltipContent } from "../components/tooltip-content";

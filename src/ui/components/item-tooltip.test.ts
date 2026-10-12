@@ -20,6 +20,7 @@ function setup() {
 			IsShown: () => shown,
 			SetOwner: vi.fn(),
 			SetHyperlink: vi.fn(),
+			SetToyByItemID: vi.fn(),
 			ClearLines: vi.fn(),
 			SetScale: vi.fn(),
 			SetParent: vi.fn(),
@@ -57,6 +58,21 @@ function setup() {
 	const tooltip = new ItemTooltip(pool, events);
 	return { tooltip, frames, factory, screen, compare, pool, events };
 }
+
+it("renders and refreshes toy details without item links or equipment comparisons", () => {
+	const { tooltip, frames, compare, events } = setup();
+	tooltip.setItem({ toy: 42 });
+	expect(frames.at(0)?.SetToyByItemID).toHaveBeenCalledExactlyOnceWith(42);
+	expect(frames.at(0)?.SetHyperlink).not.toHaveBeenCalled();
+	expect(compare).not.toHaveBeenCalled();
+	events.emit("ITEM_DATA_LOAD_RESULT");
+	expect(frames.at(0)?.SetToyByItemID).toHaveBeenCalledTimes(2);
+	tooltip.setItem(43);
+	expect(compare).toHaveBeenCalledOnce();
+	tooltip.setItem({ toy: 44 });
+	expect(frames.at(1)?.IsShown()).toBe(false);
+	expect(frames.at(0)?.SetToyByItemID).toHaveBeenLastCalledWith(44);
+});
 
 it("renders full instance links with native equipped stat comparisons centered at the top", () => {
 	const { tooltip, frames, screen, compare } = setup();

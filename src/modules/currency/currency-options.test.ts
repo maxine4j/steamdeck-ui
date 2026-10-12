@@ -26,12 +26,20 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 	const currency = {
 		id: 42,
 		name: "Marks",
+		quantity: 125,
+		maximum: 500,
 		discovered: true,
 		transferable: true,
 	} as Currency;
 	const refresh = vi.fn();
 	const menu = new CurrencyOptions(modal, client, refresh);
 	menu.open(currency);
+	expect(modal.open).toHaveBeenCalledWith(
+		"Marks • 125 / 500",
+		expect.any(Array),
+		undefined,
+		"left",
+	);
 	expect(options.map((option) => option.label)).toEqual([
 		"Watch in backpack",
 		"Mark inactive",

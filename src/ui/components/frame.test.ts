@@ -5,7 +5,108 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("only updates changed label content or layout and resets cached state on release", () => {
+it("passes item cooldowns through to a pooled native cooldown and clears it on release", () => {
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		SetCooldown: vi.fn(),
+		Clear: vi.fn(),
+		SetHideCountdownNumbers: vi.fn(),
+		SetDrawEdge: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"cooldown",
+		new FramePoolManager({ createFrame: () => native }),
+		"Cooldown",
+	);
+	frame.setCooldown(10, 60);
+	expect(native.SetCooldown).toHaveBeenCalledExactlyOnceWith(10, 60);
+	frame.destroy();
+	expect(native.Clear).toHaveBeenCalledOnce();
+});
+
+it("configures secure toy activation and clears toy attributes before pooling", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"toy",
+		new FramePoolManager({ createFrame: () => native }),
+		"SecureButton",
+	);
+	frame.setToy(42);
+	const after = vi.fn();
+	frame.onPostClick(after);
+	expect(native.SetScript).toHaveBeenCalledWith(
+		"PostClick",
+		expect.any(Function),
+	);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", "toy");
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", 42);
+	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", false);
+	expect(native.RegisterForClicks).toHaveBeenCalledWith("AnyUp");
+	combat = true;
+	native.SetAttribute.mockClear();
+	frame.setToy(43);
+	expect(native.SetAttribute).not.toHaveBeenCalled();
+	combat = false;
+	frame.destroy();
+	expect(native.SetAttribute).toHaveBeenCalledWith("toy", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", undefined);
+	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
+});
+
+it("uses a toy once from a controller click even when actions default to key down", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	const attributes = new Map<string, unknown>();
+	const use = vi.fn();
+	const native = {
+		Hide: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: (key: string, value: unknown) => attributes.set(key, value),
+		Click: (_button = "LeftButton", down = false) => {
+			const useOnKeyDown = attributes.get("useOnKeyDown") ?? true;
+			if (down === useOnKeyDown) use(attributes.get("toy"));
+		},
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const frame = new Frame(
+		"toy-controller",
+		new FramePoolManager({ createFrame: () => native as unknown as WowFrame }),
+		"SecureButton",
+	);
+	frame.setToy(42);
+	frame.click();
+	expect(use).toHaveBeenCalledExactlyOnceWith(42);
+});
+
+it("only updates changed labels and resets cached state and opacity on release", () => {
 	const label = {
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
@@ -15,6 +116,7 @@ it("only updates changed label content or layout and resets cached state on rele
 		SetText: vi.fn(),
 	};
 	const native = {
+		SetAlpha: vi.fn(),
 		Hide: vi.fn(),
 		Show: vi.fn(),
 		SetParent: vi.fn(),
@@ -42,7 +144,10 @@ it("only updates changed label content or layout and resets cached state on rele
 	frame.setLabel("value", "11", "LEFT", 4);
 	expect(label.SetPoint).toHaveBeenCalledTimes(2);
 	expect(label.SetText).toHaveBeenCalledTimes(2);
+	frame.setOpacity(0.35);
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(0.35);
 	frame.destroy();
+	expect(native.SetAlpha).toHaveBeenLastCalledWith(1);
 	label.SetPoint.mockClear();
 	label.SetText.mockClear();
 	frame.setLabel("value", "11", "LEFT", 4);
@@ -176,6 +281,57 @@ it("renders complete instance tooltips, scales long content to fit and resets po
 		native.BottomOverlay,
 	])
 		expect(decoration.SetAlpha).toHaveBeenLastCalledWith(1);
+});
+
+it("retains the tooltip owner when first attaching to a hidden modal window", () => {
+	let owner: WowFrame | undefined;
+	let shown = false;
+	const window = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const native = {
+		IsEmbedded: false,
+		NineSlice: { SetAlpha: vi.fn() },
+		TopOverlay: { SetAlpha: vi.fn() },
+		BottomOverlay: { SetAlpha: vi.fn() },
+		Hide: () => {
+			shown = false;
+			owner = undefined;
+		},
+		Show: () => {
+			shown = true;
+		},
+		SetOwner: (frame: WowFrame) => {
+			owner = frame;
+			shown = true;
+		},
+		// Reparenting a shown native tooltip under a hidden window invokes OnHide.
+		SetParent: () => {
+			if (shown) native.Hide();
+		},
+		SetHyperlink: vi.fn(),
+		SetToyByItemID: vi.fn(),
+		ClearLines: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		GetWidth: () => 200,
+		GetHeight: () => 300,
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const pool = new FramePoolManager({
+		createFrame: (type) => (type === "GameTooltip" ? native : window),
+	});
+	const tooltip = new Frame("details", pool, "GameTooltip");
+	tooltip.showItemTooltip(new Frame("window", pool), 42, 500, 500);
+	expect(owner).toBe(window);
+	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42");
+	native.SetHyperlink.mockClear();
+	tooltip.showItemTooltip(new Frame("window", pool), { toy: 43 }, 500, 500);
+	expect(native.SetToyByItemID).toHaveBeenCalledExactlyOnceWith(43);
+	expect(native.SetHyperlink).not.toHaveBeenCalled();
 });
 
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {

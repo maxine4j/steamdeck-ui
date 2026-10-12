@@ -80,9 +80,11 @@ export class CurrencyPanel implements IPanel {
 				background: currency.header ? ([0.12, 0.18, 0.25] as const) : undefined,
 				marginBottom: currency.header ? 6 : 2,
 				selected: currency.watched,
-				detail: currency.header
-					? ""
-					: `${currency.quantity}${currency.maximum > 0 ? ` / ${currency.maximum}` : ""}${currency.watched ? " • Watched" : ""}${currency.accountWide ? " • Account-wide" : ""}${currency.unused ? " • Inactive" : ""} • Y: Options`,
+				height: 32,
+				trailingLabel: currency.header
+					? undefined
+					: `${currency.quantity}${currency.maximum > 0 ? ` / ${currency.maximum}` : ""}`,
+				detail: "",
 				tooltip: currency.description,
 				activate: () => {
 					if (currency.header) {
