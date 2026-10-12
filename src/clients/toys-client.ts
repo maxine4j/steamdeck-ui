@@ -4,6 +4,7 @@ import type { ITaskScheduler } from "./task-scheduler";
 // Legacy toy APIs are absent from the generated Retail declarations.
 declare global {
 	namespace C_ToyBox {
+		function SetFilterString(this: void, text: string): void;
 		function GetNumFilteredToys(this: void): number;
 		function GetToyFromIndex(this: void, index: number): number;
 		function GetToyInfo(
@@ -39,6 +40,7 @@ export interface IToysClient extends IJournalPrefetch {
 }
 
 export class ToysClient implements IToysClient {
+	private filtersInitialized = false;
 	private readonly requestedItems = new Set<number>();
 	private readonly journal: JournalPrefetch<Toy[]>;
 	constructor(private readonly scheduler: ITaskScheduler) {
@@ -54,6 +56,7 @@ export class ToysClient implements IToysClient {
 	}
 	stop(): void {
 		this.journal.stop();
+		this.filtersInitialized = false;
 	}
 	load(
 		callback: (toys: Toy[]) => void,
@@ -71,6 +74,13 @@ export class ToysClient implements IToysClient {
 		let cancelled = false;
 		const step = () => {
 			if (cancelled) return;
+			if (!this.filtersInitialized) {
+				// The replacement has no native filter controls. Clear saved filters
+				// once before caching; filter writes can themselves emit TOYS_UPDATED.
+				this.filtersInitialized = true;
+				C_ToyBoxInfo.SetDefaultFilters();
+				C_ToyBox.SetFilterString("");
+			}
 			count ??= C_ToyBox.GetNumFilteredToys();
 			const end = Math.min(count, index + 19);
 			while (index <= end) {

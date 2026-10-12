@@ -3,6 +3,32 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("prefetches the full journal despite a saved native search and filters", () => {
+	const { client, api, pending } = setup(25);
+	let search = "old search";
+	let filtered = true;
+	api.GetNumFilteredToys = () => (search || filtered ? 4 : 25);
+	api.SetFilterString = vi.fn((text: string) => {
+		search = text;
+		client.invalidate();
+	});
+	const reset = vi.fn(() => {
+		filtered = false;
+		client.invalidate();
+	});
+	vi.stubGlobal("C_ToyBoxInfo", {
+		SetDefaultFilters: reset,
+	});
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const done = vi.fn();
+	client.load(done);
+	pending.shift()?.();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(25);
+	expect(reset).toHaveBeenCalledOnce();
+	expect(api.SetFilterString).toHaveBeenCalledExactlyOnceWith("");
+});
+
 it("keeps every toy when startup prefetch runs before toy names are cached", () => {
 	const { client, api, pending } = setup(25);
 	api.GetToyInfo = (id) =>
@@ -64,6 +90,7 @@ function setup(count = 2) {
 		},
 	};
 	const api = {
+		SetFilterString: (_text: string) => {},
 		GetNumFilteredToys: () => count,
 		GetToyFromIndex: (index: number) => index,
 		GetToyInfo: (id: number) => [id, `Toy ${id}`, 100 + id, id === 1],
@@ -72,6 +99,7 @@ function setup(count = 2) {
 		IsToyUsable: () => true,
 	};
 	vi.stubGlobal("C_ToyBox", api);
+	vi.stubGlobal("C_ToyBoxInfo", { SetDefaultFilters: vi.fn() });
 	vi.stubGlobal("PlayerHasToy", (id: number) => id !== 2);
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_Item", {
