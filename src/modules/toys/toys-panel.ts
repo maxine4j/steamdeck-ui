@@ -168,12 +168,13 @@ export class ToysPanel implements IPanel {
 						(index % columns) * spacing,
 						-cellTop,
 					);
-					if (toy.favourite) cell.border.setColor(1, 0.82, 0);
+					if (!toy.collected) cell.border.setColor(0.12, 0.12, 0.12);
+					else if (toy.favourite) cell.border.setColor(1, 0.82, 0);
 					else cell.border.setColor(0.3, 0.34, 0.42);
 					cell.icon.setParent(cell.border);
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(toy.icon);
-					cell.icon.setOpacity(toy.collected ? 1 : 0.35);
+					cell.icon.setOpacity(toy.collected ? 1 : 0.2);
 					cell.icon.setToy(toy.collected ? toy.id : undefined);
 					cell.cooldown.fill(cell.icon);
 					const cooldown = this.client.getCooldown(toy.id);

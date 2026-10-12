@@ -155,6 +155,20 @@ it("shows collected and total counts including favourites in expansion headers",
 	);
 });
 
+it("darkens uncollected borders and icons and restores collected styling on reuse", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([{ ...toy(1), collected: false }]);
+	expect(Frame.prototype.setColor).toHaveBeenCalledWith(0.12, 0.12, 0.12);
+	expect(Frame.prototype.setOpacity).toHaveBeenLastCalledWith(0.2);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(undefined);
+	panel.refresh();
+	publish([toy(1)]);
+	expect(Frame.prototype.setColor).toHaveBeenLastCalledWith(0.3, 0.34, 0.42);
+	expect(Frame.prototype.setOpacity).toHaveBeenLastCalledWith(1);
+	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(1);
+});
+
 it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {
 	const { panel, parent, client, publish, flush } = setup();
 	panel.onMount(parent);
