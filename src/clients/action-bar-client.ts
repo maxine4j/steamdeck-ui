@@ -78,7 +78,7 @@ export interface IActionBarClient {
 	syncBuiltInVisibility(): void;
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT" | "FIXED",
 	): SlotDriver;
 	getRingDriver(kind?: ActionRingKind): RadialDriver;
 	readRing(kind: ActionRingKind, slot: number): SlotVisual;
@@ -113,8 +113,13 @@ export class ActionBarClient implements IActionBarClient {
 	}
 	getSlotDriver(
 		slot: number,
-		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT",
+		defaultCommand?: "JUMP" | "RING" | "EXTRA" | "MOUNT" | "FIXED",
 	): SlotDriver {
+		if (defaultCommand === "FIXED")
+			return {
+				condition: `${slot}`,
+				response: 'self:SetAttribute("action", tonumber(newstate))',
+			};
 		// Retail Edit Mode bars 6/7/8 use action pages 13/14/15 (ConsolePort Actionbar.lua).
 		// Distinct states trigger the secure handler when the main bar changes.
 		const mainConditions = [
@@ -127,7 +132,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "MOUNT" ? "-3" : defaultCommand === "EXTRA" ? "[extrabar] 217; -2" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${172 + slot}; [mod:shift] ${164 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : defaultCommand === "MOUNT" ? "-3" : defaultCommand === "EXTRA" ? "[extrabar] 217; -2" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -151,7 +156,7 @@ ${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spel
 		};
 	}
 	getRingDriver(kind: ActionRingKind = "abilities"): RadialDriver {
-		// Edit Mode bar 6 is MultiBar5, action page 13 (slots 145–156).
+		// Edit Mode bar 6 is page 13; reserve slots 155/156 for LB/RT.
 		let rightStick = 2;
 		for (let index = 0; index < 8; index++) {
 			const name = C_GamePad.StickIndexToConfigName(index);
@@ -171,7 +176,7 @@ ${defaultCommand === "EXTRA" ? 'self:SetAttribute("type", action == -2 and "spel
 		return {
 			slots:
 				entries?.map((entry) => entry.slot) ??
-				Array.from({ length: 12 }, (_, i) => 145 + i),
+				Array.from({ length: 10 }, (_, i) => 145 + i),
 			...(entries
 				? {
 						actions: entries.map(({ slot, type, value }) => ({

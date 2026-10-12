@@ -52,6 +52,8 @@ const controllerSettings: Readonly<Record<string, string>> = {
 	GamePadCameraPitchSpeed: "1",
 	GamePadEmulateShift: "PADLTRIGGER",
 	GamePadEmulateCtrl: "PADLSHOULDER",
+	// Native modifier taps fire their action on release; chords cancel the tap.
+	GamePadEmulateTapWindowMs: "350",
 	GamePadEmulateAlt: "none",
 };
 

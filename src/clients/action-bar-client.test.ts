@@ -3,6 +3,25 @@ import { ActionBarClient } from "./action-bar-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps reserved bumper and trigger actions fixed across modifiers and main-bar paging", () => {
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	for (const slot of [155, 156]) {
+		const driver = client.getSlotDriver(slot, "FIXED");
+		expect(driver.condition).toBe(String(slot));
+		expect(driver.response).toBe(
+			'self:SetAttribute("action", tonumber(newstate))',
+		);
+	}
+});
+
+it("reserves the last two bar 6 slots outside the ability ring", () => {
+	vi.stubGlobal("C_GamePad", { StickIndexToConfigName: () => undefined });
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	expect(client.getRingDriver().slots).toEqual(
+		Array.from({ length: 10 }, (_, index) => 145 + index),
+	);
+});
+
 it("routes the extra-action control through a secure extra-bar state with a zone spell fallback", () => {
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	const driver = client.getSlotDriver(6, "EXTRA");
@@ -89,13 +108,13 @@ it("packs the eight controls into all 24 slots of Retail bars 7 and 8", () => {
 		).toEqual(slots.map((_, index) => start + index));
 });
 
-it("keeps dynamic main-bar paging and the existing RT/RB pages", () => {
+it("keeps dynamic main-bar paging for the face buttons and directions", () => {
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
-	for (const slot of [1, 4, 8, 9, 10]) {
+	for (const slot of [1, 4, 8]) {
 		const driver = client.getSlotDriver(slot);
 		// Modifier bars take priority even while the dynamic bar is active.
 		expect(driver.condition).toBe(
-			`[mod:shift,mod:ctrl] ${(slot > 8 ? 168 : 172) + slot}; [mod:shift] ${(slot > 8 ? 144 : 164) + slot}; [mod:ctrl] ${156 + slot}; ` +
+			`[mod:shift,mod:ctrl] ${172 + slot}; [mod:shift] ${164 + slot}; [mod:ctrl] ${156 + slot}; ` +
 				"[vehicleui] vehicle; [possessbar] possess; [overridebar] override; [shapeshift] shapeshift; " +
 				"[bar:2] page2; [bar:3] page3; [bar:4] page4; [bar:5] page5; [bar:6] page6; " +
 				"[bonusbar:1] bonus1; [bonusbar:2] bonus2; [bonusbar:3] bonus3; [bonusbar:4] bonus4; [bonusbar:5] bonus5; main",

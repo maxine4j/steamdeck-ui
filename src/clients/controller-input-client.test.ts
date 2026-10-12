@@ -86,6 +86,7 @@ it("enables directional movement in and out of combat, reserves camera input and
 		["GamePadCursorRightClick", "none"],
 		["GamePadEmulateShift", "PADLTRIGGER"],
 		["GamePadEmulateCtrl", "PADLSHOULDER"],
+		["GamePadEmulateTapWindowMs", "350"],
 		["GamePadEmulateAlt", "none"],
 	])
 		expect(set).toHaveBeenCalledWith(name, value);

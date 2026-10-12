@@ -41,7 +41,7 @@ vi.mock("../../ui/components/secure-slot-button", () => ({
 	},
 }));
 
-it("uses the minimal crossbar layout with ten actions and two unbound modifier indicators", () => {
+it("keeps LB and RT on reserved bar 6 slots and binds only LT as an unbound modifier indicator", () => {
 	const client = {
 		bind: vi.fn(),
 		read: vi.fn(() => ({})),
@@ -64,8 +64,8 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 		["|cffff4451B|r", 250, 81, 3],
 		["|cff52c14eA|r", 200, 56, 0],
 		["|cff00a2ffX|r", 150, 81, 1],
-		["RT", 100, 56, 9],
-		["RB", 100, 106, 10],
+		["RT", 100, 56, 156],
+		["LB\nCTRL", -100, 106, 155],
 	]);
 	expect(configure.mock.calls.map((call) => call.at(4))).toEqual([
 		"slot-5-RING",
@@ -76,10 +76,10 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 		"slot-3",
 		"slot-4-JUMP",
 		"slot-1",
-		"slot-9",
-		"slot-10",
+		"slot-156-FIXED",
+		"slot-155-FIXED",
 	]);
-	expect(indicators).toHaveLength(2);
+	expect(indicators).toHaveLength(1);
 	for (const indicator of indicators)
 		expect(indicator.setBorder).toHaveBeenCalledWith([0.32, 0.6, 0.85, 1]);
 	expect(indicators.at(0)?.layout).toHaveBeenCalledExactlyOnceWith(
@@ -88,21 +88,9 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 		"BOTTOM",
 		undefined,
 		-100,
-		106,
-	);
-	expect(indicators.at(0)?.setLabel).toHaveBeenCalledWith(
-		"modifier",
-		"LB\nCTRL",
-	);
-	expect(indicators.at(1)?.layout).toHaveBeenCalledExactlyOnceWith(
-		48,
-		48,
-		"BOTTOM",
-		undefined,
-		-100,
 		56,
 	);
-	expect(indicators.at(1)?.setLabel).toHaveBeenCalledWith(
+	expect(indicators.at(0)?.setLabel).toHaveBeenCalledWith(
 		"modifier",
 		"LT\nSHIFT",
 	);
@@ -117,7 +105,7 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 			"PAD1",
 			"PAD3",
 			"PADRTRIGGER",
-			"PADRSHOULDER",
+			"PADLSHOULDER",
 		].map((key) =>
 			["PADDUP", "PADDLEFT", "PADDRIGHT"].includes(key)
 				? { key, target, prefixes: ["SHIFT-", "CTRL-", "CTRL-SHIFT-"] }

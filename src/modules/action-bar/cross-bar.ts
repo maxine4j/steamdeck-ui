@@ -13,7 +13,7 @@ const controls: readonly {
 	y: number;
 	slot: number;
 	defaultCommand?: "JUMP";
-	utility?: "RING" | "MOUNT";
+	utility?: "RING" | "MOUNT" | "FIXED";
 }[] = [
 	// ConsolePort's Crossbar: Minimal uses 50px horizontal / 25px vertical offsets.
 	{ key: "PADDUP", label: "↑", x: -200, y: 106, slot: 5, utility: "RING" },
@@ -31,13 +31,24 @@ const controls: readonly {
 		defaultCommand: "JUMP",
 	},
 	{ key: "PAD3", label: "|cff00a2ffX|r", x: 150, y: 81, slot: 1 },
-	{ key: "PADRTRIGGER", label: "RT", x: 100, y: 56, slot: 9 },
-	{ key: "PADRSHOULDER", label: "RB", x: 100, y: 106, slot: 10 },
+	{
+		key: "PADRTRIGGER",
+		label: "RT",
+		x: 100,
+		y: 56,
+		slot: 156,
+		utility: "FIXED",
+	},
+	{
+		key: "PADLSHOULDER",
+		label: "LB\nCTRL",
+		x: -100,
+		y: 106,
+		slot: 155,
+		utility: "FIXED",
+	},
 ];
-const modifiers = [
-	{ key: "PADLSHOULDER", label: "LB\nCTRL", y: 106 },
-	{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 },
-];
+const modifiers = [{ key: "PADLTRIGGER", label: "LT\nSHIFT", y: 56 }];
 export class CrossBar {
 	private readonly buttons: SecureSlotButton[] = [];
 	private readonly indicators: Frame[] = [];
