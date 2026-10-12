@@ -75,6 +75,13 @@ it("stacks vendor pages in two columns, exposes purchase actions and reuses cont
 	const close = vi.fn();
 	const panel = new VendorPanel("vendor", pool, client, close);
 	panel.onMount(parent);
+	expect(layouts.has("vendor-close")).toBe(false);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("vendor-close");
 	expect(labels.get("vendor-items-cell-0")).toHaveBeenCalledWith(
 		"detail",
 		"1g 23s 45c",
@@ -126,7 +133,7 @@ it("routes repair and junk controls, guards unavailable actions, and isolates bu
 	const { pool, client, parent, items } = setup();
 	const panel = new VendorPanel("vendor", pool, client, vi.fn());
 	panel.onMount(parent);
-	const footer = panel.getNavGrid().at(-2);
+	const footer = panel.getNavGrid().at(-1);
 	footer?.at(0)?.onInteract();
 	footer?.at(1)?.onInteract();
 	footer?.at(2)?.onInteract();
@@ -147,7 +154,7 @@ it("routes repair and junk controls, guards unavailable actions, and isolates bu
 	panel.onUnmount();
 	const buyback = new VendorPanel("buyback", pool, client, vi.fn());
 	buyback.onMount(parent);
-	expect(buyback.getNavGrid()).toHaveLength(2);
+	expect(buyback.getNavGrid()).toHaveLength(1);
 	buyback.getNavGrid().at(0)?.at(0)?.onInteract();
 	expect(client.buyback).toHaveBeenCalledWith(items.at(0));
 });

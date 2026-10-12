@@ -126,6 +126,9 @@ it.each(["category", "expansion"] as const)(
 );
 
 it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
+	vi.stubGlobal("C_Texture", {
+		GetAtlasInfo: () => ({ width: 32, height: 128 }),
+	});
 	const layout = vi.spyOn(Frame.prototype, "layout");
 	const focus = vi
 		.spyOn(Frame.prototype, "setFocused")

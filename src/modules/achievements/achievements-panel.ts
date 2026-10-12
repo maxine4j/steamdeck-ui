@@ -22,7 +22,6 @@ export class AchievementsPanel implements IPanel {
 	private readonly sidebar: Frame;
 	private readonly body: Frame;
 	private readonly filter: Frame;
-	private readonly closeButton: Frame;
 	private readonly categoriesList: ScrollList;
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
@@ -35,7 +34,6 @@ export class AchievementsPanel implements IPanel {
 	private summary?: AchievementSummary;
 	private navigationChanged?: () => void;
 	private readonly filterNav: INavigable;
-	private readonly closeNav: INavigable;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IAchievementsClient,
@@ -46,7 +44,6 @@ export class AchievementsPanel implements IPanel {
 		this.sidebar = new Frame("achievements-sidebar", pool);
 		this.body = new Frame("achievements-body", pool);
 		this.filter = new Frame("achievements-filter", pool, "Button");
-		this.closeButton = new Frame("achievements-close", pool, "Button");
 		this.update = new DeferredRefresh(scheduler, () => this.load());
 		const changed = () => this.navigationChanged?.();
 		this.categoriesList = new ScrollList(
@@ -58,7 +55,6 @@ export class AchievementsPanel implements IPanel {
 				width: 280,
 				background: false,
 				scheduler,
-				showClose: false,
 				onChanged: changed,
 			},
 		);
@@ -66,7 +62,6 @@ export class AchievementsPanel implements IPanel {
 			width: 820,
 			autoHeight: true,
 			background: false,
-			showClose: false,
 			top: 12,
 			scheduler,
 			onChanged: (complete) => {
@@ -85,13 +80,6 @@ export class AchievementsPanel implements IPanel {
 				this.expanded = undefined;
 				this.render();
 			},
-		};
-		this.closeNav = {
-			navId: "achievements-close",
-			navColumn: 1,
-			onFocus: () => this.closeButton.setFocused(true),
-			onBlur: () => this.closeButton.setFocused(false),
-			onInteract: () => this.close(),
 		};
 	}
 	refresh(): void {
@@ -325,11 +313,6 @@ export class AchievementsPanel implements IPanel {
 		this.filter.setButtonBackground();
 		this.filter.onClick(() => this.filterNav.onInteract());
 		this.filter.show();
-		this.closeButton.setParent(this.frame);
-		this.closeButton.layout(28, 28, "TOPRIGHT", this.frame, -12, -12);
-		this.closeButton.setCloseButtonBackground();
-		this.closeButton.onClick(this.close);
-		this.closeButton.show();
 		this.frame.show();
 		this.sidebar.show();
 		this.body.show();
@@ -352,7 +335,7 @@ export class AchievementsPanel implements IPanel {
 		if (!this.mounted) return [];
 		const left = this.categoriesList.getNavGrid();
 		const right = this.list.getNavGrid();
-		const rows: INavigable[][] = [[this.filterNav, this.closeNav]];
+		const rows: INavigable[][] = [[this.filterNav]];
 		for (let index = 0; index < Math.max(left.length, right.length); index++) {
 			const l = left.at(index)?.at(0);
 			const r = right.at(index)?.at(0);
@@ -370,7 +353,6 @@ export class AchievementsPanel implements IPanel {
 		this.categoriesList.destroy();
 		this.list.destroy();
 		this.filter.destroy();
-		this.closeButton.destroy();
 		this.sidebar.destroy();
 		this.body.destroy();
 		this.frame.destroy();

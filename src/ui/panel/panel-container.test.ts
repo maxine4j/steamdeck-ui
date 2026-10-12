@@ -4,6 +4,38 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it("closes the active panel on controller cancel when it has no back handler", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"right",
+		"right",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+	);
+	const closed = vi.fn();
+	container.swapPanel({
+		id: "panel",
+		title: "Panel",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+		onContainerClosed: closed,
+	});
+	events.emit("NAV_CANCEL");
+	expect(container.activePanelId).toBeUndefined();
+	expect(closed).toHaveBeenCalledOnce();
+});
+
 it("forwards B to the current panel after switching tabs", () => {
 	const events = createTestEventBus();
 	const navigation = new NavigationManager(events);

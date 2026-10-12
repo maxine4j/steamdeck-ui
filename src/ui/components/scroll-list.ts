@@ -38,7 +38,6 @@ export class ScrollList {
 	private readonly frame: Frame;
 	private readonly scroll: Frame;
 	private readonly content: Frame;
-	private readonly close: Frame;
 	private readonly buttons: {
 		frame: Frame;
 		icon: Frame;
@@ -66,7 +65,7 @@ export class ScrollList {
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
 		private title: string,
-		private readonly onClose: () => void,
+		_onClose: () => void,
 		private readonly options: {
 			readonly width?: number;
 			readonly autoHeight?: boolean;
@@ -78,7 +77,6 @@ export class ScrollList {
 			readonly verticallyCentered?: boolean;
 			readonly scheduler?: ITaskScheduler;
 			readonly onChanged?: (complete: boolean) => void;
-			readonly showClose?: boolean;
 			readonly columns?: number;
 			readonly gap?: number;
 			readonly edgeProgress?: boolean;
@@ -88,7 +86,6 @@ export class ScrollList {
 		this.frame = new Frame(id, pool);
 		this.scroll = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
-		this.close = new Frame(`${id}-close`, pool, "Button");
 	}
 	setTitle(title: string): void {
 		this.title = title;
@@ -118,14 +115,6 @@ export class ScrollList {
 		this.frame.fill(parent);
 		if (this.options.background !== false) this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
-		this.close.setParent(this.frame);
-		this.close.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.close.setCloseButtonBackground();
-		this.close.onClick(() => {
-			if (this.mounted) this.onClose();
-		});
-		if (this.options.showClose !== false) this.close.show();
-		else this.close.hide();
 		const padding = this.options.padding;
 		this.scroll.inset(
 			this.frame,
@@ -614,7 +603,6 @@ export class ScrollList {
 			button.frame.destroy();
 		}
 		this.buttons.length = 0;
-		this.close.destroy();
 		this.scroll.destroy();
 		this.content.destroy();
 		this.frame.destroy();

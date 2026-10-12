@@ -10,6 +10,9 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	vi.stubGlobal("_G", {});
+	vi.stubGlobal("C_Texture", {
+		GetAtlasInfo: () => ({ width: 32, height: 128 }),
+	});
 	vi.stubGlobal("UISpecialFrames", []);
 	vi.stubGlobal("AchievementFrame_LoadUI", () => false);
 	vi.stubGlobal("AchievementFrame", undefined);
@@ -703,16 +706,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			frames.at(index)?.IsShown() &&
 			vi.mocked(texture.SetAtlas).mock.lastCall?.at(0) === "RedButton-Exit",
 	);
-	const closeFrame = frames.at(closeIndex);
-	const closeHandler =
-		closeFrame &&
-		vi
-			.mocked(closeFrame.SetScript)
-			.mock.calls.findLast((call) => call.at(0) === "OnClick")
-			?.at(1);
-	if (!closeFrame || !closeHandler)
-		throw new Error("Missing mount close button");
-	closeHandler(closeFrame, "LeftButton");
+	expect(closeIndex).toBe(-1);
+	events.emit("NAV_CANCEL");
 	flush();
 	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();

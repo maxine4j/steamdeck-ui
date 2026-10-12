@@ -65,7 +65,6 @@ export class PaperDollPanel implements IPanel {
 	}[] = [];
 	private readonly statRows: Frame[] = [];
 	private readonly preview: Frame;
-	private readonly closeButton: Frame;
 	private readonly content: Frame;
 	private readonly body: Frame;
 	constructor(
@@ -75,7 +74,6 @@ export class PaperDollPanel implements IPanel {
 		private readonly menu: IEquipmentActionMenu,
 	) {
 		this.preview = new Frame("character-model", pool, "PlayerModel");
-		this.closeButton = new Frame("character-close", pool, "Button");
 		this.content = new Frame("character-content", pool);
 		this.body = new Frame("character-body", pool);
 	}
@@ -151,13 +149,6 @@ export class PaperDollPanel implements IPanel {
 		this.frame.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
-		this.closeButton.setParent(this.frame);
-		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setCloseButtonBackground();
-		this.closeButton.onClick(() => {
-			if (this.mounted) this.actions.close();
-		});
-		this.closeButton.show();
 		this.preview.setParent(this.body);
 		this.preview.layout(332, 364, "TOPLEFT", this.body, 84, 0);
 		this.preview.show();
@@ -331,7 +322,6 @@ export class PaperDollPanel implements IPanel {
 		this.slots.length = 0;
 		this.statRows.length = 0;
 		this.preview.destroy();
-		this.closeButton.destroy();
 		this.body.destroy();
 		this.content.destroy();
 		this.frame.destroy();

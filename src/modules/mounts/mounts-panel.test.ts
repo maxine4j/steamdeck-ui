@@ -113,6 +113,7 @@ function setup() {
 it("shows favourites first without removing them from the ten-column collection grid", () => {
 	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
+	expect(Frame.prototype.setCloseButtonBackground).not.toHaveBeenCalled();
 	publish([
 		mount(1, true),
 		...Array.from({ length: 11 }, (_, i) => mount(i + 2)),

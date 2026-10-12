@@ -63,12 +63,8 @@ export function applyWindowSkin(
 		texture.SetPoint(point, frame, point, x, y);
 		parts.push(texture);
 	}
-	const topLeft = parts.at(0);
-	const bottomRight = parts.at(3);
-	if (topLeft && bottomRight) {
-		background.SetPoint("TOPLEFT", topLeft, "BOTTOMRIGHT", 0, 0);
-		background.SetPoint("BOTTOMRIGHT", bottomRight, "TOPLEFT", 0, 0);
-	}
+	background.SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2);
+	background.SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2);
 	for (const [
 		atlas,
 		point,

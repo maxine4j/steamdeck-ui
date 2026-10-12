@@ -55,17 +55,17 @@ it("uses character window artwork and reuses its corners and edges", () => {
 	applyWindowSkin(pool, native);
 	expect(textures.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
-		textures.at(1),
-		"BOTTOMRIGHT",
-		0,
-		0,
+		native,
+		"TOPLEFT",
+		2,
+		-2,
 	);
 	expect(textures.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"BOTTOMRIGHT",
-		textures.at(4),
-		"TOPLEFT",
-		0,
-		0,
+		native,
+		"BOTTOMRIGHT",
+		-2,
+		2,
 	);
 	expect(textures.at(0)?.SetAtlas).toHaveBeenCalledWith(
 		"character-panel-background",

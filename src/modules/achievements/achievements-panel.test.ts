@@ -129,7 +129,15 @@ const setup = () => {
 	return { panel, client, flush };
 };
 it("shows summary progress and recent achievements, then expands category children", () => {
+	const closeSkin = vi.spyOn(Frame.prototype, "setCloseButtonBackground");
 	const { panel } = setup();
+	expect(closeSkin).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("achievements-close");
 	expect(
 		lists
 			.get("achievements-list")

@@ -234,13 +234,11 @@ const { frames } = vi.hoisted(() => ({
 	>(),
 }));
 
-it("omits its own close button when the containing panel provides one", () => {
+it("does not create a window close button", () => {
 	const pool = {} as IFramePoolManager;
-	const list = new ScrollList("embedded", pool, "", vi.fn(), {
-		showClose: false,
-	});
+	const list = new ScrollList("embedded", pool, "", vi.fn());
 	list.mount(new Frame("embedded-parent", pool));
-	expect(frames.get("embedded-close")?.show).not.toHaveBeenCalled();
+	expect(frames.has("embedded-close")).toBe(false);
 });
 
 it("reveals a selected row by its logical id", () => {

@@ -21,7 +21,6 @@ export class MountsPanel implements IPanel {
 	readonly title = "Mounts";
 	readonly icon = 132261;
 	private readonly frame: Frame;
-	private readonly closeButton: Frame;
 	private readonly search: Frame;
 	private readonly searchNavigation: INavigable;
 	private readonly filters: Dropdown;
@@ -63,7 +62,6 @@ export class MountsPanel implements IPanel {
 		private readonly menu: IMountActionMenu,
 	) {
 		this.frame = new Frame("mounts-root", pool);
-		this.closeButton = new Frame("mounts-close", pool, "Button");
 		this.search = new Frame("mounts-search", pool, "EditBox");
 		this.searchNavigation = {
 			navId: this.search.id,
@@ -447,13 +445,6 @@ export class MountsPanel implements IPanel {
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -12, 20);
-		this.closeButton.setParent(this.frame);
-		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setCloseButtonBackground();
-		this.closeButton.onClick(() => {
-			if (this.mounted) this.close();
-		});
-		this.closeButton.show();
 		this.frame.setLabel(
 			"actions",
 			"X: Summon   Y: Actions",
@@ -594,7 +585,6 @@ export class MountsPanel implements IPanel {
 		for (const header of this.headers) header.destroy();
 		this.filters.destroy();
 		for (const frame of [
-			this.closeButton,
 			this.viewport,
 			this.content,
 			this.loadingProgress,

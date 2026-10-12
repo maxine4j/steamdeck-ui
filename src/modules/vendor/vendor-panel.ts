@@ -23,7 +23,6 @@ export class VendorPanel implements IPanel {
 	readonly icon: number;
 	private readonly frame: Frame;
 	private readonly grid: ItemGrid;
-	private readonly closeButton: Frame;
 	private readonly footer: Frame;
 	private readonly controls: {
 		frame: Frame;
@@ -56,7 +55,6 @@ export class VendorPanel implements IPanel {
 			pool,
 			id === "vendor" ? "No items for sale" : "No items to buy back",
 		);
-		this.closeButton = new Frame(`${id}-close`, pool, "Button");
 		this.footer = new Frame(`${id}-footer`, pool);
 		this.controls = [
 			{
@@ -183,13 +181,6 @@ export class VendorPanel implements IPanel {
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
 		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
-		this.closeButton.setParent(this.frame);
-		this.closeButton.layout(28, 24, "TOPRIGHT", this.frame, -12, -8);
-		this.closeButton.setCloseButtonBackground();
-		this.closeButton.onClick((button) => {
-			if (this.mounted && button === "LeftButton") this.close();
-		});
-		this.closeButton.show();
 		this.mounted = true;
 		if (this.id === "vendor") {
 			this.footer.setParent(this.frame);
@@ -233,16 +224,6 @@ export class VendorPanel implements IPanel {
 			...(this.id === "vendor"
 				? [this.controls.map((control) => control.nav)]
 				: []),
-			[
-				{
-					navId: this.closeButton.id,
-					onFocus: () => this.closeButton.setFocused(true),
-					onBlur: () => this.closeButton.setFocused(false),
-					onInteract: () => {
-						if (this.mounted) this.close();
-					},
-				},
-			],
 		];
 	}
 	destroy(): void {
@@ -250,7 +231,6 @@ export class VendorPanel implements IPanel {
 		this.grid.destroy();
 		for (const control of this.controls) control.frame.destroy();
 		this.footer.destroy();
-		this.closeButton.destroy();
 		this.frame.destroy();
 	}
 }

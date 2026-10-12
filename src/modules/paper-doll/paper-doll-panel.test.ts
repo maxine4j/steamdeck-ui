@@ -6,6 +6,7 @@ import { PaperDollPanel } from "./paper-doll-panel";
 afterEach(() => vi.unstubAllGlobals());
 
 it("fits equipment around a character model with stats below, reuses controls and routes slot actions", () => {
+	const closeSkin = vi.spyOn(Frame.prototype, "setCloseButtonBackground");
 	const natives: ReturnType<typeof createNative>[] = [];
 	let panelHeight = 800;
 	function createNative() {
@@ -110,6 +111,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
+	expect(closeSkin).not.toHaveBeenCalled();
 	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
 	expect(menu.open).toHaveBeenLastCalledWith(equipment.at(0));
 	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
