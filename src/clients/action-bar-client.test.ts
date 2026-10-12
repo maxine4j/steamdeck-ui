@@ -83,7 +83,7 @@ it("reveals native bars only for action drags, hides them after dropping, and de
 	expect(frames.restore).toHaveBeenCalledTimes(2);
 });
 
-it("binds every modifier combination without changing saved bindings, then restores controller settings", () => {
+it("binds every modifier combination without changing saved bindings or controller settings", () => {
 	const bind = vi.fn();
 	const clear = vi.fn();
 	const setCVar = vi.fn();
@@ -109,37 +109,10 @@ it("binds every modifier combination without changing saved bindings, then resto
 				target.name,
 				"LeftButton",
 			);
-	expect(setCVar).toHaveBeenCalledWith("GamePadEmulateShift", "PADLTRIGGER");
-	expect(setCVar).toHaveBeenCalledWith("GamePadEmulateCtrl", "PADLSHOULDER");
 	client.restore();
 	expect(clear).toHaveBeenCalledWith(target.owner);
-	expect(setCVar).toHaveBeenCalledWith(
-		"GamePadEmulateShift",
-		"original-GamePadEmulateShift",
-	);
-	expect(setCVar).toHaveBeenCalledWith(
-		"GamePadEmulateCtrl",
-		"original-GamePadEmulateCtrl",
-	);
+	expect(setCVar).not.toHaveBeenCalled();
 });
-
-it.each(["PADLTRIGGER", "PADLSHOULDER", "PADRTRIGGER", "PADRSHOULDER"])(
-	"clears conflicting Alt emulation on %s and restores it",
-	(key) => {
-		const set = vi.fn();
-		vi.stubGlobal("SetOverrideBindingClick", vi.fn());
-		vi.stubGlobal("ClearOverrideBindings", vi.fn());
-		vi.stubGlobal("C_CVar", {
-			GetCVar: (name: string) => (name === "GamePadEmulateAlt" ? key : "none"),
-			SetCVar: set,
-		});
-		const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
-		client.bind([{ key, target: { owner: {}, name: "CrossButton" } }]);
-		expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", "none");
-		client.restore();
-		expect(set).toHaveBeenCalledWith("GamePadEmulateAlt", key);
-	},
-);
 
 it("passes opaque native cooldown durations through without arithmetic", () => {
 	const duration = {};

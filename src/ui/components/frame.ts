@@ -6,6 +6,7 @@ import type { IUIComponent } from "./types";
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private docked = false;
+	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
 	private texture?: WowTexture;
@@ -14,6 +15,7 @@ export class Frame implements IUIComponent {
 		public readonly id: string,
 		private readonly pool: IFramePoolManager,
 		private readonly frameType:
+			| "GameTooltip"
 			| "Frame"
 			| "Button"
 			| "SecureButton"
@@ -80,6 +82,20 @@ export class Frame implements IUIComponent {
 			0,
 			0,
 		);
+	}
+	/** Screen-sized mouse shield, above the docked containers. */
+	modalBackdrop(): void {
+		this.dock("fullscreen", 0);
+		const native = this.acquire() as WowFrame & {
+			EnableMouse(enabled: boolean): void;
+		};
+		this.setModalLayer();
+		native.EnableMouse(true);
+		this.mouseShield = true;
+	}
+	setModalLayer(): void {
+		this.acquire().SetFrameStrata("FULLSCREEN_DIALOG");
+		this.docked = true;
 	}
 	fill(parent: Frame): void {
 		this.setParent(parent);
@@ -241,6 +257,52 @@ export class Frame implements IUIComponent {
 		});
 		native.SetScript("OnLeave", () => GameTooltip.Hide());
 	}
+	getSize(): { width: number; height: number } {
+		const native = this.acquire() as WowFrame & {
+			GetWidth(): number;
+			GetHeight(): number;
+		};
+		return { width: native.GetWidth(), height: native.GetHeight() };
+	}
+	/** Render the complete native tooltip without borrowing the global hover tooltip. */
+	showItemTooltip(
+		parent: Frame,
+		item: string | number,
+		maxWidth: number,
+		maxHeight: number,
+	): { width: number; height: number } {
+		if (this.frameType !== "GameTooltip")
+			throw new Error("Item details require a tooltip frame");
+		const native = this.acquire() as WowFrame & {
+			SetOwner(owner: WowFrame, anchor: string): void;
+			SetHyperlink(link: string): void;
+			ClearLines(): void;
+			SetScale(scale: number): void;
+		};
+		native.SetScale(1);
+		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
+		this.setParent(parent);
+		this.setModalLayer();
+		native.ClearLines();
+		native.SetHyperlink(typeof item === "number" ? `item:${item}` : item);
+		native.Show();
+		const size = this.getSize();
+		const scale = Math.min(
+			1,
+			maxWidth / Math.max(1, size.width),
+			maxHeight / Math.max(1, size.height),
+		);
+		native.SetScale(scale);
+		native.ClearAllPoints();
+		native.SetPoint(
+			"TOPLEFT",
+			parent.acquire(),
+			"TOPLEFT",
+			20 / scale,
+			-20 / scale,
+		);
+		return { width: size.width * scale, height: size.height * scale };
+	}
 	setLabel(
 		key: string,
 		text: string,
@@ -268,6 +330,9 @@ export class Frame implements IUIComponent {
 		);
 		label.SetWidth(width);
 		label.SetText(text);
+	}
+	setLabelWordWrap(key: string, wrap: boolean): void {
+		this.labels.get(key)?.SetWordWrap(wrap);
 	}
 	onClick(callback: (this: void, button: string) => void): void {
 		if (this.frameType !== "Button")
@@ -351,6 +416,20 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.frameType === "GameTooltip") {
+			const tooltip = this.native as WowFrame & {
+				ClearLines(): void;
+				SetScale(scale: number): void;
+			};
+			tooltip.ClearLines();
+			tooltip.SetScale(1);
+		}
+		if (this.mouseShield) {
+			(
+				this.native as WowFrame & { EnableMouse(enabled: boolean): void }
+			).EnableMouse(false);
+			this.mouseShield = false;
+		}
 		if (this.gamePadInputConfigured) {
 			this.setGamePadInput();
 			(

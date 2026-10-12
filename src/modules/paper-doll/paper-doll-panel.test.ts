@@ -14,9 +14,16 @@ it("fits equipment around a character model with stats below, reuses controls an
 			(frame: unknown, button: string) => void
 		>();
 		const texts: string[] = [];
+		const labels: {
+			SetText: ReturnType<typeof vi.fn>;
+			SetPoint: ReturnType<typeof vi.fn>;
+			SetWidth: ReturnType<typeof vi.fn>;
+			SetWordWrap: ReturnType<typeof vi.fn>;
+		}[] = [];
 		return {
 			handlers,
 			texts,
+			labels,
 			Show: vi.fn(),
 			Hide: vi.fn(),
 			SetParent: vi.fn(),
@@ -49,14 +56,19 @@ it("fits equipment around a character model with stats below, reuses controls an
 				SetTexCoord: vi.fn(),
 				SetColorTexture: vi.fn(),
 			}),
-			CreateFontString: () => ({
-				SetText: (text: string) => texts.push(text),
-				SetPoint: vi.fn(),
-				ClearAllPoints: vi.fn(),
-				SetFont: vi.fn(),
-				SetJustifyH: vi.fn(),
-				SetWidth: vi.fn(),
-			}),
+			CreateFontString: () => {
+				const label = {
+					SetText: vi.fn((text: string) => texts.push(text)),
+					SetPoint: vi.fn(),
+					ClearAllPoints: vi.fn(),
+					SetFont: vi.fn(),
+					SetJustifyH: vi.fn(),
+					SetWidth: vi.fn(),
+					SetWordWrap: vi.fn(),
+				};
+				labels.push(label);
+				return label;
+			},
 		};
 	}
 	const factory = {
@@ -81,20 +93,67 @@ it("fits equipment around a character model with stats below, reuses controls an
 		itemId: 42,
 		hyperlink: "item:42",
 		itemLevel: 150,
+		upgradeTrack: {
+			name: index === 0 ? "Champion" : index === 17 ? "Myth" : "Hero",
+			rank: index === 8 ? 6 : 5,
+			maxRank: 6,
+		},
 	}));
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
+	const details = natives.filter((native) =>
+		native.texts.includes("|cffffffff150|r"),
+	);
+	expect(details).toHaveLength(18);
+	expect(details.at(0)?.texts).toContain("|cffffffff150|r");
+	expect(
+		details.every((detail) =>
+			detail.texts.every((text) => !text.includes("Slot ")),
+		),
+	).toBe(true);
+	expect(details.at(0)?.texts).toContain("|cff0070ddChampion 5/6|r");
+	expect(details.at(1)?.texts).toContain("|cffa335eeHero 5/6|r");
+	expect(details.at(8)?.texts).toContain("|cff725e7cHero 6/6|r");
+	expect(details.at(17)?.texts).toContain("|cffff8000Myth 5/6|r");
+	expect(details.at(0)?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		expect.anything(),
+		"TOPLEFT",
+		68,
+		-0,
+	);
+	expect(details.at(8)?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		expect.anything(),
+		"TOPLEFT",
+		282,
+		-0,
+	);
+	expect(details.at(0)?.labels.at(0)?.SetPoint.mock.calls.at(-1)?.at(0)).toBe(
+		"TOPLEFT",
+	);
+	expect(details.at(8)?.labels.at(0)?.SetPoint.mock.calls.at(-1)?.at(0)).toBe(
+		"TOPRIGHT",
+	);
+	expect(details.at(16)?.SetPoint.mock.calls.at(-1)?.at(4)).toBe(-424);
+	expect(
+		details.every((detail) =>
+			detail.labels.every(
+				(label) => label.SetWordWrap.mock.lastCall?.at(0) === false,
+			),
+		),
+	).toBe(true);
 	const model = natives.find((native) => native.SetUnit.mock.calls.length > 0);
 	if (!model) throw new Error("Missing character model");
 	expect(model.SetSize).toHaveBeenCalledWith(332, 364);
 	expect(model.SetUnit).toHaveBeenCalledWith("player");
 	const row = natives.find((native) => native.texts.includes("Haste"));
 	if (!row) throw new Error("Missing stats row");
-	expect(row.SetPoint.mock.calls.at(-1)?.at(4)).toBe(-436);
+	expect(row.SetPoint.mock.calls.at(-1)?.at(4)).toBe(-488);
 	const content = natives.find((native) =>
 		native.SetSize.mock.calls.some(
-			([width, height]) => width === 500 && height === 462,
+			([width, height]) => width === 500 && height === 514,
 		),
 	);
 	expect(content?.SetPoint).toHaveBeenLastCalledWith(
@@ -102,7 +161,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 		expect.anything(),
 		"TOPLEFT",
 		0,
-		-169,
+		-143,
 	);
 	panel.setStats(
 		Array.from({ length: 6 }, () => ({ label: "Stat", value: "1" })),
@@ -112,7 +171,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 		expect.anything(),
 		"TOPLEFT",
 		0,
-		-141,
+		-115,
 	);
 	panelHeight = 1000;
 	natives
@@ -123,7 +182,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 		expect.anything(),
 		"TOPLEFT",
 		0,
-		-241,
+		-215,
 	);
 	const equipmentButtons = natives.filter((native) =>
 		native.handlers.has("OnDragStart"),
@@ -154,6 +213,16 @@ it("fits equipment around a character model with stats below, reuses controls an
 	expect(actions.use).toHaveBeenCalledOnce();
 	panel.onMount(new Frame("parent-again", pool));
 	expect(factory.createFrame).toHaveBeenCalledTimes(count + 1);
+	panel.setEquipment(
+		equipment.map((slot) => ({
+			...slot,
+			itemId: undefined,
+			itemLevel: undefined,
+			upgradeTrack: undefined,
+		})),
+	);
+	expect(details.at(0)?.labels.at(0)?.SetText).toHaveBeenLastCalledWith("");
+	expect(details.at(0)?.labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
 	panel.destroy();
 	expect(model.ClearModel).toHaveBeenCalledOnce();
 	expect(equipmentButtons.every((native) => native.handlers.size === 0)).toBe(

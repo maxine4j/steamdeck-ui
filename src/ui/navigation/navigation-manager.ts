@@ -27,6 +27,7 @@ export class NavigationManager implements INavManager {
 	private readonly history: string[] = [];
 	private readonly remembered = new Map<string, string>();
 	private active?: string;
+	private modal?: { id: string; previous?: string; cancel: () => void };
 	private focused?: INavigable;
 	private graph = new NavigationGrid([]);
 	private readonly handlers: [ApplicationEvent, () => void][] = [
@@ -35,6 +36,9 @@ export class NavigationManager implements INavManager {
 		["NAV_LEFT", () => this.moveLeft()],
 		["NAV_RIGHT", () => this.moveRight()],
 		["NAV_INTERACT", () => this.interact()],
+		["NAV_CONTEXT", () => this.focused?.onContext?.()],
+		["NAV_ALTERNATE", () => this.focused?.onAlternate?.()],
+		["NAV_CANCEL", () => this.modal?.cancel()],
 	];
 	constructor(
 		private readonly events: IEventBus,
@@ -56,6 +60,7 @@ export class NavigationManager implements INavManager {
 		this.refreshGrid(panelId);
 	}
 	setActiveGrid(panelId: string): void {
+		if (this.modal && panelId !== this.modal.id) return;
 		if (!this.grids.has(panelId)) return;
 		if (this.active !== panelId) this.setFocus(undefined);
 		this.active = panelId;
@@ -63,6 +68,20 @@ export class NavigationManager implements INavManager {
 		if (index >= 0) this.history.splice(index, 1);
 		this.history.push(panelId);
 		this.refreshGrid(panelId);
+	}
+	pushModal(id: string, grid: NavGrid, cancel: () => void): void {
+		const previous = this.modal?.previous ?? this.active;
+		if (this.modal && this.modal.id !== id) this.popModal(this.modal.id);
+		this.modal = { id, previous, cancel };
+		this.registerGrid(id, grid);
+		this.setActiveGrid(id);
+	}
+	popModal(id: string): void {
+		if (this.modal?.id !== id) return;
+		const previous = this.modal.previous;
+		this.modal = undefined;
+		this.unregisterGrid(id);
+		if (previous) this.setActiveGrid(previous);
 	}
 	refreshGrid(panelId: string): void {
 		if (this.active !== panelId) return;
@@ -121,6 +140,7 @@ export class NavigationManager implements INavManager {
 		this.focused?.onInteract();
 	}
 	destroy(): void {
+		this.modal = undefined;
 		for (const [event, handler] of this.handlers)
 			this.events.unsubscribe(event, handler);
 		this.setFocus(undefined);

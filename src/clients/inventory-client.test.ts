@@ -3,6 +3,38 @@ import { InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("destroys only the selected current stack, rejecting occupied cursors, stale slots and combat", () => {
+	let combat = false;
+	let occupied = false;
+	const info = vi.fn(() => ({ itemID: 42, isLocked: false }));
+	const pickup = vi.fn(() => {
+		occupied = true;
+	});
+	const remove = vi.fn();
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	vi.stubGlobal("CursorHasItem", () => occupied);
+	vi.stubGlobal("DeleteCursorItem", remove);
+	vi.stubGlobal("C_Container", {
+		GetContainerItemInfo: info,
+		PickupContainerItem: pickup,
+	});
+	const client = new InventoryClient();
+	const item = { bagId: 0, slotId: 1, itemId: 42 };
+	occupied = true;
+	client.destroyItem(item);
+	occupied = false;
+	combat = true;
+	client.destroyItem(item);
+	combat = false;
+	info.mockReturnValue({ itemID: 43, isLocked: false });
+	client.destroyItem(item);
+	expect(pickup).not.toHaveBeenCalled();
+	info.mockReturnValue({ itemID: 42, isLocked: false });
+	client.destroyItem(item);
+	expect(pickup).toHaveBeenCalledExactlyOnceWith(0, 1);
+	expect(remove).toHaveBeenCalledOnce();
+});
+
 it("uses and picks up one real stack, leaving world deletion to the native cursor", () => {
 	const use = vi.fn();
 	const pickup = vi.fn();

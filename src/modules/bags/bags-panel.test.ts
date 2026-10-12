@@ -71,13 +71,19 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	};
 	const pool = new FramePoolManager(factory);
 	const parent = new Frame("parent", pool);
-	const actions = { useItem: vi.fn(), pickupItem: vi.fn() };
+	const actions = {
+		useItem: vi.fn(),
+		pickupItem: vi.fn(),
+		destroyItem: vi.fn(),
+	};
+	const menu = { open: vi.fn(), close: vi.fn() };
 	const panel = new BagsPanel(
 		"bags",
 		"Bags",
 		new Frame("panel", pool),
 		pool,
 		actions,
+		menu,
 	);
 	const cloth: InventoryItem = {
 		bagId: 0,
@@ -146,13 +152,20 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	reagent?.onFocus();
 	expect(focus).toHaveBeenLastCalledWith(true);
 	reagent?.onInteract();
+	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
+	reagent?.onAlternate?.();
 	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	reagent?.onContext?.();
+	expect(menu.open).toHaveBeenCalledExactlyOnceWith(cloth);
 	reagent?.onBlur();
 	expect(focus).toHaveBeenLastCalledWith(false);
 	panel.onUnmount();
 	expect(panel.getNavGrid()).toEqual([]);
 	reagent?.onInteract();
+	reagent?.onAlternate?.();
 	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	reagent?.onContext?.();
+	expect(menu.open).toHaveBeenCalledOnce();
 	panel.onMount(parent);
 	expect(factory.createFrame).toHaveBeenCalledTimes(count);
 	panel.setItems([{ ...cloth, count: 1 }]);

@@ -30,6 +30,11 @@ function setup() {
 		vi.fn(() => 4),
 	);
 	const item = {
+		GetItemUpgradeInfo: vi.fn<
+			() =>
+				| { trackString?: string; currentLevel: number; maxLevel: number }
+				| undefined
+		>(() => ({ trackString: "Hero", currentLevel: 5, maxLevel: 6 })),
 		IsItemDataCachedByID: vi.fn(() => false),
 		RequestLoadItemDataByID: vi.fn(),
 		GetDetailedItemLevelInfo: vi.fn(() => [150]),
@@ -54,6 +59,7 @@ it("includes empty slots, requests unloaded equipment once and reads the equippe
 		itemId: 42,
 		quality: 4,
 		itemLevel: 150,
+		upgradeTrack: { name: "Hero", rank: 5, maxRank: 6 },
 	});
 	expect(equipment.at(1)).toMatchObject({
 		name: "Neck",
@@ -61,8 +67,18 @@ it("includes empty slots, requests unloaded equipment once and reads the equippe
 		itemId: undefined,
 	});
 	expect(item.GetDetailedItemLevelInfo).toHaveBeenCalledWith("item:42:bonus");
+	expect(item.GetItemUpgradeInfo).toHaveBeenCalledWith("item:42:bonus");
 	client.getEquipment();
 	expect(item.RequestLoadItemDataByID).toHaveBeenCalledExactlyOnceWith(42);
+});
+it("omits upgrade data for untracked, unloaded and empty slots", () => {
+	const { client, item } = setup();
+	item.GetItemUpgradeInfo.mockReturnValue(undefined);
+	expect(client.getEquipment().at(0)).toMatchObject({
+		name: "Head",
+		upgradeTrack: undefined,
+	});
+	expect(client.getEquipment().at(1)?.upgradeTrack).toBeUndefined();
 });
 it("uses physical slots, rejects stale and locked equipment and allows cursor equipment into empty slots", () => {
 	const { client, pickup, use, lock } = setup();

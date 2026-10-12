@@ -2,7 +2,15 @@ import type { WowEventFrame, WowFrame } from "../types";
 import type { FrameFactory, FrameType } from "./frame-pool-manager";
 export class WowFrameFactory implements FrameFactory {
 	private nextSecureId = 0;
+	private nextTooltipId = 0;
 	createFrame(type: FrameType): WowFrame {
+		if (type === "GameTooltip")
+			return CreateFrame(
+				"GameTooltip",
+				`SteamDeckUIItemTooltip${++this.nextTooltipId}`,
+				UIParent,
+				"GameTooltipTemplate",
+			);
 		if (type === "SecureStateButton")
 			return CreateFrame(
 				"Button",

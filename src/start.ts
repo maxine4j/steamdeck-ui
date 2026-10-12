@@ -11,6 +11,8 @@ import { CrossBar } from "./modules/action-bar/cross-bar";
 import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
+import { ItemActionMenu } from "./modules/bags/item-action-menu";
+import { ControllerInputModule } from "./modules/controller-input/controller-input-module";
 import { ModuleManager } from "./modules/module-manager";
 import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
 import { MountsModule } from "./modules/mounts/mounts-module";
@@ -26,6 +28,7 @@ import { TitlesModule } from "./modules/titles/titles-module";
 import { TitlesPanel } from "./modules/titles/titles-panel";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
+import { Modal } from "./ui/components/modal";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
 import { PanelContainer } from "./ui/panel/panel-container";
@@ -45,6 +48,8 @@ export function startSteamDeckUI(
 		controller.setActive(active),
 	);
 	const pool = new FramePoolManager(factory);
+	const itemModal = new Modal("item-actions", pool, navigation, events);
+	const itemMenu = new ItemActionMenu(itemModal, inventory);
 	const characterSuppression = new FrameSuppression(pool);
 	const builtInReputation = new BuiltInReputation(characterSuppression, events);
 	const ui = new UIOrchestrator(
@@ -73,9 +78,11 @@ export function startSteamDeckUI(
 		new Frame("bags-frame", pool),
 		pool,
 		inventory,
+		itemMenu,
 	);
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
+	modules.register(new ControllerInputModule(controller));
 	modules.register(
 		new ActionBarModule(events, actions, new CrossBar(pool, actions)),
 	);
@@ -132,8 +139,8 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			itemModal.destroy();
 			navigation.destroy();
-			controller.shutdown();
 			ui.destroy();
 			panel.destroy();
 			paperDoll.destroy();

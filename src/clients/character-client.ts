@@ -1,3 +1,8 @@
+export interface EquipmentUpgradeTrack {
+	readonly name: string;
+	readonly rank: number;
+	readonly maxRank: number;
+}
 export interface EquipmentSlot {
 	readonly slotId: number;
 	readonly name: string;
@@ -5,6 +10,7 @@ export interface EquipmentSlot {
 	readonly itemId?: number;
 	readonly quality: number;
 	readonly itemLevel?: number;
+	readonly upgradeTrack?: EquipmentUpgradeTrack;
 	readonly hyperlink?: string;
 }
 export interface CharacterStat {
@@ -87,6 +93,7 @@ export class CharacterClient implements ICharacterClient {
 			const itemId = GetInventoryItemID("player", slotId) ?? undefined;
 			const hyperlink = GetInventoryItemLink("player", slotId) ?? undefined;
 			let itemLevel: number | undefined;
+			let upgradeTrack: EquipmentUpgradeTrack | undefined;
 			if (itemId !== undefined) {
 				if (
 					!C_Item.IsItemDataCachedByID(itemId) &&
@@ -100,6 +107,21 @@ export class CharacterClient implements ICharacterClient {
 					info: string | number,
 				) => LuaMultiReturn<[number, boolean, number]>;
 				[itemLevel] = levelInfo(hyperlink ?? itemId);
+				// The generated declaration reduces this structured return to a number.
+				const upgradeInfo = C_Item.GetItemUpgradeInfo as unknown as (
+					this: void,
+					info: string | number,
+				) =>
+					| { trackString?: string; currentLevel: number; maxLevel: number }
+					| undefined;
+				const upgrade = upgradeInfo(hyperlink ?? itemId);
+				if (upgrade?.trackString && upgrade.maxLevel > 0) {
+					upgradeTrack = {
+						name: upgrade.trackString,
+						rank: upgrade.currentLevel,
+						maxRank: upgrade.maxLevel,
+					};
+				}
 			}
 			return {
 				slotId,
@@ -107,6 +129,7 @@ export class CharacterClient implements ICharacterClient {
 				itemId,
 				hyperlink,
 				itemLevel,
+				upgradeTrack,
 				icon: GetInventoryItemTexture("player", slotId) ?? emptyIcon,
 				quality: GetInventoryItemQuality("player", slotId) ?? 1,
 			};

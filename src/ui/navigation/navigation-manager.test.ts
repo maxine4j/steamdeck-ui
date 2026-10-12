@@ -10,6 +10,27 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("routes context input and traps modal focus until cancellation restores the item", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const item = { ...node("item"), onContext: vi.fn(), onAlternate: vi.fn() };
+	const cancel = vi.fn(() => manager.popModal("menu"));
+	manager.registerGrid("bags", [[item]]);
+	manager.setActiveGrid("bags");
+	events.emit("NAV_ALTERNATE");
+	expect(item.onAlternate).toHaveBeenCalledOnce();
+	events.emit("NAV_CONTEXT");
+	expect(item.onContext).toHaveBeenCalledOnce();
+	manager.pushModal("menu", [[node("cancel")]], cancel);
+	manager.registerGrid("other", [[node("other")]]);
+	manager.setActiveGrid("other");
+	manager.moveLeft();
+	expect(manager.focusedId).toBe("cancel");
+	events.emit("NAV_CANCEL");
+	expect(cancel).toHaveBeenCalledOnce();
+	expect(manager.focusedId).toBe("item");
+});
+
 it("routes D-pad input through sparse rows, holds at edges and interacts with focus", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

@@ -26,6 +26,7 @@ export type InventorySlot = Pick<
 export interface IInventoryActions {
 	useItem(item: InventorySlot): void;
 	pickupItem(item: InventorySlot): void;
+	destroyItem(item: InventorySlot): void;
 }
 export interface IInventoryClient extends IInventoryActions {
 	getItems(): InventoryItem[];
@@ -60,6 +61,16 @@ export class InventoryClient implements IInventoryClient {
 		if (CursorHasItem() || !this.isCurrentUnlockedSlot(item)) return;
 		// Pick up exactly one physical stack. The world drop owns deletion confirmation.
 		C_Container.PickupContainerItem(item.bagId, item.slotId);
+	}
+	destroyItem(item: InventorySlot): void {
+		if (
+			InCombatLockdown() ||
+			CursorHasItem() ||
+			!this.isCurrentUnlockedSlot(item)
+		)
+			return;
+		C_Container.PickupContainerItem(item.bagId, item.slotId);
+		if (CursorHasItem()) DeleteCursorItem();
 	}
 	getMoney(): number {
 		return GetMoney();

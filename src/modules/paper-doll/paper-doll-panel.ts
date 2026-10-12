@@ -20,6 +20,27 @@ const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0, 0.8, 1],
 	[0, 0.8, 1],
 ];
+function trackText(slot: EquipmentSlot): string {
+	const track = slot.upgradeTrack;
+	if (!track || slot.itemId === undefined) return "";
+	const maxed = track.rank >= track.maxRank;
+	let color: string;
+	switch (track.name.toLowerCase()) {
+		case "champ":
+		case "champion":
+			color = maxed ? "52677c" : "0070dd";
+			break;
+		case "hero":
+			color = maxed ? "725e7c" : "a335ee";
+			break;
+		case "myth":
+			color = maxed ? "8c704d" : "ff8000";
+			break;
+		default:
+			color = maxed ? "777777" : "bbbbbb";
+	}
+	return `|cff${color}${track.name} ${track.rank}/${track.maxRank}|r`;
+}
 
 export class PaperDollPanel implements IPanel {
 	readonly id = "paper-doll";
@@ -28,8 +49,12 @@ export class PaperDollPanel implements IPanel {
 	private mounted = false;
 	private equipment: readonly EquipmentSlot[] = [];
 	private stats: readonly CharacterStat[] = [];
-	private readonly slots: { border: Frame; button: Frame; nav: INavigable }[] =
-		[];
+	private readonly slots: {
+		border: Frame;
+		button: Frame;
+		details: Frame;
+		nav: INavigable;
+	}[] = [];
 	private readonly statRows: Frame[] = [];
 	private readonly preview: Frame;
 	private readonly closeButton: Frame;
@@ -86,9 +111,11 @@ export class PaperDollPanel implements IPanel {
 			if (!cell) {
 				const border = new Frame(`equipment-border-${index}`, this.pool);
 				const button = new Frame(`equipment-${index}`, this.pool, "Button");
+				const details = new Frame(`equipment-details-${index}`, this.pool);
 				cell = {
 					border,
 					button,
+					details,
 					nav: {
 						navId: `equipment-${index}`,
 						onFocus: () => border.setColor(1, 0.82, 0),
@@ -107,7 +134,7 @@ export class PaperDollPanel implements IPanel {
 				};
 				this.slots.push(cell);
 			}
-			const x = index < 8 ? 16 : index < 16 ? 438 : index === 16 ? 202 : 254;
+			const x = index < 8 ? 16 : index < 16 ? 438 : index === 16 ? 107 : 349;
 			const y = index < 16 ? (index % 8) * 46 : 374;
 			cell.border.setParent(this.content);
 			cell.border.layout(44, 44, "TOPLEFT", this.content, x, -y);
@@ -118,14 +145,32 @@ export class PaperDollPanel implements IPanel {
 			cell.button.layout(40, 40, "CENTER", cell.border);
 			cell.button.setIcon(slot.icon);
 			cell.button.setTooltip(slot.name, slot.hyperlink);
-			cell.button.setLabel(
-				"level",
-				slot.itemLevel === undefined ? "" : `${Math.floor(slot.itemLevel)}`,
-				"BOTTOMRIGHT",
-				-1,
-				1,
-				11,
+			const weapon = index >= 16;
+			const width = weapon ? 226 : 150;
+			const point = weapon ? "TOP" : index < 8 ? "TOPLEFT" : "TOPRIGHT";
+			cell.details.setParent(this.content);
+			cell.details.layout(
+				width,
+				40,
+				"TOPLEFT",
+				this.content,
+				weapon ? 16 + (index - 16) * 242 : index < 8 ? 68 : 282,
+				weapon ? -424 : -y,
 			);
+			cell.details.setLabel(
+				"item",
+				slot.itemId === undefined || slot.itemLevel === undefined
+					? ""
+					: `|cffffffff${Math.floor(slot.itemLevel)}|r`,
+				point,
+				0,
+				-5,
+				11,
+				width,
+			);
+			cell.details.setLabel("track", trackText(slot), point, 0, -23, 11, width);
+			cell.details.setLabelWordWrap("item", false);
+			cell.details.setLabelWordWrap("track", false);
 			cell.button.onClick((button) => {
 				if (!this.mounted) return;
 				if (button === "LeftButton") this.actions.pickup(slot);
@@ -136,10 +181,12 @@ export class PaperDollPanel implements IPanel {
 			});
 			cell.border.show();
 			cell.button.show();
+			cell.details.show();
 		});
 		for (let i = this.equipment.length; i < this.slots.length; i++) {
 			this.slots.at(i)?.border.hide();
 			this.slots.at(i)?.button.hide();
+			this.slots.at(i)?.details.hide();
 		}
 		this.layoutContent();
 	}
@@ -157,7 +204,7 @@ export class PaperDollPanel implements IPanel {
 				"TOPLEFT",
 				this.content,
 				16 + (index % 2) * 242,
-				-436 - Math.floor(index / 2) * 28,
+				-488 - Math.floor(index / 2) * 28,
 			);
 			row.setLabel("label", stat.label, "LEFT", 0, 0, 13);
 			row.setLabel("value", stat.value, "RIGHT", 0, 0, 13);
@@ -170,9 +217,9 @@ export class PaperDollPanel implements IPanel {
 	private layoutContent(): void {
 		const height =
 			this.stats.length > 0
-				? 436 + (Math.ceil(this.stats.length / 2) - 1) * 28 + 26
+				? 488 + (Math.ceil(this.stats.length / 2) - 1) * 28 + 26
 				: this.equipment.length > 16
-					? 418
+					? 464
 					: 364;
 		this.content.layoutVerticallyCentered(500, height, this.frame);
 	}
@@ -195,6 +242,7 @@ export class PaperDollPanel implements IPanel {
 	destroy(): void {
 		this.onUnmount();
 		for (const cell of this.slots) {
+			cell.details.destroy();
 			cell.button.destroy();
 			cell.border.destroy();
 		}

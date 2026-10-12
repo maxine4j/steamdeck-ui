@@ -13,6 +13,7 @@ import {
 	type GroupMode,
 	groupItems,
 } from "./bag-display";
+import type { IItemActionMenu } from "./item-action-menu";
 
 const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0.62, 0.62, 0.62],
@@ -48,12 +49,14 @@ export class BagsPanel implements IPanel {
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
 		private readonly actions: IInventoryActions,
+		private readonly menu: IItemActionMenu,
 	) {
 		this.toggle = new Frame(`${id}-group-toggle`, pool, "Button");
 		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
 	}
 	setItems(items: readonly InventoryItem[]): void {
+		this.menu.close();
 		this.items = items;
 		if (this.mounted) this.render();
 	}
@@ -66,6 +69,14 @@ export class BagsPanel implements IPanel {
 			throw new Error("Bags requires a frame parent");
 		this.frame.fill(parent);
 		this.frame.setBlackBackground();
+		this.frame.setLabel(
+			"actions",
+			"X: Use / Equip   Y: Actions",
+			"BOTTOMLEFT",
+			16,
+			16,
+			12,
+		);
 		this.frame.show();
 		this.toggle.setParent(this.frame);
 		this.toggle.layout(180, 30, "TOPLEFT", this.frame, 16, -16);
@@ -156,13 +167,17 @@ export class BagsPanel implements IPanel {
 				grid[row] = cells;
 				const node = cell.icon.navigationNode(
 					`${this.id}-item-${item.itemId}-${source?.bagId}-${source?.slotId}`,
-					() => {
-						if (this.mounted && source) this.actions.useItem(source);
-					},
+					() => {},
 					() => this.viewport.revealVerticalRange(top, top + 42, y),
 				);
 				cells.push({
 					...node,
+					onAlternate: () => {
+						if (this.mounted && source) this.actions.useItem(source);
+					},
+					onContext: () => {
+						if (this.mounted && source) this.menu.open(source);
+					},
 					navColumn: (groupIndex % 2) * itemsPerRow + (itemIndex % itemsPerRow),
 				});
 				cell.icon.onClick((button) => {
@@ -235,6 +250,7 @@ export class BagsPanel implements IPanel {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {
+		this.menu.close();
 		this.mounted = false;
 		this.frame.hide();
 		this.navGrid = [];

@@ -5,6 +5,57 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("renders complete instance tooltips, scales long content to fit and resets pooled tooltip state", () => {
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetOwner: vi.fn(),
+		SetHyperlink: vi.fn(),
+		ClearLines: vi.fn(),
+		SetScale: vi.fn(),
+		SetParent: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetPoint: vi.fn(),
+		SetSize: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetScript: vi.fn(),
+		GetWidth: () => 400,
+		GetHeight: () => 1000,
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+		}),
+	};
+	const factory = { createFrame: vi.fn(() => native) };
+	const pool = new FramePoolManager(factory);
+	const parent = new Frame("window", pool);
+	const tooltip = new Frame("details", pool, "GameTooltip");
+	expect(tooltip.showItemTooltip(parent, "item:42:bonus", 500, 500)).toEqual({
+		width: 200,
+		height: 500,
+	});
+	expect(native.SetOwner).toHaveBeenCalledWith(native, "ANCHOR_NONE");
+	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42:bonus");
+	expect(native.SetScale).toHaveBeenLastCalledWith(0.5);
+	expect(native.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		native,
+		"TOPLEFT",
+		40,
+		-40,
+	);
+	tooltip.showItemTooltip(parent, 42, 500, 1200);
+	expect(native.SetHyperlink).toHaveBeenLastCalledWith("item:42");
+	expect(native.SetScale).toHaveBeenLastCalledWith(1);
+	expect(factory.createFrame).toHaveBeenCalledTimes(2);
+	tooltip.destroy();
+	expect(native.ClearLines).toHaveBeenCalledTimes(3);
+	expect(native.SetScale).toHaveBeenLastCalledWith(1);
+	expect(pool.acquire("GameTooltip")).toBe(native);
+});
+
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {
 	let scroll = 0;
 	const native = {

@@ -42,7 +42,6 @@ export interface IActionBarClient {
 export class ActionBarClient implements IActionBarClient {
 	private suppressed = false;
 	private readonly owners: WowFrame[] = [];
-	private readonly originalCVars = new Map<string, string | null>();
 	constructor(private readonly frames: IFrameSuppression) {}
 	canModify(): boolean {
 		return !InCombatLockdown();
@@ -103,24 +102,6 @@ export class ActionBarClient implements IActionBarClient {
 		};
 	}
 	bind(bindings: readonly ActionBinding[]): void {
-		const alt = C_CVar.GetCVar("GamePadEmulateAlt");
-		if (
-			alt === "PADLTRIGGER" ||
-			alt === "PADLSHOULDER" ||
-			bindings.some(({ key }) => key === alt)
-		) {
-			this.originalCVars.set("GamePadEmulateAlt", alt);
-			C_CVar.SetCVar("GamePadEmulateAlt", "none");
-		}
-		for (const [name, value] of [
-			["GamePadEmulateShift", "PADLTRIGGER"],
-			["GamePadEmulateCtrl", "PADLSHOULDER"],
-		]) {
-			if (!name || !value) continue;
-			if (!this.originalCVars.has(name))
-				this.originalCVars.set(name, C_CVar.GetCVar(name));
-			C_CVar.SetCVar(name, value);
-		}
 		for (const { key, target } of bindings) {
 			if (!this.owners.includes(target.owner)) this.owners.push(target.owner);
 			for (const prefix of ["", "SHIFT-", "CTRL-", "CTRL-SHIFT-"])
@@ -136,8 +117,6 @@ export class ActionBarClient implements IActionBarClient {
 	restore(): void {
 		for (const owner of this.owners) ClearOverrideBindings(owner);
 		this.owners.length = 0;
-		for (const [name, value] of this.originalCVars) C_CVar.SetCVar(name, value);
-		this.originalCVars.clear();
 		this.frames.restore();
 		this.suppressed = false;
 	}

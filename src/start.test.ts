@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "./events/test-event-bus";
 import { startSteamDeckUI } from "./start";
 import type { WowFrame, WowTexture } from "./types";
+import type { FrameType } from "./ui/frame-pool-manager";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -12,7 +13,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const textures: WowTexture[] = [];
 	const labels: string[][] = [];
 	const factory = {
-		createFrame: () => {
+		createFrame: (type: FrameType) => {
 			const texts: string[] = [];
 			labels.push(texts);
 			const texture = {
@@ -21,6 +22,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetColorTexture: vi.fn(),
 				SetTexture: vi.fn(),
 				SetTexCoord: vi.fn(),
+				SetPoint: vi.fn(),
+				SetHeight: vi.fn(),
+				SetWidth: vi.fn(),
 			};
 			const frame = {
 				CreateFontString: () => ({
@@ -37,6 +41,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				RegisterForClicks: vi.fn(),
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
+				EnableMouse: vi.fn(),
 				SetScrollChild: vi.fn(),
 				GetVerticalScroll: () => 0,
 				GetVerticalScrollRange: () => 0,
@@ -48,7 +53,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				ClearAllPoints: vi.fn(),
 				SetPoint: vi.fn(),
 				SetSize: vi.fn(),
-				GetHeight: () => 600,
+				GetHeight: () => (type === "GameTooltip" ? 440 : 600),
+				GetWidth: () => (type === "GameTooltip" ? 320 : 1280),
+				SetOwner: vi.fn(),
+				SetHyperlink: vi.fn(),
+				ClearLines: vi.fn(),
+				SetScale: vi.fn(),
 				SetUnit: vi.fn(),
 				SetPortraitZoom: vi.fn(),
 				SetCamDistanceScale: vi.fn(),
@@ -105,6 +115,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const inventory = {
 		useItem: vi.fn(),
 		pickupItem: vi.fn(),
+		destroyItem: vi.fn(),
 		getMoney: vi.fn(() => 12345),
 		isOpen: vi.fn(() => false),
 		getItems: vi.fn(() => [
@@ -117,6 +128,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				quality: 3,
 				category: "Equipment" as const,
 				stackable: false,
+				hyperlink: "item:42:bonus:123",
 			},
 		]),
 	};
@@ -139,6 +151,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const titles = {
 		getTitles: vi.fn(() => [{ id: -1, name: "None", selected: true }]),
 		select: vi.fn(),
+	};
+	const controller = {
+		disableBuiltIn: vi.fn(),
+		initialize: vi.fn(),
+		setActive: vi.fn(),
+		shutdown: vi.fn(),
 	};
 	const app = startSteamDeckUI(
 		factory,
@@ -169,7 +187,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			bind: vi.fn(),
 			getSlotDriver: vi.fn(),
 		},
-		{ setActive: vi.fn(), shutdown: vi.fn() },
+		controller,
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -202,6 +220,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 	);
 	events.emit("PLAYER_LOGIN");
+	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
+	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).toHaveBeenCalledOnce();
 	expect(frames).toHaveLength(3);
 	for (const frame of builtIns)
@@ -225,6 +245,75 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.navigation.focusedId).toContain("bags-item-42");
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	expect(frames).toHaveLength(count);
+	events.emit("NAV_INTERACT");
+	expect(inventory.useItem).not.toHaveBeenCalled();
+	events.emit("NAV_ALTERNATE");
+	expect(inventory.useItem).toHaveBeenCalledOnce();
+	events.emit("NAV_CONTEXT");
+	expect(app.navigation.focusedId).toBe("item-actions-use");
+	const detailTooltip = frames.find(
+		(frame) =>
+			"SetHyperlink" in frame &&
+			vi.mocked(
+				(frame as WowFrame & { SetHyperlink: ReturnType<typeof vi.fn> })
+					.SetHyperlink,
+			).mock.calls.length > 0,
+	);
+	expect(detailTooltip).toBeDefined();
+	expect(
+		(detailTooltip as WowFrame & { SetHyperlink: ReturnType<typeof vi.fn> })
+			.SetHyperlink,
+	).toHaveBeenLastCalledWith("item:42:bonus:123");
+	const detailWindow = frames.find((frame) =>
+		vi
+			.mocked(frame.SetSize)
+			.mock.calls.some(([width, height]) => width === 660 && height === 480),
+	);
+	expect(detailWindow).toBeDefined();
+	events.emit("NAV_ALTERNATE");
+	expect(inventory.useItem).toHaveBeenCalledOnce();
+	const overlay = frames.find((frame) =>
+		vi
+			.mocked(frame.SetFrameStrata)
+			.mock.calls.some(([strata]) => strata === "FULLSCREEN_DIALOG"),
+	);
+	expect(overlay?.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		undefined,
+		"TOPLEFT",
+		0,
+		0,
+	);
+	expect(detailWindow?.SetPoint).toHaveBeenCalledWith(
+		"CENTER",
+		overlay,
+		"CENTER",
+		0,
+		0,
+	);
+	const tooltipHides = detailTooltip
+		? vi.mocked(detailTooltip.Hide).mock.calls.length
+		: 0;
+	events.emit("NAV_CANCEL");
+	expect(detailTooltip?.Hide).toHaveBeenCalledTimes(tooltipHides + 1);
+	expect(app.navigation.focusedId).toContain("bags-item-42");
+	const modalCount = frames.length;
+	events.emit("NAV_CONTEXT");
+	events.emit("NAV_DOWN");
+	events.emit("NAV_INTERACT");
+	expect(app.navigation.focusedId).toBe("item-actions-cancel");
+	expect(inventory.destroyItem).not.toHaveBeenCalled();
+	events.emit("NAV_DOWN");
+	events.emit("NAV_INTERACT");
+	expect(inventory.destroyItem).toHaveBeenCalledOnce();
+	expect(app.navigation.focusedId).toContain("bags-item-42");
+	events.emit("NAV_CONTEXT");
+	events.emit("NAV_INTERACT");
+	events.emit("NAV_CONTEXT");
+	events.emit("COMBAT_STARTED");
+	expect(inventory.useItem).toHaveBeenCalledTimes(2);
+	expect(app.navigation.focusedId).toContain("bags-item-42");
+	expect(frames).toHaveLength(modalCount);
 	const rightFrame = frames.at(1);
 	if (!rightFrame) throw new Error("Missing right container");
 	const rightHides = vi.mocked(rightFrame.Hide).mock.calls.length;
@@ -281,14 +370,20 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Hide).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	const withPaperDoll = frames.length;
+	events.emit("NAV_CONTEXT");
+	expect(app.navigation.focusedId).toBe("item-actions-use");
 	app.ui.closePanel("right");
+	expect(app.navigation.focusedId).toBeUndefined();
 	app.ui.openPanel("bags", "right");
 	expect(frames).toHaveLength(withPaperDoll);
+	events.emit("NAV_CONTEXT");
+	expect(app.navigation.focusedId).toBe("item-actions-use");
 	inventory.getItems.mockReturnValue([]);
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(bagIcon?.Hide).toHaveBeenCalled();
 	expect(app.navigation.focusedId).not.toContain("bags-item-");
 	app.stop();
+	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(inventory.getItems).toHaveBeenCalledTimes(4);
 	for (const frame of builtIns)
