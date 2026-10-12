@@ -3,6 +3,7 @@ import type {
 	CurrencySource,
 	ICurrencyClient,
 } from "../../clients/currency-client";
+import { menuIcons } from "../../ui/components/menu-icons";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 
 export class CurrencyOptions {
@@ -27,7 +28,11 @@ export class CurrencyOptions {
 	}
 	private message(title: string): void {
 		this.modal.open(title, [
-			{ id: "close", label: "Close", select: () => this.close() },
+			{
+				id: "close",
+				label: `${menuIcons.cancel} Close`,
+				select: () => this.close(),
+			},
 		]);
 	}
 	open(currency: Currency): void {
@@ -35,7 +40,9 @@ export class CurrencyOptions {
 		if (currency.discovered)
 			options.push({
 				id: "watch",
-				label: currency.watched ? "Unwatch in backpack" : "Watch in backpack",
+				label: currency.watched
+					? `${menuIcons.remove} Unwatch in backpack`
+					: `${menuIcons.backpack} Watch in backpack`,
 				select: () => {
 					if (!this.client.setWatched(currency.id, !currency.watched))
 						this.message(
@@ -46,7 +53,9 @@ export class CurrencyOptions {
 			});
 		options.push({
 			id: "unused",
-			label: currency.unused ? "Mark active" : "Mark inactive",
+			label: currency.unused
+				? `${menuIcons.confirm} Mark active`
+				: `${menuIcons.remove} Mark inactive`,
 			select: () => {
 				this.client.setUnused(currency.id, !currency.unused);
 				this.changed();
@@ -55,13 +64,17 @@ export class CurrencyOptions {
 		if (currency.transferable)
 			options.push({
 				id: "transfer",
-				label: "Transfer from another character…",
+				label: `${menuIcons.transfer} Transfer from another character…`,
 				select: () => {
 					this.client.requestSources();
 					this.sources(currency);
 				},
 			});
-		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
+		options.push({
+			id: "cancel",
+			label: `${menuIcons.cancel} Cancel`,
+			select: () => this.close(),
+		});
 		this.modal.open(
 			`${currency.name} • ${currency.quantity}${currency.maximum > 0 ? ` / ${currency.maximum}` : ""}`,
 			options,
@@ -74,10 +87,14 @@ export class CurrencyOptions {
 			this.modal.open("Loading account currencies…", [
 				{
 					id: "retry",
-					label: "Check again",
+					label: `${menuIcons.retry} Check again`,
 					select: () => this.sources(currency),
 				},
-				{ id: "cancel", label: "Cancel", select: () => this.close() },
+				{
+					id: "cancel",
+					label: `${menuIcons.cancel} Cancel`,
+					select: () => this.close(),
+				},
 			]);
 			return;
 		}
@@ -90,22 +107,26 @@ export class CurrencyOptions {
 			.slice(offset, offset + 6)
 			.map<ModalOption>((source) => ({
 				id: source.guid,
-				label: `${source.name} • Up to ${source.maximum}`,
+				label: `${menuIcons.transfer} ${source.name} • Up to ${source.maximum}`,
 				select: () => this.amounts(currency, source),
 			}));
 		if (offset > 0)
 			options.push({
 				id: "previous",
-				label: "Previous characters",
+				label: `${menuIcons.previous} Previous characters`,
 				select: () => this.sources(currency, offset - 6),
 			});
 		if (offset + 6 < sources.length)
 			options.push({
 				id: "next",
-				label: "More characters",
+				label: `${menuIcons.next} More characters`,
 				select: () => this.sources(currency, offset + 6),
 			});
-		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
+		options.push({
+			id: "cancel",
+			label: `${menuIcons.cancel} Cancel`,
+			select: () => this.close(),
+		});
 		this.modal.open(`Transfer ${currency.name} from…`, options);
 	}
 	private amounts(currency: Currency, source: CurrencySource): void {
@@ -116,10 +137,14 @@ export class CurrencyOptions {
 		this.modal.open(`Receive ${currency.name}`, [
 			...amounts.map<ModalOption>((amount) => ({
 				id: `amount-${amount}`,
-				label: `${amount}${amount === source.maximum ? " (maximum)" : ""}`,
+				label: `${menuIcons.transfer} ${amount}${amount === source.maximum ? " (maximum)" : ""}`,
 				select: () => this.confirm(currency, source, amount),
 			})),
-			{ id: "cancel", label: "Cancel", select: () => this.close() },
+			{
+				id: "cancel",
+				label: `${menuIcons.cancel} Cancel`,
+				select: () => this.close(),
+			},
 		]);
 	}
 	private confirm(
@@ -133,10 +158,14 @@ export class CurrencyOptions {
 			return;
 		}
 		this.modal.open(`${source.name}: Receive ${amount} • Costs ${cost}`, [
-			{ id: "cancel", label: "Cancel", select: () => this.close() },
+			{
+				id: "cancel",
+				label: `${menuIcons.cancel} Cancel`,
+				select: () => this.close(),
+			},
 			{
 				id: "confirm",
-				label: "Confirm transfer",
+				label: `${menuIcons.confirm} Confirm transfer`,
 				select: () => {
 					if (!this.client.transfer(currency.id, source.guid, amount))
 						this.message(

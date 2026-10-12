@@ -1,4 +1,5 @@
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
+import { menuIcons } from "../../ui/components/menu-icons";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 
 export interface IMountActionMenu {
@@ -17,16 +18,22 @@ export class MountActionMenu implements IMountActionMenu {
 		if (mount.collected && this.client.canUse(mount.id))
 			options.push({
 				id: "use",
-				label: "Use",
+				label: `|T${mount.icon}:18:18|t Use`,
 				select: () => this.client.summon(mount.id),
 			});
 		if (mount.collected)
 			options.push({
 				id: "favourite",
-				label: mount.favourite ? "Unfavourite" : "Favourite",
+				label: mount.favourite
+					? `${menuIcons.remove} Unfavourite`
+					: `${menuIcons.favourite} Favourite`,
 				select: () => this.toggleFavourite(mount.id),
 			});
-		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
+		options.push({
+			id: "cancel",
+			label: `${menuIcons.cancel} Cancel`,
+			select: () => this.close(),
+		});
 		this.modal.open("Mount actions", options, { mountSpell: mount.spell });
 	}
 	close(): void {

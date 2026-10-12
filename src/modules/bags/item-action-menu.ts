@@ -2,6 +2,7 @@ import type {
 	IInventoryActions,
 	InventoryItem,
 } from "../../clients/inventory-client";
+import { menuIcons } from "../../ui/components/menu-icons";
 import type { IModal } from "../../ui/components/modal";
 
 export interface IItemActionMenu {
@@ -20,15 +21,22 @@ export class ItemActionMenu implements IItemActionMenu {
 			[
 				{
 					id: "use",
-					label: item.category === "Equipment" ? "Equip" : "Use",
+					label:
+						item.category === "Equipment"
+							? `${menuIcons.gear} Equip`
+							: `|T${item.iconFileId}:18:18|t Use`,
 					select: () => this.actions.useItem(item),
 				},
 				{
 					id: "destroy",
-					label: "Destroy…",
+					label: `${menuIcons.remove} Destroy…`,
 					select: () => this.confirmDestroy(item),
 				},
-				{ id: "cancel", label: "Cancel", select: () => this.close() },
+				{
+					id: "cancel",
+					label: `${menuIcons.cancel} Cancel`,
+					select: () => this.close(),
+				},
 			],
 			item.hyperlink ?? item.itemId,
 		);
@@ -37,10 +45,14 @@ export class ItemActionMenu implements IItemActionMenu {
 		this.modal.open(
 			`Destroy this stack (${item.count} items)?`,
 			[
-				{ id: "cancel", label: "Cancel", select: () => this.close() },
+				{
+					id: "cancel",
+					label: `${menuIcons.cancel} Cancel`,
+					select: () => this.close(),
+				},
 				{
 					id: "confirm-destroy",
-					label: "Destroy stack",
+					label: `${menuIcons.remove} Destroy stack`,
 					select: () => this.actions.destroyItem(item),
 				},
 			],

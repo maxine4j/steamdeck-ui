@@ -27,24 +27,26 @@ it("opens the bags-style tooltip modal with secure use and favourite actions", (
 		toy: 42,
 	});
 	expect(options.map((option) => option.label)).toEqual([
-		"Use",
-		"Favourite",
-		"Cancel",
+		"|T1:18:18|t Use",
+		"|A:collections-icon-favorites:18:18|a Favourite",
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
 	expect(options.at(0)?.toy).toBe(42);
 	options.find((option) => option.id === "favourite")?.select();
 	expect(client.toggleFavourite).toHaveBeenCalledExactlyOnceWith(42);
 	expect(refresh).toHaveBeenCalledOnce();
 	menu.open({ ...toy, favourite: true });
-	expect(options.at(1)?.label).toBe("Unfavourite");
+	expect(options.at(1)?.label).toBe("|A:common-icon-redx:18:18|a Unfavourite");
 	client.canUse.mockReturnValue(false);
 	menu.open(toy);
 	expect(options.map((option) => option.label)).toEqual([
-		"Favourite",
-		"Cancel",
+		"|A:collections-icon-favorites:18:18|a Favourite",
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
 	menu.open({ ...toy, collected: false });
-	expect(options.map((option) => option.label)).toEqual(["Cancel"]);
+	expect(options.map((option) => option.label)).toEqual([
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
+	]);
 	menu.close();
 	expect(modal.close).toHaveBeenCalledOnce();
 });

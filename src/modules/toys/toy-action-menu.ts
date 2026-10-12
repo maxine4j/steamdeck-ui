@@ -1,4 +1,5 @@
 import type { IToysClient, Toy } from "../../clients/toys-client";
+import { menuIcons } from "../../ui/components/menu-icons";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 
 export interface IToyActionMenu {
@@ -14,17 +15,28 @@ export class ToyActionMenu implements IToyActionMenu {
 	open(toy: Toy): void {
 		const options: ModalOption[] = [];
 		if (toy.collected && this.client.canUse(toy.id))
-			options.push({ id: "use", label: "Use", toy: toy.id, select: () => {} });
+			options.push({
+				id: "use",
+				label: `|T${toy.icon}:18:18|t Use`,
+				toy: toy.id,
+				select: () => {},
+			});
 		if (toy.collected)
 			options.push({
 				id: "favourite",
-				label: toy.favourite ? "Unfavourite" : "Favourite",
+				label: toy.favourite
+					? `${menuIcons.remove} Unfavourite`
+					: `${menuIcons.favourite} Favourite`,
 				select: () => {
 					this.client.toggleFavourite(toy.id);
 					this.refresh();
 				},
 			});
-		options.push({ id: "cancel", label: "Cancel", select: () => this.close() });
+		options.push({
+			id: "cancel",
+			label: `${menuIcons.cancel} Cancel`,
+			select: () => this.close(),
+		});
 		this.modal.open("Toy actions", options, { toy: toy.id });
 	}
 	close(): void {

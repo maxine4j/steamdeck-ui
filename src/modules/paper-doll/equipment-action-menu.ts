@@ -2,6 +2,7 @@ import type {
 	EquipmentSlot,
 	IEquipmentActions,
 } from "../../clients/character-client";
+import { menuIcons } from "../../ui/components/menu-icons";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 
 export interface IEquipmentActionMenu {
@@ -20,31 +21,31 @@ export class EquipmentActionMenu implements IEquipmentActionMenu {
 			if (slot.itemId !== undefined)
 				options.push({
 					id: "unequip",
-					label: "|A:common-icon-redx:18:18|a Unequip",
+					label: `${menuIcons.remove} Unequip`,
 					select: () => this.actions.unequip(slot),
 				});
 			for (const item of substitutes.slice(page * 8, (page + 1) * 8)) {
 				options.push({
 					id: `equip-${item.location}`,
-					label: `|A:lootroll-toast-icon-transmog-up:18:18|a Equip ${item.name}`,
+					label: `${menuIcons.gear} Equip ${item.name}`,
 					select: () => this.actions.equipSubstitute(slot, item),
 				});
 			}
 			if (page > 0)
 				options.push({
 					id: "previous",
-					label: "Previous items",
+					label: `${menuIcons.previous} Previous items`,
 					select: () => showPage(page - 1),
 				});
 			if ((page + 1) * 8 < substitutes.length)
 				options.push({
 					id: "next",
-					label: "More items",
+					label: `${menuIcons.next} More items`,
 					select: () => showPage(page + 1),
 				});
 			options.push({
 				id: "cancel",
-				label: "|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
+				label: `${menuIcons.cancel} Cancel`,
 				select: () => this.close(),
 			});
 			this.modal.open(

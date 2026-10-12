@@ -41,14 +41,14 @@ it("offers equip/use and cancel, and confirms destruction of one physical stack"
 	);
 	menu.open(item);
 	expect(options.map((option) => option.label)).toEqual([
-		"Equip",
-		"Destroy…",
-		"Cancel",
+		"|A:lootroll-toast-icon-transmog-up:18:18|a Equip",
+		"|A:common-icon-redx:18:18|a Destroy…",
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
 	options.at(0)?.select();
 	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(item);
 	menu.open({ ...item, category: "Consumables" });
-	expect(options.at(0)?.label).toBe("Use");
+	expect(options.at(0)?.label).toBe("|T1:18:18|t Use");
 	menu.open(item);
 	options.find((option) => option.id === "destroy")?.select();
 	expect(actions.destroyItem).not.toHaveBeenCalled();
@@ -57,7 +57,12 @@ it("offers equip/use and cancel, and confirms destruction of one physical stack"
 		expect.any(Array),
 		42,
 	);
-	expect(options.at(0)?.label).toBe("Cancel");
+	expect(options.at(0)?.label).toBe(
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
+	);
+	expect(options.at(1)?.label).toBe(
+		"|A:common-icon-redx:18:18|a Destroy stack",
+	);
 	options.find((option) => option.id === "confirm-destroy")?.select();
 	expect(actions.destroyItem).toHaveBeenCalledExactlyOnceWith(item);
 });

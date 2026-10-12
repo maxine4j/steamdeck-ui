@@ -41,6 +41,10 @@ it("offers unequip, every substitute across pages, and cancel; empty slots only 
 			seen.push(option.label);
 			option.select();
 		}
+		if (page < 2)
+			expect(options.find((option) => option.id === "next")?.label).toBe(
+				"|TInterface\\Buttons\\UI-SpellbookIcon-NextPage-Up:18:18|t More items",
+			);
 		options.find((option) => option.id === "next")?.select();
 	}
 	expect(seen).toEqual(
@@ -53,6 +57,9 @@ it("offers unequip, every substitute across pages, and cancel; empty slots only 
 		substitutes.at(-1),
 	);
 	options.find((option) => option.id === "previous")?.select();
+	expect(options.find((option) => option.id === "previous")?.label).toBe(
+		"|TInterface\\Buttons\\UI-SpellbookIcon-PrevPage-Up:18:18|t Previous items",
+	);
 	expect(options.find((option) => option.id.startsWith("equip-"))?.label).toBe(
 		"|A:lootroll-toast-icon-transmog-up:18:18|a Equip Spare 8",
 	);

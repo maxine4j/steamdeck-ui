@@ -30,9 +30,9 @@ it("shows the tooltip with use, favourite and cancel actions", () => {
 		mountSpell: 123,
 	});
 	expect(options.map((option) => option.label)).toEqual([
-		"Use",
-		"Favourite",
-		"Cancel",
+		"|T1:18:18|t Use",
+		"|A:collections-icon-favorites:18:18|a Favourite",
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
 	options.at(0)?.select();
 	expect(summon).toHaveBeenCalledExactlyOnceWith(42);
@@ -43,9 +43,11 @@ it("shows the tooltip with use, favourite and cancel actions", () => {
 	canUse.mockReturnValue(false);
 	menu.open({ ...mount, favourite: true, usable: false });
 	expect(options.map((option) => option.label)).toEqual([
-		"Unfavourite",
-		"Cancel",
+		"|A:common-icon-redx:18:18|a Unfavourite",
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
 	menu.open({ ...mount, collected: false });
-	expect(options.map((option) => option.label)).toEqual(["Cancel"]);
+	expect(options.map((option) => option.label)).toEqual([
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
+	]);
 });
