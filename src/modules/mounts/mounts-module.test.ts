@@ -15,7 +15,11 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 		restore: vi.fn(),
 		isOpen: vi.fn(() => true),
 	};
-	const module = new MountsModule(ui, events, view, native);
+	const module = new MountsModule(ui, events, view, native, {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
+	});
 	module.disableBuiltIn();
 	module.initialize();
 	events.emit("MOUNTS_VISIBILITY_CHANGED");
@@ -35,4 +39,27 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 	events.emit("MOUNTS_SEARCH_CHANGED");
 	expect(view.onJournalSearchUpdated).toHaveBeenCalledOnce();
 	expect(native.restore).toHaveBeenCalledOnce();
+});
+
+it("prefetches at initialization, invalidates journal data and stops on shutdown", () => {
+	const events = createTestEventBus();
+	const journal = { prefetch: vi.fn(), invalidate: vi.fn(), stop: vi.fn() };
+	const module = new MountsModule(
+		{ openPanel: vi.fn(), closePanel: vi.fn() },
+		events,
+		{
+			invalidate: vi.fn(),
+			onJournalSearchUpdated: vi.fn(),
+			refreshEquipment: vi.fn(),
+		},
+		{ disable: vi.fn(), restore: vi.fn(), isOpen: () => false },
+		journal,
+	);
+	module.initialize();
+	expect(journal.prefetch).toHaveBeenCalledOnce();
+	events.emit("MOUNTS_CHANGED");
+	events.emit("MOUNTS_SEARCH_CHANGED");
+	expect(journal.invalidate).toHaveBeenCalledTimes(2);
+	module.shutdown();
+	expect(journal.stop).toHaveBeenCalledOnce();
 });

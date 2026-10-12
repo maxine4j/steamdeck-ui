@@ -1,3 +1,4 @@
+import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import type { ITaskScheduler } from "./task-scheduler";
 
 // Legacy toy APIs are absent from the generated Retail declarations.
@@ -26,7 +27,7 @@ export interface Toy {
 	readonly favourite: boolean;
 	readonly expansionId?: number;
 }
-export interface IToysClient {
+export interface IToysClient extends IJournalPrefetch {
 	isInCombat(): boolean;
 	load(
 		callback: (toys: Toy[]) => void,
@@ -39,8 +40,28 @@ export interface IToysClient {
 
 export class ToysClient implements IToysClient {
 	private readonly requestedItems = new Set<number>();
-	constructor(private readonly scheduler: ITaskScheduler) {}
+	private readonly journal: JournalPrefetch<Toy[]>;
+	constructor(private readonly scheduler: ITaskScheduler) {
+		this.journal = new JournalPrefetch(scheduler, (done, _preview, progress) =>
+			this.scan(done, progress),
+		);
+	}
+	prefetch(): void {
+		this.journal.prefetch();
+	}
+	invalidate(): void {
+		this.journal.invalidate();
+	}
+	stop(): void {
+		this.journal.stop();
+	}
 	load(
+		callback: (toys: Toy[]) => void,
+		onProgress?: (completed: number, total: number) => void,
+	): () => void {
+		return this.journal.load(callback, undefined, onProgress);
+	}
+	private scan(
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
 	): () => void {
@@ -85,8 +106,10 @@ export class ToysClient implements IToysClient {
 		};
 	}
 	toggleFavourite(id: number): void {
-		if (PlayerHasToy(id))
+		if (PlayerHasToy(id)) {
+			this.invalidate();
 			C_ToyBox.SetIsFavorite(id, !C_ToyBox.GetIsFavorite(id));
+		}
 	}
 	canUse(id: number): boolean {
 		return !this.isInCombat() && PlayerHasToy(id) && C_ToyBox.IsToyUsable(id);
