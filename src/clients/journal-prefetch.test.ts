@@ -69,3 +69,44 @@ it("keeps warming after a panel closes and cancels the scan on shutdown", () => 
 	cache.prefetch();
 	expect(scan).toHaveBeenCalledTimes(2);
 });
+
+it("does not deliver a queued cached snapshot after shutdown", () => {
+	const { cache, scan, flush } = setup();
+	cache.prefetch();
+	scan.mock.calls.at(0)?.at(0)?.([1]);
+	const done = vi.fn();
+	cache.load(done);
+	cache.stop();
+	flush();
+	expect(scan).toHaveBeenCalledOnce();
+	expect(done).not.toHaveBeenCalled();
+});
+
+it("ignores a stale completion after shutdown and restart", () => {
+	const { cache, scan } = setup();
+	cache.prefetch();
+	cache.stop();
+	cache.prefetch();
+	const done = vi.fn();
+	cache.load(done);
+	scan.mock.calls.at(0)?.at(0)?.([1]);
+	expect(scan).toHaveBeenCalledTimes(2);
+	expect(done).not.toHaveBeenCalled();
+	scan.mock.calls.at(1)?.at(0)?.([2]);
+	expect(done).toHaveBeenCalledWith([2]);
+});
+
+it("rechecks invalidation before publishing a scheduled cache hit", () => {
+	const { cache, scan, flush } = setup();
+	cache.prefetch();
+	scan.mock.calls.at(0)?.at(0)?.([1]);
+	const done = vi.fn();
+	const cancel = cache.load(done);
+	cache.invalidate();
+	flush();
+	expect(done).not.toHaveBeenCalled();
+	expect(scan).toHaveBeenCalledTimes(2);
+	cancel();
+	scan.mock.calls.at(1)?.at(0)?.([2]);
+	expect(done).not.toHaveBeenCalled();
+});

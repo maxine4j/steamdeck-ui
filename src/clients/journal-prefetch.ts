@@ -18,6 +18,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 	private warming = false;
 	private dirty = true;
 	private revision = 0;
+	private generation = 0;
 	private value?: T;
 	private cancel?: () => void;
 	private readonly observers = new Set<Observer<T, P>>();
@@ -48,7 +49,9 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		if (!this.dirty && this.value !== undefined) {
 			const value = this.value;
 			const revision = this.revision;
+			const generation = this.generation;
 			let cancel = this.scheduler.nextFrame(() => {
+				if (generation !== this.generation) return;
 				if (revision === this.revision) done(value);
 				else cancel = this.load(done, preview, progress);
 			});
@@ -64,9 +67,10 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 	private start(): void {
 		if (this.cancel) return;
 		const revision = this.revision;
+		const generation = this.generation;
 		this.cancel = this.scan(
 			(value) => {
-				if (!this.enabled) return;
+				if (generation !== this.generation) return;
 				this.cancel = undefined;
 				if (revision !== this.revision) {
 					if (this.warming || this.observers.size > 0) this.start();
@@ -80,16 +84,19 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 				for (const observer of observers) observer.done(value);
 			},
 			(value) => {
-				if (revision !== this.revision) return;
+				if (generation !== this.generation || revision !== this.revision)
+					return;
 				for (const observer of this.observers) observer.preview?.(value);
 			},
 			(completed, total) => {
+				if (generation !== this.generation) return;
 				for (const observer of this.observers)
 					observer.progress?.(completed, total);
 			},
 		);
 	}
 	stop(): void {
+		this.generation++;
 		this.enabled = false;
 		this.warming = false;
 		this.invalidate();
