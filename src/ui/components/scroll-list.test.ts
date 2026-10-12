@@ -3,6 +3,61 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("pads button contents and centers single-line labels without crowding icons", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("padding", pool, "Test", vi.fn(), {
+		contentPadding: { horizontal: 16, vertical: 10 },
+		centerSingleLine: true,
+	});
+	list.setRows([
+		{ id: "single", label: "Single", activate: vi.fn() },
+		{
+			id: "spec",
+			label: "Spec",
+			detail: "Active",
+			icon: 1,
+			height: 64,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("padding-parent", pool));
+	expect(frames.get("padding-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Single",
+		"LEFT",
+		16,
+		0,
+		14,
+		424,
+	);
+	expect(frames.get("padding-icon-1")?.layout).toHaveBeenCalledWith(
+		36,
+		36,
+		"TOPLEFT",
+		expect.anything(),
+		16,
+		-10,
+	);
+	expect(frames.get("padding-row-1")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Spec",
+		"TOPLEFT",
+		60,
+		-10,
+		14,
+		380,
+	);
+	expect(frames.get("padding-row-1")?.setLabel).toHaveBeenCalledWith(
+		"detail",
+		"Active",
+		"BOTTOMLEFT",
+		60,
+		10,
+		12,
+		380,
+	);
+});
+
 it("insets tile progress tracks and sizes the fill within the padded width", () => {
 	const list = new ScrollList(
 		"padded",

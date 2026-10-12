@@ -12,6 +12,7 @@ vi.mock("../../ui/components/frame", () => ({
 		inset = vi.fn();
 		setWindowBackground = vi.fn();
 		setButtonBackground = vi.fn();
+		setAtlasBackground = vi.fn();
 		setCloseButtonBackground = vi.fn();
 		setFocused = vi.fn();
 		setLabel = vi.fn();

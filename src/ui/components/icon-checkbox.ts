@@ -26,22 +26,18 @@ export class IconCheckbox implements INavigable {
 	}
 	mount(parent: Frame, x: number, top: number, showLabel = true): void {
 		this.button.setParent(parent);
-		this.button.layout(96, showLabel ? 100 : 54, "TOPLEFT", parent, x, -top);
+		this.button.layout(96, showLabel ? 100 : 64, "TOPLEFT", parent, x, -top);
 		this.artwork.setParent(this.button);
-		this.artwork.layout(32, 32, "TOP", this.button, 0, -10);
-		this.artwork.setLabel("icon", this.icon, "CENTER", 0, 0, 12);
+		this.artwork.layout(48, 48, "TOP", this.button, 0, -8);
+		this.artwork.setAtlasBackground(this.icon);
 		if (showLabel)
 			this.button.setLabel("label", this.label, "BOTTOM", 0, 0, 12, 96);
 		this.button.setTooltip(this.label);
 		this.box.setParent(this.artwork);
-		this.box.layout(14, 14, "BOTTOMRIGHT", this.artwork, 2, -2);
-		this.box.setColor(0.03, 0.03, 0.03);
-		this.box.setBorder([0.7, 0.65, 0.5, 1]);
+		this.box.layout(21, 20.3, "BOTTOMLEFT", this.artwork, -5, -4);
+		this.box.setAtlasBackground("checkbox-minimal");
 		this.check.fill(this.box);
-		this.check.setLabel(
-			"check",
-			"|TInterface\\Buttons\\UI-CheckBox-Check:18:18|t",
-		);
+		this.check.setAtlasBackground("checkmark-minimal");
 		this.button.onClick((button) => {
 			if (button === "LeftButton") this.onInteract();
 		});
@@ -52,7 +48,6 @@ export class IconCheckbox implements INavigable {
 	}
 	setChecked(checked: boolean, enabled = true): void {
 		this.enabled = enabled;
-		this.button.setButtonBackground();
 		this.button.setOpacity(enabled ? 1 : 0.35);
 		if (checked) this.check.show();
 		else this.check.hide();

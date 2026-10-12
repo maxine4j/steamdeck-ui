@@ -30,6 +30,8 @@ export class TalentsPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 20,
+			contentPadding: { horizontal: 16, vertical: 10 },
+			centerSingleLine: true,
 			verticallyCentered: true,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
@@ -50,6 +52,7 @@ export class TalentsPanel implements IPanel {
 				id: `talents-spec-${spec.id}`,
 				label: spec.name,
 				icon: spec.icon,
+				height: 64,
 				detail: `${roleIcons.get(spec.role) ?? ""} ${spec.selected ? "Active specialization" : "Switch specialization"}`,
 				marginBottom:
 					spec === data.specs.at(-1) &&
@@ -81,7 +84,7 @@ export class TalentsPanel implements IPanel {
 				rows.push({
 					id: `talents-loadout-${loadout.id}`,
 					label: loadout.name,
-					detail: loadout.selected ? "Active loadout" : "Apply talent loadout",
+					detail: loadout.selected ? "Active loadout" : undefined,
 					selected: loadout.selected,
 					activate: () =>
 						this.activate(`talents-loadout-${loadout.id}`, () =>
@@ -93,9 +96,7 @@ export class TalentsPanel implements IPanel {
 					id: "talents-starter",
 					label: "Starter build",
 					selected: data.starterSelected,
-					detail: data.starterSelected
-						? "Active loadout"
-						: "Apply Blizzard starter build",
+					detail: data.starterSelected ? "Active loadout" : undefined,
 					activate: () =>
 						this.activate("talents-starter", () =>
 							this.client.selectStarter(specID),

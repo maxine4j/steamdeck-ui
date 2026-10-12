@@ -37,17 +37,17 @@ const roleControls: readonly {
 	label: string;
 	icon: string;
 }[] = [
-	{ role: "tank", label: "Tank", icon: "|A:roleicon-tiny-tank:28:28:0:0|a" },
+	{ role: "tank", label: "Tank", icon: "UI-LFG-RoleIcon-Tank" },
 	{
 		role: "healer",
 		label: "Healer",
-		icon: "|A:roleicon-tiny-healer:28:28:0:0|a",
+		icon: "UI-LFG-RoleIcon-Healer",
 	},
-	{ role: "damage", label: "Damage", icon: "|A:roleicon-tiny-dps:28:28:0:0|a" },
+	{ role: "damage", label: "Damage", icon: "UI-LFG-RoleIcon-DPS" },
 	{
 		role: "leader",
 		label: "Request Leader",
-		icon: "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:28:28|t",
+		icon: "UI-LFG-RoleIcon-Leader",
 	},
 ];
 
@@ -88,6 +88,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
+			contentPadding: { horizontal: 16, vertical: 10 },
+			centerSingleLine: true,
 			top: 144,
 			bottom: 30,
 			background: false,
@@ -165,6 +167,7 @@ export class DungeonFinderPanel implements IPanel {
 				label: list.label,
 				fontSize: 18,
 				detail: "Choose dungeons  ›",
+				height: 64,
 				enabled: !queued || selected === list.id,
 				background:
 					queued && selected === list.id ? [0.05, 0.25, 0.5] : undefined,

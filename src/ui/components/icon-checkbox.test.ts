@@ -14,6 +14,8 @@ const { frames } = vi.hoisted(() => ({
 			onClick: ReturnType<typeof vi.fn>;
 			layout: ReturnType<typeof vi.fn>;
 			setOpacity: ReturnType<typeof vi.fn>;
+			setAtlasBackground: ReturnType<typeof vi.fn>;
+			setButtonBackground: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -33,6 +35,7 @@ vi.mock("./frame", () => ({
 		setCloseButtonBackground = vi.fn();
 		setInsetBackground = vi.fn();
 		setButtonBackground = vi.fn();
+		setAtlasBackground = vi.fn();
 		setWindowBackground = vi.fn();
 		setOpacity = vi.fn();
 		setTooltip = vi.fn();
@@ -51,7 +54,7 @@ it("supports icon-only controls with equal padding around the artwork", () => {
 	control.mount(new Frame("parent", pool), 30, 70, false);
 	expect(frames.get("icon-only")?.layout).toHaveBeenCalledWith(
 		96,
-		54,
+		64,
 		"TOPLEFT",
 		expect.anything(),
 		30,
@@ -60,33 +63,28 @@ it("supports icon-only controls with equal padding around the artwork", () => {
 	expect(frames.get("icon-only")?.setLabel).not.toHaveBeenCalled();
 });
 
-it("keeps artwork compact with a checkbox over its bottom-right corner", () => {
+it("uses Blizzard checkbox artwork over the icon's bottom-left corner", () => {
 	const pool = {} as IFramePoolManager;
 	const control = new IconCheckbox("compact", pool, "Tank", "icon", vi.fn());
 	control.mount(new Frame("parent", pool), 30, 70);
 	expect(frames.get("compact-icon")?.layout).toHaveBeenCalledWith(
-		32,
-		32,
+		48,
+		48,
 		"TOP",
 		expect.anything(),
 		0,
-		-10,
+		-8,
 	);
-	expect(frames.get("compact-icon")?.setLabel).toHaveBeenCalledWith(
+	expect(frames.get("compact-icon")?.setAtlasBackground).toHaveBeenCalledWith(
 		"icon",
-		"icon",
-		"CENTER",
-		0,
-		0,
-		12,
 	);
 	expect(frames.get("compact-box")?.layout).toHaveBeenCalledWith(
-		14,
-		14,
-		"BOTTOMRIGHT",
+		21,
+		20.3,
+		"BOTTOMLEFT",
 		frames.get("compact-icon"),
-		2,
-		-2,
+		-5,
+		-4,
 	);
 	control.destroy();
 	expect(frames.get("compact-icon")?.destroy).toHaveBeenCalledOnce();
@@ -100,6 +98,16 @@ it("shows an independent check mark and shares guarded mouse/controller activati
 	expect(activate).not.toHaveBeenCalled();
 	control.mount(new Frame("parent", pool), 30, 70);
 	control.setChecked(true);
+	expect(frames.get("role")?.setButtonBackground).not.toHaveBeenCalled();
+	expect(frames.get("role-icon")?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"icon",
+	);
+	expect(frames.get("role-box")?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"checkbox-minimal",
+	);
+	expect(frames.get("role-check")?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"checkmark-minimal",
+	);
 	expect(frames.get("role-check")?.show).toHaveBeenCalled();
 	control.setChecked(false);
 	expect(frames.get("role-check")?.hide).toHaveBeenCalled();

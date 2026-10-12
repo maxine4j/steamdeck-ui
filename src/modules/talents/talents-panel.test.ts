@@ -28,7 +28,10 @@ it.each([2, 3, 4])(
 					icon: 10,
 					role: ["DAMAGER", "TANK", "HEALER"].at(i % 3) ?? "",
 				})),
-				loadouts: [{ id: 40, name: "Raid", selected: true }],
+				loadouts: [
+					{ id: 40, name: "Raid", selected: true },
+					{ id: 41, name: "Solo", selected: false },
+				],
 				starterAvailable: true,
 				starterSelected: false,
 				specID: 1,
@@ -60,6 +63,10 @@ it.each([2, 3, 4])(
 			heading: true,
 		});
 		const specs = rendered.filter((row) => row.id.startsWith("talents-spec-"));
+		expect(specs.every((row) => row.height === 64)).toBe(true);
+		expect(
+			rendered.find((row) => row.id === "talents-starter")?.detail,
+		).toBeUndefined();
 		expect(specs.at(0)?.detail).toContain("|A:roleicon-tiny-dps:16:16:0:0|a");
 		expect(specs.at(1)?.detail).toContain("|A:roleicon-tiny-tank:16:16:0:0|a");
 		if (count >= 3)
@@ -73,6 +80,10 @@ it.each([2, 3, 4])(
 			Array.from({ length: count }, (_, i) => `talents-spec-${i + 1}`),
 		);
 		const loadout = rendered.find((row) => row.id === "talents-loadout-40");
+		expect(loadout?.detail).toBe("Active loadout");
+		expect(
+			rendered.find((row) => row.id === "talents-loadout-41")?.detail,
+		).toBeUndefined();
 		expect(
 			rendered.findIndex((row) => row.id === "talents-loadout-40"),
 		).toBeGreaterThanOrEqual(count);

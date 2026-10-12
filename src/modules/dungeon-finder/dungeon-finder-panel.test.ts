@@ -14,7 +14,11 @@ const { setRows, frames, listOptions, checkboxes } = vi.hoisted(() => ({
 	listOptions: vi.fn(),
 	checkboxes: new Map<
 		string,
-		{ setChecked: ReturnType<typeof vi.fn>; mount: ReturnType<typeof vi.fn> }
+		{
+			setChecked: ReturnType<typeof vi.fn>;
+			mount: ReturnType<typeof vi.fn>;
+			icon: string;
+		}
 	>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
@@ -52,7 +56,7 @@ vi.mock("../../ui/components/icon-checkbox", () => ({
 			public readonly navId: string,
 			_pool: unknown,
 			_label: string,
-			_icon: string,
+			public readonly icon: string,
 			public readonly onInteract: () => void,
 		) {
 			checkboxes.set(navId, this);
@@ -296,6 +300,16 @@ it("pins four horizontal icon checkboxes above the scrolling dungeons", () => {
 			.at(0)
 			?.map((node) => node.navId),
 	).toEqual(["role-tank", "role-healer", "role-damage", "role-leader"]);
+	expect(
+		["tank", "healer", "damage", "leader"].map(
+			(role) => checkboxes.get(`role-${role}`)?.icon,
+		),
+	).toEqual([
+		"UI-LFG-RoleIcon-Tank",
+		"UI-LFG-RoleIcon-Healer",
+		"UI-LFG-RoleIcon-DPS",
+		"UI-LFG-RoleIcon-Leader",
+	]);
 	expect(checkboxes.get("role-damage")?.setChecked).toHaveBeenCalledWith(
 		true,
 		true,
@@ -320,6 +334,8 @@ it("removes the overview queue footer and compacts the role area", () => {
 	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
 		top: 144,
+		contentPadding: { horizontal: 16, vertical: 10 },
+		centerSingleLine: true,
 		bottom: 30,
 		background: false,
 	});

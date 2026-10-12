@@ -81,6 +81,8 @@ export class ScrollList {
 			readonly gap?: number;
 			readonly edgeProgress?: boolean;
 			readonly progressInset?: { horizontal: number; bottom: number };
+			readonly contentPadding?: { horizontal: number; vertical: number };
+			readonly centerSingleLine?: boolean;
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -304,6 +306,8 @@ export class ScrollList {
 					}
 				}
 				const iconSize = Math.min(36, rowHeight - 12);
+				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
+				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
 				button.icon.setParent(button.frame);
 				if (row.icon !== undefined) {
 					button.icon.layout(
@@ -311,8 +315,8 @@ export class ScrollList {
 						iconSize,
 						"TOPLEFT",
 						button.frame,
-						6,
-						-6,
+						this.options.contentPadding?.horizontal ?? 6,
+						-verticalPadding,
 					);
 					button.icon.setIcon(row.icon);
 					button.icon.show();
@@ -329,7 +333,11 @@ export class ScrollList {
 					button.secondary.show();
 				} else button.secondary.hide();
 				const indent = row.indent ?? 0;
-				const checkboxLeft = row.icon === undefined ? 8 : iconSize + 12;
+				const checkboxLeft =
+					row.icon === undefined
+						? horizontalPadding
+						: iconSize +
+							(this.options.contentPadding ? horizontalPadding + 8 : 12);
 				const textLeft = checkboxLeft + (row.checked === undefined ? 0 : 28);
 				if (row.checked !== undefined) {
 					if (!button.checkbox || !button.check) {
@@ -367,12 +375,18 @@ export class ScrollList {
 					rowWidth -
 					indent -
 					textLeft -
-					8 -
+					horizontalPadding -
 					(row.secondary ? 48 : 0) -
 					(row.animatedIcon ? 40 : 0);
 				const trailingWidth = row.trailingLabel
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
+				const centeredLabel =
+					row.trailingLabel ||
+					(this.options.centerSingleLine &&
+						!row.heading &&
+						!row.detail &&
+						!row.progress);
 				if (row.progress) {
 					const horizontal = this.options.progressInset?.horizontal ?? 0;
 					const progressWidth = Math.max(
@@ -424,9 +438,9 @@ export class ScrollList {
 				button.frame.setLabel(
 					"label",
 					row.label,
-					row.trailingLabel ? "LEFT" : "TOPLEFT",
+					centeredLabel ? "LEFT" : "TOPLEFT",
 					textLeft,
-					row.trailingLabel ? 0 : -6,
+					centeredLabel ? 0 : -verticalPadding,
 					row.fontSize ?? (row.heading ? 18 : 14),
 					Math.max(1, textWidth - trailingWidth),
 				);
@@ -444,7 +458,7 @@ export class ScrollList {
 					row.detail ?? "",
 					"BOTTOMLEFT",
 					textLeft,
-					row.progress ? 18 : 6,
+					row.progress ? 18 : verticalPadding,
 					12,
 					textWidth,
 				);
