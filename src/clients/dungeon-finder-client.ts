@@ -99,7 +99,10 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 		];
 	}
 	getDungeonChoices(list: DungeonListId): DungeonChoice[] {
-		const checked = GetLFDChoiceEnabledState();
+		const checked =
+			typeof LFGEnabledList !== "undefined" && LFGEnabledList
+				? LFGEnabledList
+				: GetLFDChoiceEnabledState();
 		const choices: DungeonChoice[] = [];
 		for (const id of GetLFDChoiceOrder()) {
 			if (id <= 0 || LFGLockList?.[id]?.hideEntry || !LFD_CURRENT_FILTER(id))

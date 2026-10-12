@@ -3,6 +3,24 @@ import { DungeonFinderClient } from "./dungeon-finder-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reads Blizzard's maintained choices after toggling instead of reloading saved choices", () => {
+	setupChoices();
+	const enabled = { 10: false };
+	vi.stubGlobal("LFGEnabledList", enabled);
+	vi.stubGlobal(
+		"LFGDungeonList_SetDungeonEnabled",
+		(id: number, checked: boolean) => {
+			enabled[id as keyof typeof enabled] = checked;
+		},
+	);
+	const client = new DungeonFinderClient();
+	expect(client.getDungeonChoices("specific").at(0)?.checked).toBe(false);
+	client.toggleDungeon("specific", 10);
+	expect(client.getDungeonChoices("specific").at(0)?.checked).toBe(true);
+	client.toggleDungeon("specific", 10);
+	expect(client.getDungeonChoices("specific").at(0)?.checked).toBe(false);
+});
+
 it("reads and toggles request leader without changing combat roles", () => {
 	setup();
 	vi.stubGlobal("GetLFGRoles", () => [false, false, true, true]);
