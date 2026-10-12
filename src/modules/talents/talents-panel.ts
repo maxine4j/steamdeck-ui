@@ -6,6 +6,12 @@ import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
 
+const roleIcons = new Map<string, string>([
+	["DAMAGER", "|A:roleicon-tiny-dps:16:16:0:0|a"],
+	["TANK", "|A:roleicon-tiny-tank:16:16:0:0|a"],
+	["HEALER", "|A:roleicon-tiny-healer:16:16:0:0|a"],
+]);
+
 export class TalentsPanel implements IPanel {
 	readonly id = "talents";
 	readonly title = "Talents";
@@ -13,18 +19,18 @@ export class TalentsPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
-	private error?: string;
+	private error?: { id: string; text: string };
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: ITalentsClient,
 		close: () => void,
-		private readonly openFull: () => void,
 		scheduler: ITaskScheduler,
 		private readonly onHidden?: () => void,
 	) {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 20,
+			verticallyCentered: true,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
@@ -32,8 +38,9 @@ export class TalentsPanel implements IPanel {
 	refresh(): void {
 		this.update.invalidate();
 	}
-	private activate(action: () => string | undefined): void {
-		this.error = action();
+	private activate(id: string, action: () => string | undefined): void {
+		const text = action();
+		this.error = text ? { id, text } : undefined;
 		this.refresh();
 	}
 	private render(): void {
@@ -43,13 +50,33 @@ export class TalentsPanel implements IPanel {
 				id: `talents-spec-${spec.id}`,
 				label: spec.name,
 				icon: spec.icon,
-				detail: `${spec.selected ? "Active specialization • " : "Switch specialization • "}${spec.role}`,
+				detail: `${roleIcons.get(spec.role) ?? ""} ${spec.selected ? "Active specialization" : "Switch specialization"}`,
+				marginBottom:
+					spec === data.specs.at(-1) &&
+					(data.loadouts.length > 0 || data.starterAvailable)
+						? 24
+						: undefined,
 				selected: spec.selected,
-				activate: () => this.activate(() => this.client.selectSpec(spec.id)),
+				activate: () =>
+					this.activate(`talents-spec-${spec.id}`, () =>
+						this.client.selectSpec(spec.id),
+					),
 			}),
 		);
 		const specID = data.specID;
+		rows.unshift({
+			id: "talents-specializations-heading",
+			label: "Specializations",
+			heading: true,
+			activate: () => {},
+		});
 		if (specID !== undefined) {
+			rows.push({
+				id: "talents-loadouts-heading",
+				label: "Loadouts",
+				heading: true,
+				activate: () => {},
+			});
 			for (const loadout of data.loadouts)
 				rows.push({
 					id: `talents-loadout-${loadout.id}`,
@@ -57,7 +84,9 @@ export class TalentsPanel implements IPanel {
 					detail: loadout.selected ? "Active loadout" : "Apply talent loadout",
 					selected: loadout.selected,
 					activate: () =>
-						this.activate(() => this.client.selectLoadout(specID, loadout.id)),
+						this.activate(`talents-loadout-${loadout.id}`, () =>
+							this.client.selectLoadout(specID, loadout.id),
+						),
 				});
 			if (data.starterAvailable)
 				rows.push({
@@ -68,23 +97,16 @@ export class TalentsPanel implements IPanel {
 						? "Active loadout"
 						: "Apply Blizzard starter build",
 					activate: () =>
-						this.activate(() => this.client.selectStarter(specID)),
+						this.activate("talents-starter", () =>
+							this.client.selectStarter(specID),
+						),
 				});
 		}
-		rows.push({
-			id: "talents-full",
-			label: "Open full talents",
-			detail:
-				this.error ??
-				(data.loadouts.length === 0
-					? "No saved loadouts • Edit trees and manage loadouts"
-					: "Edit trees and manage loadouts"),
-			tooltip:
-				this.error ??
-				"Open Blizzard talents to edit trees, create, import, rename or delete loadouts.",
-			activate: this.openFull,
-		});
-		this.list.setRows(rows);
+		this.list.setRows(
+			rows.map((row) =>
+				this.error?.id === row.id ? { ...row, detail: this.error.text } : row,
+			),
+		);
 	}
 	onMount(parent: IUIComponent): void {
 		this.list.mount(parent);

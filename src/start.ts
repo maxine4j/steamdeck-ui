@@ -160,7 +160,6 @@ export function startSteamDeckUI(
 			builtInTalents.close();
 			ui.closePanel("left", "talents");
 		},
-		() => builtInTalents.openFull(),
 		scheduler,
 		() => {
 			if (builtInTalents.isOpen()) builtInTalents.close();

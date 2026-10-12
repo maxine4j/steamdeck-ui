@@ -20,6 +20,8 @@ vi.mock("./frame", () => ({
 			frames.set(id, this);
 		}
 		layout = vi.fn();
+		layoutVerticallyCentered = vi.fn();
+		onSizeChanged = vi.fn();
 		setColor = vi.fn();
 		hide = vi.fn();
 		destroy = vi.fn();
@@ -92,6 +94,38 @@ it("renders proportional bars, restores header tints on blur and reuses controls
 	expect(frames.get("test-progress-0")?.destroy).toHaveBeenCalledOnce();
 });
 
+it("centres content, includes row margins and repositions on resize without rebuilding rows", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("centred", pool, "Test", vi.fn(), {
+		verticallyCentered: true,
+	});
+	list.setRows([
+		{ id: "spec", label: "Spec", marginBottom: 24, activate: vi.fn() },
+		{ id: "loadout", label: "Loadout", activate: vi.fn() },
+	]);
+	list.mount(new Frame("centred-parent", pool));
+	const content = frames.get("centred-content") as unknown as {
+		layoutVerticallyCentered: ReturnType<typeof vi.fn>;
+	};
+	expect(content.layoutVerticallyCentered).toHaveBeenCalledWith(
+		456,
+		128,
+		expect.anything(),
+	);
+	expect(frames.get("centred-row-1")?.layout.mock.lastCall?.at(-1)).toBe(-76);
+	const scroll = frames.get("centred-scroll") as unknown as {
+		onSizeChanged: ReturnType<typeof vi.fn>;
+	};
+	const resize = scroll.onSizeChanged.mock.lastCall?.at(0) as () => void;
+	const count = frames.size;
+	frames.get("centred-row-0")?.layout.mockClear();
+	resize();
+	expect(frames.get("centred-row-0")?.layout).not.toHaveBeenCalled();
+	expect(frames.size).toBe(count);
+	list.destroy();
+	expect(scroll.onSizeChanged).toHaveBeenLastCalledWith();
+});
+
 it("renders large lists in bounded frame batches and stops while hidden", () => {
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -139,4 +173,24 @@ it("renders large lists in bounded frame batches and stops while hidden", () => 
 	const notifications = changed.mock.calls.length;
 	while (pending.length) pending.shift()?.();
 	expect(changed).toHaveBeenCalledTimes(notifications);
+});
+
+it("renders compact headings and skips them during navigation and interaction", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("headings", pool, "Test", vi.fn());
+	const activate = vi.fn();
+	list.setRows([{ id: "old", label: "Old", activate }]);
+	list.mount(new Frame("headings-parent", pool));
+	const stale = list.getNavGrid().at(0)?.at(0);
+	list.setRows([
+		{ id: "heading", label: "Section", heading: true, activate },
+		{ id: "item", label: "Item", activate },
+	]);
+	expect(list.getNavGrid().map((row) => row.at(0)?.navId)).toEqual(["item"]);
+	expect(frames.get("headings-row-0")?.layout.mock.lastCall?.at(1)).toBe(28);
+	expect(frames.get("headings-row-1")?.layout.mock.lastCall?.at(-1)).toBe(-32);
+	stale?.onInteract?.();
+	expect(activate).not.toHaveBeenCalled();
+	list.getNavGrid().at(0)?.at(0)?.onInteract?.();
+	expect(activate).toHaveBeenCalledOnce();
 });

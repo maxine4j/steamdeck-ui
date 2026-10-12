@@ -26,7 +26,7 @@ it.each([2, 3, 4])(
 					name: `Spec ${i}`,
 					selected: i === 0,
 					icon: 10,
-					role: "DAMAGER",
+					role: ["DAMAGER", "TANK", "HEALER"].at(i % 3) ?? "",
 				})),
 				loadouts: [{ id: 40, name: "Raid", selected: true }],
 				starterAvailable: true,
@@ -37,19 +37,12 @@ it.each([2, 3, 4])(
 			selectLoadout: vi.fn(),
 			selectStarter: vi.fn(),
 		};
-		const full = vi.fn();
-		const panel = new TalentsPanel(
-			{} as IFramePoolManager,
-			client,
-			vi.fn(),
-			full,
-			{
-				nextFrame: (callback) => {
-					pending.push(callback);
-					return vi.fn();
-				},
+		const panel = new TalentsPanel({} as IFramePoolManager, client, vi.fn(), {
+			nextFrame: (callback) => {
+				pending.push(callback);
+				return vi.fn();
 			},
-		);
+		});
 		panel.refresh();
 		expect(client.read).not.toHaveBeenCalled();
 		panel.onMount({} as IUIComponent);
@@ -58,7 +51,25 @@ it.each([2, 3, 4])(
 		expect(pending).toHaveLength(1);
 		pending.shift()?.();
 		const rendered = rows.mock.lastCall?.at(0) as ListRow[];
-		expect(rendered.slice(0, count).map((row) => row.id)).toEqual(
+		expect(rendered.at(0)).toMatchObject({
+			label: "Specializations",
+			heading: true,
+		});
+		expect(rendered.at(count + 1)).toMatchObject({
+			label: "Loadouts",
+			heading: true,
+		});
+		const specs = rendered.filter((row) => row.id.startsWith("talents-spec-"));
+		expect(specs.at(0)?.detail).toContain("|A:roleicon-tiny-dps:16:16:0:0|a");
+		expect(specs.at(1)?.detail).toContain("|A:roleicon-tiny-tank:16:16:0:0|a");
+		if (count >= 3)
+			expect(specs.at(2)?.detail).toContain(
+				"|A:roleicon-tiny-healer:16:16:0:0|a",
+			);
+		expect(specs.at(0)?.detail).not.toContain("DAMAGER");
+		expect(specs.at(count - 1)?.marginBottom).toBe(24);
+		expect(rendered.some((row) => row.id === "talents-full")).toBe(false);
+		expect(specs.map((row) => row.id)).toEqual(
 			Array.from({ length: count }, (_, i) => `talents-spec-${i + 1}`),
 		);
 		const loadout = rendered.find((row) => row.id === "talents-loadout-40");
@@ -77,8 +88,6 @@ it.each([2, 3, 4])(
 		panel.onMount({} as IUIComponent);
 		pending.shift()?.();
 		expect(client.read).toHaveBeenCalledTimes(3);
-		rendered.find((row) => row.id === "talents-full")?.activate();
-		expect(full).toHaveBeenCalledOnce();
 	},
 );
 
@@ -99,7 +108,6 @@ it("cancels an unmounted refresh and releases native visibility when the contain
 	const panel = new TalentsPanel(
 		{} as IFramePoolManager,
 		client,
-		vi.fn(),
 		vi.fn(),
 		{
 			nextFrame: (callback) => {

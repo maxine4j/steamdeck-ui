@@ -7,6 +7,7 @@ import type { IUIComponent } from "./types";
 export interface ListRow {
 	readonly id: string;
 	readonly label: string;
+	readonly heading?: boolean;
 	readonly icon?: number;
 	readonly spell?: number;
 	readonly secondary?: { label: string; activate(): void };
@@ -15,6 +16,7 @@ export interface ListRow {
 	readonly selected?: boolean;
 	readonly fontSize?: number;
 	readonly indent?: number;
+	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number];
 	readonly progress?: {
 		readonly value: number;
@@ -42,6 +44,7 @@ export class ScrollList {
 	private dirty = true;
 	private cancelRender?: () => void;
 	private renderedRows = 0;
+	private contentHeight = 1;
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
@@ -53,6 +56,7 @@ export class ScrollList {
 			readonly bottom?: number;
 			readonly secure?: boolean;
 			readonly background?: boolean;
+			readonly verticallyCentered?: boolean;
 			readonly scheduler?: ITaskScheduler;
 			readonly onChanged?: (complete: boolean) => void;
 		} = {},
@@ -94,8 +98,27 @@ export class ScrollList {
 		this.content.show();
 		this.frame.show();
 		this.mounted = true;
+		if (this.options.verticallyCentered)
+			this.scroll.onSizeChanged(() => {
+				if (!this.mounted) return;
+				this.layoutContent();
+				this.scroll.clampScroll();
+			});
 		if (this.dirty) this.render();
-		else this.scroll.clampScroll();
+		else {
+			if (this.options.verticallyCentered) this.layoutContent();
+			this.scroll.clampScroll();
+		}
+	}
+	private layoutContent(): void {
+		const width = 480 - 2 * (this.options.padding ?? 12);
+		if (this.options.verticallyCentered)
+			this.content.layoutVerticallyCentered(
+				width,
+				this.contentHeight,
+				this.scroll,
+			);
+		else this.content.layout(width, this.contentHeight, "TOPLEFT", this.scroll);
 	}
 	private render(): void {
 		this.cancelRender?.();
@@ -103,15 +126,17 @@ export class ScrollList {
 		this.renderedRows = 0;
 		this.options.onChanged?.(false);
 		const width = 480 - 2 * (this.options.padding ?? 12);
-		this.content.layout(
-			width,
-			Math.max(
-				1,
-				this.rows.reduce((height, row) => height + (row.progress ? 64 : 52), 0),
+		this.contentHeight = Math.max(
+			1,
+			this.rows.reduce(
+				(height, row) =>
+					height +
+					(row.heading ? 32 : row.progress ? 64 : 52) +
+					(row.marginBottom ?? 0),
+				0,
 			),
-			"TOPLEFT",
-			this.scroll,
 		);
+		this.layoutContent();
 		let offset = 0;
 		let cursor = 0;
 		const total = Math.max(this.rows.length, this.buttons.length);
@@ -220,20 +245,21 @@ export class ScrollList {
 				}
 				button.frame.layout(
 					width - indent,
-					row.progress ? 60 : 48,
+					row.heading ? 28 : row.progress ? 60 : 48,
 					"TOPLEFT",
 					this.content,
 					indent,
 					-offset,
 				);
-				offset += row.progress ? 64 : 52;
+				offset +=
+					(row.heading ? 32 : row.progress ? 64 : 52) + (row.marginBottom ?? 0);
 				button.frame.setLabel(
 					"label",
 					row.label,
 					"TOPLEFT",
 					row.icon === undefined ? 8 : 48,
 					-6,
-					row.fontSize ?? 14,
+					row.fontSize ?? (row.heading ? 18 : 14),
 					width -
 						indent -
 						(row.icon === undefined ? 16 : 56) -
@@ -279,28 +305,39 @@ export class ScrollList {
 	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
+		if (row?.heading) {
+			this.buttons.at(index)?.frame.setColor(0, 0, 0, 0);
+			return;
+		}
 		const color: readonly [number, number, number] =
 			row?.background ??
 			(row?.selected ? [0.25, 0.2, 0.05] : [0.08, 0.08, 0.08]);
 		this.buttons.at(index)?.frame.setColor(...color);
 	}
 	private isReady(index: number): boolean {
-		return this.mounted && index < this.renderedRows;
+		return (
+			this.mounted && index < this.renderedRows && !this.rows.at(index)?.heading
+		);
 	}
 	unmount(): void {
 		this.mounted = false;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		if (this.options.verticallyCentered) this.scroll.onSizeChanged();
 		this.frame.hide();
 	}
 	getNavGrid(): INavigable[][] {
 		return this.mounted
 			? this.buttons
 					.slice(0, this.renderedRows)
-					.map((button, index) =>
-						this.rows.at(index)?.secondary
-							? [button.nav, button.secondaryNav]
-							: [button.nav],
+					.flatMap((button, index) =>
+						this.rows.at(index)?.heading
+							? []
+							: [
+									this.rows.at(index)?.secondary
+										? [button.nav, button.secondaryNav]
+										: [button.nav],
+								],
 					)
 			: [];
 	}
