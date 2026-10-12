@@ -137,11 +137,15 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		vi.stubGlobal(name, builtIns.at(index));
 	});
 	const characterHooks: (() => void)[] = [];
+	const globalHooks = new Map<string, () => void>();
 	vi.stubGlobal(
 		"hooksecurefunc",
-		vi.fn((...args: unknown[]) =>
-			characterHooks.push(args.at(-1) as () => void),
-		),
+		vi.fn((...args: unknown[]) => {
+			const callback = args.at(-1) as () => void;
+			characterHooks.push(callback);
+			if (typeof args.at(0) === "string")
+				globalHooks.set(args.at(0) as string, callback);
+		}),
 	);
 	vi.stubGlobal("HideUIPanel", vi.fn());
 	vi.stubGlobal("InCombatLockdown", () => false);
@@ -726,6 +730,59 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.ui.openPanel("achievements", "fullscreen");
 	flush();
 	expect(frames).toHaveLength(achievementFrames);
+	app.ui.closePanel("fullscreen");
+	// Opening another native panel must not auto-minimize talents into the spellbook.
+	let spellsShown = false;
+	let spellsTab = 2;
+	const spellsFrame = {
+		GetParent: () => nativeParent,
+		SetParent: vi.fn(),
+		IsShown: () => spellsShown,
+		IsInspecting: () => false,
+		GetTab: () => spellsTab,
+		talentTabID: 2,
+		specTabID: 1,
+		HookScript: vi.fn(),
+	};
+	vi.stubGlobal("PlayerSpellsFrame", spellsFrame);
+	globalHooks.get("PlayerSpellsFrame_LoadUI")?.();
+	vi.stubGlobal("PlayerSpellsUtil", {
+		OpenToClassTalentsTab: () => {
+			spellsShown = true;
+			spellsTab = 2;
+			globalHooks.get("ShowUIPanel")?.();
+		},
+		OpenToClassSpecializationsTab: vi.fn(),
+	});
+	vi.stubGlobal("HideUIPanel", (target: unknown) => {
+		if (target === spellsFrame) spellsShown = false;
+		if (target === CharacterFrame) characterShown = false;
+		globalHooks.get("HideUIPanel")?.();
+	});
+	const spellbookOpened = vi.fn();
+	const openCharacterPanel = () => {
+		if (spellsShown) {
+			spellsTab = 3;
+			spellbookOpened();
+			globalHooks.get("ShowUIPanel")?.();
+		}
+	};
+	character.open.mockImplementation(openCharacterPanel);
+	vi.stubGlobal("ToggleCharacter", openCharacterPanel);
+	app.ui.openPanel("paper-doll", "left");
+	for (const icon of [133127, 236683, 133759]) {
+		clickTab(136243);
+		expect(spellsShown).toBe(true);
+		expect(app.ui.getContainer("left").activePanelId).toBe("talents");
+		clickTab(icon);
+		expect(spellbookOpened).not.toHaveBeenCalled();
+		expect(spellsShown, `after selecting tab ${icon}`).toBe(false);
+	}
+	clickTab(136243);
+	events.emit("NAV_PANEL_PREVIOUS");
+	expect(app.ui.getContainer("left").activePanelId).toBe("titles");
+	expect(spellbookOpened).not.toHaveBeenCalled();
+	expect(spellsShown).toBe(false);
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");

@@ -120,6 +120,13 @@ export function startSteamDeckUI(
 				new Frame(`container-${containerId}`, pool),
 				(id, button) => new Frame(id, pool, button ? "Button" : "Frame"),
 				(selected) => {
+					// Close talents before Blizzard can minimize it into the spellbook.
+					if (
+						position === "left" &&
+						selected.id !== "talents" &&
+						builtInTalents.isOpen()
+					)
+						builtInTalents.close();
 					if (selected.id === "dungeon-finder") builtInDungeonFinder.open();
 					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
