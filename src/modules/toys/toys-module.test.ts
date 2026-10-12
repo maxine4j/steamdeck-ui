@@ -5,7 +5,7 @@ import { ToysModule } from "./toys-module";
 it("opens toys on the right, refreshes data and cooldowns separately, and restores built-in UI", () => {
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
-	const view = { refresh: vi.fn(), refreshCooldowns: vi.fn() };
+	const view = { refresh: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() };
 	const native = {
 		disable: vi.fn(),
 		restore: vi.fn(),
@@ -24,6 +24,8 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	expect(view.refresh).toHaveBeenCalledTimes(2);
 	events.emit("TOYS_COOLDOWN_CHANGED");
 	expect(view.refreshCooldowns).toHaveBeenCalledOnce();
+	events.emit("COMBAT_ENDED");
+	expect(view.resume).toHaveBeenCalledOnce();
 	module.shutdown();
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");

@@ -147,4 +147,5 @@ it("toggles live favourite state only for collected toys and guards use eligibil
 	api.IsToyUsable = () => true;
 	vi.stubGlobal("InCombatLockdown", () => true);
 	expect(client.canUse(1)).toBe(false);
+	expect(client.isInCombat()).toBe(true);
 });

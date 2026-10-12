@@ -7,6 +7,7 @@ export class ToysModule implements IModule {
 	readonly id = "toys";
 	private readonly refresh = () => this.view.refresh();
 	private readonly cooldown = () => this.view.refreshCooldowns();
+	private readonly resume = () => this.view.resume();
 	private readonly sync = () => {
 		if (this.native.isOpen()) this.ui.openPanel(this.id, "right");
 		else this.ui.closePanel("right", this.id);
@@ -14,13 +15,18 @@ export class ToysModule implements IModule {
 	constructor(
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
-		private readonly view: { refresh(): void; refreshCooldowns(): void },
+		private readonly view: {
+			refresh(): void;
+			refreshCooldowns(): void;
+			resume(): void;
+		},
 		private readonly native: IBuiltInToys,
 	) {}
 	disableBuiltIn(): void {
 		this.native.disable();
 	}
 	initialize(): void {
+		this.events.subscribe("COMBAT_ENDED", this.resume);
 		this.events.subscribe("TOYS_CHANGED", this.refresh);
 		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.subscribe("TOYS_COOLDOWN_CHANGED", this.cooldown);
@@ -28,6 +34,7 @@ export class ToysModule implements IModule {
 		if (this.native.isOpen()) this.sync();
 	}
 	shutdown(): void {
+		this.events.unsubscribe("COMBAT_ENDED", this.resume);
 		this.events.unsubscribe("TOYS_CHANGED", this.refresh);
 		this.events.unsubscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.unsubscribe("TOYS_COOLDOWN_CHANGED", this.cooldown);

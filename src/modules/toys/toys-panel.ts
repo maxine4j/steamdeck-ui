@@ -28,6 +28,8 @@ export class ToysPanel implements IPanel {
 	private toys: readonly Toy[] = [];
 	private displayed: readonly Toy[] = [];
 	private mounted = false;
+	private parent?: Frame;
+	private mountPending = false;
 	private dirty = true;
 	private generation = 0;
 	private cancelLoad?: () => void;
@@ -48,6 +50,10 @@ export class ToysPanel implements IPanel {
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
 			throw new Error("Toys requires a frame parent");
+		this.parent = parent;
+		this.mounted = true;
+		this.mountPending = this.client.isInCombat();
+		if (this.mountPending) return;
 		this.frame.fill(parent);
 		this.frame.setBlackBackground();
 		this.frame.setLabel(
@@ -82,7 +88,7 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.menu.close();
-		if (!this.mounted) return;
+		if (!this.mounted || this.client.isInCombat()) return;
 		this.frame.setLabel(
 			"loading",
 			"Loading toys...",
@@ -95,7 +101,7 @@ export class ToysPanel implements IPanel {
 			if (!this.mounted || generation !== this.generation) return;
 			this.cancelLoad = undefined;
 			this.toys = toys;
-			this.render(generation);
+			if (!this.client.isInCombat()) this.render(generation);
 		});
 	}
 	private render(generation: number): void {
@@ -216,7 +222,12 @@ export class ToysPanel implements IPanel {
 		}
 		let cursor = 0;
 		const step = () => {
-			if (!this.mounted || generation !== this.generation) return;
+			if (
+				!this.mounted ||
+				generation !== this.generation ||
+				this.client.isInCombat()
+			)
+				return;
 			this.cancelRender = undefined;
 			const end = Math.min(jobs.length, cursor + 10);
 			while (cursor < end) jobs.at(cursor++)?.();
@@ -244,6 +255,11 @@ export class ToysPanel implements IPanel {
 				.at(index)
 				?.cooldown.setCooldown(cooldown.start, cooldown.duration);
 		});
+	}
+	resume(): void {
+		if (!this.mounted || this.client.isInCombat()) return;
+		if (this.mountPending && this.parent) this.onMount(this.parent);
+		else if (this.dirty) this.refresh();
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;

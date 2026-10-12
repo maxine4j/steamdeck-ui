@@ -219,6 +219,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		shutdown: vi.fn(),
 	};
 	const toys = {
+		isInCombat: () => false,
 		load: vi.fn(
 			(callback: (toys: import("./clients/toys-client").Toy[]) => void) => {
 				callback([]);

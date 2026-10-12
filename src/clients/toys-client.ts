@@ -27,6 +27,7 @@ export interface Toy {
 	readonly expansionId?: number;
 }
 export interface IToysClient {
+	isInCombat(): boolean;
 	load(callback: (toys: Toy[]) => void): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
@@ -80,7 +81,10 @@ export class ToysClient implements IToysClient {
 			C_ToyBox.SetIsFavorite(id, !C_ToyBox.GetIsFavorite(id));
 	}
 	canUse(id: number): boolean {
-		return !InCombatLockdown() && PlayerHasToy(id) && C_ToyBox.IsToyUsable(id);
+		return !this.isInCombat() && PlayerHasToy(id) && C_ToyBox.IsToyUsable(id);
+	}
+	isInCombat(): boolean {
+		return InCombatLockdown();
 	}
 	getCooldown(id: number): { start: number; duration: number } {
 		const [start, duration] = C_Container.GetItemCooldown(id);

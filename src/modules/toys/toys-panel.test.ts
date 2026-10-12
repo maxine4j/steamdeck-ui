@@ -50,6 +50,7 @@ function setup() {
 		},
 	};
 	const client: IToysClient = {
+		isInCombat: vi.fn(() => false),
 		load: vi.fn(() => vi.fn()),
 		canUse: vi.fn(() => true),
 		toggleFavourite: vi.fn(),
@@ -96,6 +97,25 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 	node?.onAlternate?.();
 	expect(menu.open).toHaveBeenCalledTimes(1);
 	expect(click).toHaveBeenCalledTimes(1);
+});
+
+it("defers secure frame creation and rendering until combat ends", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	vi.mocked(client.isInCombat).mockReturnValue(true);
+	panel.onMount(parent);
+	expect(client.load).not.toHaveBeenCalled();
+	expect(Frame.prototype.fill).not.toHaveBeenCalled();
+	vi.mocked(client.isInCombat).mockReturnValue(false);
+	panel.resume();
+	expect(client.load).toHaveBeenCalledOnce();
+	vi.mocked(client.isInCombat).mockReturnValue(true);
+	publish([toy(1)]);
+	expect(Frame.prototype.setItem).not.toHaveBeenCalled();
+	vi.mocked(client.isInCombat).mockReturnValue(false);
+	panel.resume();
+	publish([toy(1)]);
+	flush();
+	expect(Frame.prototype.setItem).toHaveBeenCalledWith(1);
 });
 
 it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {
