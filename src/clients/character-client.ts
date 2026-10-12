@@ -30,7 +30,17 @@ export interface ICharacterActions {
 	pickup(slot: EquipmentSlot): void;
 	use(slot: EquipmentSlot): void;
 }
-export interface ICharacterClient extends ICharacterActions {
+export interface EquipmentSubstitute {
+	readonly location: number;
+	readonly itemId: number;
+	readonly name: string;
+}
+export interface IEquipmentActions {
+	getSubstitutes(slot: EquipmentSlot): EquipmentSubstitute[];
+	unequip(slot: EquipmentSlot): void;
+	equipSubstitute(slot: EquipmentSlot, item: EquipmentSubstitute): void;
+}
+export interface ICharacterClient extends ICharacterActions, IEquipmentActions {
 	open(): void;
 	toggle(): void;
 	isOpen(): boolean;
@@ -60,6 +70,41 @@ const slotNames = [
 ] as const;
 export class CharacterClient implements ICharacterClient {
 	private readonly requested = new Set<number>();
+	getSubstitutes(slot: EquipmentSlot): EquipmentSubstitute[] {
+		const items: Record<number, number> = {};
+		GetInventoryItemsForSlot(slot.slotId, items);
+		const substitutes: EquipmentSubstitute[] = [];
+		for (const [key] of Object.entries(items)) {
+			const location = Number(key);
+			const data = EquipmentManager_GetLocationData(location);
+			if (data.isPlayer && !data.isBags && data.slot === slot.slotId) continue;
+			const [itemId, name] = EquipmentManager_GetItemInfoByLocation(location);
+			if (itemId === undefined) continue;
+			substitutes.push({ location, itemId, name: name ?? `Item ${itemId}` });
+		}
+		return substitutes.sort((a, b) => a.location - b.location);
+	}
+	unequip(slot: EquipmentSlot): void {
+		if (InCombatLockdown() || slot.itemId === undefined || !this.current(slot))
+			return;
+		const action = EquipmentManager_UnequipItemInSlot(slot.slotId);
+		if (action) EquipmentManager_RunAction(action);
+	}
+	equipSubstitute(slot: EquipmentSlot, item: EquipmentSubstitute): void {
+		if (InCombatLockdown() || !this.current(slot)) return;
+		const available: Record<number, number> = {};
+		GetInventoryItemsForSlot(slot.slotId, available);
+		if (available[item.location] !== item.itemId) return;
+		const [itemId, , , , , , , locked] = EquipmentManager_GetItemInfoByLocation(
+			item.location,
+		);
+		if (itemId !== item.itemId || locked) return;
+		const action = EquipmentManager_EquipItemByLocation(
+			item.location,
+			slot.slotId,
+		);
+		if (action) EquipmentManager_RunAction(action);
+	}
 	getIdentity(): CharacterIdentity {
 		// Generated unit-token types are numeric, but Retail accepts "player".
 		const unitName = UnitName as unknown as (

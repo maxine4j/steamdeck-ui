@@ -2,6 +2,65 @@ import { afterEach, expect, it, vi } from "vitest";
 import { CharacterClient } from "./character-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("lists every Equipment Manager substitute by physical location, excluding the equipped slot", () => {
+	const { client } = setup();
+	vi.stubGlobal(
+		"GetInventoryItemsForSlot",
+		vi.fn((_slot: number, items: Record<number, number>) => {
+			Object.assign(items, { 101: 42, 102: 42, 103: 55 });
+		}),
+	);
+	vi.stubGlobal("EquipmentManager_GetLocationData", (location: number) => ({
+		isPlayer: true,
+		isBags: location !== 103,
+		slot: location === 103 ? 1 : 2,
+	}));
+	vi.stubGlobal(
+		"EquipmentManager_GetItemInfoByLocation",
+		(location: number) => [42, location === 101 ? "Spare helm" : undefined],
+	);
+	const slot = client.getEquipment().at(0);
+	if (!slot) throw new Error("Missing head slot");
+	expect(client.getSubstitutes(slot)).toEqual([
+		{ location: 101, itemId: 42, name: "Spare helm" },
+		{ location: 102, itemId: 42, name: "Item 42" },
+	]);
+});
+it("runs Equipment Manager unequip and replacement actions and rejects stale, locked or combat selections", () => {
+	const { client, lock } = setup();
+	const slot = client.getEquipment().at(0);
+	if (!slot) throw new Error("Missing head slot");
+	const unequip = vi.fn(() => ({ invSlot: 1 }));
+	const equip = vi.fn(() => ({ invSlot: 1 }));
+	const run = vi.fn();
+	const combat = vi.fn(() => false);
+	vi.stubGlobal("InCombatLockdown", combat);
+	vi.stubGlobal("EquipmentManager_UnequipItemInSlot", unequip);
+	vi.stubGlobal("EquipmentManager_EquipItemByLocation", equip);
+	vi.stubGlobal("EquipmentManager_RunAction", run);
+	vi.stubGlobal(
+		"GetInventoryItemsForSlot",
+		(_slot: number, items: Record<number, number>) =>
+			Object.assign(items, { 101: 55 }),
+	);
+	vi.stubGlobal("EquipmentManager_GetItemInfoByLocation", () => [55, "Spare"]);
+	const replacement = { location: 101, itemId: 55, name: "Spare" };
+	client.unequip(slot);
+	client.equipSubstitute(slot, replacement);
+	expect(unequip).toHaveBeenCalledWith(1);
+	expect(equip).toHaveBeenCalledWith(101, 1);
+	expect(run).toHaveBeenCalledTimes(2);
+	client.equipSubstitute(slot, { ...replacement, itemId: 99 });
+	client.unequip({ ...slot, hyperlink: "item:other" });
+	lock.mockReturnValue(true);
+	client.unequip(slot);
+	client.equipSubstitute(slot, replacement);
+	lock.mockReturnValue(false);
+	combat.mockReturnValue(true);
+	client.unequip(slot);
+	client.equipSubstitute(slot, replacement);
+	expect(run).toHaveBeenCalledTimes(2);
+});
 it("reads character identity and handles characters without a guild or specialization", () => {
 	vi.stubGlobal(
 		"UnitName",

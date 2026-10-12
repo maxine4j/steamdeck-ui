@@ -81,10 +81,12 @@ it("fits equipment around a character model with stats below, reuses controls an
 	};
 	const pool = new FramePoolManager(factory);
 	const actions = { pickup: vi.fn(), use: vi.fn(), close: vi.fn() };
+	const menu = { open: vi.fn(), close: vi.fn() };
 	const panel = new PaperDollPanel(
 		new Frame("paper-doll", pool),
 		pool,
 		actions,
+		menu,
 	);
 	const equipment = Array.from({ length: 18 }, (_, index) => ({
 		slotId: index + 1,
@@ -103,6 +105,8 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
+	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	expect(menu.open).toHaveBeenLastCalledWith(equipment.at(0));
 	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
 		item: "item:42",
 	});
@@ -264,6 +268,10 @@ it("fits equipment around a character model with stats below, reuses controls an
 	const count = factory.createFrame.mock.calls.length;
 	const layouts = vi.spyOn(Frame.prototype, "layout");
 	panel.onUnmount();
+	expect(menu.close).toHaveBeenCalled();
+	menu.open.mockClear();
+	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	expect(menu.open).not.toHaveBeenCalled();
 	equipmentButtons.at(0)?.handlers.get("OnClick")?.(undefined, "RightButton");
 	expect(actions.use).toHaveBeenCalledOnce();
 	panel.onMount(new Frame("parent-again", pool));

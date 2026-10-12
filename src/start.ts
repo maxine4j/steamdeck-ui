@@ -44,6 +44,7 @@ import { BuiltInDialogue } from "./modules/npc-dialogue/built-in-dialogue";
 import { DialogueModule } from "./modules/npc-dialogue/dialogue-module";
 import { DialoguePanel } from "./modules/npc-dialogue/dialogue-panel";
 import { BuiltInPaperDoll } from "./modules/paper-doll/built-in-paper-doll";
+import { EquipmentActionMenu } from "./modules/paper-doll/equipment-action-menu";
 import { PaperDollModule } from "./modules/paper-doll/paper-doll-module";
 import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
 import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
@@ -290,6 +291,10 @@ export function startSteamDeckUI(
 			pickup: (slot) => character.pickup(slot),
 			use: (slot) => character.use(slot),
 		},
+		new EquipmentActionMenu(
+			new Modal("equipment-options", pool, navigation, events),
+			character,
+		),
 	);
 	ui.registerPanel(paperDoll, "left");
 	modules.register(

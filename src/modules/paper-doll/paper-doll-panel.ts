@@ -9,6 +9,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import type { IEquipmentActionMenu } from "./equipment-action-menu";
 
 const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0.62, 0.62, 0.62],
@@ -71,6 +72,7 @@ export class PaperDollPanel implements IPanel {
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
 		private readonly actions: ICharacterActions,
+		private readonly menu: IEquipmentActionMenu,
 	) {
 		this.preview = new Frame("character-model", pool, "PlayerModel");
 		this.closeButton = new Frame("character-close", pool, "Button");
@@ -113,6 +115,7 @@ export class PaperDollPanel implements IPanel {
 		this.layoutContent();
 	}
 	setEquipment(equipment: readonly EquipmentSlot[]): void {
+		this.menu.close();
 		this.equipment = equipment;
 		this.equipmentDirty = true;
 		if (this.mounted) {
@@ -195,6 +198,10 @@ export class PaperDollPanel implements IPanel {
 						onInteract: () => {
 							const current = this.equipment.at(index);
 							if (this.mounted && current) this.actions.pickup(current);
+						},
+						onContext: () => {
+							const current = this.equipment.at(index);
+							if (this.mounted && current) this.menu.open(current);
 						},
 					},
 				};
@@ -297,6 +304,7 @@ export class PaperDollPanel implements IPanel {
 		this.body.layout(500, height, "TOPLEFT", this.content, 0, -headerHeight);
 	}
 	onUnmount(): void {
+		this.menu.close();
 		this.mounted = false;
 		this.frame.hide();
 	}
