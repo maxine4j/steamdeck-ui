@@ -3,6 +3,18 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { IUIComponent } from "./types";
+
+type ItemTooltipFrame = WowFrame & {
+	SetOwner(owner: WowFrame, anchor: string): void;
+	SetHyperlink(link: string): void;
+	ClearLines(): void;
+	SetScale(scale: number): void;
+	IsEmbedded: boolean;
+	NineSlice: { SetAlpha(alpha: number): void };
+	TopOverlay: { SetAlpha(alpha: number): void };
+	BottomOverlay: { SetAlpha(alpha: number): void };
+};
+
 export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private docked = false;
@@ -10,6 +22,7 @@ export class Frame implements IUIComponent {
 	private closeName?: string;
 	private gamePadInputConfigured = false;
 	private texture?: WowTexture;
+	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
 	constructor(
 		public readonly id: string,
@@ -175,6 +188,34 @@ export class Frame implements IUIComponent {
 		overlay.SetAllPoints();
 		overlay.SetColorTexture(1, 0.82, 0, focused ? 0.45 : 0);
 	}
+	setFocusBorder(focused: boolean): void {
+		if (!focused && !this.focusBorder) return;
+		const native = this.acquire() as WowFrame & { GetFrameLevel(): number };
+		if (!this.focusBorder) {
+			this.focusBorder = this.pool.acquire("Frame") as WowFrame & {
+				SetFrameLevel(level: number): void;
+			};
+			this.focusBorder.SetParent(native);
+			this.focusBorder.SetPoint("TOPLEFT", native, "TOPLEFT", 0, 0);
+			this.focusBorder.SetPoint("BOTTOMRIGHT", native, "BOTTOMRIGHT", 0, 0);
+		}
+		// Above panel content, which fills the container with an opaque background.
+		this.focusBorder.SetFrameLevel(native.GetFrameLevel() + 10);
+		for (const [width, alpha] of [
+			[8, 0.12],
+			[5, 0.25],
+			[2, 1],
+		] as const)
+			setBorder(
+				this.pool,
+				this.focusBorder,
+				[1, 0.82, 0, focused ? alpha : 0],
+				width,
+				`navigation-border-${width}`,
+			);
+		if (focused) this.focusBorder.Show();
+		else this.focusBorder.Hide();
+	}
 	navigationNode(
 		navId: string,
 		interact: () => void,
@@ -273,12 +314,12 @@ export class Frame implements IUIComponent {
 	): { width: number; height: number } {
 		if (this.frameType !== "GameTooltip")
 			throw new Error("Item details require a tooltip frame");
-		const native = this.acquire() as WowFrame & {
-			SetOwner(owner: WowFrame, anchor: string): void;
-			SetHyperlink(link: string): void;
-			ClearLines(): void;
-			SetScale(scale: number): void;
-		};
+		const native = this.acquire() as ItemTooltipFrame;
+		// Use Blizzard's embedded styling and keep artwork transparent across data refreshes.
+		native.IsEmbedded = true;
+		native.NineSlice.SetAlpha(0);
+		native.TopOverlay.SetAlpha(0);
+		native.BottomOverlay.SetAlpha(0);
 		native.SetScale(1);
 		native.SetOwner(parent.acquire(), "ANCHOR_NONE");
 		this.setParent(parent);
@@ -416,13 +457,19 @@ export class Frame implements IUIComponent {
 	}
 	destroy(): void {
 		if (!this.native) return;
+		if (this.focusBorder) {
+			this.focusBorder.SetFrameLevel(0);
+			this.pool.release("Frame", this.focusBorder);
+			this.focusBorder = undefined;
+		}
 		if (this.frameType === "GameTooltip") {
-			const tooltip = this.native as WowFrame & {
-				ClearLines(): void;
-				SetScale(scale: number): void;
-			};
+			const tooltip = this.native as ItemTooltipFrame;
 			tooltip.ClearLines();
 			tooltip.SetScale(1);
+			tooltip.IsEmbedded = false;
+			tooltip.NineSlice.SetAlpha(1);
+			tooltip.TopOverlay.SetAlpha(1);
+			tooltip.BottomOverlay.SetAlpha(1);
 		}
 		if (this.mouseShield) {
 			(

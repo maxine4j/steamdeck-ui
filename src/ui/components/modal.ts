@@ -53,7 +53,6 @@ export class Modal implements IModal {
 		this.window.setParent(this.backdrop);
 		this.window.setModalLayer();
 		this.window.setColor(0.06, 0.07, 0.1);
-		this.window.setBorder([0.3, 0.34, 0.42, 1]);
 		let width = 360;
 		let height = 100 + options.length * 44;
 		let optionWidth = 328;
@@ -78,6 +77,7 @@ export class Modal implements IModal {
 			this.divider.hide();
 		}
 		this.window.layout(width, height, "CENTER", this.backdrop);
+		this.window.setFocusBorder(true);
 		this.window.setLabel("title", title, "TOPRIGHT", -20, -20, 18, optionWidth);
 		this.window.setLabel(
 			"hint",
@@ -128,6 +128,7 @@ export class Modal implements IModal {
 	close(): void {
 		if (!this.opened) return;
 		this.opened = false;
+		this.window.setFocusBorder(false);
 		this.tooltip.hide();
 		this.navigation.popModal(this.id);
 		this.backdrop.hide();

@@ -6,3 +6,4 @@ yarn build:lua
 cp SteamDeckUI.toc dist/
 cp LICENSE dist/
 cp README.md dist/
+cp -R assets dist/

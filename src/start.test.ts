@@ -50,6 +50,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				Hide: vi.fn(),
 				SetParent: vi.fn(),
 				SetFrameStrata: vi.fn(),
+				SetFrameLevel: vi.fn(),
+				GetFrameLevel: () => 0,
 				ClearAllPoints: vi.fn(),
 				SetPoint: vi.fn(),
 				SetSize: vi.fn(),
@@ -228,16 +230,18 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(2));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
-	expect(textures.at(-1)?.SetTexture).toHaveBeenCalledWith(123);
-	expect(frames.at(-1)?.SetPoint).toHaveBeenCalledWith(
+	const bagIconIndex = textures.findIndex((texture) =>
+		vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 123),
+	);
+	const bagIcon = frames.at(bagIconIndex);
+	expect(bagIcon?.SetPoint).toHaveBeenCalledWith(
 		"CENTER",
-		frames.at(-2),
+		frames.at(bagIconIndex - 1),
 		"CENTER",
 		0,
 		0,
 	);
 	const count = frames.length;
-	const bagIcon = frames.at(-1);
 	expect(app.navigation.focusedId).toBe("bags-group-toggle");
 	app.navigation.moveDown();
 	expect(app.navigation.focusedId).toContain("bags-item-42");

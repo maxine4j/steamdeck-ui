@@ -117,8 +117,18 @@ it("captures navigation only while active, propagates other buttons and restores
 	expect(cancel).toHaveBeenCalledOnce();
 	expect(handler?.("PAD3")).toBe(true);
 	expect(alternate).toHaveBeenCalledOnce();
-	for (const key of ["PADRTRIGGER", "PADRSHOULDER"])
-		expect(handler?.(key)).toBe(false);
+	for (const [key, event] of [
+		["PADLTRIGGER", "NAV_CONTAINER_LEFT"],
+		["PADRTRIGGER", "NAV_CONTAINER_RIGHT"],
+		["PADLSHOULDER", "NAV_PANEL_PREVIOUS"],
+		["PADRSHOULDER", "NAV_PANEL_NEXT"],
+	] as const) {
+		const listener = vi.fn();
+		events.subscribe(event, listener);
+		expect(handler?.(key)).toBe(true);
+		expect(listener).toHaveBeenCalledOnce();
+	}
+	expect(handler?.("PAD5")).toBe(false);
 	modifier = true;
 	expect(handler?.("PADDDOWN")).toBe(false);
 	expect(handler?.("PAD1")).toBe(false);
@@ -140,4 +150,43 @@ it("captures navigation only while active, propagates other buttons and restores
 	events.emit("COMBAT_ENDED");
 	expect(surface.destroy).toHaveBeenCalledOnce();
 	expect(handler).toBeUndefined();
+});
+
+it("suspends combat modifiers during UI navigation and restores them on close, combat and shutdown", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	vi.stubGlobal("hooksecurefunc", vi.fn());
+	vi.stubGlobal("SetGamePadCursorControl", vi.fn());
+	const set = vi.fn();
+	vi.stubGlobal("C_CVar", {
+		GetCVar: (name: string) => `original-${name}`,
+		SetCVar: set,
+	});
+	const events = createTestEventBus();
+	const client = new ControllerInputClient(events, {
+		setGamePadInput: vi.fn(),
+		destroy: vi.fn(),
+	});
+	client.initialize();
+	client.setActive(true);
+	expect(set).toHaveBeenCalledWith("GamePadEmulateShift", "none");
+	expect(set).toHaveBeenCalledWith("GamePadEmulateCtrl", "none");
+	set.mockClear();
+	client.setActive(true);
+	expect(set).not.toHaveBeenCalled();
+	combat = true;
+	events.emit("COMBAT_STARTED");
+	expect(set).toHaveBeenCalledWith("GamePadEmulateShift", "PADLTRIGGER");
+	expect(set).toHaveBeenCalledWith("GamePadEmulateCtrl", "PADLSHOULDER");
+	set.mockClear();
+	combat = false;
+	events.emit("COMBAT_ENDED");
+	expect(set).toHaveBeenCalledWith("GamePadEmulateShift", "none");
+	client.setActive(false);
+	expect(set).toHaveBeenLastCalledWith("GamePadEmulateCtrl", "PADLSHOULDER");
+	client.shutdown();
+	expect(set).toHaveBeenCalledWith(
+		"GamePadEmulateShift",
+		"original-GamePadEmulateShift",
+	);
 });

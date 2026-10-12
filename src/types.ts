@@ -11,7 +11,7 @@ export interface WowTexture {
 	SetWidth(width: number): void;
 	SetHeight(height: number): void;
 	SetTexCoord(left: number, right: number, top: number, bottom: number): void;
-	SetTexture(fileId: number | undefined): void;
+	SetTexture(fileId: number | string | undefined): void;
 	SetAllPoints(): void;
 	SetColorTexture(
 		red: number,

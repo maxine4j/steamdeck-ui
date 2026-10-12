@@ -51,6 +51,10 @@ const buttons: Readonly<Record<string, ApplicationEvent | undefined>> = {
 	PADDDOWN: "NAV_DOWN",
 	PADDLEFT: "NAV_LEFT",
 	PADDRIGHT: "NAV_RIGHT",
+	PADLSHOULDER: "NAV_PANEL_PREVIOUS",
+	PADRSHOULDER: "NAV_PANEL_NEXT",
+	PADLTRIGGER: "NAV_CONTAINER_LEFT",
+	PADRTRIGGER: "NAV_CONTAINER_RIGHT",
 	PAD1: "NAV_INTERACT",
 	PAD4: "NAV_CONTEXT",
 	PAD3: "NAV_ALTERNATE",
@@ -69,6 +73,7 @@ export class ControllerInputClient implements IControllerInputClient {
 		const listening = this.active && !InCombatLockdown();
 		if (listening === this.listening) return;
 		this.listening = listening;
+		this.syncModifiers();
 		this.surface.setGamePadInput(
 			listening
 				? (button) => {
@@ -82,6 +87,15 @@ export class ControllerInputClient implements IControllerInputClient {
 				: undefined,
 		);
 	};
+	private syncModifiers(): void {
+		if (!this.configured) return;
+		for (const name of ["GamePadEmulateShift", "GamePadEmulateCtrl"])
+			if (this.originalCVars.has(name))
+				C_CVar.SetCVar(
+					name,
+					this.listening ? "none" : controllerSettings[name],
+				);
+	}
 	constructor(
 		private readonly events: IEventBus,
 		private readonly surface: IGamePadInput,
@@ -113,6 +127,7 @@ export class ControllerInputClient implements IControllerInputClient {
 			});
 		}
 		this.configure(controllerSettings);
+		if (this.listening) this.syncModifiers();
 		// Enabling the device must not put the right stick back into cursor mode.
 		SetGamePadCursorControl(false);
 	}

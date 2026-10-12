@@ -11,11 +11,15 @@ export interface BindingTarget {
 	readonly name: string;
 }
 export interface SlotVisual {
-	icon?: number;
+	icon?: number | string;
 	cooldown?: CooldownDuration;
 	recharge?: CooldownDuration;
 }
 export type SlotReader = (this: void, slot: number) => SlotVisual;
+export interface SlotDriver {
+	readonly condition: string;
+	readonly response: string;
+}
 type SecureFrame = WowFrame & {
 	GetName(): string;
 	GetAttribute(name: string): number | undefined;
@@ -37,6 +41,10 @@ interface CooldownFrame extends WowFrame {
 	Clear(): void;
 }
 interface SecondsFormatter {
+	SetDefaultAbbreviation(abbreviation: number): void;
+	SetConvertToLower(convert: boolean): void;
+	SetStripIntervalWhitespace(strip: number): void;
+	SetDesiredUnitCount(count: number): void;
 	SetMaxInterval(interval: number): void;
 	SetMinInterval(interval: number): void;
 	SetMillisecondsThreshold(seconds: number): void;
@@ -66,8 +74,13 @@ export class SecureSlotButton {
 		this.frame.SetParent(UIParent);
 		const formatter =
 			C_StringUtil.CreateSecondsFormatter() as unknown as SecondsFormatter;
-		// SecondsFormatterInterval.Seconds = 0; keep long cooldowns in seconds too.
-		formatter.SetMaxInterval(0);
+		// OneLetter = 2, StripIgnoreLocale = 2: compact suffixes such as 8s and 2m.
+		formatter.SetDefaultAbbreviation(2);
+		formatter.SetConvertToLower(true);
+		formatter.SetStripIntervalWhitespace(2);
+		formatter.SetDesiredUnitCount(1);
+		// Restrict units to seconds (0) and minutes (1).
+		formatter.SetMaxInterval(1);
 		formatter.SetMinInterval(0);
 		formatter.SetMillisecondsThreshold(0);
 		this.cooldowns = [0, 1].map(() => {
@@ -101,7 +114,7 @@ export class SecureSlotButton {
 		x: number,
 		y: number,
 		initialSlot: number,
-		driver: string,
+		driver: string | SlotDriver,
 		read: SlotReader,
 	): void {
 		this.frame.SetSize(48, 48);
@@ -116,9 +129,15 @@ export class SecureSlotButton {
 		this.frame.SetAttribute("action", initialSlot);
 		this.frame.SetAttribute(
 			"_onstate-slot",
-			'self:SetAttribute("action", tonumber(newstate))',
+			typeof driver === "string"
+				? 'self:SetAttribute("action", tonumber(newstate))'
+				: driver.response,
 		);
-		RegisterStateDriver(this.frame, "slot", driver);
+		RegisterStateDriver(
+			this.frame,
+			"slot",
+			typeof driver === "string" ? driver : driver.condition,
+		);
 		this.read = read;
 		this.refresh(read);
 		this.frame.Show();

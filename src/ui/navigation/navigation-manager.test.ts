@@ -100,18 +100,72 @@ it("replaces callbacks when a control with the same identity is rebuilt", () => 
 	expect(replacement.onInteract).toHaveBeenCalledOnce();
 });
 
-it("crosses explicit container edges only while their grids are open", () => {
-	const manager = new NavigationManager(createTestEventBus());
+it("uses triggers to switch open containers, remembers focus and keeps D-pad inside content", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
 	const left = node("left-tab"),
-		right = node("bag-tab");
+		right = node("bag-tab"),
+		last = node("last-item");
 	manager.registerGrid("left", [[left]], { right: "right" });
-	manager.registerGrid("right", [[right]], { left: "left" });
+	manager.registerGrid("right", [[right, last]], { left: "left" });
 	manager.setActiveGrid("right");
 	manager.moveLeft();
+	expect(manager.focusedId).toBe("bag-tab");
+	manager.moveRight();
+	events.emit("NAV_CONTAINER_LEFT");
 	expect(manager.focusedId).toBe("left-tab");
 	manager.moveRight();
-	expect(manager.focusedId).toBe("bag-tab");
+	expect(manager.focusedId).toBe("left-tab");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(manager.focusedId).toBe("last-item");
 	manager.unregisterGrid("left");
-	manager.moveLeft();
-	expect(manager.focusedId).toBe("bag-tab");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(manager.focusedId).toBe("last-item");
+});
+
+it("routes bumpers only to the active container and traps switching during modals", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const cycle = vi.fn();
+	manager.registerGrid("left", [[node("item")]], {
+		right: "right",
+		onPanelCycle: cycle,
+	});
+	manager.registerGrid("right", [[node("other")]]);
+	manager.setActiveGrid("left");
+	events.emit("NAV_PANEL_NEXT");
+	events.emit("NAV_PANEL_PREVIOUS");
+	expect(cycle.mock.calls).toEqual([[1], [-1]]);
+	manager.pushModal("menu", [[node("cancel")]], () => manager.popModal("menu"));
+	events.emit("NAV_PANEL_NEXT");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(cycle).toHaveBeenCalledTimes(2);
+	expect(manager.focusedId).toBe("cancel");
+	manager.popModal("menu");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(manager.focusedId).toBe("other");
+	manager.destroy();
+	events.emit("NAV_PANEL_NEXT");
+	expect(cycle).toHaveBeenCalledTimes(2);
+});
+
+it("reports active containers even with empty content and clears focus styling on close", () => {
+	const active = vi.fn();
+	const left = vi.fn();
+	const right = vi.fn();
+	const manager = new NavigationManager(createTestEventBus(), active);
+	manager.registerGrid("left", [], { onActiveChanged: left });
+	manager.registerGrid("right", [], { onActiveChanged: right });
+	manager.setActiveGrid("left");
+	expect(active).toHaveBeenLastCalledWith(true);
+	expect(left).toHaveBeenLastCalledWith(true);
+	manager.setActiveGrid("right");
+	expect(left).toHaveBeenLastCalledWith(false);
+	expect(right).toHaveBeenLastCalledWith(true);
+	manager.unregisterGrid("right");
+	expect(right).toHaveBeenLastCalledWith(false);
+	expect(left).toHaveBeenLastCalledWith(true);
+	manager.destroy();
+	expect(left).toHaveBeenLastCalledWith(false);
+	expect(active).toHaveBeenLastCalledWith(false);
 });

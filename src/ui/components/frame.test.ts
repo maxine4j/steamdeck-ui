@@ -5,8 +5,71 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("draws and clears a gold focus border with a soft glow using reusable pooled decorations", () => {
+	const decorations: { SetColorTexture: ReturnType<typeof vi.fn> }[] = [];
+	const makeNative = () => ({
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetPoint: vi.fn(),
+		SetFrameLevel: vi.fn(),
+		GetFrameLevel: () => 2,
+		SetParent: vi.fn(),
+		SetScript: vi.fn(),
+		CreateTexture: vi.fn(() => {
+			const texture = {
+				SetAllPoints: vi.fn(),
+				SetTexture: vi.fn(),
+				SetTexCoord: vi.fn(),
+				SetColorTexture: vi.fn(),
+				ClearAllPoints: vi.fn(),
+				SetPoint: vi.fn(),
+				SetHeight: vi.fn(),
+				SetWidth: vi.fn(),
+			};
+			decorations.push(texture);
+			return texture;
+		}),
+	});
+	const native = makeNative();
+	const overlay = makeNative();
+	const createFrame = vi
+		.fn()
+		.mockReturnValueOnce(native)
+		.mockReturnValueOnce(overlay);
+	const pool = new FramePoolManager({ createFrame });
+	const frame = new Frame("container", pool);
+	frame.setFocusBorder(true);
+	expect(overlay.SetParent).toHaveBeenCalledWith(native);
+	expect(overlay.SetFrameLevel).toHaveBeenLastCalledWith(12);
+	const edges = decorations.slice(1);
+	expect(edges).toHaveLength(12);
+	expect(edges.at(0)?.SetColorTexture).toHaveBeenLastCalledWith(
+		1,
+		0.82,
+		0,
+		0.12,
+	);
+	expect(edges.at(-1)?.SetColorTexture).toHaveBeenLastCalledWith(1, 0.82, 0, 1);
+	frame.setFocusBorder(false);
+	for (const edge of edges)
+		expect(edge.SetColorTexture).toHaveBeenLastCalledWith(1, 0.82, 0, 0);
+	frame.setFocusBorder(true);
+	expect(decorations).toHaveLength(13);
+	expect(createFrame).toHaveBeenCalledTimes(2);
+	frame.destroy();
+	expect(overlay.SetFrameLevel).toHaveBeenLastCalledWith(0);
+	for (const edge of edges)
+		expect(edge.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+});
+
 it("renders complete instance tooltips, scales long content to fit and resets pooled tooltip state", () => {
 	const native = {
+		IsEmbedded: false,
+		NineSlice: { SetAlpha: vi.fn() },
+		TopOverlay: { SetAlpha: vi.fn() },
+		BottomOverlay: { SetAlpha: vi.fn() },
 		Hide: vi.fn(),
 		Show: vi.fn(),
 		SetOwner: vi.fn(),
@@ -38,6 +101,13 @@ it("renders complete instance tooltips, scales long content to fit and resets po
 	});
 	expect(native.SetOwner).toHaveBeenCalledWith(native, "ANCHOR_NONE");
 	expect(native.SetHyperlink).toHaveBeenCalledWith("item:42:bonus");
+	expect(native.IsEmbedded).toBe(true);
+	for (const decoration of [
+		native.NineSlice,
+		native.TopOverlay,
+		native.BottomOverlay,
+	])
+		expect(decoration.SetAlpha).toHaveBeenLastCalledWith(0);
 	expect(native.SetScale).toHaveBeenLastCalledWith(0.5);
 	expect(native.SetPoint).toHaveBeenLastCalledWith(
 		"TOPLEFT",
@@ -54,6 +124,13 @@ it("renders complete instance tooltips, scales long content to fit and resets po
 	expect(native.ClearLines).toHaveBeenCalledTimes(3);
 	expect(native.SetScale).toHaveBeenLastCalledWith(1);
 	expect(pool.acquire("GameTooltip")).toBe(native);
+	expect(native.IsEmbedded).toBe(false);
+	for (const decoration of [
+		native.NineSlice,
+		native.TopOverlay,
+		native.BottomOverlay,
+	])
+		expect(decoration.SetAlpha).toHaveBeenLastCalledWith(1);
 });
 
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {

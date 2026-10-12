@@ -6,18 +6,32 @@ import {
 } from "../../ui/components/secure-slot-button";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 
-const controls = [
+const controls: readonly {
+	key: string;
+	label: string;
+	x: number;
+	y: number;
+	slot: number;
+	defaultCommand?: "JUMP";
+}[] = [
 	// ConsolePort's Crossbar: Minimal uses 50px horizontal / 25px vertical offsets.
-	{ key: "PADDUP", label: "↑", x: -200, y: 106 },
-	{ key: "PADDRIGHT", label: "→", x: -150, y: 81 },
-	{ key: "PADDDOWN", label: "↓", x: -200, y: 56 },
-	{ key: "PADDLEFT", label: "←", x: -250, y: 81 },
-	{ key: "PAD4", label: "|cffffe74fY|r", x: 200, y: 106 },
-	{ key: "PAD2", label: "|cffff4451B|r", x: 250, y: 81 },
-	{ key: "PAD1", label: "|cff52c14eA|r", x: 200, y: 56 },
-	{ key: "PAD3", label: "|cff00a2ffX|r", x: 150, y: 81 },
-	{ key: "PADRTRIGGER", label: "RT", x: 100, y: 56 },
-	{ key: "PADRSHOULDER", label: "RB", x: 100, y: 106 },
+	{ key: "PADDUP", label: "↑", x: -200, y: 106, slot: 5 },
+	{ key: "PADDRIGHT", label: "→", x: -150, y: 81, slot: 6 },
+	{ key: "PADDDOWN", label: "↓", x: -200, y: 56, slot: 7 },
+	{ key: "PADDLEFT", label: "←", x: -250, y: 81, slot: 8 },
+	{ key: "PAD4", label: "|cffffe74fY|r", x: 200, y: 106, slot: 2 },
+	{ key: "PAD2", label: "|cffff4451B|r", x: 250, y: 81, slot: 3 },
+	{
+		key: "PAD1",
+		label: "|cff52c14eA|r",
+		x: 200,
+		y: 56,
+		slot: 4,
+		defaultCommand: "JUMP",
+	},
+	{ key: "PAD3", label: "|cff00a2ffX|r", x: 150, y: 81, slot: 1 },
+	{ key: "PADRTRIGGER", label: "RT", x: 100, y: 56, slot: 9 },
+	{ key: "PADRSHOULDER", label: "RB", x: 100, y: 106, slot: 10 },
 ];
 const modifiers = [
 	{ key: "PADLSHOULDER", label: "LB\nCTRL", y: 106 },
@@ -43,18 +57,22 @@ export class CrossBar {
 			this.indicators.push(indicator);
 		}
 		this.client.bind(
-			controls.map((control, index) => {
+			controls.map((control) => {
 				const button = new SecureSlotButton(this.pool);
 				this.buttons.push(button);
 				button.configure(
 					control.label,
 					control.x,
 					control.y,
-					index + 1,
-					this.client.getSlotDriver(index + 1),
+					control.defaultCommand ? 0 : control.slot,
+					this.client.getSlotDriver(control.slot, control.defaultCommand),
 					this.read,
 				);
-				return { key: control.key, target: button.getBindingTarget() };
+				return {
+					key: control.key,
+					target: button.getBindingTarget(),
+					defaultCommand: control.defaultCommand,
+				};
 			}),
 		);
 	}

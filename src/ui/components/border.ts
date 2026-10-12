@@ -9,9 +9,10 @@ export function setBorder(
 	frame: WowFrame,
 	color: BorderColor,
 	width = 2,
+	decorationKey = "border",
 ): void {
 	for (const edge of ["TOP", "BOTTOM", "LEFT", "RIGHT"]) {
-		const texture = pool.getDecoration(frame, `border-${edge}`);
+		const texture = pool.getDecoration(frame, `${decorationKey}-${edge}`);
 		texture.ClearAllPoints();
 		if (edge === "TOP" || edge === "BOTTOM") {
 			texture.SetPoint(`${edge}LEFT`, frame, `${edge}LEFT`, 0, 0);

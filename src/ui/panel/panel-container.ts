@@ -3,13 +3,11 @@ import type {
 	GridNeighbors,
 	INavManager,
 } from "../navigation/navigation-manager";
-import type { NavGrid } from "../navigation/types";
 import type { DockPosition, IPanel, IPanelContainer } from "./types";
 export class PanelContainer implements IPanelContainer {
 	private readonly panels: IPanel[] = [];
 	private readonly tabs: { border: Frame; button: Frame }[] = [];
 	private readonly stack: IPanel[] = [];
-	private tabGrid: NavGrid = [];
 	get activePanelId(): string | undefined {
 		return this.stack.at(-1)?.id;
 	}
@@ -61,7 +59,6 @@ export class PanelContainer implements IPanelContainer {
 		if (!createTab || this.position === "fullscreen") return;
 		const edge = this.position === "left" ? "RIGHT" : "LEFT";
 		const x = this.position === "left" ? 44 : -44;
-		this.tabGrid = [];
 		this.panels.forEach((panel, index) => {
 			let tab = this.tabs.at(index);
 			if (!tab) {
@@ -87,13 +84,6 @@ export class PanelContainer implements IPanelContainer {
 					this.swapPanel(panel);
 				}
 			});
-			this.tabGrid.push([
-				tab.button.navigationNode(`${this.id}-tab-${panel.id}`, () => {
-					if (this.stack.length === 0) return;
-					this.onTabSelected?.(panel);
-					this.swapPanel(panel);
-				}),
-			]);
 			tab.border.show();
 			tab.button.show();
 		});
@@ -122,33 +112,27 @@ export class PanelContainer implements IPanelContainer {
 		this.stack.push(panel);
 		this.mount(panel);
 	}
-	private getNavGrid(): NavGrid {
-		const content = this.stack.at(-1)?.getNavGrid() ?? [];
-		let width = 1;
-		for (const row of content)
-			row.forEach((node, index) => {
-				width = Math.max(width, (node.navColumn ?? index) + 1);
-			});
-		const grid: NavGrid = [];
-		for (let i = 0; i < Math.max(content.length, this.tabGrid.length); i++) {
-			const row = (content.at(i) ?? []).map((node, index) => ({
-				...node,
-				navColumn:
-					(node.navColumn ?? index) + (this.position === "right" ? 1 : 0),
-			}));
-			const tab = this.tabGrid.at(i)?.at(0);
-			if (tab)
-				row.push({ ...tab, navColumn: this.position === "right" ? 0 : width });
-			grid.push(row);
-		}
-		return grid;
+	private cyclePanel(direction: -1 | 1): void {
+		const active = this.stack.at(-1);
+		if (!active || this.panels.length < 2) return;
+		const index = this.panels.indexOf(active);
+		const panel = this.panels.at(
+			(index + direction + this.panels.length) % this.panels.length,
+		);
+		if (!panel) return;
+		this.onTabSelected?.(panel);
+		this.swapPanel(panel);
 	}
 	focus(): void {
 		if (!this.stack.length) return;
 		this.navigation?.registerGrid(
 			this.id,
-			() => this.getNavGrid(),
-			this.navigationNeighbors,
+			() => this.stack.at(-1)?.getNavGrid() ?? [],
+			{
+				...this.navigationNeighbors,
+				onActiveChanged: (active) => this.frame.setFocusBorder(active),
+				onPanelCycle: (direction) => this.cyclePanel(direction),
+			},
 		);
 		this.navigation?.setActiveGrid(this.id);
 	}

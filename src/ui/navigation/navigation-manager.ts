@@ -3,14 +3,14 @@ import { NavigationGrid } from "./navigation-grid";
 import type { INavigable, NavDirection, NavGrid } from "./types";
 
 type GridSource = NavGrid | (() => NavGrid);
-export type GridNeighbors = Partial<Record<NavDirection, string>>;
+export type GridNeighbors = Partial<Record<"left" | "right", string>>;
+export interface GridOptions extends GridNeighbors {
+	onActiveChanged?: (active: boolean) => void;
+	onPanelCycle?: (direction: -1 | 1) => void;
+}
 
 export interface INavManager {
-	registerGrid(
-		panelId: string,
-		grid: GridSource,
-		neighbors?: GridNeighbors,
-	): void;
+	registerGrid(panelId: string, grid: GridSource, options?: GridOptions): void;
 	unregisterGrid(panelId: string): void;
 	refreshGrid(panelId: string): void;
 	setActiveGrid(panelId: string): void;
@@ -23,7 +23,7 @@ export interface INavManager {
 
 export class NavigationManager implements INavManager {
 	private readonly grids = new Map<string, GridSource>();
-	private readonly neighbors = new Map<string, GridNeighbors>();
+	private readonly options = new Map<string, GridOptions>();
 	private readonly history: string[] = [];
 	private readonly remembered = new Map<string, string>();
 	private active?: string;
@@ -35,6 +35,10 @@ export class NavigationManager implements INavManager {
 		["NAV_DOWN", () => this.moveDown()],
 		["NAV_LEFT", () => this.moveLeft()],
 		["NAV_RIGHT", () => this.moveRight()],
+		["NAV_PANEL_PREVIOUS", () => this.cyclePanel(-1)],
+		["NAV_PANEL_NEXT", () => this.cyclePanel(1)],
+		["NAV_CONTAINER_LEFT", () => this.switchContainer("left")],
+		["NAV_CONTAINER_RIGHT", () => this.switchContainer("right")],
 		["NAV_INTERACT", () => this.interact()],
 		["NAV_CONTEXT", () => this.focused?.onContext?.()],
 		["NAV_ALTERNATE", () => this.focused?.onAlternate?.()],
@@ -53,16 +57,21 @@ export class NavigationManager implements INavManager {
 	registerGrid(
 		panelId: string,
 		grid: GridSource,
-		neighbors: GridNeighbors = {},
+		options: GridOptions = {},
 	): void {
 		this.grids.set(panelId, grid);
-		this.neighbors.set(panelId, neighbors);
+		this.options.set(panelId, options);
+		if (this.active === panelId) options.onActiveChanged?.(true);
 		this.refreshGrid(panelId);
 	}
 	setActiveGrid(panelId: string): void {
 		if (this.modal && panelId !== this.modal.id) return;
 		if (!this.grids.has(panelId)) return;
-		if (this.active !== panelId) this.setFocus(undefined);
+		if (this.active !== panelId) {
+			this.setFocus(undefined);
+			if (this.active) this.options.get(this.active)?.onActiveChanged?.(false);
+			this.options.get(panelId)?.onActiveChanged?.(true);
+		}
 		this.active = panelId;
 		const index = this.history.indexOf(panelId);
 		if (index >= 0) this.history.splice(index, 1);
@@ -91,11 +100,13 @@ export class NavigationManager implements INavManager {
 		);
 		const id = this.focusedId ?? this.remembered.get(panelId);
 		this.setFocus((id ? this.graph.get(id) : undefined) ?? this.graph.first);
-		this.onActiveChanged?.(this.focused !== undefined);
+		this.onActiveChanged?.(true);
 	}
 	unregisterGrid(panelId: string): void {
+		if (this.active === panelId)
+			this.options.get(panelId)?.onActiveChanged?.(false);
 		this.grids.delete(panelId);
-		this.neighbors.delete(panelId);
+		this.options.delete(panelId);
 		const index = this.history.indexOf(panelId);
 		if (index >= 0) this.history.splice(index, 1);
 		if (this.active !== panelId) return;
@@ -119,10 +130,15 @@ export class NavigationManager implements INavManager {
 			? this.graph.neighbor(this.focusedId, direction)
 			: undefined;
 		if (next) this.setFocus(next);
-		else {
-			const neighbor = this.neighbors.get(this.active)?.[direction];
-			if (neighbor) this.setActiveGrid(neighbor);
-		}
+	}
+	private cyclePanel(direction: -1 | 1): void {
+		if (this.active && !this.modal)
+			this.options.get(this.active)?.onPanelCycle?.(direction);
+	}
+	private switchContainer(direction: "left" | "right"): void {
+		if (!this.active || this.modal) return;
+		const neighbor = this.options.get(this.active)?.[direction];
+		if (neighbor) this.setActiveGrid(neighbor);
 	}
 	moveUp(): void {
 		this.move("up");
@@ -144,8 +160,9 @@ export class NavigationManager implements INavManager {
 		for (const [event, handler] of this.handlers)
 			this.events.unsubscribe(event, handler);
 		this.setFocus(undefined);
+		if (this.active) this.options.get(this.active)?.onActiveChanged?.(false);
 		this.grids.clear();
-		this.neighbors.clear();
+		this.options.clear();
 		this.history.length = 0;
 		this.remembered.clear();
 		this.active = undefined;

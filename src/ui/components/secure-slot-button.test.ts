@@ -7,6 +7,10 @@ afterEach(() => vi.unstubAllGlobals());
 it("refreshes the actual secure slot on page changes and cleans pooled frames for reuse", () => {
 	vi.stubGlobal("UIParent", {});
 	const formatter = {
+		SetDefaultAbbreviation: vi.fn(),
+		SetConvertToLower: vi.fn(),
+		SetStripIntervalWhitespace: vi.fn(),
+		SetDesiredUnitCount: vi.fn(),
 		SetMaxInterval: vi.fn(),
 		SetMinInterval: vi.fn(),
 		SetMillisecondsThreshold: vi.fn(),
@@ -153,7 +157,12 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	);
 	expect(frames.at(2)?.SetHideCountdownNumbers).toHaveBeenCalledWith(false);
 	expect(frames.at(2)?.SetCountdownFormatter).toHaveBeenCalledWith(formatter);
-	expect(formatter.SetMaxInterval).toHaveBeenCalledWith(0);
+	expect(formatter.SetDefaultAbbreviation).toHaveBeenCalledWith(2);
+	expect(formatter.SetConvertToLower).toHaveBeenCalledWith(true);
+	expect(formatter.SetStripIntervalWhitespace).toHaveBeenCalledWith(2);
+	expect(formatter.SetDesiredUnitCount).toHaveBeenCalledWith(1);
+	expect(formatter.SetMaxInterval).toHaveBeenCalledWith(1);
+	expect(formatter.SetMinInterval).toHaveBeenCalledWith(0);
 	// Actions without a cooldown or charges return no duration object at runtime.
 	const before =
 		frames.at(1)?.SetCooldownFromDurationObject.mock.calls.length ?? 0;
@@ -179,6 +188,39 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	expect(unregister).toHaveBeenCalledWith(frames.at(0), "slot");
 	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith("type", undefined);
 	expect(frames.at(1)?.Clear).toHaveBeenCalledTimes(3);
+	const reused = new SecureSlotButton(pool);
+	const response = 'self:SetAttribute("action", 121)';
+	const jumpIcon = "Interface\\AddOns\\SteamDeckUI\\assets\\Jump.png";
+	const jumpRead = vi.fn((slot: number) =>
+		slot === 0 ? { icon: jumpIcon } : read(slot),
+	);
+	reused.configure(
+		"A",
+		110,
+		56,
+		0,
+		{ condition: "[vehicleui] vehicle; main", response },
+		jumpRead,
+	);
+	expect(texture.SetTexture).toHaveBeenLastCalledWith(jumpIcon);
+	action = 148;
+	changed(frames.at(0), "action");
+	expect(texture.SetTexture).toHaveBeenLastCalledWith(148);
+	const cooldownClears = frames.at(2)?.Clear.mock.calls.length ?? 0;
+	action = 0;
+	changed(frames.at(0), "action");
+	expect(texture.SetTexture).toHaveBeenLastCalledWith(jumpIcon);
+	expect(frames.at(2)?.Clear).toHaveBeenCalledTimes(cooldownClears + 1);
+	expect(register).toHaveBeenLastCalledWith(
+		frames.at(0),
+		"slot",
+		"[vehicleui] vehicle; main",
+	);
+	expect(frames.at(0)?.SetAttribute).toHaveBeenCalledWith(
+		"_onstate-slot",
+		response,
+	);
+	reused.destroy();
 	new SecureSlotButton(pool);
 	expectButtonAnchors();
 	expect(create).toHaveBeenCalledTimes(3);

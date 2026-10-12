@@ -7,8 +7,10 @@ import { PanelContainer } from "./panel-container";
 it.each(["left", "right"] as const)(
 	"keeps %s tabs flush against the container while switching panels",
 	(position) => {
-		const navigation = new NavigationManager(createTestEventBus());
+		const events = createTestEventBus();
+		const navigation = new NavigationManager(events);
 		const frame = {
+			setFocusBorder: vi.fn(),
 			onClose: vi.fn(),
 			dock: vi.fn(),
 			show: vi.fn(),
@@ -102,15 +104,96 @@ it.each(["left", "right"] as const)(
 		expect(frame.hide).toHaveBeenCalled();
 		container.swapPanel(first);
 		expect(buttons).toHaveLength(2);
-		navigation.moveDown();
-		expect(navigation.focusedId).toBe(`${position}-tab-second`);
-		navigation.interact();
+		expect(navigation.focusedId).toBeUndefined();
+		events.emit("NAV_PANEL_NEXT");
 		expect(container.activePanelId).toBe("second");
-		expect(navigation.focusedId).toBe(`${position}-tab-second`);
+		events.emit("NAV_PANEL_NEXT");
+		expect(container.activePanelId).toBe("first");
+		events.emit("NAV_PANEL_PREVIOUS");
+		expect(container.activePanelId).toBe("second");
 		container.clear();
 		expect(navigation.focusedId).toBeUndefined();
 	},
 );
+
+it("switches content with bumpers, moves the gold border with triggers and restores item focus", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const makeFrame = () => ({
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		destroy: vi.fn(),
+		setFocusBorder: vi.fn(),
+	});
+	const leftFrame = makeFrame();
+	const rightFrame = makeFrame();
+	const selected = vi.fn();
+	const left = new PanelContainer(
+		"left",
+		"left",
+		leftFrame as unknown as Frame,
+		undefined,
+		selected,
+		navigation,
+		{ right: "right" },
+	);
+	const right = new PanelContainer(
+		"right",
+		"right",
+		rightFrame as unknown as Frame,
+		undefined,
+		undefined,
+		navigation,
+		{ left: "left" },
+	);
+	const makePanel = (id: string) => ({
+		id,
+		title: id,
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [
+			[0, 1].map((index) => ({
+				navId: `${id}-${index}`,
+				onFocus: vi.fn(),
+				onBlur: vi.fn(),
+				onInteract: vi.fn(),
+			})),
+		],
+	});
+	const paperDoll = makePanel("paper-doll");
+	const titles = makePanel("titles");
+	const bags = makePanel("bags");
+	left.registerPanel(paperDoll);
+	left.registerPanel(titles);
+	left.swapPanel(paperDoll);
+	right.swapPanel(bags);
+	expect(leftFrame.setFocusBorder).toHaveBeenLastCalledWith(false);
+	expect(rightFrame.setFocusBorder).toHaveBeenLastCalledWith(true);
+	events.emit("NAV_RIGHT");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(leftFrame.setFocusBorder).toHaveBeenLastCalledWith(true);
+	expect(rightFrame.setFocusBorder).toHaveBeenLastCalledWith(false);
+	events.emit("NAV_PANEL_NEXT");
+	expect(selected).toHaveBeenCalledExactlyOnceWith(titles);
+	expect(paperDoll.onUnmount).toHaveBeenCalledOnce();
+	expect(titles.onMount).toHaveBeenCalledOnce();
+	expect(left.activePanelId).toBe("titles");
+	expect(right.activePanelId).toBe("bags");
+	expect(navigation.focusedId).toBe("titles-0");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(navigation.focusedId).toBe("bags-1");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(navigation.focusedId).toBe("titles-0");
+	left.popPanel();
+	expect(leftFrame.setFocusBorder).toHaveBeenLastCalledWith(false);
+	expect(rightFrame.setFocusBorder).toHaveBeenLastCalledWith(true);
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(navigation.focusedId).toBe("bags-1");
+	right.clear();
+	expect(rightFrame.setFocusBorder).toHaveBeenLastCalledWith(false);
+});
 
 it.each(["left", "right", "fullscreen"] as const)(
 	"closes the entire %s container through the shared frame close handler and can reopen",

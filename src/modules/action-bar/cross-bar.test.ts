@@ -42,7 +42,8 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	const client = {
 		bind: vi.fn(),
 		read: vi.fn(),
-		getSlotDriver: (slot: number) => `slot-${slot}`,
+		getSlotDriver: (slot: number, command?: string) =>
+			command ? `slot-${slot}-${command}` : `slot-${slot}`,
 	};
 	const view = new CrossBar({}, client);
 	view.initialize();
@@ -51,20 +52,20 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	expect(
 		configure.mock.calls.map(([label, x, y, slot]) => [label, x, y, slot]),
 	).toEqual([
-		["↑", -200, 106, 1],
-		["→", -150, 81, 2],
-		["↓", -200, 56, 3],
-		["←", -250, 81, 4],
-		["|cffffe74fY|r", 200, 106, 5],
-		["|cffff4451B|r", 250, 81, 6],
-		["|cff52c14eA|r", 200, 56, 7],
-		["|cff00a2ffX|r", 150, 81, 8],
+		["↑", -200, 106, 5],
+		["→", -150, 81, 6],
+		["↓", -200, 56, 7],
+		["←", -250, 81, 8],
+		["|cffffe74fY|r", 200, 106, 2],
+		["|cffff4451B|r", 250, 81, 3],
+		["|cff52c14eA|r", 200, 56, 0],
+		["|cff00a2ffX|r", 150, 81, 1],
 		["RT", 100, 56, 9],
 		["RB", 100, 106, 10],
 	]);
 	for (const call of configure.mock.calls) {
 		const slot = call.at(3);
-		expect(call.at(4)).toBe(`slot-${slot}`);
+		expect(call.at(4)).toBe(slot === 0 ? "slot-4-JUMP" : `slot-${slot}`);
 	}
 	expect(indicators).toHaveLength(2);
 	for (const indicator of indicators)
@@ -105,7 +106,11 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 			"PAD3",
 			"PADRTRIGGER",
 			"PADRSHOULDER",
-		].map((key) => ({ key, target })),
+		].map((key) =>
+			key === "PAD1"
+				? { key, target, defaultCommand: "JUMP" }
+				: { key, target },
+		),
 	);
 	view.refresh();
 	expect(refresh).toHaveBeenCalledTimes(10);
