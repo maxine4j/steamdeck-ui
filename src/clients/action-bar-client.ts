@@ -1,5 +1,6 @@
 import type { WowFrame } from "../types";
 import type { IFrameSuppression } from "../ui/components/frame-suppression";
+import type { RadialDriver } from "../ui/components/secure-radial-menu";
 import type {
 	BindingTarget,
 	CooldownDuration,
@@ -38,12 +39,14 @@ export interface ActionBinding {
 	key: string;
 	target: BindingTarget;
 	defaultCommand?: "JUMP";
+	prefixes?: readonly ("" | "SHIFT-" | "CTRL-" | "CTRL-SHIFT-")[];
 }
 export interface IActionBarClient {
 	canModify(): boolean;
 	disableBuiltIn(): void;
 	syncBuiltInVisibility(): void;
-	getSlotDriver(slot: number, defaultCommand?: "JUMP"): SlotDriver;
+	getSlotDriver(slot: number, defaultCommand?: "JUMP" | "RING"): SlotDriver;
+	getRingDriver(): RadialDriver;
 	read(slot: number): SlotVisual;
 	bind(bindings: readonly ActionBinding[]): void;
 	restore(): void;
@@ -69,7 +72,7 @@ export class ActionBarClient implements IActionBarClient {
 		]);
 		this.suppressed = true;
 	}
-	getSlotDriver(slot: number, defaultCommand?: "JUMP"): SlotDriver {
+	getSlotDriver(slot: number, defaultCommand?: "JUMP" | "RING"): SlotDriver {
 		// Retail Edit Mode bars 6/7/8 use action pages 13/14/15 (ConsolePort Actionbar.lua).
 		// Distinct states trigger the secure handler when the main bar changes.
 		const mainConditions = [
@@ -82,7 +85,7 @@ export class ActionBarClient implements IActionBarClient {
 			"main",
 		].join("; ");
 		return {
-			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : mainConditions}`,
+			condition: `[mod:shift,mod:ctrl] ${168 + slot}; [mod:shift] ${144 + slot}; [mod:ctrl] ${156 + slot}; ${defaultCommand === "JUMP" ? "0" : defaultCommand === "RING" ? "-1" : mainConditions}`,
 			// Restricted WoW handlers expose these APIs without the C_ActionBar namespace.
 			// Resolve pages at transition time, including transitions during combat.
 			response: `
@@ -103,6 +106,27 @@ if not action then
 	action = (page - 1) * 12 + ${slot}
 end
 self:SetAttribute("action", action)`,
+		};
+	}
+	getRingDriver(): RadialDriver {
+		// Edit Mode bar 5 is MultiBarLeft, action page 4 (slots 37–48).
+		let rightStick = 2;
+		for (let index = 0; index < 8; index++) {
+			const name = C_GamePad.StickIndexToConfigName(index);
+			if (!name) break;
+			if (name === "Right") {
+				rightStick = index + 1;
+				break;
+			}
+		}
+		return {
+			slots: Array.from({ length: 12 }, (_, i) => 37 + i),
+			occupied: "return HasAction(slot)",
+			position: `local state = GetGamePadState()
+local pos = state and state.sticks and state.sticks[${rightStick}]
+if pos then return pos.x, pos.y, pos.len end`,
+			stick: "Right",
+			virtualStick: "Camera",
 		};
 	}
 	syncBuiltInVisibility(): void {
@@ -131,6 +155,7 @@ self:SetAttribute("action", action)`,
 		} else this.disableBuiltIn();
 	}
 	read(slot: number): SlotVisual {
+		if (slot === -1) return { icon: "Interface\\Icons\\INV_Misc_EngGizmos_19" };
 		// Zero is the presentation state for the native jump binding, not an action slot.
 		if (slot === 0)
 			return { icon: "Interface\\AddOns\\SteamDeckUI\\assets\\Jump.png" };
@@ -146,9 +171,9 @@ self:SetAttribute("action", action)`,
 		};
 	}
 	bind(bindings: readonly ActionBinding[]): void {
-		for (const { key, target, defaultCommand } of bindings) {
+		for (const { key, target, defaultCommand, prefixes } of bindings) {
 			if (!this.owners.includes(target.owner)) this.owners.push(target.owner);
-			for (const prefix of ["", "SHIFT-", "CTRL-", "CTRL-SHIFT-"]) {
+			for (const prefix of prefixes ?? ["", "SHIFT-", "CTRL-", "CTRL-SHIFT-"]) {
 				if (prefix === "" && defaultCommand)
 					SetOverrideBinding(target.owner, false, key, defaultCommand);
 				else

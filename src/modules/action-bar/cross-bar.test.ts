@@ -52,7 +52,7 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	expect(
 		configure.mock.calls.map(([label, x, y, slot]) => [label, x, y, slot]),
 	).toEqual([
-		["↑", -200, 106, 5],
+		["↑", -200, 106, -1],
 		["→", -150, 81, 6],
 		["↓", -200, 56, 7],
 		["←", -250, 81, 8],
@@ -65,7 +65,9 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 	]);
 	for (const call of configure.mock.calls) {
 		const slot = call.at(3);
-		expect(call.at(4)).toBe(slot === 0 ? "slot-4-JUMP" : `slot-${slot}`);
+		expect(call.at(4)).toBe(
+			slot === -1 ? "slot-5-RING" : slot === 0 ? "slot-4-JUMP" : `slot-${slot}`,
+		);
 	}
 	expect(indicators).toHaveLength(2);
 	for (const indicator of indicators)
@@ -107,9 +109,11 @@ it("uses the minimal crossbar layout with ten actions and two unbound modifier i
 			"PADRTRIGGER",
 			"PADRSHOULDER",
 		].map((key) =>
-			key === "PAD1"
-				? { key, target, defaultCommand: "JUMP" }
-				: { key, target },
+			key === "PADDUP"
+				? { key, target, prefixes: ["SHIFT-", "CTRL-", "CTRL-SHIFT-"] }
+				: key === "PAD1"
+					? { key, target, defaultCommand: "JUMP" }
+					: { key, target },
 		),
 	);
 	view.refresh();

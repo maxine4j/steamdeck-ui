@@ -4,6 +4,13 @@ export class WowFrameFactory implements FrameFactory {
 	private nextSecureId = 0;
 	private nextTooltipId = 0;
 	createFrame(type: FrameType): WowFrame {
+		if (type === "SecureFrame")
+			return CreateFrame(
+				"Frame",
+				undefined,
+				UIParent,
+				"SecureHandlerBaseTemplate",
+			);
 		if (type === "GameTooltip")
 			return CreateFrame(
 				"GameTooltip",
@@ -17,6 +24,13 @@ export class WowFrameFactory implements FrameFactory {
 				`SteamDeckUISecureButton${++this.nextSecureId}`,
 				UIParent,
 				"SecureActionButtonTemplate,SecureHandlerStateTemplate,SecureHandlerDragTemplate",
+			);
+		if (type === "SecureRingButton")
+			return CreateFrame(
+				"Button",
+				`SteamDeckUISecureRing${++this.nextSecureId}`,
+				UIParent,
+				"SecureActionButtonTemplate,SecureHandlerBaseTemplate",
 			);
 		if (type === "Cooldown")
 			return CreateFrame(

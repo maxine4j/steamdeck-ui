@@ -15,3 +15,16 @@ it("creates secure slot buttons with native action, paging, and drag handlers", 
 		"SecureActionButtonTemplate,SecureHandlerStateTemplate,SecureHandlerDragTemplate",
 	);
 });
+
+it("creates explicitly protected containers for restricted frame anchoring", () => {
+	vi.stubGlobal("UIParent", {});
+	const create = vi.fn();
+	vi.stubGlobal("CreateFrame", create);
+	new WowFrameFactory().createFrame("SecureFrame");
+	expect(create).toHaveBeenCalledExactlyOnceWith(
+		"Frame",
+		undefined,
+		UIParent,
+		"SecureHandlerBaseTemplate",
+	);
+});

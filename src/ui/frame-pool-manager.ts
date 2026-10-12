@@ -2,9 +2,11 @@ import type { WowFrame, WowTexture } from "../types";
 export type FrameType =
 	| "GameTooltip"
 	| "Frame"
+	| "SecureFrame"
 	| "Button"
 	| "SecureButton"
 	| "SecureStateButton"
+	| "SecureRingButton"
 	| "Cooldown"
 	| "EditBox"
 	| "StatusBar"

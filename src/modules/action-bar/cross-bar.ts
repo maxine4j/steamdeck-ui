@@ -64,14 +64,24 @@ export class CrossBar {
 					control.label,
 					control.x,
 					control.y,
-					control.defaultCommand ? 0 : control.slot,
-					this.client.getSlotDriver(control.slot, control.defaultCommand),
+					control.key === "PADDUP"
+						? -1
+						: control.defaultCommand
+							? 0
+							: control.slot,
+					this.client.getSlotDriver(
+						control.slot,
+						control.key === "PADDUP" ? "RING" : control.defaultCommand,
+					),
 					this.read,
 				);
 				return {
 					key: control.key,
 					target: button.getBindingTarget(),
 					defaultCommand: control.defaultCommand,
+					...(control.key === "PADDUP"
+						? { prefixes: ["SHIFT-", "CTRL-", "CTRL-SHIFT-"] as const }
+						: {}),
 				};
 			}),
 		);

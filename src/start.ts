@@ -7,6 +7,7 @@ import type { IReputationClient } from "./clients/reputation-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IEventBus } from "./events/types";
+import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
 import { CrossBar } from "./modules/action-bar/cross-bar";
 import { BagsModule } from "./modules/bags/bags-module";
@@ -86,8 +87,23 @@ export function startSteamDeckUI(
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
 	modules.register(new ControllerInputModule(controller));
+	const crossBar = new CrossBar(pool, actions);
+	const abilityRing = new AbilityRing(pool, actions);
 	modules.register(
-		new ActionBarModule(events, actions, new CrossBar(pool, actions)),
+		new ActionBarModule(events, actions, {
+			initialize(): void {
+				crossBar.initialize();
+				abilityRing.initialize();
+			},
+			refresh(): void {
+				crossBar.refresh();
+				abilityRing.refresh();
+			},
+			destroy(): void {
+				abilityRing.destroy();
+				crossBar.destroy();
+			},
+		}),
 	);
 	const builtInMounts = new BuiltInMounts(new FrameSuppression(pool), events);
 	const mountsPanel = new MountsPanel(
