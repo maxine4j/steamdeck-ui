@@ -22,6 +22,7 @@ export interface IMountsClient {
 			count: { collected: number; total: number },
 		) => void,
 		onFirstPage?: (mounts: Mount[]) => void,
+		onProgress?: (completed: number, total: number) => void,
 	): () => void;
 	summon(id: number): void;
 	pickupRandom(): void;
@@ -43,6 +44,7 @@ export class MountsClient implements IMountsClient {
 			count: { collected: number; total: number },
 		) => void,
 		onFirstPage?: (mounts: Mount[]) => void,
+		onProgress?: (completed: number, total: number) => void,
 	): () => void {
 		const mounts: Mount[] = [];
 		let ids: number[] | undefined;
@@ -84,6 +86,8 @@ export class MountsClient implements IMountsClient {
 				}
 				remaining--;
 			}
+			onProgress?.(index - 1 + countIndex, displayed + ids.length);
+			if (cancelled) return;
 			if (index <= displayed || countIndex < ids.length)
 				cancel = this.scheduler.nextFrame(step);
 			else callback(mounts, { collected, total });

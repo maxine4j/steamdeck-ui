@@ -158,10 +158,12 @@ it("loads the journal across frames and cancels an obsolete load", () => {
 	});
 	const client = new MountsClient({ nextFrame });
 	const done = vi.fn();
-	client.load(done);
+	const progress = vi.fn();
+	client.load(done, undefined, progress);
 	expect(displayed).not.toHaveBeenCalled();
 	pending.shift()?.();
 	expect(displayed).toHaveBeenCalledTimes(20);
+	expect(progress).toHaveBeenLastCalledWith(20, 48);
 	expect(done).not.toHaveBeenCalled();
 	pending.shift()?.();
 	expect(displayed).toHaveBeenCalledTimes(40);
@@ -169,6 +171,7 @@ it("loads the journal across frames and cancels an obsolete load", () => {
 	expect(done).toHaveBeenCalledOnce();
 	expect(done.mock.lastCall?.at(0)).toHaveLength(44);
 	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 3, total: 3 });
+	expect(progress).toHaveBeenLastCalledWith(48, 48);
 	const obsolete = vi.fn();
 	const cancel = client.load(obsolete);
 	pending.shift()?.();

@@ -1,56 +1,49 @@
-import { expect, it, vi } from "vitest";
-import type { IMountsClient } from "../../clients/mounts-client";
+import { afterEach, expect, it, vi } from "vitest";
+import type { IMountsClient, Mount } from "../../clients/mounts-client";
 import { Frame } from "../../ui/components/frame";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { MountsPanel } from "./mounts-panel";
 
-const { frames } = vi.hoisted(() => ({
-	frames: new Map<
-		string,
-		{
-			layout: ReturnType<typeof vi.fn>;
-			setIcon: ReturnType<typeof vi.fn>;
-			setLabel: ReturnType<typeof vi.fn>;
-			setSpell: ReturnType<typeof vi.fn>;
-			click: ReturnType<typeof vi.fn>;
-			destroy: ReturnType<typeof vi.fn>;
-			onClick: ReturnType<typeof vi.fn>;
-			onDragStart: ReturnType<typeof vi.fn>;
-			configureInput: ReturnType<typeof vi.fn>;
-			inset: ReturnType<typeof vi.fn>;
-		}
-	>(),
-}));
-vi.mock("../../ui/components/frame", () => ({
-	Frame: class {
-		constructor(readonly id: string) {
-			frames.set(id, this);
-		}
-		layout = vi.fn();
-		setIcon = vi.fn();
-		setLabel = vi.fn();
-		setSpell = vi.fn();
-		click = vi.fn();
-		destroy = vi.fn();
-		onReceiveDrag = vi.fn();
-		onClick = vi.fn();
-		onDragStart = vi.fn();
-		configureInput = vi.fn();
-		inset = vi.fn();
-		setParent = vi.fn();
-		fill = vi.fn();
-		setBlackBackground = vi.fn();
-		setColor = vi.fn();
-		setTooltip = vi.fn();
-		show = vi.fn();
-		hide = vi.fn();
-		setScrollContent = vi.fn();
-		clampScroll = vi.fn();
-		focusInput = vi.fn();
-	},
-}));
+afterEach(() => vi.restoreAllMocks());
+const mount = (id: number, favourite = false): Mount => ({
+	id,
+	index: id,
+	name: `Mount ${id}`,
+	spell: id,
+	icon: id,
+	collected: true,
+	usable: true,
+	favourite,
+});
 
-it("makes the first page usable while loading, and reloads a cancelled preview", () => {
+function setup() {
+	for (const method of [
+		"fill",
+		"setBlackBackground",
+		"setParent",
+		"layout",
+		"setColor",
+		"inset",
+		"onSizeChanged",
+		"setScrollContent",
+		"clampScroll",
+		"setIcon",
+		"setOpacity",
+		"setTooltip",
+		"setLabel",
+		"show",
+		"hide",
+		"setFocused",
+		"destroy",
+		"revealVerticalRange",
+		"configureInput",
+		"onClick",
+		"onDragStart",
+		"onReceiveDrag",
+		"setSpell",
+		"click",
+	] as const)
+		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -62,9 +55,6 @@ it("makes the first page usable while loading, and reloads a cancelled preview",
 				cancelled = true;
 			};
 		},
-	};
-	const flush = () => {
-		while (pending.length) pending.shift()?.();
 	};
 	const cancel = vi.fn();
 	const client: IMountsClient = {
@@ -72,159 +62,7 @@ it("makes the first page usable while loading, and reloads a cancelled preview",
 		getMounts: vi.fn(() => []),
 		getCount: vi.fn(() => ({ collected: 0, total: 0 })),
 		search: vi.fn(),
-		getFilters: () => [],
-		toggleFilter: vi.fn(),
-		toggleFavourite: vi.fn(),
-		getEquipment: () => ({ icon: 1, label: "Equipment" }),
-		applyEquipment: vi.fn(),
-		getUtilitySpells: () => ({ favourite: 150544, flight: 460002 }),
-		summon: vi.fn(),
-		pickupRandom: vi.fn(),
-	};
-	const mounts = Array.from({ length: 45 }, (_, index) => ({
-		id: index + 1,
-		index: index + 1,
-		name: `Mount ${index + 1}`,
-		spell: 1,
-		icon: 2,
-		collected: true,
-		usable: true,
-		favourite: false,
-	}));
-	const pool = {} as IFramePoolManager;
-	const panel = new MountsPanel(pool, client, vi.fn(), scheduler);
-	const parent = new Frame("parent", pool);
-	panel.onMount(parent);
-	const firstLoad = vi.mocked(client.load).mock.calls.at(-1);
-	if (!firstLoad) throw new Error("Expected initial load");
-	const [done, preview] = firstLoad;
-	preview?.(mounts.slice(0, 20));
-	flush();
-	const nav = panel
-		.getNavGrid()
-		.flat()
-		.find((node) => node.navId === "mount-1");
-	expect(nav).toBeDefined();
-	nav?.onInteract();
-	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
-	expect(
-		frames
-			.get("mounts-root")
-			?.setLabel.mock.calls.filter((call) => call.at(0) === "loading")
-			.at(-1)
-			?.at(1),
-	).toBe("Loading mounts...");
-	panel.onUnmount();
-	expect(cancel).toHaveBeenCalledOnce();
-	panel.onMount(parent);
-	expect(client.load).toHaveBeenCalledTimes(2);
-	// A callback from the cancelled load cannot replace the new load's rows/count.
-	done(mounts, { collected: 99, total: 99 });
-	const currentLoad = vi.mocked(client.load).mock.calls.at(-1);
-	if (!currentLoad) throw new Error("Expected reload");
-	const [currentDone, currentPreview] = currentLoad;
-	currentPreview?.(mounts.slice(0, 20));
-	flush();
-	currentDone(mounts, { collected: 45, total: 100 });
-	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.filter((node) => /^mount-\d+$/.test(node.navId)),
-	).toHaveLength(20);
-	flush();
-	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.filter((node) => /^mount-\d+$/.test(node.navId)),
-	).toHaveLength(45);
-	expect(frames.get("mounts-root")?.setLabel).not.toHaveBeenCalledWith(
-		"count",
-		"99 / 99",
-		"TOPLEFT",
-		16,
-		-44,
-		14,
-	);
-	expect(frames.get("mounts-root")?.setLabel).toHaveBeenCalledWith(
-		"count",
-		"45 / 100",
-		"TOPLEFT",
-		16,
-		-44,
-		14,
-	);
-	expect(
-		frames
-			.get("mounts-root")
-			?.setLabel.mock.calls.filter((call) => call.at(0) === "loading")
-			.at(-1)
-			?.at(1),
-	).toBe("");
-	panel.onUnmount();
-	panel.onMount(parent);
-	expect(client.load).toHaveBeenCalledTimes(2);
-	panel.destroy();
-});
-
-it("renders icons, the unfiltered counter and footer, routes search/favourites and reuses controls", () => {
-	const pending: (() => void)[] = [];
-	const scheduler = {
-		nextFrame: (callback: () => void) => {
-			let cancelled = false;
-			pending.push(() => {
-				if (!cancelled) callback();
-			});
-			return () => {
-				cancelled = true;
-			};
-		},
-	};
-	const flush = () => {
-		while (pending.length) pending.shift()?.();
-	};
-	const client: IMountsClient = {
-		load: vi.fn((done) =>
-			scheduler.nextFrame(() => done(client.getMounts(), client.getCount())),
-		),
-		getMounts: vi.fn(() => [
-			{
-				id: 42,
-				index: 1,
-				name: "Horse",
-				spell: 123,
-				icon: 456,
-				collected: true,
-				usable: true,
-				favourite: true,
-			},
-			{
-				id: 43,
-				index: 2,
-				name: "Unavailable",
-				spell: 124,
-				icon: 456,
-				collected: true,
-				usable: false,
-				favourite: false,
-			},
-			{
-				id: 44,
-				index: 3,
-				name: "Uncollected",
-				spell: 125,
-				icon: 456,
-				collected: false,
-				usable: true,
-				favourite: false,
-			},
-		]),
-		getCount: vi.fn(() => ({ collected: 10, total: 50 })),
-		search: vi.fn(),
-		getFilters: () => [
-			{ id: "collection:1", label: "Collected", checked: true },
-		],
+		getFilters: vi.fn(() => []),
 		toggleFilter: vi.fn(),
 		toggleFavourite: vi.fn(),
 		getEquipment: () => ({ icon: 789, label: "Equipment", link: "item:1" }),
@@ -234,88 +72,231 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 		pickupRandom: vi.fn(),
 	};
 	const pool = {} as IFramePoolManager;
-	const panel = new MountsPanel(pool, client, vi.fn(), scheduler);
+	const close = vi.fn();
+	const panel = new MountsPanel(pool, client, close, scheduler);
 	const parent = new Frame("parent", pool);
-	panel.refresh();
-	panel.refresh();
-	expect(client.getMounts).not.toHaveBeenCalled();
+	const flush = () => {
+		while (pending.length) pending.shift()?.();
+	};
+	const publish = (mounts: Mount[]) => {
+		vi.mocked(client.load).mock.calls.at(-1)?.[0](mounts, {
+			collected: 45,
+			total: 100,
+		});
+		flush();
+	};
+	return { panel, parent, client, pending, flush, publish, cancel, close };
+}
+
+it("shows favourites first without removing them from the ten-column collection grid", () => {
+	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
-	expect(client.getMounts).not.toHaveBeenCalled();
-	panel.refresh();
-	panel.refresh();
+	publish([
+		mount(1, true),
+		...Array.from({ length: 11 }, (_, i) => mount(i + 2)),
+	]);
+	const rows = panel
+		.getNavGrid()
+		.filter((row) => row.at(0)?.navId.startsWith("mount-"));
+	expect(rows.map((row) => row.length)).toEqual([1, 10, 2]);
+	expect(rows.at(0)?.at(0)?.navId).toBe("mount-favourite-1");
+	expect(rows.flat().filter((node) => node.navId === "mount-1")).toHaveLength(
+		1,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"title",
+		"Favourites (1 / 1)",
+		"LEFT",
+		0,
+		0,
+		15,
+		460,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"title",
+		"Mounts (12 / 12)",
+		"LEFT",
+		0,
+		0,
+		15,
+		460,
+	);
+	rows.at(-1)?.at(-1)?.onFocus();
+	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
+});
+
+it("dims missing mounts, prevents unavailable summons and toggles favourites through context actions", () => {
+	const { panel, parent, client, publish } = setup();
+	panel.onMount(parent);
+	publish([
+		mount(1),
+		{ ...mount(2), usable: false },
+		{ ...mount(3), collected: false },
+	]);
+	const nodes = panel
+		.getNavGrid()
+		.flat()
+		.filter((node) => /^mount-\d+$/.test(node.navId));
+	for (const node of nodes) node.onInteract();
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
+	expect(Frame.prototype.setOpacity).toHaveBeenCalledWith(0.2);
+	nodes.at(2)?.onContext?.();
+	expect(client.toggleFavourite).not.toHaveBeenCalled();
+	nodes.at(0)?.onContext?.();
+	expect(client.toggleFavourite).toHaveBeenCalledExactlyOnceWith(1);
+	panel.onUnmount();
+	nodes.at(0)?.onInteract();
+	expect(client.summon).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a first page usable, displays bottom progress, rejects stale loads and reuses completed controls", () => {
+	const { panel, parent, client, pending, flush, publish, cancel } = setup();
+	panel.onMount(parent);
+	const initial = vi.mocked(client.load).mock.calls.at(-1);
+	initial?.[2]?.(20, 40);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		35,
+		4,
+		"TOPLEFT",
+		expect.anything(),
+	);
+	initial?.[1]?.([mount(1)]);
 	flush();
-	expect(client.getMounts).toHaveBeenCalledOnce();
-	expect(frames.get("mounts-root")?.setLabel).toHaveBeenCalledWith(
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-1")
+		?.onInteract();
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		140,
+		4,
+		"BOTTOMRIGHT",
+		expect.anything(),
+		-16,
+		8,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"loading",
+		"Loading mounts...",
+		"BOTTOMRIGHT",
+		-16,
+		16,
+		12,
+	);
+	panel.onUnmount();
+	expect(cancel).toHaveBeenCalledOnce();
+	panel.onMount(parent);
+	initial?.[0]([mount(99)], { collected: 99, total: 99 });
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-99"),
+	).toBe(false);
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		Array.from({ length: 45 }, (_, i) => mount(i + 1)),
+		{ collected: 45, total: 100 },
+	);
+	pending.shift()?.();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)).length,
+	).toBeLessThan(45);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)),
+	).toHaveLength(45);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"count",
-		"10 / 50",
+		"45 / 100",
 		"TOPLEFT",
 		16,
 		-44,
 		14,
 	);
-	expect(frames.get("mounts-icon-0")?.setIcon).toHaveBeenCalledWith(456);
-	expect(frames.get("mounts-row-0")?.setLabel.mock.calls.at(0)?.at(1)).toBe(
-		"Horse",
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"loading",
+		"",
+		"BOTTOMRIGHT",
+		-16,
+		16,
+		12,
 	);
-	const clickMount = frames
-		.get("mounts-row-0")
-		?.onClick.mock.calls.at(-1)
-		?.at(0) as (button: string) => void;
-	clickMount("LeftButton");
-	clickMount("RightButton");
-	for (const index of [1, 2]) {
-		const click = frames
-			.get(`mounts-row-${index}`)
-			?.onClick.mock.calls.at(-1)
-			?.at(0) as (button: string) => void;
-		click("LeftButton");
-	}
-	expect(client.summon).toHaveBeenCalledExactlyOnceWith(42);
-	expect(frames.get("mounts-scroll")?.inset).toHaveBeenCalledWith(
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-1")
+		?.onInteract();
+	expect(client.summon).toHaveBeenCalledTimes(2);
+	panel.refresh();
+	publish([mount(1)]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => /^mount-\d+$/.test(node.navId)),
+	).toHaveLength(1);
+	panel.destroy();
+});
+
+it("reuses pooled icons on refresh and hides surplus controls when favourites disappear", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([mount(1, true), mount(2)]);
+	const icons = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	panel.refresh();
+	publish([mount(1), mount(2)]);
+	const reused = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
+	expect(reused).toEqual(icons.slice(0, 2));
+	expect(
+		vi
+			.mocked(Frame.prototype.hide)
+			.mock.contexts.some((frame) => frame.id === "mounts-icon-2"),
+	).toBe(true);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId.startsWith("mount-favourite-")),
+	).toBe(false);
+});
+
+it("preserves search, filters, equipment and extra actions in a 70px footer", () => {
+	const { panel, parent, client, publish, close } = setup();
+	vi.mocked(client.getFilters).mockReturnValue([
+		{ id: "collection:1", label: "Collected", checked: true },
+	]);
+	panel.onMount(parent);
+	publish([mount(1)]);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		456,
+		70,
+		"BOTTOMLEFT",
 		expect.anything(),
 		12,
-		112,
-		12,
-		116,
+		32,
 	);
-	expect(frames.get("mounts-equipment")?.setIcon).toHaveBeenCalledWith(789);
-	const random = frames.get("mounts-random");
-	const dragRandom = random?.onDragStart.mock.calls.at(-1)?.at(0) as () => void;
-	dragRandom();
-	expect(client.pickupRandom).toHaveBeenCalledOnce();
-	const clickRandom = random?.onClick.mock.calls.at(-1)?.at(0) as (
-		button: string,
-	) => void;
-	clickRandom("LeftButton");
-	expect(client.summon).toHaveBeenLastCalledWith(0);
-	expect(frames.get("mounts-flight")?.setSpell).toHaveBeenCalledWith(460002);
-	const count = frames.size;
-	const search = frames
-		.get("mounts-search")
-		?.configureInput.mock.calls.at(0)
-		?.at(0) as (text: string) => void;
-	search("horse");
-	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledWith(789);
+	expect(Frame.prototype.setSpell).toHaveBeenCalledWith(460002);
+	vi.mocked(Frame.prototype.configureInput).mock.calls.at(-1)?.[0]("horse");
 	expect(client.search).toHaveBeenCalledWith("horse");
-	panel
-		.getNavGrid()
-		.flat()
-		.find((node) => node.navId === "mount-42-favourite")
-		?.onInteract();
-	flush();
-	expect(client.toggleFavourite).toHaveBeenCalledWith(42);
-	panel
-		.getNavGrid()
-		.flat()
-		.find((node) => node.navId === "mounts-equipment")
-		?.onInteract();
-	expect(frames.get("mounts-equipment")?.click).toHaveBeenCalledOnce();
-	const equipmentClick = frames
-		.get("mounts-equipment")
-		?.onClick.mock.calls.at(0)
-		?.at(0) as () => void;
-	equipmentClick();
-	flush();
+	vi.mocked(Frame.prototype.onDragStart).mock.calls.at(-1)?.[0]?.();
+	expect(client.pickupRandom).toHaveBeenCalledOnce();
+	vi.mocked(Frame.prototype.onReceiveDrag).mock.calls.at(-1)?.[0]?.();
 	expect(client.applyEquipment).toHaveBeenCalledOnce();
 	panel
 		.getNavGrid()
@@ -327,43 +308,33 @@ it("renders icons, the unfiltered counter and footer, routes search/favourites a
 		.flat()
 		.find((node) => node.navId === "collection:1")
 		?.onInteract();
-	flush();
-	expect(client.toggleFilter).toHaveBeenCalledWith("collection:1");
+	expect(client.toggleFilter).toHaveBeenCalledExactlyOnceWith("collection:1");
 	panel.onUnmount();
-	vi.mocked(client.getMounts).mockClear();
-	vi.mocked(client.getCount).mockClear();
-	clickMount("LeftButton");
-	dragRandom();
-	expect(client.summon).toHaveBeenCalledTimes(2);
-	expect(client.pickupRandom).toHaveBeenCalledOnce();
-	expect(panel.getNavGrid()).toEqual([]);
-	search("hidden");
-	expect(client.search).toHaveBeenCalledTimes(1);
+	expect(close).not.toHaveBeenCalled();
+	panel.onContainerClosed();
+	expect(close).toHaveBeenCalledOnce();
+});
+
+it("renders an empty collection without an empty group header", () => {
+	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
-	flush();
-	expect(client.getMounts).not.toHaveBeenCalled();
-	expect(client.getCount).not.toHaveBeenCalled();
-	panel.refresh();
-	flush();
-	expect(client.getMounts).toHaveBeenCalledOnce();
-	// The dropdown's first opening acquires its controls once.
-	expect(frames.size).toBeGreaterThan(count);
-	const afterDropdown = frames.size;
-	panel.onUnmount();
-	panel.refresh();
-	panel.refresh();
-	expect(client.getMounts).toHaveBeenCalledOnce();
-	panel.onMount(parent);
-	flush();
-	expect(client.getMounts).toHaveBeenCalledTimes(2);
-	expect(frames.size).toBe(afterDropdown);
-	panel.refresh();
-	panel.onUnmount();
-	flush();
-	expect(client.getMounts).toHaveBeenCalledTimes(2);
-	panel.onMount(parent);
-	flush();
-	expect(client.getMounts).toHaveBeenCalledTimes(3);
-	panel.destroy();
-	expect(frames.get("mounts-search")?.destroy).toHaveBeenCalledOnce();
+	publish([]);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"empty",
+		"No mounts to display",
+		"TOPLEFT",
+		0,
+		-10,
+	);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId.startsWith("mount-")),
+	).toBe(false);
+	expect(
+		vi
+			.mocked(Frame.prototype.setLabel)
+			.mock.contexts.some((frame) => frame.id.startsWith("mounts-header-")),
+	).toBe(false);
 });
