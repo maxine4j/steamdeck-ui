@@ -3,6 +3,27 @@ import { DungeonFinderClient } from "./dungeon-finder-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reads and toggles request leader without changing combat roles", () => {
+	setup();
+	vi.stubGlobal("GetLFGRoles", () => [false, false, true, true]);
+	const set = vi.fn();
+	vi.stubGlobal("SetLFGRoles", set);
+	vi.stubGlobal("LFG_UpdateAllRoleCheckboxes", vi.fn());
+	vi.stubGlobal("LFDQueueFrame_UpdateRoleButtons", vi.fn());
+	const client = new DungeonFinderClient();
+	expect(client.getRoles()).toEqual({
+		leader: false,
+		tank: false,
+		healer: true,
+		damage: true,
+	});
+	client.toggleRole("leader");
+	expect(set).toHaveBeenCalledWith(true, false, true, true);
+	vi.stubGlobal("GetLFGMode", () => ["queued"]);
+	client.toggleRole("leader");
+	expect(set).toHaveBeenCalledOnce();
+});
+
 function setup() {
 	vi.stubGlobal("GetLFGMode", () => []);
 	vi.stubGlobal("GetNumRandomDungeons", () => 5);

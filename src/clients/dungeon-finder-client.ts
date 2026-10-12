@@ -1,5 +1,5 @@
 export type DungeonSection = "special" | "heroic" | "normal";
-export type DungeonRole = "tank" | "healer" | "damage";
+export type DungeonRole = "tank" | "healer" | "damage" | "leader";
 export interface RandomDungeon {
 	readonly id: number;
 	readonly name: string;
@@ -74,17 +74,21 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 			: undefined;
 	}
 	getRoles(): Record<DungeonRole, boolean> {
-		const [, tank, healer, damage] = GetLFGRoles();
-		return { tank, healer, damage };
+		const [leader, tank, healer, damage] = GetLFGRoles();
+		return { leader, tank, healer, damage };
 	}
 	toggleRole(role: DungeonRole): void {
 		if (this.isQueued()) return;
 		const [leader, tank, healer, damage] = GetLFGRoles();
-		const [canTank, canHeal, canDamage] = C_LFGList.GetAvailableRoles();
-		if (!(role === "tank" ? canTank : role === "healer" ? canHeal : canDamage))
-			return;
+		if (role !== "leader") {
+			const [canTank, canHeal, canDamage] = C_LFGList.GetAvailableRoles();
+			if (
+				!(role === "tank" ? canTank : role === "healer" ? canHeal : canDamage)
+			)
+				return;
+		}
 		SetLFGRoles(
-			leader,
+			role === "leader" ? !leader : leader,
 			role === "tank" ? !tank : tank,
 			role === "healer" ? !healer : healer,
 			role === "damage" ? !damage : damage,

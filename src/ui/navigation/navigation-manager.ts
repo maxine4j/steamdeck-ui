@@ -47,6 +47,7 @@ export class NavigationManager implements INavManager {
 	constructor(
 		private readonly events: IEventBus,
 		private readonly onActiveChanged?: (active: boolean) => void,
+		private readonly onFocusChanged?: (control?: INavigable) => void,
 	) {
 		for (const [event, handler] of this.handlers)
 			events.subscribe(event, handler);
@@ -118,11 +119,15 @@ export class NavigationManager implements INavManager {
 		else this.onActiveChanged?.(false);
 	}
 	private setFocus(control?: INavigable): void {
-		if (control === this.focused) return;
+		if (control === this.focused) {
+			this.onFocusChanged?.(control);
+			return;
+		}
 		this.focused?.onBlur();
 		this.focused = control;
 		if (control && this.active) this.remembered.set(this.active, control.navId);
 		control?.onFocus();
+		this.onFocusChanged?.(control);
 	}
 	private move(direction: NavDirection): void {
 		if (!this.active) return;

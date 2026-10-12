@@ -6,7 +6,11 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
 	const view = { refresh: vi.fn() };
-	const native = { disable: vi.fn(), restore: vi.fn(), isOpen: vi.fn(() => true) };
+	const native = {
+		disable: vi.fn(),
+		restore: vi.fn(),
+		isOpen: vi.fn(() => true),
+	};
 	const module = new MountsModule(ui, events, view, native);
 	module.disableBuiltIn();
 	module.initialize();

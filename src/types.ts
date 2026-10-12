@@ -64,7 +64,9 @@ export interface WowFrame {
 	Show(): void;
 	Hide(): void;
 	SetParent(parent?: WowFrame): void;
-	SetFrameStrata(strata: "PARENT" | "DIALOG" | "FULLSCREEN_DIALOG"): void;
+	SetFrameStrata(
+		strata: "PARENT" | "DIALOG" | "FULLSCREEN_DIALOG" | "TOOLTIP",
+	): void;
 	ClearAllPoints(): void;
 	SetPoint(
 		point: string,
