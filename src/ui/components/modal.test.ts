@@ -39,6 +39,21 @@ it("moves the active gold border to the modal and restores panel focus on close"
 	);
 	const selected = vi.fn();
 	modal.open("Item actions", [{ id: "use", label: "Use", select: selected }]);
+	modal.open(
+		"Marks • 125 / 500",
+		[{ id: "watch", label: "Watch", select: selected }],
+		undefined,
+		"left",
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"title",
+		"Marks • 125 / 500",
+		"TOPLEFT",
+		20,
+		-20,
+		18,
+		328,
+	);
 	expect(panelActive).toHaveBeenLastCalledWith(false);
 	expect(borders).toHaveBeenLastCalledWith(true);
 	expect(borders.mock.contexts.at(-1)?.id).toBe("item-actions-window");

@@ -13,6 +13,7 @@ export interface IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: string | number,
+		titleAlignment?: "left" | "right",
 	): void;
 	close(): void;
 }
@@ -46,6 +47,7 @@ export class Modal implements IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: string | number,
+		titleAlignment: "left" | "right" = "right",
 	): void {
 		this.backdrop.modalBackdrop();
 		this.backdrop.setColor(0, 0, 0, 0.65);
@@ -78,7 +80,15 @@ export class Modal implements IModal {
 		}
 		this.window.layout(width, height, "CENTER", this.backdrop);
 		this.window.setFocusBorder(true);
-		this.window.setLabel("title", title, "TOPRIGHT", -20, -20, 18, optionWidth);
+		this.window.setLabel(
+			"title",
+			title,
+			titleAlignment === "left" ? "TOPLEFT" : "TOPRIGHT",
+			titleAlignment === "left" ? 20 : -20,
+			-20,
+			18,
+			optionWidth,
+		);
 		this.window.setLabel(
 			"hint",
 			"A: Select   B: Cancel",
