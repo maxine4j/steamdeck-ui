@@ -129,6 +129,32 @@ it("defers secure frame creation and rendering until combat ends", () => {
 	expect(Frame.prototype.setToy).toHaveBeenCalledWith(1);
 });
 
+it("shows collected and total counts including favourites in expansion headers", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([toy(1, 10, true), { ...toy(2, 10), collected: false }, toy(3, 0)]);
+	const titles = vi
+		.mocked(Frame.prototype.setLabel)
+		.mock.calls.filter(([key]) => key === "title")
+		.map(([, label]) => label);
+	expect(titles).toEqual([
+		"Favourites (1 / 1)",
+		"The War Within (1 / 2)",
+		"Classic (1 / 1)",
+	]);
+	panel.refresh();
+	publish([toy(1, 10), toy(2, 10)]);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"title",
+		"The War Within (2 / 2)",
+		"LEFT",
+		0,
+		0,
+		15,
+		460,
+	);
+});
+
 it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without collection scans", () => {
 	const { panel, parent, client, publish, flush } = setup();
 	panel.onMount(parent);

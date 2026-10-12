@@ -121,7 +121,16 @@ export class ToysPanel implements IPanel {
 				}
 				header.setParent(this.content);
 				header.layout(460, 24, "TOPLEFT", this.content, 0, -top);
-				header.setLabel("title", group.label, "LEFT", 0, 0, 15, 460);
+				const collected = group.toys.filter((toy) => toy.collected).length;
+				header.setLabel(
+					"title",
+					`${group.label} (${collected} / ${group.toys.length})`,
+					"LEFT",
+					0,
+					0,
+					15,
+					460,
+				);
 				header.show();
 			});
 			const firstRow = grid.length;
