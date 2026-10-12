@@ -38,6 +38,8 @@ export class ScrollList {
 		secondary: Frame;
 		secondaryNav: INavigable;
 		nav: INavigable;
+		top: number;
+		bottom: number;
 	}[] = [];
 	private rows: readonly ListRow[] = [];
 	private mounted = false;
@@ -173,6 +175,8 @@ export class ScrollList {
 						"Button",
 					);
 					button = {
+						top: 0,
+						bottom: 0,
 						frame,
 						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
 						track: new Frame(`${this.id}-track-${index}`, this.pool),
@@ -180,7 +184,10 @@ export class ScrollList {
 						secondary,
 						secondaryNav: {
 							navId: `${row.id}-secondary`,
-							onFocus: () => secondary.setColor(0.3, 0.25, 0),
+							onFocus: () => {
+								secondary.setColor(0.3, 0.25, 0);
+								this.reveal(index);
+							},
 							onBlur: () => secondary.setColor(0.12, 0.12, 0.12),
 							onInteract: () => {
 								if (this.isReady(index))
@@ -189,7 +196,10 @@ export class ScrollList {
 						},
 						nav: {
 							navId: row.id,
-							onFocus: () => frame.setColor(0.3, 0.25, 0),
+							onFocus: () => {
+								frame.setColor(0.3, 0.25, 0);
+								this.reveal(index);
+							},
 							onBlur: () => this.style(index),
 							onInteract: () => {
 								if (this.isReady(index)) {
@@ -254,6 +264,8 @@ export class ScrollList {
 					button.progress.hide();
 					button.track.hide();
 				}
+				button.top = offset;
+				button.bottom = offset + (row.heading ? 28 : row.progress ? 60 : 48);
 				button.frame.layout(
 					width - indent,
 					row.heading ? 28 : row.progress ? 60 : 48,
@@ -324,6 +336,15 @@ export class ScrollList {
 			row?.background ??
 			(row?.selected ? [0.25, 0.2, 0.05] : [0.08, 0.08, 0.08]);
 		this.buttons.at(index)?.frame.setColor(...color);
+	}
+	private reveal(index: number): void {
+		const button = this.buttons.at(index);
+		if (button && this.mounted)
+			this.scroll.revealVerticalRange(
+				button.top,
+				button.bottom,
+				this.contentHeight,
+			);
 	}
 	private isReady(index: number): boolean {
 		return (

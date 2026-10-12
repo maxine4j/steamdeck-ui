@@ -11,6 +11,7 @@ const { frames } = vi.hoisted(() => ({
 			setColor: ReturnType<typeof vi.fn>;
 			hide: ReturnType<typeof vi.fn>;
 			destroy: ReturnType<typeof vi.fn>;
+			revealVerticalRange: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -36,8 +37,30 @@ vi.mock("./frame", () => ({
 		setBlackBackground = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
+		revealVerticalRange = vi.fn();
 	},
 }));
+
+it("scrolls focused rows into view, accounting for section headings and margins", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("focus-scroll", pool, "Test", vi.fn());
+	list.setRows([
+		{
+			id: "heading",
+			label: "Section",
+			heading: true,
+			marginBottom: 8,
+			activate: vi.fn(),
+		},
+		{ id: "first", label: "First", marginBottom: 20, activate: vi.fn() },
+		{ id: "second", label: "Second", activate: vi.fn() },
+	]);
+	list.mount(new Frame("focus-parent", pool));
+	list.getNavGrid().at(1)?.at(0)?.onFocus();
+	expect(
+		frames.get("focus-scroll-scroll")?.revealVerticalRange,
+	).toHaveBeenLastCalledWith(112, 160, 164);
+});
 
 it("renders proportional bars, restores header tints on blur and reuses controls", () => {
 	const pool = {} as IFramePoolManager;

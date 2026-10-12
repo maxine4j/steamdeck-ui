@@ -57,6 +57,15 @@ const reputationEvents = [
 	"QUEST_LOG_UPDATE",
 ];
 const titleEvents = ["KNOWN_TITLES_UPDATE", "UNIT_NAME_UPDATE"];
+const dungeonFinderEvents = [
+	"LFG_UPDATE_RANDOM_INFO",
+	"LFG_UPDATE",
+	"LFG_ROLE_UPDATE",
+	"LFG_LOCK_INFO_RECEIVED",
+	"LFG_COOLDOWNS_UPDATED",
+	"GROUP_ROSTER_UPDATE",
+	"PLAYER_ENTERING_WORLD",
+];
 const talentEvents = [
 	"PLAYER_TALENT_UPDATE",
 	"ACTIVE_TALENT_GROUP_CHANGED",
@@ -123,6 +132,7 @@ export class WowEventBus implements IEventBus {
 			...characterIdentityUnitEvents,
 			...reputationEvents,
 			...titleEvents,
+			...dungeonFinderEvents,
 			...mountEvents,
 			...talentEvents,
 			"PLAYER_SPECIALIZATION_CHANGED",
@@ -149,6 +159,8 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("TALENTS_CHANGED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
+			if (dungeonFinderEvents.includes(event))
+				this.emit("DUNGEON_FINDER_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");
 			if (
 				event === "KNOWN_TITLES_UPDATE" ||

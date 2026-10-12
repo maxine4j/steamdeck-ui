@@ -1,6 +1,7 @@
 import { ActionBarClient } from "./clients/action-bar-client";
 import { CharacterClient } from "./clients/character-client";
 import { ControllerInputClient } from "./clients/controller-input-client";
+import { DungeonFinderClient } from "./clients/dungeon-finder-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MountsClient } from "./clients/mounts-client";
 import { ReputationClient } from "./clients/reputation-client";
@@ -36,4 +37,5 @@ startSteamDeckUI(
 	),
 	scheduler,
 	new TalentsClient(),
+	new DungeonFinderClient(),
 );

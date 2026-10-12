@@ -120,6 +120,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
 	vi.stubGlobal("PlayerSpellsFrame", undefined);
+	vi.stubGlobal("PVEFrame", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("LFDParentFrame", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("CollectionsJournal", {
 		IsShown: () => false,
@@ -236,6 +241,16 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			selectSpec: vi.fn(),
 			selectLoadout: vi.fn(),
 			selectStarter: vi.fn(),
+		},
+		{
+			getDungeons: () => [],
+			getSelected: () => undefined,
+			getRoles: () => ({ tank: false, healer: false, damage: true }),
+			toggleRole: vi.fn(),
+			isQueued: () => false,
+			select: vi.fn(),
+			join: vi.fn(),
+			leave: vi.fn(),
 		},
 	);
 	expect(frames).toHaveLength(2);
@@ -381,7 +396,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(character.getEquipment).toHaveBeenCalledOnce();
 	expect(
 		textures.filter((texture) =>
-			vi.mocked(texture.SetTexture).mock.calls.some(([icon]) => icon === 132261),
+			vi
+				.mocked(texture.SetTexture)
+				.mock.calls.some(([icon]) => icon === 132261),
 		),
 	).toHaveLength(1);
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
@@ -405,7 +422,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	clickTab(236683);
 	expect(reputation.getReputations).toHaveBeenCalledOnce();
 	const clickRow = (text: string) => {
-		const native = frames.at(labels.findLastIndex((texts) => texts.includes(text)));
+		const native = frames.at(
+			labels.findLastIndex((texts) => texts.includes(text)),
+		);
 		if (!native) throw new Error("Missing list row");
 		const handler = vi
 			.mocked(native.SetScript)
@@ -458,6 +477,21 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	clickRow("X")();
 	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
+	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());
+	app.ui.openPanel("bags", "right");
+	flush();
+	clickTab(237538);
+	expect(PVEFrame_ShowFrame).toHaveBeenCalledWith(
+		"GroupFinderFrame",
+		LFDParentFrame,
+	);
+	expect(app.ui.getContainer("right").activePanelId).toBe("dungeon-finder");
+	expect(labels.flat()).toContain("No random dungeons available");
+	const finderFrames = frames.length;
+	app.ui.closePanel("right", "dungeon-finder");
+	app.ui.openPanel("dungeon-finder", "right");
+	flush();
+	expect(frames).toHaveLength(finderFrames);
 	app.stop();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");

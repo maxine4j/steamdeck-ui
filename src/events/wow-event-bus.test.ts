@@ -36,6 +36,20 @@ it("forwards native login events through the hidden event frame", () => {
 	expect(frame.RegisterEvent).toHaveBeenCalledWith("BAG_UPDATE_DELAYED");
 	dispatch(frame, "BAG_UPDATE_DELAYED");
 	expect(bagUpdate).toHaveBeenCalledOnce();
+	const finderUpdate = vi.fn();
+	bus.subscribe("DUNGEON_FINDER_CHANGED", finderUpdate);
+	for (const event of [
+		"LFG_UPDATE_RANDOM_INFO",
+		"LFG_ROLE_UPDATE",
+		"LFG_UPDATE",
+		"LFG_LOCK_INFO_RECEIVED",
+		"LFG_COOLDOWNS_UPDATED",
+		"GROUP_ROSTER_UPDATE",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(finderUpdate).toHaveBeenCalledTimes(6);
 	const opened = vi.fn();
 	const closed = vi.fn();
 	bus.subscribe("BAG_OPEN", opened);

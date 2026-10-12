@@ -1,6 +1,7 @@
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { ICharacterClient } from "./clients/character-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
+import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
@@ -16,6 +17,9 @@ import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
 import { ItemActionMenu } from "./modules/bags/item-action-menu";
 import { ControllerInputModule } from "./modules/controller-input/controller-input-module";
+import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
+import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
+import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
 import { ModuleManager } from "./modules/module-manager";
 import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
 import { MountsModule } from "./modules/mounts/mounts-module";
@@ -51,6 +55,7 @@ export function startSteamDeckUI(
 	controller: IControllerInputClient,
 	scheduler: ITaskScheduler,
 	talents: ITalentsClient,
+	dungeonFinder: IDungeonFinderClient,
 ) {
 	const navigation = new NavigationManager(events, (active) =>
 		controller.setActive(active),
@@ -61,6 +66,10 @@ export function startSteamDeckUI(
 	const characterSuppression = new FrameSuppression(pool);
 	const builtInReputation = new BuiltInReputation(characterSuppression, events);
 	const builtInTalents = new BuiltInTalents(new FrameSuppression(pool), events);
+	const builtInDungeonFinder = new BuiltInDungeonFinder(
+		new FrameSuppression(pool),
+		events,
+	);
 	const ui = new UIOrchestrator(
 		(position) =>
 			new PanelContainer(
@@ -69,7 +78,8 @@ export function startSteamDeckUI(
 				new Frame(`container-${position}`, pool),
 				(id, button) => new Frame(id, pool, button ? "Button" : "Frame"),
 				(selected) => {
-					if (selected.id === "talents") builtInTalents.open();
+					if (selected.id === "dungeon-finder") builtInDungeonFinder.open();
+					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
 					else if (selected.id === "paper-doll" || selected.id === "titles")
 						character.open();
@@ -93,6 +103,24 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(panel, "right");
 	const modules = new ModuleManager();
+	const dungeonFinderPanel = new DungeonFinderPanel(
+		pool,
+		dungeonFinder,
+		() => {
+			builtInDungeonFinder.close();
+			ui.closePanel("right", "dungeon-finder");
+		},
+		scheduler,
+	);
+	ui.registerPanel(dungeonFinderPanel, "right");
+	modules.register(
+		new DungeonFinderModule(
+			ui,
+			events,
+			dungeonFinderPanel,
+			builtInDungeonFinder,
+		),
+	);
 	modules.register(new ControllerInputModule(controller));
 	const crossBar = new CrossBar(pool, actions);
 	const abilityRing = new AbilityRing(pool, actions);
@@ -200,6 +228,7 @@ export function startSteamDeckUI(
 			titlesPanel.destroy();
 			mountsPanel.destroy();
 			talentsPanel.destroy();
+			dungeonFinderPanel.destroy();
 		},
 	};
 }
