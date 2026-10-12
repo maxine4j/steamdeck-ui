@@ -273,13 +273,16 @@ export class BagsPanel implements IPanel {
 			-10,
 		);
 		for (let i = index; i < this.icons.length; i++) {
+			const cell = this.icons.at(i);
 			jobs.push(() => {
-				this.icons.at(i)?.border.hide();
-				this.icons.at(i)?.icon.hide();
+				cell?.border.hide();
+				cell?.icon.hide();
 			});
 		}
-		for (let i = groups.length; i < this.headers.length; i++)
-			jobs.push(() => this.headers.at(i)?.hide());
+		for (let i = groups.length; i < this.headers.length; i++) {
+			const header = this.headers.at(i);
+			jobs.push(() => header?.hide());
+		}
 		let cursor = 0;
 		const step = () => {
 			this.cancelRender = undefined;

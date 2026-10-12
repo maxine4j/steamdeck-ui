@@ -1,8 +1,123 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { InventoryItem } from "../../clients/inventory-client";
 import { Frame } from "../../ui/components/frame";
 import { FramePoolManager } from "../../ui/frame-pool-manager";
 import { BagsPanel } from "./bags-panel";
+
+afterEach(() => vi.restoreAllMocks());
+
+it.each(["category", "expansion"] as const)(
+	"hides surplus headers when switching away from %s grouping and reuses them on return",
+	(mode) => {
+		for (const method of [
+			"fill",
+			"setBlackBackground",
+			"setParent",
+			"layout",
+			"layoutVerticallyCentered",
+			"setColor",
+			"onClick",
+			"inset",
+			"onSizeChanged",
+			"setScrollContent",
+			"clampScroll",
+			"setIcon",
+			"onDragStart",
+		] as const) {
+			vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
+		}
+		const visible = new Set<Frame>();
+		const titles = new Map<Frame, string>();
+		vi.spyOn(Frame.prototype, "show").mockImplementation(function () {
+			visible.add(this);
+		});
+		vi.spyOn(Frame.prototype, "hide").mockImplementation(function () {
+			visible.delete(this);
+		});
+		vi.spyOn(Frame.prototype, "setLabel").mockImplementation(
+			function (key, text) {
+				if (key === "title") titles.set(this, text);
+			},
+		);
+		const pool = new FramePoolManager({
+			createFrame: () => {
+				throw new Error("Native frame access should be mocked");
+			},
+		});
+		const pending: (() => void)[] = [];
+		const panel = new BagsPanel(
+			"bags",
+			"Bags",
+			new Frame("panel", pool),
+			pool,
+			{ useItem: vi.fn(), pickupItem: vi.fn(), destroyItem: vi.fn() },
+			{ open: vi.fn(), close: vi.fn() },
+			{
+				nextFrame: (callback) => {
+					pending.push(callback);
+					return () => {};
+				},
+			},
+		);
+		const flush = () => {
+			while (pending.length) pending.shift()?.();
+		};
+		const item: InventoryItem = {
+			bagId: 0,
+			slotId: 1,
+			itemId: 1,
+			iconFileId: 1,
+			count: 1,
+			quality: 1,
+			category: "Equipment",
+			expansionId: 0,
+			stackable: false,
+		};
+		panel.setItems([
+			item,
+			{
+				...item,
+				slotId: 2,
+				itemId: 2,
+				category: mode === "category" ? "Reagents" : "Equipment",
+				expansionId: mode === "expansion" ? 1 : 0,
+			},
+			{
+				...item,
+				slotId: 3,
+				itemId: 3,
+				category: mode === "category" ? "Recipes" : "Equipment",
+				expansionId: mode === "expansion" ? 2 : 0,
+			},
+		]);
+		panel.onMount(new Frame("parent", pool));
+		flush();
+		const toggle = () => {
+			panel.getNavGrid().at(0)?.at(0)?.onInteract();
+			flush();
+		};
+		if (mode === "expansion") toggle();
+		const headers = [...visible].filter((frame) => titles.has(frame));
+		expect(headers).toHaveLength(3);
+		toggle();
+		expect(headers.filter((frame) => visible.has(frame))).toEqual([
+			headers.at(0),
+		]);
+		const firstHeader = headers.at(0);
+		expect(firstHeader && titles.get(firstHeader)).toBe(
+			mode === "category" ? "Classic" : "Equipment",
+		);
+		toggle();
+		expect(headers.every((frame) => visible.has(frame))).toBe(true);
+		expect(titles.size).toBe(3);
+		panel.setItems([]);
+		flush();
+		expect(headers.some((frame) => visible.has(frame))).toBe(false);
+		expect(
+			[...visible].some((frame) => frame.id.startsWith("bags-icon-")),
+		).toBe(false);
+	},
+);
 
 it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
 	const layout = vi.spyOn(Frame.prototype, "layout");
