@@ -54,6 +54,8 @@ export class ScrollList {
 		private readonly title: string,
 		private readonly onClose: () => void,
 		private readonly options: {
+			readonly width?: number;
+			readonly autoHeight?: boolean;
 			readonly padding?: number;
 			readonly top?: number;
 			readonly bottom?: number;
@@ -117,7 +119,8 @@ export class ScrollList {
 		}
 	}
 	private layoutContent(): void {
-		const width = 480 - 2 * (this.options.padding ?? 12);
+		const width =
+			(this.options.width ?? 480) - 2 * (this.options.padding ?? 12);
 		if (this.options.verticallyCentered)
 			this.content.layoutVerticallyCentered(
 				width,
@@ -131,7 +134,8 @@ export class ScrollList {
 		this.cancelRender = undefined;
 		this.renderedRows = startRow;
 		this.options.onChanged?.(false);
-		const width = 480 - 2 * (this.options.padding ?? 12);
+		const width =
+			(this.options.width ?? 480) - 2 * (this.options.padding ?? 12);
 		this.contentHeight = Math.max(
 			1,
 			this.rows.reduce(
@@ -304,6 +308,27 @@ export class ScrollList {
 						(row.icon === undefined ? 16 : 56) -
 						(row.secondary ? 48 : 0),
 				);
+				if (this.options.autoHeight && !row.heading) {
+					button.frame.setLabelWordWrap("label", true);
+					const minimum = row.progress ? 60 : 48;
+					const height = Math.max(
+						minimum,
+						button.frame.labelHeight("label") +
+							(row.detail ? button.frame.labelHeight("detail") + 14 : 16),
+					);
+					const extra = height - minimum;
+					button.bottom += extra;
+					offset += extra;
+					this.contentHeight += extra;
+					button.frame.layout(
+						width - indent,
+						height,
+						"TOPLEFT",
+						this.content,
+						indent,
+						-button.top,
+					);
+				}
 				button.frame.setTooltip(row.tooltip ?? row.label);
 				if (this.options.secure) button.frame.setSpell(row.spell);
 				else
@@ -321,6 +346,7 @@ export class ScrollList {
 			if (cursor < total && this.options.scheduler)
 				this.cancelRender = this.options.scheduler.nextFrame(step);
 			else {
+				if (this.options.autoHeight) this.layoutContent();
 				this.scroll.clampScroll();
 				this.dirty = false;
 			}

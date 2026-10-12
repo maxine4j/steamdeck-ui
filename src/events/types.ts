@@ -1,4 +1,26 @@
+export interface DialogueEventPayloads {
+	GOSSIP_SHOW: undefined;
+	GOSSIP_OPTIONS_REFRESHED: undefined;
+	GOSSIP_CLOSED: { continuing: boolean };
+	GOSSIP_CONFIRM: { optionID: number; text: string; cost: number };
+	GOSSIP_CONFIRM_CANCEL: undefined;
+	GOSSIP_ENTER_CODE: { optionID: number };
+	QUEST_GREETING: undefined;
+	QUEST_DETAIL: { startItem?: number };
+	QUEST_PROGRESS: undefined;
+	QUEST_COMPLETE: undefined;
+	QUEST_FINISHED: undefined;
+	QUEST_ITEM_UPDATE: undefined;
+	QUEST_LOG_UPDATE: undefined;
+	QUEST_AUTOCOMPLETE: { questID: number };
+	QUEST_ACCEPT_CONFIRM: { speaker: string; title: string; questID: number };
+	DIALOGUE_WORLD_RESET: undefined;
+	DIALOGUE_ADDON_LOADED: undefined;
+	DIALOGUE_INTERACTION_SHOWN: { interactionType: number };
+	DIALOGUE_ERROR: { message: string };
+}
 export type ApplicationEvent =
+	| keyof DialogueEventPayloads
 	| "NAV_UP"
 	| "NAV_DOWN"
 	| "NAV_LEFT"
@@ -41,9 +63,24 @@ export type ApplicationEvent =
 	| "MOUNTS_CHANGED"
 	| "MOUNTS_VISIBILITY_CHANGED"
 	| "PLAYER_EQUIPMENT_CHANGED";
-export type EventHandler = () => void;
+export type EventPayload<E extends ApplicationEvent> =
+	E extends keyof DialogueEventPayloads ? DialogueEventPayloads[E] : undefined;
+export type EventHandler<E extends ApplicationEvent = ApplicationEvent> = (
+	payload: EventPayload<E>,
+) => void;
 export interface IEventBus {
-	emit(event: ApplicationEvent): void;
-	subscribe(event: ApplicationEvent, handler: EventHandler): void;
-	unsubscribe(event: ApplicationEvent, handler: EventHandler): void;
+	emit<E extends ApplicationEvent>(
+		event: E,
+		...args: undefined extends EventPayload<E>
+			? [payload?: EventPayload<E>]
+			: [EventPayload<E>]
+	): void;
+	subscribe<E extends ApplicationEvent>(
+		event: E,
+		handler: EventHandler<E>,
+	): void;
+	unsubscribe<E extends ApplicationEvent>(
+		event: E,
+		handler: EventHandler<E>,
+	): void;
 }

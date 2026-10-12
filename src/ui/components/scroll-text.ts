@@ -1,0 +1,80 @@
+import type { IFramePoolManager } from "../frame-pool-manager";
+import type { INavigable } from "../navigation/types";
+import { Frame } from "./frame";
+
+/** Measured, wrapped prose with an explicit controller reading control. */
+export class ScrollText {
+	private readonly scroll: Frame;
+	private readonly content: Frame;
+	private readonly position: Frame;
+	private width = 1;
+	private height = 1;
+	private mounted = false;
+	readonly node: INavigable;
+	constructor(id: string, pool: IFramePoolManager) {
+		this.scroll = new Frame(`${id}-scroll`, pool, "ScrollFrame");
+		this.content = new Frame(`${id}-content`, pool);
+		this.position = new Frame(`${id}-position`, pool);
+		this.node = {
+			navId: id,
+			navColumn: 0,
+			onFocus: () => this.scroll.setFocused(true),
+			onBlur: () => this.scroll.setFocused(false),
+			onInteract: () => this.move(1),
+			onContext: () => this.move(-1),
+		};
+	}
+	mount(parent: Frame, width: number, height: number): void {
+		this.width = width;
+		this.height = height;
+		this.mounted = true;
+		this.scroll.setParent(parent);
+		this.scroll.layout(width, height - 28, "TOPLEFT", parent);
+		this.content.setParent(this.scroll);
+		this.scroll.setScrollContent(this.content);
+		this.position.setParent(parent);
+		this.position.layout(width, 24, "BOTTOMLEFT", parent);
+		this.scroll.show();
+		this.content.show();
+		this.position.show();
+	}
+	setText(text: string, reset: boolean): void {
+		this.content.setLabel("text", text, "TOPLEFT", 8, -8, 18, this.width - 24);
+		this.content.setLabelWordWrap("text", true);
+		this.content.layout(
+			this.width - 8,
+			Math.max(this.height - 28, this.content.labelHeight("text") + 24),
+			"TOPLEFT",
+			this.scroll,
+		);
+		if (reset) this.scroll.resetScroll();
+		this.scroll.clampScroll();
+		this.move(0);
+	}
+	private move(direction: number): void {
+		if (!this.mounted) return;
+		const { offset, range } = this.scroll.scrollBy(
+			direction * Math.max(80, this.height - 100),
+		);
+		this.position.setLabel(
+			"position",
+			`${range > 0 ? Math.round((offset / range) * 100) : 100}% read · A: Down · Y: Up`,
+			"CENTER",
+			0,
+			0,
+			13,
+			this.width,
+		);
+	}
+	unmount(): void {
+		this.mounted = false;
+		this.scroll.hide();
+		this.position.hide();
+	}
+	destroy(): void {
+		this.unmount();
+		this.content.destroy();
+		this.scroll.destroy();
+		this.position.destroy();
+	}
+}

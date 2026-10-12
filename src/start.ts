@@ -3,6 +3,8 @@ import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { ICurrencyClient } from "./clients/currency-client";
+import type { IDialogueCamera } from "./clients/dialogue-camera";
+import type { IDialogueClient } from "./clients/dialogue-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
@@ -30,6 +32,9 @@ import { ModuleManager } from "./modules/module-manager";
 import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
 import { MountsModule } from "./modules/mounts/mounts-module";
 import { MountsPanel } from "./modules/mounts/mounts-panel";
+import { BuiltInDialogue } from "./modules/npc-dialogue/built-in-dialogue";
+import { DialogueModule } from "./modules/npc-dialogue/dialogue-module";
+import { DialoguePanel } from "./modules/npc-dialogue/dialogue-panel";
 import { BuiltInPaperDoll } from "./modules/paper-doll/built-in-paper-doll";
 import { PaperDollModule } from "./modules/paper-doll/paper-doll-module";
 import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
@@ -45,6 +50,7 @@ import { TitlesPanel } from "./modules/titles/titles-panel";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
 import { Modal } from "./ui/components/modal";
+import { NativeScriptSuppression } from "./ui/components/native-script-suppression";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
 import { PanelContainer } from "./ui/panel/panel-container";
@@ -63,6 +69,8 @@ export function startSteamDeckUI(
 	talents: ITalentsClient,
 	dungeonFinder: IDungeonFinderClient,
 	currency: ICurrencyClient,
+	dialogue: IDialogueClient,
+	dialogueCamera: IDialogueCamera,
 ) {
 	const navigation = new NavigationManager(events, (active) =>
 		controller.setActive(active),
@@ -128,6 +136,19 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const dialoguePanel = new DialoguePanel(pool, navigation);
+	ui.registerPanel(dialoguePanel);
+	modules.register(
+		new DialogueModule(
+			dialogue,
+			events,
+			scheduler,
+			dialoguePanel,
+			ui,
+			new BuiltInDialogue(new NativeScriptSuppression()),
+			dialogueCamera,
+		),
+	);
 	const dungeonFinderPanel = new DungeonFinderPanel(
 		pool,
 		dungeonFinder,
@@ -251,6 +272,7 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();
 			navigation.destroy();

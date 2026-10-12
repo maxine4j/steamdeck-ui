@@ -166,6 +166,16 @@ export class Frame implements IUIComponent {
 	resetScroll(): void {
 		this.native?.SetVerticalScroll(0);
 	}
+	scrollBy(delta: number): { offset: number; range: number } {
+		const native = this.acquire();
+		const range = native.GetVerticalScrollRange();
+		const offset = Math.max(
+			0,
+			Math.min(range, native.GetVerticalScroll() + delta),
+		);
+		native.SetVerticalScroll(offset);
+		return { offset, range };
+	}
 	clampScroll(): void {
 		const native = this.acquire();
 		native.SetVerticalScroll(
@@ -397,6 +407,12 @@ export class Frame implements IUIComponent {
 	setLabelWordWrap(key: string, wrap: boolean): void {
 		this.labels.get(key)?.SetWordWrap(wrap);
 	}
+	labelHeight(key: string): number {
+		const label = this.labels.get(key) as
+			| (WowFontString & { GetStringHeight(): number })
+			| undefined;
+		return label?.GetStringHeight() ?? 0;
+	}
 	onClick(callback: (this: void, button: string) => void): void {
 		if (this.frameType !== "Button")
 			throw new Error("Click handlers require a button");
@@ -448,6 +464,14 @@ export class Frame implements IUIComponent {
 	}
 	focusInput(): void {
 		(this.acquire() as WowFrame & { SetFocus(): void }).SetFocus();
+	}
+	clearInput(): void {
+		const input = this.acquire() as WowFrame & {
+			SetText(value: string): void;
+			ClearFocus(): void;
+		};
+		input.ClearFocus();
+		input.SetText("");
 	}
 	onDragStart(callback: (this: void) => void): void {
 		if (this.frameType !== "Button")

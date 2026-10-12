@@ -1,5 +1,33 @@
 import type { WowEventFrame } from "../types";
-import type { ApplicationEvent, EventHandler, IEventBus } from "./types";
+import type {
+	ApplicationEvent,
+	EventHandler,
+	EventPayload,
+	IEventBus,
+} from "./types";
+
+const dialogueEvents = [
+	"GOSSIP_SHOW",
+	"GOSSIP_OPTIONS_REFRESHED",
+	"GOSSIP_CLOSED",
+	"GOSSIP_CONFIRM",
+	"GOSSIP_CONFIRM_CANCEL",
+	"GOSSIP_ENTER_CODE",
+	"QUEST_GREETING",
+	"QUEST_DETAIL",
+	"QUEST_PROGRESS",
+	"QUEST_COMPLETE",
+	"QUEST_FINISHED",
+	"QUEST_ITEM_UPDATE",
+	"QUEST_LOG_UPDATE",
+	"QUEST_AUTOCOMPLETE",
+	"QUEST_ACCEPT_CONFIRM",
+	"PLAYER_ENTERING_WORLD",
+	"PLAYER_LOGOUT",
+	"ADDON_LOADED",
+	"PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
+	"UI_ERROR_MESSAGE",
+];
 export interface EventFrameFactory {
 	createEventFrame(): WowEventFrame;
 }
@@ -101,12 +129,19 @@ const mountEvents = [
 export class WowEventBus implements IEventBus {
 	private readonly handlers = new Map<ApplicationEvent, EventHandler[]>();
 
-	subscribe(event: ApplicationEvent, handler: EventHandler): void {
+	subscribe<E extends ApplicationEvent>(
+		event: E,
+		handler: EventHandler<E>,
+	): void {
 		const handlers = this.handlers.get(event) ?? [];
-		if (!handlers.includes(handler)) handlers.push(handler);
+		const erased = handler as EventHandler;
+		if (!handlers.includes(erased)) handlers.push(erased);
 		this.handlers.set(event, handlers);
 	}
-	unsubscribe(event: ApplicationEvent, handler: EventHandler): void {
+	unsubscribe<E extends ApplicationEvent>(
+		event: E,
+		handler: EventHandler<E>,
+	): void {
 		this.handlers.set(
 			event,
 			(this.handlers.get(event) ?? []).filter(
@@ -114,14 +149,21 @@ export class WowEventBus implements IEventBus {
 			),
 		);
 	}
-	emit(event: ApplicationEvent): void {
-		for (const handler of [...(this.handlers.get(event) ?? [])]) handler();
+	emit<E extends ApplicationEvent>(
+		event: E,
+		...args: undefined extends EventPayload<E>
+			? [payload?: EventPayload<E>]
+			: [EventPayload<E>]
+	): void {
+		for (const handler of [...(this.handlers.get(event) ?? [])])
+			handler(args.at(0));
 	}
 
 	private readonly frame: WowEventFrame;
 	constructor(factory: EventFrameFactory) {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
+		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
@@ -147,7 +189,58 @@ export class WowEventBus implements IEventBus {
 			"PLAYER_SPECIALIZATION_CHANGED",
 		])
 			this.frame.RegisterEvent(event);
-		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
+		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			const unit = args.at(0);
+			if (
+				event === "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" &&
+				typeof unit === "number"
+			)
+				this.emit("DIALOGUE_INTERACTION_SHOWN", { interactionType: unit });
+			if (event === "UI_ERROR_MESSAGE" && typeof args.at(1) === "string")
+				this.emit("DIALOGUE_ERROR", { message: args.at(1) as string });
+			if (event === "GOSSIP_CLOSED")
+				this.emit(event, { continuing: unit === true });
+			else if (
+				event === "GOSSIP_CONFIRM" &&
+				typeof unit === "number" &&
+				typeof args.at(1) === "string"
+			)
+				this.emit(event, {
+					optionID: unit,
+					text: args.at(1) as string,
+					cost: typeof args.at(2) === "number" ? (args.at(2) as number) : 0,
+				});
+			else if (event === "GOSSIP_ENTER_CODE" && typeof unit === "number")
+				this.emit(event, { optionID: unit });
+			else if (event === "QUEST_DETAIL")
+				this.emit(event, {
+					startItem: typeof unit === "number" ? unit : undefined,
+				});
+			else if (event === "QUEST_AUTOCOMPLETE" && typeof unit === "number")
+				this.emit(event, { questID: unit });
+			else if (event === "QUEST_ACCEPT_CONFIRM" && typeof unit === "string")
+				this.emit(event, {
+					speaker: unit,
+					title: args.at(1) as string,
+					questID: args.at(2) as number,
+				});
+			else if (event === "PLAYER_ENTERING_WORLD" || event === "PLAYER_LOGOUT")
+				this.emit("DIALOGUE_WORLD_RESET");
+			else if (event === "ADDON_LOADED") this.emit("DIALOGUE_ADDON_LOADED");
+			else if (
+				[
+					"GOSSIP_SHOW",
+					"GOSSIP_OPTIONS_REFRESHED",
+					"GOSSIP_CONFIRM_CANCEL",
+					"QUEST_GREETING",
+					"QUEST_PROGRESS",
+					"QUEST_COMPLETE",
+					"QUEST_FINISHED",
+					"QUEST_ITEM_UPDATE",
+					"QUEST_LOG_UPDATE",
+				].includes(event)
+			)
+				this.emit(event as "GOSSIP_SHOW");
 			if (
 				characterIdentityEvents.includes(event) ||
 				(characterIdentityUnitEvents.includes(event) && unit === "player")

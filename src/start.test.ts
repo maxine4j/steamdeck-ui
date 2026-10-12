@@ -274,6 +274,22 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			transferCost: () => undefined,
 			transfer: () => false,
 		},
+		{
+			read: vi.fn(),
+			refresh: vi.fn(),
+			select: vi.fn(),
+			accept: vi.fn(),
+			advance: vi.fn(),
+			claim: vi.fn(),
+			prompt: vi.fn(),
+			confirm: vi.fn(),
+			cancelPrompt: vi.fn(),
+			close: vi.fn(),
+			end: vi.fn(),
+			isInCombat: () => false,
+			isDialogueInteraction: () => true,
+		},
+		{ begin: vi.fn(), end: vi.fn() },
 	);
 	expect(frames).toHaveLength(2);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
