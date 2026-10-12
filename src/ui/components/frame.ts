@@ -2,6 +2,7 @@ import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
+import type { GamePadRepeatOptions } from "./gamepad-input";
 import type { IUIComponent } from "./types";
 
 type ItemTooltipFrame = WowFrame & {
@@ -21,6 +22,7 @@ export class Frame implements IUIComponent {
 	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
+	private readonly heldGamePadButtons = new Map<string, number>();
 	private texture?: WowTexture;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
@@ -252,15 +254,24 @@ export class Frame implements IUIComponent {
 			onInteract: () => interact(),
 		};
 	}
-	setGamePadInput(callback?: (button: string) => boolean): void {
+	setGamePadInput(
+		callback?: (button: string) => boolean,
+		onButtonUp?: (button: string) => void,
+		repeat?: GamePadRepeatOptions,
+	): void {
 		if (!callback && !this.native) return;
+		this.heldGamePadButtons.clear();
 		const native = this.acquire() as WowFrame & {
 			EnableGamePadButton(enabled: boolean): void;
 			SetPropagateKeyboardInput(propagate: boolean): void;
 			SetFrameLevel(level: number): void;
 			SetScript(
-				script: "OnGamePadButtonDown",
+				script: "OnGamePadButtonDown" | "OnGamePadButtonUp",
 				handler?: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+			SetScript(
+				script: "OnUpdate",
+				handler?: (this: void, frame: WowFrame, elapsed: number) => void,
 			): void;
 		};
 		this.gamePadInputConfigured = true;
@@ -269,9 +280,43 @@ export class Frame implements IUIComponent {
 			"OnGamePadButtonDown",
 			callback
 				? (_frame, button) => {
+						if (this.heldGamePadButtons.has(button)) {
+							native.SetPropagateKeyboardInput(false);
+							return;
+						}
 						const consumed = callback(button);
+						if (consumed && repeat?.buttons.includes(button))
+							this.heldGamePadButtons.set(button, repeat.delaySeconds);
 						if (!InCombatLockdown())
 							native.SetPropagateKeyboardInput(!consumed);
+					}
+				: undefined,
+		);
+		native.SetScript(
+			"OnGamePadButtonUp",
+			callback && (onButtonUp || repeat)
+				? (_frame, button) => {
+						this.heldGamePadButtons.delete(button);
+						onButtonUp?.(button);
+					}
+				: undefined,
+		);
+		native.SetScript(
+			"OnUpdate",
+			callback && repeat
+				? (_frame, elapsed) => {
+						for (const [button, remaining] of this.heldGamePadButtons) {
+							const next = remaining - elapsed;
+							if (next > 0.000001) {
+								this.heldGamePadButtons.set(button, next);
+								continue;
+							}
+							if (!callback(button)) {
+								this.heldGamePadButtons.delete(button);
+								continue;
+							}
+							this.heldGamePadButtons.set(button, repeat.intervalSeconds);
+						}
 					}
 				: undefined,
 		);

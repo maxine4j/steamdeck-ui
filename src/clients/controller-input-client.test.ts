@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
+import type { GamePadRepeatOptions } from "../ui/components/gamepad-input";
 import {
 	ControllerInputClient,
 	type IGamePadInput,
@@ -150,6 +151,66 @@ it("captures navigation only while active, propagates other buttons and restores
 	events.emit("COMBAT_ENDED");
 	expect(surface.destroy).toHaveBeenCalledOnce();
 	expect(handler).toBeUndefined();
+});
+
+it("configures quick repeats for D-pad directions only", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("IsModifierKeyDown", () => false);
+	const events = createTestEventBus();
+	const up = vi.fn();
+	events.subscribe("NAV_UP", up);
+	let downHandler: ((button: string) => boolean) | undefined;
+	let repeatOptions:
+		| {
+				buttons: readonly string[];
+				delaySeconds: number;
+				intervalSeconds: number;
+		  }
+		| undefined;
+	const surface: IGamePadInput = {
+		setGamePadInput: vi.fn((down, _released, repeat) => {
+			downHandler = down;
+			repeatOptions = repeat;
+		}),
+		destroy: vi.fn(),
+	};
+	const client = new ControllerInputClient(events, surface);
+	client.setActive(true);
+	expect(downHandler?.("PADDUP")).toBe(true);
+	expect(up).toHaveBeenCalledOnce();
+	expect(repeatOptions).toEqual({
+		buttons: ["PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT"],
+		delaySeconds: 0.5,
+		intervalSeconds: 0.05,
+	});
+	expect(downHandler?.("PAD1")).toBe(true);
+	expect(up).toHaveBeenCalledOnce();
+	client.shutdown();
+});
+
+it("disables D-pad repeat when navigation deactivates or combat starts", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	vi.stubGlobal("IsModifierKeyDown", () => false);
+	const events = createTestEventBus();
+	const repeatOptions: (GamePadRepeatOptions | undefined)[] = [];
+	const surface: IGamePadInput = {
+		setGamePadInput: vi.fn((_callback, _released, repeat) => {
+			repeatOptions.push(repeat);
+		}),
+		destroy: vi.fn(),
+	};
+	const client = new ControllerInputClient(events, surface);
+	client.setActive(true);
+	expect(repeatOptions.at(-1)).toBeDefined();
+	client.setActive(false);
+	expect(repeatOptions.at(-1)).toBeUndefined();
+
+	client.setActive(true);
+	combat = true;
+	events.emit("COMBAT_STARTED");
+	expect(repeatOptions.at(-1)).toBeUndefined();
+	client.shutdown();
 });
 
 it("suspends combat modifiers during UI navigation and restores them on close, combat and shutdown", () => {
