@@ -30,7 +30,7 @@ it("offers unequip, every substitute across pages, and cancel; empty slots only 
 		hyperlink: "item:42",
 	};
 	menu.open(slot);
-	expect(options.at(0)?.label).toBe("Unequip");
+	expect(options.at(0)?.label).toBe("|A:common-icon-redx:18:18|a Unequip");
 	options.at(0)?.select();
 	expect(actions.unequip).toHaveBeenCalledWith(slot);
 	const seen: string[] = [];
@@ -43,14 +43,21 @@ it("offers unequip, every substitute across pages, and cancel; empty slots only 
 		}
 		options.find((option) => option.id === "next")?.select();
 	}
-	expect(seen).toEqual(substitutes.map((item) => item.name));
+	expect(seen).toEqual(
+		substitutes.map(
+			(item) => `|A:lootroll-toast-icon-transmog-up:18:18|a Equip ${item.name}`,
+		),
+	);
 	expect(actions.equipSubstitute).toHaveBeenCalledWith(
 		slot,
 		substitutes.at(-1),
 	);
 	options.find((option) => option.id === "previous")?.select();
 	expect(options.find((option) => option.id.startsWith("equip-"))?.label).toBe(
-		"Spare 8",
+		"|A:lootroll-toast-icon-transmog-up:18:18|a Equip Spare 8",
+	);
+	expect(options.find((option) => option.id === "cancel")?.label).toBe(
+		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	);
 	options.find((option) => option.id === "cancel")?.select();
 	expect(modal.close).toHaveBeenCalledOnce();

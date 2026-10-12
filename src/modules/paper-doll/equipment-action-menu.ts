@@ -20,13 +20,13 @@ export class EquipmentActionMenu implements IEquipmentActionMenu {
 			if (slot.itemId !== undefined)
 				options.push({
 					id: "unequip",
-					label: "Unequip",
+					label: "|A:common-icon-redx:18:18|a Unequip",
 					select: () => this.actions.unequip(slot),
 				});
 			for (const item of substitutes.slice(page * 8, (page + 1) * 8)) {
 				options.push({
 					id: `equip-${item.location}`,
-					label: item.name,
+					label: `|A:lootroll-toast-icon-transmog-up:18:18|a Equip ${item.name}`,
 					select: () => this.actions.equipSubstitute(slot, item),
 				});
 			}
@@ -44,7 +44,7 @@ export class EquipmentActionMenu implements IEquipmentActionMenu {
 				});
 			options.push({
 				id: "cancel",
-				label: "Cancel",
+				label: "|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 				select: () => this.close(),
 			});
 			this.modal.open(
