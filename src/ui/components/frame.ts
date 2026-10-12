@@ -445,9 +445,11 @@ export class Frame implements IUIComponent {
 			throw new Error("Toy requires a secure button");
 		if (InCombatLockdown()) return;
 		const native = this.acquire() as WowFrame & {
-			SetAttribute(name: string, value?: string | number): void;
+			SetAttribute(name: string, value?: string | number | boolean): void;
 		};
-		native.RegisterForClicks("AnyUp", "AnyDown");
+		// Controller dispatch uses Click() on release; do not inherit the action-bar CVar.
+		native.RegisterForClicks("AnyUp");
+		native.SetAttribute("useOnKeyDown", toy ? false : undefined);
 		native.SetAttribute("type", toy ? "toy" : undefined);
 		native.SetAttribute("toy", toy);
 	}
