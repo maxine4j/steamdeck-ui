@@ -165,6 +165,7 @@ end`,
 	changed(frames.at(0), "action");
 	expect(read).toHaveBeenLastCalledWith(145);
 	expect(texture.SetTexture).toHaveBeenLastCalledWith(145);
+	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
 	expect(frames.at(1)?.SetCooldownFromDurationObject).toHaveBeenLastCalledWith(
 		recharge,
 		true,
@@ -231,6 +232,7 @@ end`,
 		jumpRead,
 	);
 	expect(texture.SetTexture).toHaveBeenLastCalledWith(jumpIcon);
+	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
 	action = 148;
 	changed(frames.at(0), "action");
 	expect(texture.SetTexture).toHaveBeenLastCalledWith(148);

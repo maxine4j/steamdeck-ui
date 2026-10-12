@@ -120,8 +120,7 @@ end`,
 		const texture = this.pool.getBackground(this.frame);
 		texture.SetAtlas("UI-HUD-ActionBar-IconFrame-Background", false);
 		if (visual.icon !== undefined) texture.SetTexture(visual.icon);
-		if (visual.icon !== undefined) texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
-		else texture.SetTexCoord(0, 1, 0, 1);
+		texture.SetTexCoord(0, 1, 0, 1);
 		this.cooldowns.refresh(visual.cooldown, visual.recharge);
 	}
 	destroy(): void {
