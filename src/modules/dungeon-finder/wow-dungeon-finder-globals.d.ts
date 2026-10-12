@@ -7,6 +7,11 @@ type FinderFrame = WowFrame & {
 };
 
 declare global {
+	// Legacy finder APIs are absent from the generated Blizzard documentation.
+	function GetLFDChoiceOrder(this: void): number[];
+	function GetLFDChoiceEnabledState(
+		this: void,
+	): Record<number, boolean | number | undefined>;
 	namespace C_LFGList {
 		function GetAvailableRoles(
 			this: void,
@@ -70,7 +75,20 @@ declare global {
 		category: number,
 	): LuaMultiReturn<[string | undefined, string | undefined]>;
 	function LeaveLFG(this: void, category: number): void;
-	function LFDQueueFrame_SetType(this: void, id: number): void;
+	function LFDQueueFrame_SetType(
+		this: void,
+		id: number | "specific" | "follower",
+	): void;
+	function LFDQueueFrame_Update(this: void): void;
+	function LFGDungeonList_SetDungeonEnabled(
+		this: void,
+		id: number,
+		enabled: boolean,
+	): void;
+	const LFGLockList:
+		| Record<number, { hideEntry?: boolean } | undefined>
+		| undefined;
+	function LFD_CURRENT_FILTER(this: void, id: number): boolean;
 	function LFDQueueFrame_Join(this: void): void;
 	function LFDQueueFrame_UpdateRoleButtons(this: void): void;
 	function LFG_UpdateAllRoleCheckboxes(this: void): void;

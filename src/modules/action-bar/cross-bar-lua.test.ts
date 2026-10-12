@@ -1,7 +1,10 @@
 import { transpileProject } from "typescript-to-lua";
 import { expect, it } from "vitest";
 
-it("compiles the cross-bar reader with the same Lua calling convention as its caller", () => {
+// Compiles the whole addon; shared CI runners can exceed the unit-test timeout.
+it("compiles the cross-bar reader with the same Lua calling convention as its caller", {
+	timeout: 30_000,
+}, () => {
 	let lua = "";
 	const result = transpileProject("tsconfig.json", {}, (name, content) => {
 		if (name.endsWith("main.lua")) lua = content;

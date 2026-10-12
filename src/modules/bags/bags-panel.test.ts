@@ -90,7 +90,10 @@ it.each(["category", "expansion"] as const)(
 				expansionId: mode === "expansion" ? 2 : 0,
 			},
 		]);
+		const visibilityChanged = vi.fn();
+		panel.setVisibilityChanged(visibilityChanged);
 		panel.onMount(new Frame("parent", pool));
+		expect(visibilityChanged).toHaveBeenLastCalledWith(true);
 		flush();
 		const toggle = () => {
 			panel.getNavGrid().at(0)?.at(0)?.onInteract();

@@ -173,6 +173,7 @@ export class WowEventBus implements IEventBus {
 		this.frame.Hide();
 		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
+		this.frame.RegisterEvent("TOYS_UPDATED");
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
 		this.frame.RegisterEvent("BAG_OPEN");
@@ -272,6 +273,8 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("TALENTS_CHANGED");
 			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
+			if (event === "TOYS_UPDATED") this.emit("TOYS_CHANGED");
+			if (event === "SPELL_UPDATE_COOLDOWN") this.emit("TOYS_COOLDOWN_CHANGED");
 			if (dungeonFinderEvents.includes(event))
 				this.emit("DUNGEON_FINDER_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");

@@ -6,6 +6,8 @@ import { Frame } from "./frame";
 export interface ModalOption {
 	readonly id: string;
 	readonly label: string;
+	/** Secure toy activation takes place before select is called. */
+	readonly toy?: number;
 	select(): void;
 }
 export interface IModal {
@@ -13,6 +15,7 @@ export interface IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: string | number,
+		titleAlignment?: "left" | "right",
 	): void;
 	close(): void;
 }
@@ -27,7 +30,8 @@ export class Modal implements IModal {
 	private readonly window: Frame;
 	private readonly tooltip: Frame;
 	private readonly divider: Frame;
-	private readonly buttons: Frame[] = [];
+	private readonly buttons = new Map<number, Frame>();
+	private readonly actionButtons = new Map<number, Frame>();
 	private opened = false;
 	private readonly dismiss = () => this.close();
 	constructor(
@@ -46,6 +50,7 @@ export class Modal implements IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: string | number,
+		titleAlignment: "left" | "right" = "right",
 	): void {
 		this.backdrop.modalBackdrop();
 		this.backdrop.setColor(0, 0, 0, 0.65);
@@ -78,7 +83,15 @@ export class Modal implements IModal {
 		}
 		this.window.layout(width, height, "CENTER", this.backdrop);
 		this.window.setFocusBorder(true);
-		this.window.setLabel("title", title, "TOPRIGHT", -20, -20, 18, optionWidth);
+		this.window.setLabel(
+			"title",
+			title,
+			titleAlignment === "left" ? "TOPLEFT" : "TOPRIGHT",
+			titleAlignment === "left" ? 20 : -20,
+			-20,
+			18,
+			optionWidth,
+		);
 		this.window.setLabel(
 			"hint",
 			"A: Select   B: Cancel",
@@ -89,11 +102,22 @@ export class Modal implements IModal {
 			optionWidth,
 		);
 		const grid: NavGrid = [];
+		for (const button of [
+			...this.buttons.values(),
+			...this.actionButtons.values(),
+		])
+			button.hide();
 		options.forEach((option, index) => {
-			let button = this.buttons.at(index);
+			const secure = option.toy !== undefined;
+			const buttons = secure ? this.actionButtons : this.buttons;
+			let button = buttons.get(index);
 			if (!button) {
-				button = new Frame(`${this.id}-option-${index}`, this.pool, "Button");
-				this.buttons.push(button);
+				button = new Frame(
+					`${this.id}-${secure ? "action" : "option"}-${index}`,
+					this.pool,
+					secure ? "SecureButton" : "Button",
+				);
+				buttons.set(index, button);
 			}
 			button.setParent(this.window);
 			button.setModalLayer();
@@ -112,14 +136,29 @@ export class Modal implements IModal {
 				this.close();
 				option.select();
 			};
-			button.onClick((mouse) => {
-				if (mouse === "LeftButton") select();
-			});
-			grid.push([button.navigationNode(`${this.id}-${option.id}`, select)]);
+			if (secure) {
+				button.setToy(option.toy);
+				button.onPostClick((mouse) => {
+					if (mouse === "LeftButton") select();
+				});
+			} else {
+				button.onClick((mouse) => {
+					if (mouse === "LeftButton") select();
+				});
+			}
+			const control = button;
+			grid.push([
+				button.navigationNode(
+					`${this.id}-${option.id}`,
+					secure
+						? () => {
+								if (this.opened) control.click();
+							}
+						: select,
+				),
+			]);
 			button.show();
 		});
-		for (let i = options.length; i < this.buttons.length; i++)
-			this.buttons.at(i)?.hide();
 		this.opened = true;
 		this.window.show();
 		this.backdrop.show();
@@ -136,8 +175,13 @@ export class Modal implements IModal {
 	destroy(): void {
 		this.close();
 		this.events.unsubscribe("COMBAT_STARTED", this.dismiss);
-		for (const button of this.buttons) button.destroy();
-		this.buttons.length = 0;
+		for (const button of [
+			...this.buttons.values(),
+			...this.actionButtons.values(),
+		])
+			button.destroy();
+		this.buttons.clear();
+		this.actionButtons.clear();
 		this.tooltip.destroy();
 		this.divider.destroy();
 		this.window.destroy();

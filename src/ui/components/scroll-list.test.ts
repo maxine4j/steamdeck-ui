@@ -28,6 +28,9 @@ const { frames } = vi.hoisted(() => ({
 			hide: ReturnType<typeof vi.fn>;
 			destroy: ReturnType<typeof vi.fn>;
 			revealVerticalRange: ReturnType<typeof vi.fn>;
+			setOpacity: ReturnType<typeof vi.fn>;
+			show: ReturnType<typeof vi.fn>;
+			onClick: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -40,6 +43,9 @@ vi.mock("./frame", () => ({
 		layoutVerticallyCentered = vi.fn();
 		onSizeChanged = vi.fn();
 		setColor = vi.fn();
+		setOpacity = vi.fn();
+		setBorder = vi.fn();
+		resetScroll = vi.fn();
 		hide = vi.fn();
 		destroy = vi.fn();
 		setParent = vi.fn();
@@ -56,6 +62,37 @@ vi.mock("./frame", () => ({
 		revealVerticalRange = vi.fn();
 	},
 }));
+
+it("renders checkbox rows and excludes disabled choices while reusing rows for ordinary buttons", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("checkbox", pool, "Test", vi.fn());
+	const activate = vi.fn();
+	list.setRows([
+		{ id: "available", label: "Available", checked: true, activate },
+		{ id: "locked", label: "Locked", checked: false, enabled: false, activate },
+	]);
+	list.mount(new Frame("checkbox-parent", pool));
+	expect(frames.get("checkbox-check-0")?.show).toHaveBeenCalledOnce();
+	expect(frames.get("checkbox-check-1")?.hide).toHaveBeenCalledOnce();
+	frames.get("checkbox-row-1")?.onClick.mock.lastCall?.at(0)("LeftButton");
+	expect(activate).not.toHaveBeenCalled();
+	expect(list.getNavGrid().map((row) => row.at(0)?.navId)).toEqual([
+		"available",
+	]);
+	expect(frames.get("checkbox-row-1")?.setOpacity).toHaveBeenLastCalledWith(
+		0.35,
+	);
+	list.getNavGrid().at(0)?.at(0)?.onInteract();
+	expect(activate).toHaveBeenCalledOnce();
+	list.setRows([{ id: "back", label: "Back", activate }]);
+	expect(frames.get("checkbox-checkbox-0")?.hide).toHaveBeenCalled();
+	list.setRows([
+		{ id: "first", label: "First", activate },
+		{ id: "back", label: "Back", activate },
+	]);
+	expect(frames.get("checkbox-row-1")?.setOpacity).toHaveBeenLastCalledWith(1);
+	expect(list.getNavGrid().at(1)?.at(0)?.navId).toBe("back");
+});
 
 it("scrolls focused rows into view, accounting for section headings and margins", () => {
 	const pool = {} as IFramePoolManager;

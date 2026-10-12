@@ -12,6 +12,8 @@ const { frames } = vi.hoisted(() => ({
 			hide: ReturnType<typeof vi.fn>;
 			destroy: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
+			layout: ReturnType<typeof vi.fn>;
+			setOpacity: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -27,6 +29,7 @@ vi.mock("./frame", () => ({
 		layout = vi.fn();
 		setBorder = vi.fn();
 		setColor = vi.fn();
+		setOpacity = vi.fn();
 		constructor(id: string) {
 			frames.set(id, this);
 		}
@@ -35,6 +38,38 @@ vi.mock("./frame", () => ({
 		}
 	},
 }));
+
+it("keeps artwork compact with a checkbox over its bottom-right corner", () => {
+	const pool = {} as IFramePoolManager;
+	const control = new IconCheckbox("compact", pool, "Tank", "icon", vi.fn());
+	control.mount(new Frame("parent", pool), 30, 70);
+	expect(frames.get("compact-icon")?.layout).toHaveBeenCalledWith(
+		32,
+		32,
+		"TOP",
+		expect.anything(),
+		0,
+		-10,
+	);
+	expect(frames.get("compact-icon")?.setLabel).toHaveBeenCalledWith(
+		"icon",
+		"icon",
+		"CENTER",
+		0,
+		0,
+		12,
+	);
+	expect(frames.get("compact-box")?.layout).toHaveBeenCalledWith(
+		14,
+		14,
+		"BOTTOMRIGHT",
+		frames.get("compact-icon"),
+		2,
+		-2,
+	);
+	control.destroy();
+	expect(frames.get("compact-icon")?.destroy).toHaveBeenCalledOnce();
+});
 
 it("shows an independent check mark and shares guarded mouse/controller activation", () => {
 	const pool = {} as IFramePoolManager;
@@ -51,8 +86,11 @@ it("shows an independent check mark and shares guarded mouse/controller activati
 	frames.get("role")?.onClick.mock.lastCall?.at(0)("LeftButton");
 	expect(activate).toHaveBeenCalledTimes(2);
 	control.setChecked(true, false);
+	expect(frames.get("role")?.setOpacity).toHaveBeenLastCalledWith(0.35);
 	control.onInteract();
 	expect(activate).toHaveBeenCalledTimes(2);
+	control.setChecked(true, true);
+	expect(frames.get("role")?.setOpacity).toHaveBeenLastCalledWith(1);
 	control.unmount();
 	control.onInteract();
 	expect(activate).toHaveBeenCalledTimes(2);

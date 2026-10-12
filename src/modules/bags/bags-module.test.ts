@@ -18,7 +18,14 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 		getMoney: vi.fn(() => 12345),
 		isOpen: vi.fn(() => false),
 	};
-	const view = { setItems: vi.fn(), setMoney: vi.fn() };
+	let visibilityChanged: ((visible: boolean) => void) | undefined;
+	const view = {
+		setItems: vi.fn(),
+		setMoney: vi.fn(),
+		setVisibilityChanged: (callback?: (visible: boolean) => void) => {
+			visibilityChanged = callback;
+		},
+	};
 	const builtIn = { disable: vi.fn(), restore: vi.fn() };
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -50,6 +57,20 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	events.emit("ITEM_DATA_LOAD_RESULT");
 	expect(inventory.getItems).not.toHaveBeenCalled();
 	expect(ui.openPanel).not.toHaveBeenCalled();
+	// Selecting Bags from another tab must load without native bags opening.
+	visibilityChanged?.(true);
+	expect(inventory.getItems).toHaveBeenCalledOnce();
+	expect(ui.openPanel).not.toHaveBeenCalled();
+	visibilityChanged?.(false);
+	visibilityChanged?.(true);
+	expect(inventory.getItems).toHaveBeenCalledOnce();
+	events.emit("BAG_UPDATE_DELAYED");
+	pending.shift()?.();
+	expect(inventory.getItems).toHaveBeenCalledTimes(2);
+	visibilityChanged?.(false);
+	events.emit("BAG_UPDATE_DELAYED");
+	expect(pending).toHaveLength(0);
+	inventory.getItems.mockClear();
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	events.emit("BAG_VISIBILITY_CHANGED");

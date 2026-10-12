@@ -11,6 +11,7 @@ import { ReputationClient } from "./clients/reputation-client";
 import { TalentsClient } from "./clients/talents-client";
 import { TaskScheduler } from "./clients/task-scheduler";
 import { TitlesClient } from "./clients/titles-client";
+import { ToysClient } from "./clients/toys-client";
 import { VendorClient } from "./clients/vendor-client";
 import { WowEventBus } from "./events/wow-event-bus";
 import { startSteamDeckUI } from "./start";
@@ -46,4 +47,5 @@ startSteamDeckUI(
 	new DialogueClient(),
 	new DialogueCamera(),
 	new VendorClient(),
+	new ToysClient(scheduler),
 );
