@@ -2,6 +2,53 @@ import { afterEach, expect, it, vi } from "vitest";
 import { CharacterClient } from "./character-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("reads character identity and handles characters without a guild or specialization", () => {
+	vi.stubGlobal(
+		"UnitName",
+		vi.fn(() => ["Mings", "Realm"]),
+	);
+	vi.stubGlobal(
+		"UnitLevel",
+		vi.fn(() => 80),
+	);
+	vi.stubGlobal(
+		"UnitRace",
+		vi.fn(() => ["Night Elf", "NightElf", 4]),
+	);
+	vi.stubGlobal(
+		"UnitClass",
+		vi.fn(() => ["Druid", "DRUID", 11]),
+	);
+	const guild = vi.fn((): [string | undefined] => ["Deck Crew"]);
+	vi.stubGlobal("GetGuildInfo", guild);
+	const specialization = {
+		GetSpecialization: vi.fn((): number | undefined => 2),
+		GetSpecializationInfo: vi.fn(() => [103, "Feral"]),
+	};
+	vi.stubGlobal("C_SpecializationInfo", specialization);
+	const client = new CharacterClient();
+	expect(client.getIdentity()).toEqual({
+		name: "Mings",
+		guild: "Deck Crew",
+		level: 80,
+		race: "Night Elf",
+		className: "Druid",
+		specialization: "Feral",
+	});
+	expect(guild).toHaveBeenCalledWith("player");
+	expect(specialization.GetSpecializationInfo).toHaveBeenCalledWith(
+		2,
+		false,
+		false,
+	);
+	guild.mockReturnValue([undefined]);
+	specialization.GetSpecialization.mockReturnValue(undefined);
+	expect(client.getIdentity()).toMatchObject({
+		guild: undefined,
+		specialization: undefined,
+	});
+	expect(specialization.GetSpecializationInfo).toHaveBeenCalledOnce();
+});
 function setup() {
 	let next = 0;
 	const slots = new Map<string, number>();

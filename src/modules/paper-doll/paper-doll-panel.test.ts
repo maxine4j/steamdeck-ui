@@ -19,6 +19,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 			SetPoint: ReturnType<typeof vi.fn>;
 			SetWidth: ReturnType<typeof vi.fn>;
 			SetWordWrap: ReturnType<typeof vi.fn>;
+			SetJustifyH: ReturnType<typeof vi.fn>;
 		}[] = [];
 		return {
 			handlers,
@@ -187,6 +188,41 @@ it("fits equipment around a character model with stats below, reuses controls an
 	const equipmentButtons = natives.filter((native) =>
 		native.handlers.has("OnDragStart"),
 	);
+	panel.setIdentity({
+		name: "Mings",
+		guild: "Deck Crew",
+		level: 80,
+		race: "Night Elf",
+		className: "Druid",
+		specialization: "Feral",
+	});
+	expect(content?.texts).toContain("Mings");
+	expect(content?.texts).toContain("|cff40ff40<Deck Crew>|r");
+	expect(content?.texts).toContain("Level 80 · Night Elf · Feral Druid");
+	expect(content?.SetSize).toHaveBeenLastCalledWith(500, 650);
+	expect(content?.SetPoint.mock.lastCall?.at(4)).toBe(-175);
+	expect(
+		content?.labels.every(
+			(label) => label.SetJustifyH.mock.lastCall?.at(0) === "CENTER",
+		),
+	).toBe(true);
+	const body = natives.find(
+		(native) => native === model.SetParent.mock.lastCall?.at(0),
+	);
+	expect(body?.SetPoint.mock.lastCall?.at(4)).toBe(-80);
+	const framesBeforeIdentityUpdate = factory.createFrame.mock.calls.length;
+	panel.setIdentity({
+		name: "Mings",
+		level: 80,
+		race: "Night Elf",
+		className: "Druid",
+	});
+	expect(content?.texts).toContain("Level 80 · Night Elf · Druid");
+	expect(content?.labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
+	expect(content?.SetSize).toHaveBeenLastCalledWith(500, 628);
+	expect(content?.SetPoint.mock.lastCall?.at(4)).toBe(-186);
+	expect(body?.SetPoint.mock.lastCall?.at(4)).toBe(-58);
+	expect(factory.createFrame).toHaveBeenCalledTimes(framesBeforeIdentityUpdate);
 	expect(equipmentButtons).toHaveLength(18);
 	const tooltip = {
 		SetOwner: vi.fn(),

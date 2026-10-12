@@ -2,6 +2,13 @@ import type { WowFrame } from "../../types";
 
 /** FrameXML and legacy inventory contracts absent from generated API documentation. */
 declare global {
+	/** Legacy guild query absent from generated API documentation. */
+	function GetGuildInfo(
+		this: void,
+		unit: string,
+	): LuaMultiReturn<
+		[string | undefined, string | undefined, number | undefined]
+	>;
 	const CharacterFrame: WowFrame & {
 		GetParent(): WowFrame | undefined;
 		IsShown(): boolean;

@@ -17,6 +17,14 @@ export interface CharacterStat {
 	readonly label: string;
 	readonly value: string;
 }
+export interface CharacterIdentity {
+	readonly name: string;
+	readonly guild?: string;
+	readonly level: number;
+	readonly race: string;
+	readonly className: string;
+	readonly specialization?: string;
+}
 export interface ICharacterActions {
 	close(): void;
 	pickup(slot: EquipmentSlot): void;
@@ -28,6 +36,7 @@ export interface ICharacterClient extends ICharacterActions {
 	isOpen(): boolean;
 	getEquipment(): EquipmentSlot[];
 	getStats(): CharacterStat[];
+	getIdentity(): CharacterIdentity;
 }
 const slotNames = [
 	["HeadSlot", "Head"],
@@ -51,6 +60,43 @@ const slotNames = [
 ] as const;
 export class CharacterClient implements ICharacterClient {
 	private readonly requested = new Set<number>();
+	getIdentity(): CharacterIdentity {
+		// Generated unit-token types are numeric, but Retail accepts "player".
+		const unitName = UnitName as unknown as (
+			this: void,
+			unit: string,
+		) => LuaMultiReturn<[string, string]>;
+		const unitRace = UnitRace as unknown as (
+			this: void,
+			unit: string,
+		) => LuaMultiReturn<[string, string, number]>;
+		const unitClass = UnitClass as unknown as (
+			this: void,
+			unit: string,
+		) => LuaMultiReturn<[string, string, number]>;
+		const [name] = unitName("player");
+		const [race] = unitRace("player");
+		const [className] = unitClass("player");
+		const [guild] = GetGuildInfo("player");
+		const spec = C_SpecializationInfo.GetSpecialization();
+		let specialization: string | undefined;
+		if (spec && spec > 0) {
+			const [, specName] = C_SpecializationInfo.GetSpecializationInfo(
+				spec,
+				false,
+				false,
+			);
+			specialization = specName ?? undefined;
+		}
+		return {
+			name,
+			guild: guild || undefined,
+			level: UnitLevel("player"),
+			race,
+			className,
+			specialization,
+		};
+	}
 	isOpen(): boolean {
 		return (
 			CharacterFrame.IsShown() &&

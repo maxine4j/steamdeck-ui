@@ -1,4 +1,5 @@
 import type {
+	CharacterIdentity,
 	CharacterStat,
 	EquipmentSlot,
 	ICharacterActions,
@@ -50,6 +51,8 @@ export class PaperDollPanel implements IPanel {
 	private equipmentDirty = true;
 	private statsDirty = true;
 	private previewDirty = true;
+	private identityDirty = true;
+	private identity?: CharacterIdentity;
 	private equipment: readonly EquipmentSlot[] = [];
 	private stats: readonly CharacterStat[] = [];
 	private readonly slots: {
@@ -62,6 +65,7 @@ export class PaperDollPanel implements IPanel {
 	private readonly preview: Frame;
 	private readonly closeButton: Frame;
 	private readonly content: Frame;
+	private readonly body: Frame;
 	constructor(
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
@@ -70,6 +74,42 @@ export class PaperDollPanel implements IPanel {
 		this.preview = new Frame("character-model", pool, "PlayerModel");
 		this.closeButton = new Frame("character-close", pool, "Button");
 		this.content = new Frame("character-content", pool);
+		this.body = new Frame("character-body", pool);
+	}
+	setIdentity(identity: CharacterIdentity): void {
+		this.identity = identity;
+		this.identityDirty = true;
+		if (this.mounted) this.renderIdentity();
+	}
+	private renderIdentity(): void {
+		this.identityDirty = false;
+		const identity = this.identity;
+		if (!identity) return;
+		this.content.setLabel("name", identity.name, "TOP", 0, 0, 22, 468);
+		this.content.setLabel(
+			"guild",
+			identity.guild ? `|cff40ff40<${identity.guild}>|r` : "",
+			"TOP",
+			0,
+			-28,
+			14,
+			468,
+		);
+		const classDescription = identity.specialization
+			? `${identity.specialization} ${identity.className}`
+			: identity.className;
+		this.content.setLabel(
+			"identity",
+			`Level ${identity.level} · ${identity.race} · ${classDescription}`,
+			"TOP",
+			0,
+			identity.guild ? -50 : -28,
+			13,
+			468,
+		);
+		for (const key of ["name", "guild", "identity"])
+			this.content.setLabelWordWrap(key, false);
+		this.layoutContent();
 	}
 	setEquipment(equipment: readonly EquipmentSlot[]): void {
 		this.equipment = equipment;
@@ -96,6 +136,8 @@ export class PaperDollPanel implements IPanel {
 		this.frame.show();
 		this.content.setParent(this.frame);
 		this.content.show();
+		this.body.setParent(this.content);
+		this.body.show();
 		this.frame.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
@@ -106,10 +148,11 @@ export class PaperDollPanel implements IPanel {
 			if (this.mounted) this.actions.close();
 		});
 		this.closeButton.show();
-		this.preview.setParent(this.content);
-		this.preview.layout(332, 364, "TOPLEFT", this.content, 84, 0);
+		this.preview.setParent(this.body);
+		this.preview.layout(332, 364, "TOPLEFT", this.body, 84, 0);
 		this.preview.show();
 		this.mounted = true;
+		if (this.identityDirty) this.renderIdentity();
 		if (this.previewDirty) this.refreshPreview();
 		if (this.equipmentDirty) this.renderEquipment();
 		if (this.statsDirty) this.renderStats();
@@ -147,8 +190,8 @@ export class PaperDollPanel implements IPanel {
 			}
 			const x = index < 8 ? 16 : index < 16 ? 438 : index === 16 ? 107 : 349;
 			const y = index < 16 ? (index % 8) * 46 : 374;
-			cell.border.setParent(this.content);
-			cell.border.layout(44, 44, "TOPLEFT", this.content, x, -y);
+			cell.border.setParent(this.body);
+			cell.border.layout(44, 44, "TOPLEFT", this.body, x, -y);
 			cell.border.setColor(
 				...(qualityColors.at(slot.quality) ?? ([1, 1, 1] as const)),
 			);
@@ -159,12 +202,12 @@ export class PaperDollPanel implements IPanel {
 			const weapon = index >= 16;
 			const width = weapon ? 226 : 150;
 			const point = weapon ? "TOP" : index < 8 ? "TOPLEFT" : "TOPRIGHT";
-			cell.details.setParent(this.content);
+			cell.details.setParent(this.body);
 			cell.details.layout(
 				width,
 				40,
 				"TOPLEFT",
-				this.content,
+				this.body,
 				weapon ? 16 + (index - 16) * 242 : index < 8 ? 68 : 282,
 				weapon ? -424 : -y,
 			);
@@ -209,12 +252,12 @@ export class PaperDollPanel implements IPanel {
 				row = new Frame(`character-stat-${index}`, this.pool);
 				this.statRows.push(row);
 			}
-			row.setParent(this.content);
+			row.setParent(this.body);
 			row.layout(
 				226,
 				26,
 				"TOPLEFT",
-				this.content,
+				this.body,
 				16 + (index % 2) * 242,
 				-488 - Math.floor(index / 2) * 28,
 			);
@@ -233,7 +276,13 @@ export class PaperDollPanel implements IPanel {
 				: this.equipment.length > 16
 					? 464
 					: 364;
-		this.content.layoutVerticallyCentered(500, height, this.frame);
+		const headerHeight = this.identity ? (this.identity.guild ? 80 : 58) : 0;
+		this.content.layoutVerticallyCentered(
+			500,
+			height + headerHeight,
+			this.frame,
+		);
+		this.body.layout(500, height, "TOPLEFT", this.content, 0, -headerHeight);
 	}
 	onUnmount(): void {
 		this.mounted = false;
@@ -263,6 +312,7 @@ export class PaperDollPanel implements IPanel {
 		this.statRows.length = 0;
 		this.preview.destroy();
 		this.closeButton.destroy();
+		this.body.destroy();
 		this.content.destroy();
 		this.frame.destroy();
 	}

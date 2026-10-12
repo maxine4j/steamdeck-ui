@@ -1,4 +1,5 @@
 import type {
+	CharacterIdentity,
 	CharacterStat,
 	EquipmentSlot,
 	ICharacterClient,
@@ -11,6 +12,7 @@ import type { IModule } from "../types";
 import type { IBuiltInPaperDoll } from "./built-in-paper-doll";
 
 export interface PaperDollView {
+	setIdentity(identity: CharacterIdentity): void;
 	setEquipment(equipment: readonly EquipmentSlot[]): void;
 	setStats(stats: readonly CharacterStat[]): void;
 	refreshPreview(): void;
@@ -18,6 +20,7 @@ export interface PaperDollView {
 export class PaperDollModule implements IModule {
 	readonly id = "paper-doll";
 	private open = false;
+	private identityDirty = true;
 	private equipmentDirty = true;
 	private statsDirty = true;
 	private previewDirty = true;
@@ -29,6 +32,10 @@ export class PaperDollModule implements IModule {
 	}
 	private update(): void {
 		if (!this.open) return;
+		if (this.identityDirty) {
+			this.view.setIdentity(this.character.getIdentity());
+			this.identityDirty = false;
+		}
 		if (this.equipmentDirty) {
 			this.view.setEquipment(this.character.getEquipment());
 			this.equipmentDirty = false;
@@ -42,6 +49,10 @@ export class PaperDollModule implements IModule {
 	}
 	private readonly refreshStats = () => {
 		this.statsDirty = true;
+		this.task.invalidate();
+	};
+	private readonly refreshIdentity = () => {
+		this.identityDirty = true;
 		this.task.invalidate();
 	};
 	private readonly refreshPreview = () => {
@@ -68,7 +79,7 @@ export class PaperDollModule implements IModule {
 		private readonly events: IEventBus,
 		private readonly character: Pick<
 			ICharacterClient,
-			"isOpen" | "getEquipment" | "getStats"
+			"isOpen" | "getEquipment" | "getStats" | "getIdentity"
 		>,
 		private readonly view: PaperDollView,
 		private readonly builtIn: IBuiltInPaperDoll,
@@ -80,6 +91,7 @@ export class PaperDollModule implements IModule {
 		this.builtIn.disable();
 	}
 	initialize(): void {
+		this.events.subscribe("CHARACTER_IDENTITY_CHANGED", this.refreshIdentity);
 		this.events.subscribe("CHARACTER_VISIBILITY_CHANGED", this.syncVisibility);
 		this.events.subscribe("PLAYER_EQUIPMENT_CHANGED", this.refresh);
 		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
@@ -88,6 +100,7 @@ export class PaperDollModule implements IModule {
 		this.syncVisibility();
 	}
 	shutdown(): void {
+		this.events.unsubscribe("CHARACTER_IDENTITY_CHANGED", this.refreshIdentity);
 		this.task.setActive(false);
 		this.events.unsubscribe(
 			"CHARACTER_VISIBILITY_CHANGED",

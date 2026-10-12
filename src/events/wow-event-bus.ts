@@ -15,6 +15,17 @@ const characterStatEvents = [
 	"SPELL_POWER_CHANGED",
 	"PLAYER_ENTERING_WORLD",
 ];
+const characterIdentityEvents = [
+	"PLAYER_ENTERING_WORLD",
+	"GUILD_ROSTER_UPDATE",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+];
+const characterIdentityUnitEvents = [
+	"UNIT_NAME_UPDATE",
+	"UNIT_LEVEL",
+	"PLAYER_GUILD_UPDATE",
+	"PLAYER_SPECIALIZATION_CHANGED",
+];
 const actionBarEvents = [
 	"ACTIONBAR_SLOT_CHANGED",
 	"ACTIONBAR_UPDATE_COOLDOWN",
@@ -105,6 +116,8 @@ export class WowEventBus implements IEventBus {
 		for (const event of [
 			...characterStatEvents,
 			...characterUnitEvents,
+			...characterIdentityEvents,
+			...characterIdentityUnitEvents,
 			...reputationEvents,
 			...titleEvents,
 			...mountEvents,
@@ -113,6 +126,11 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, unit) => {
+			if (
+				characterIdentityEvents.includes(event) ||
+				(characterIdentityUnitEvents.includes(event) && unit === "player")
+			)
+				this.emit("CHARACTER_IDENTITY_CHANGED");
 			if (event === "PLAYER_REGEN_DISABLED") this.emit("COMBAT_STARTED");
 			if (actionBarEvents.includes(event)) this.emit("ACTION_BAR_CHANGED");
 			if (actionCursorEvents.includes(event))

@@ -136,6 +136,29 @@ it("forwards native login events through the hidden event frame", () => {
 	expect(talents).toHaveBeenCalledTimes(9);
 	dispatch(frame, "PLAYER_SPECIALIZATION_CHANGED", "player");
 	expect(talents).toHaveBeenCalledTimes(10);
+	const identity = vi.fn();
+	bus.subscribe("CHARACTER_IDENTITY_CHANGED", identity);
+	for (const event of [
+		"UNIT_NAME_UPDATE",
+		"UNIT_LEVEL",
+		"PLAYER_GUILD_UPDATE",
+		"PLAYER_SPECIALIZATION_CHANGED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event, "target");
+		expect(identity).not.toHaveBeenCalled();
+	}
+	for (const event of [
+		"UNIT_NAME_UPDATE",
+		"UNIT_LEVEL",
+		"PLAYER_GUILD_UPDATE",
+		"PLAYER_SPECIALIZATION_CHANGED",
+	])
+		dispatch(frame, event, "player");
+	dispatch(frame, "GUILD_ROSTER_UPDATE");
+	dispatch(frame, "PLAYER_ENTERING_WORLD");
+	dispatch(frame, "ACTIVE_PLAYER_SPECIALIZATION_CHANGED");
+	expect(identity).toHaveBeenCalledTimes(7);
 });
 
 it("deduplicates subscriptions and removes unsubscribed handlers", () => {

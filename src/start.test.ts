@@ -51,6 +51,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 					SetFont: vi.fn(),
 					SetJustifyH: vi.fn(),
 					SetWidth: vi.fn(),
+					SetWordWrap: vi.fn(),
 				}),
 				SetScript: vi.fn(),
 				RegisterForClicks: vi.fn(),
@@ -124,6 +125,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		activeSubframe: "PaperDollFrame",
 	});
 	const character = {
+		getIdentity: vi.fn(() => ({
+			name: "Mings",
+			level: 80,
+			race: "Night Elf",
+			className: "Druid",
+		})),
 		open: vi.fn(),
 		toggle: vi.fn(),
 		isOpen: vi.fn(() => false),

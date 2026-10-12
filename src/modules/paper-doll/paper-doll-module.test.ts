@@ -6,12 +6,19 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
 	const character = {
+		getIdentity: vi.fn(() => ({
+			name: "Mings",
+			level: 80,
+			race: "Night Elf",
+			className: "Druid",
+		})),
 		isOpen: vi.fn(() => false),
 		getEquipment: vi.fn(() => []),
 		getStats: vi.fn(() => []),
 		close: vi.fn(),
 	};
 	const view = {
+		setIdentity: vi.fn(),
 		setEquipment: vi.fn(),
 		setStats: vi.fn(),
 		refreshPreview: vi.fn(),
@@ -46,6 +53,14 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 	character.isOpen.mockReturnValue(true);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
 	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("paper-doll", "left");
+	expect(view.setIdentity).toHaveBeenCalledWith(
+		character.getIdentity.mock.results.at(0)?.value,
+	);
+	events.emit("CHARACTER_IDENTITY_CHANGED");
+	events.emit("CHARACTER_IDENTITY_CHANGED");
+	expect(character.getIdentity).toHaveBeenCalledOnce();
+	flush();
+	expect(character.getIdentity).toHaveBeenCalledTimes(2);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
 	expect(ui.openPanel).toHaveBeenCalledOnce();
 	events.emit("PLAYER_EQUIPMENT_CHANGED");
@@ -59,9 +74,13 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 	expect(character.getStats).toHaveBeenCalledTimes(3);
 	character.isOpen.mockReturnValue(false);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	events.emit("CHARACTER_IDENTITY_CHANGED");
+	flush();
+	expect(character.getIdentity).toHaveBeenCalledTimes(2);
 	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("left");
 	character.isOpen.mockReturnValue(true);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
+	expect(character.getIdentity).toHaveBeenCalledTimes(3);
 	expect(character.getEquipment).toHaveBeenCalledTimes(2);
 	expect(character.getStats).toHaveBeenCalledTimes(3);
 	character.isOpen.mockReturnValue(false);
