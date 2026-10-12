@@ -82,6 +82,7 @@ export class ReputationPanel implements IPanel {
 			fontSize: child ? 16 : 20,
 			indent: child ? 12 : 0,
 			height: child ? 36 : 44,
+			marginTop: child ? 0 : 24,
 			marginBottom: child ? 8 : 12,
 			activate: () => {},
 		};

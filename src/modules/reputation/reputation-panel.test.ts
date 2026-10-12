@@ -102,11 +102,17 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 		["Legion", true],
 		["Wardens", false],
 	]);
-	expect(rows.at(0)).toMatchObject({ fontSize: 20, marginBottom: 12 });
+	expect(rows.at(0)).toMatchObject({
+		fontSize: 20,
+		marginTop: 24,
+		marginBottom: 12,
+	});
+	expect(rows.at(9)).toMatchObject({ marginTop: 24 });
 	expect(rows.at(4)).toMatchObject({
 		fontSize: 16,
 		indent: 12,
 		marginBottom: 8,
+		marginTop: 0,
 	});
 	expect(rows.at(1)).toMatchObject({
 		detail: "Friendly 1500 / 6000",

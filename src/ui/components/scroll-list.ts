@@ -20,6 +20,8 @@ export interface ListRow {
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
 	readonly indent?: number;
+	/** Extra space above a full-width heading. */
+	readonly marginTop?: number;
 	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number];
 	readonly progress?: {
@@ -176,6 +178,7 @@ export class ScrollList {
 				column = 0;
 				lineHeight = 0;
 			}
+			if (row.heading) top += row.marginTop ?? 0;
 			const height = row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
 			const position = {
 				top,
@@ -197,7 +200,10 @@ export class ScrollList {
 		});
 		this.contentHeight = Math.max(1, top + lineHeight);
 		this.layoutContent();
-		let offset = positions.at(startRow)?.top ?? this.contentHeight;
+		const firstRow = this.rows.at(startRow);
+		let offset =
+			(positions.at(startRow)?.top ?? this.contentHeight) -
+			(firstRow?.heading ? (firstRow.marginTop ?? 0) : 0);
 		let cursor = startRow;
 		const total = Math.max(this.rows.length, this.buttons.length);
 		const step = () => {
@@ -212,6 +218,7 @@ export class ScrollList {
 				const position = positions.at(index);
 				if (!position) return;
 				if (columns > 1) offset = position.top;
+				else if (row.heading) offset += row.marginTop ?? 0;
 				const rowWidth = position.width;
 				let button = this.buttons.at(index);
 				if (!button) {

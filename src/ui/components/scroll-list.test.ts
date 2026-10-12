@@ -3,6 +3,41 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it.each([1, 2])(
+	"adds heading margins to %i-column layouts and scrolling",
+	(columns) => {
+		const pool = {} as IFramePoolManager;
+		const list = new ScrollList("heading-margin", pool, "Test", vi.fn(), {
+			columns,
+			gap: 12,
+		});
+		list.setRows([
+			{ id: "first", label: "First", height: 60, activate: vi.fn() },
+			{
+				id: "heading",
+				label: "Expansion",
+				heading: true,
+				marginTop: 24,
+				activate: vi.fn(),
+			},
+			{ id: "second", label: "Second", height: 60, activate: vi.fn() },
+		]);
+		list.mount(new Frame("heading-margin-parent", pool));
+		expect(frames.get("heading-margin-row-1")?.layout).toHaveBeenLastCalledWith(
+			456,
+			28,
+			"TOPLEFT",
+			expect.anything(),
+			0,
+			-96,
+		);
+		list.getNavGrid().at(1)?.at(0)?.onFocus();
+		expect(
+			frames.get("heading-margin-scroll")?.revealVerticalRange,
+		).toHaveBeenLastCalledWith(128, 188, 200);
+	},
+);
+
 it("lays out two-column tiles with full-width headings and spatial navigation", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("tiles", pool, "Test", vi.fn(), {
