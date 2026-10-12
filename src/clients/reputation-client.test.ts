@@ -2,6 +2,79 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ReputationClient } from "./reputation-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("reads every collapsed group including newly revealed child groups", () => {
+	const expansion = {
+		factionID: 0,
+		name: "Midnight",
+		isHeader: true,
+		isCollapsed: true,
+	};
+	const parent = {
+		factionID: 1,
+		name: "Silvermoon Court",
+		isHeader: true,
+		isHeaderWithRep: true,
+		isChild: true,
+		isCollapsed: true,
+	};
+	const child = {
+		factionID: 2,
+		name: "Magisters",
+		isHeader: false,
+		isChild: true,
+	};
+	const visible = () =>
+		expansion.isCollapsed
+			? [expansion]
+			: parent.isCollapsed
+				? [expansion, parent]
+				: [expansion, parent, child];
+	const expand = vi.fn((index: number) => {
+		const row = visible().at(index - 1);
+		if (row && "isCollapsed" in row) row.isCollapsed = false;
+	});
+	vi.stubGlobal("C_Reputation", {
+		GetNumFactions: () => visible().length,
+		GetFactionDataByIndex: (index: number) => visible().at(index - 1),
+		ExpandFactionHeader: expand,
+		IsMajorFaction: () => false,
+		IsFactionParagonForCurrentPlayer: () => false,
+	});
+	vi.stubGlobal("C_GossipInfo", { GetFriendshipReputation: () => undefined });
+	expect(
+		new ReputationClient().getReputations().map((row) => row.name),
+	).toEqual(["Midnight", "Silvermoon Court", "Magisters"]);
+	expect(expand.mock.calls).toEqual([[1], [2]]);
+});
+
+it("watches reputation-bearing parents without collapsing their children", () => {
+	const row = {
+		factionID: 42,
+		name: "Silvermoon Court",
+		isHeader: true,
+		isHeaderWithRep: true,
+		isWatched: false,
+	};
+	const api = {
+		GetNumFactions: () => 1,
+		GetFactionDataByIndex: () => row,
+		IsMajorFaction: () => false,
+		IsFactionParagonForCurrentPlayer: () => false,
+		SetWatchedFactionByID: vi.fn(),
+		CollapseFactionHeader: vi.fn(),
+	};
+	vi.stubGlobal("C_Reputation", api);
+	vi.stubGlobal("C_GossipInfo", { GetFriendshipReputation: () => undefined });
+	const client = new ReputationClient();
+	const reputation = client.getReputations().at(0);
+	if (!reputation) throw new Error("Missing parent");
+	client.activate(reputation);
+	expect(api.SetWatchedFactionByID).toHaveBeenCalledWith(42);
+	expect(api.CollapseFactionHeader).not.toHaveBeenCalled();
+	row.isWatched = true;
+	client.activate(reputation);
+	expect(api.SetWatchedFactionByID).toHaveBeenLastCalledWith(0);
+});
 it("omits progress for section headers while retaining reputation-bearing headers and their factions", () => {
 	const factions = [
 		{ name: "Midnight", isHeader: true, isHeaderWithRep: false },
@@ -139,7 +212,7 @@ it("converts faction progress and routes header expansion and watched reputation
 			factionID: 0,
 			name: "Expansion",
 			isHeader: true,
-			isCollapsed: true,
+			isCollapsed: false,
 			isChild: false,
 		},
 		{
@@ -178,7 +251,7 @@ it("converts faction progress and routes header expansion and watched reputation
 	if (!header || !faction) throw new Error("Missing factions");
 	client.activate(header);
 	client.activate(faction);
-	expect(api.ExpandFactionHeader).toHaveBeenCalledWith(1);
+	expect(api.ExpandFactionHeader).not.toHaveBeenCalled();
 	expect(api.SetWatchedFactionByID).toHaveBeenCalledWith(0);
 	const changedFaction = data.at(1);
 	if (!changedFaction) throw new Error("Missing faction");

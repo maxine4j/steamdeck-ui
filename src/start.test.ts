@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { Reputation } from "./clients/reputation-client";
 import type { Toy } from "./clients/toys-client";
 import { createTestEventBus } from "./events/test-event-bus";
 import { startSteamDeckUI } from "./start";
@@ -14,6 +15,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("AchievementFrame", undefined);
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
+	const textureIcons = new Map<WowTexture, number>();
 	const labels: string[][] = [];
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -37,8 +39,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			const texture = {
 				ClearAllPoints: vi.fn(),
 				SetAllPoints: vi.fn(),
-				SetColorTexture: vi.fn(),
-				SetTexture: vi.fn(),
+				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
+				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
 				SetTexCoord: vi.fn(),
 				SetPoint: vi.fn(),
 				SetHeight: vi.fn(),
@@ -207,17 +209,23 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		]),
 	};
 	const reputation = {
-		getReputations: vi.fn(() => [
+		getReputations: vi.fn((): Reputation[] => [
 			{
 				index: 1,
 				id: 42,
 				name: "Faction",
 				description: "Description",
 				header: false,
+				hasReputation: true,
+				child: false,
 				collapsed: false,
 				watched: false,
 				standing: "Friendly",
 				progress: "10 / 100",
+				reaction: 5,
+				current: 10,
+				maximum: 100,
+				maxed: false,
 			},
 		]),
 		activate: vi.fn(),
@@ -605,16 +613,15 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	const clickTab = (icon: number) => {
-		const index = textures.findIndex((texture) =>
-			vi
-				.mocked(texture.SetTexture)
-				.mock.calls.some((call) => call.at(0) === icon),
+		const index = textures.findIndex(
+			(texture, index) =>
+				textureIcons.get(texture) === icon && frames.at(index)?.IsShown(),
 		);
 		const native = frames.at(index);
 		if (!native) throw new Error("Missing tab frame");
 		const handler = vi
 			.mocked(native.SetScript)
-			.mock.calls.find((call) => call.at(0) === "OnClick")
+			.mock.calls.findLast((call) => call.at(0) === "OnClick")
 			?.at(1) as ((frame: unknown, button: string) => void) | undefined;
 		if (!handler) throw new Error("Missing tab button");
 		handler(native, "LeftButton");

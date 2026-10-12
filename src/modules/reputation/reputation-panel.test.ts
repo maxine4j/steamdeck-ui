@@ -1,4 +1,6 @@
 import { expect, it, vi } from "vitest";
+import type { Reputation } from "../../clients/reputation-client";
+import type { ListRow } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { ReputationPanel } from "./reputation-panel";
@@ -32,141 +34,120 @@ vi.mock("../../ui/components/scroll-list", () => ({
 		}
 	},
 }));
-
-it("distinguishes section headings, child headings and faction rows with padded content", () => {
-	const pool = {} as IFramePoolManager;
-	const close = vi.fn();
-	const panel = new ReputationPanel(
-		pool,
-		{
-			activate: vi.fn(),
-			getReputations: () =>
-				[
-					{ header: true, child: false, name: "Expansion" },
-					{ header: true, child: true, name: "Alliance" },
-					{ header: false, child: true, name: "Faction" },
-				].map((row, index) => ({
-					...row,
-					hasReputation: !row.header,
-					index,
-					id: index,
-					description: "",
-					collapsed: false,
-					watched: false,
-					standing: "",
-					progress: "",
-					reaction: 4,
-					current: 0,
-					maximum: 0,
-					maxed: false,
-				})),
-		},
-		close,
-		scheduler,
-	);
-	panel.refresh();
-	panel.onMount({} as IUIComponent);
-	flush();
-	expect(construct).toHaveBeenCalledWith(
-		"reputation",
-		pool,
-		"Reputation",
-		close,
-		{ padding: 20, scheduler, onChanged: expect.any(Function) },
-	);
-	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
-		{ label: "− Expansion", fontSize: 18, indent: 0 },
-		{ label: "− Alliance", fontSize: 16, indent: 16 },
-		{ label: "Faction", fontSize: 14, indent: 32 },
-	]);
+const faction = (
+	name: string,
+	index: number,
+	overrides: Partial<Reputation> = {},
+): Reputation => ({
+	name,
+	index,
+	id: index,
+	description: "Description",
+	header: false,
+	child: true,
+	collapsed: false,
+	hasReputation: true,
+	watched: false,
+	standing: "Friendly",
+	progress: "1500 / 6000",
+	reaction: 5,
+	current: 1500,
+	maximum: 6000,
+	maxed: false,
+	...overrides,
 });
-
-it("colours reputation progress by standing and cap, with themed expansion headers", () => {
+const render = (reputations: Reputation[]) => {
+	const client = {
+		getReputations: vi.fn(() => reputations),
+		activate: vi.fn(),
+	};
 	const panel = new ReputationPanel(
 		{} as IFramePoolManager,
-		{
-			activate: vi.fn(),
-			getReputations: () =>
-				[
-					{ name: "Legion", header: true, reaction: 0, maxed: false },
-					{ name: "Friendly", header: false, reaction: 5, maxed: false },
-					{ name: "Exalted", header: false, reaction: 8, maxed: true },
-					{ name: "Hated", header: false, reaction: 1, maxed: false },
-					{ name: "Neutral", header: false, reaction: 4, maxed: false },
-					{
-						name: "Wrath of the Lich King",
-						header: true,
-						reaction: 0,
-						maxed: false,
-					},
-				].map((row, index) => ({
-					...row,
-					hasReputation: !row.header,
-					index,
-					id: index,
-					description: "",
-					child: false,
-					collapsed: false,
-					watched: false,
-					standing: row.header ? "" : row.name,
-					progress: "1500 / 6000",
-					current: 1500,
-					maximum: 6000,
-				})),
-		},
+		client,
 		vi.fn(),
 		scheduler,
 	);
 	panel.refresh();
 	panel.onMount({} as IUIComponent);
 	flush();
-	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
-		{ background: [0.12, 0.22, 0.06], progress: undefined, detail: "" },
-		{ progress: { value: 0.25, color: [0.15, 0.7, 0.25] } },
-		{ progress: { value: 1, color: [0.15, 0.45, 0.95] } },
-		{ progress: { value: 0.25, color: [0.8, 0.15, 0.15] } },
-		{ progress: { value: 0.25, color: [0.85, 0.65, 0.15] } },
-		{ background: [0.06, 0.18, 0.28], progress: undefined, detail: "" },
+	return { panel, client, rows: setRows.mock.lastCall?.at(0) as ListRow[] };
+};
+
+it("shows expansion tiles before child sections, with reputation-bearing parents at the top level", () => {
+	const { rows, client } = render([
+		faction("Midnight", 1, {
+			header: true,
+			child: false,
+			hasReputation: false,
+		}),
+		faction("Silvermoon Court", 2, { header: true }),
+		faction("Magisters", 3),
+		faction("Blood Knights", 4),
+		faction("Parent B", 5, { header: true }),
+		faction("Child B", 6),
+		faction("Ordinary", 7, { child: false }),
+		faction("Legion", 8, { header: true, child: false, hasReputation: false }),
+		faction("Wardens", 9, { child: false }),
 	]);
+	expect(rows.map((row) => [row.label, row.heading === true])).toEqual([
+		["Midnight", true],
+		["Silvermoon Court", false],
+		["Parent B", false],
+		["Ordinary", false],
+		["Silvermoon Court", true],
+		["Magisters", false],
+		["Blood Knights", false],
+		["Parent B", true],
+		["Child B", false],
+		["Legion", true],
+		["Wardens", false],
+	]);
+	expect(rows.at(0)).toMatchObject({ fontSize: 20, marginBottom: 12 });
+	expect(rows.at(4)).toMatchObject({
+		fontSize: 16,
+		indent: 12,
+		marginBottom: 8,
+	});
+	expect(rows.at(1)).toMatchObject({
+		detail: "Friendly 1500 / 6000",
+		height: 60,
+		progress: { value: 0.25, color: [0.15, 0.7, 0.25] },
+	});
+	expect(construct.mock.lastCall?.at(4)).toMatchObject({
+		columns: 2,
+		gap: 12,
+		edgeProgress: true,
+	});
+	rows.at(1)?.activate();
+	expect(client.activate).toHaveBeenCalledWith(
+		expect.objectContaining({ id: 2 }),
+	);
 });
 
-it("keeps progress bars and numbers for headers with their own reputation", () => {
-	const panel = new ReputationPanel(
-		{} as IFramePoolManager,
-		{
-			activate: vi.fn(),
-			getReputations: () => [
-				{
-					index: 1,
-					id: 1,
-					name: "Cartels of Undermine",
-					description: "",
-					header: true,
-					hasReputation: true,
-					child: true,
-					collapsed: false,
-					watched: false,
-					standing: "Friendly",
-					progress: "1500 / 6000",
-					reaction: 5,
-					current: 1500,
-					maximum: 6000,
-					maxed: false,
-				},
-			],
-		},
-		vi.fn(),
-		scheduler,
-	);
-	panel.refresh();
-	panel.onMount({} as IUIComponent);
-	flush();
-	expect(setRows.mock.lastCall?.at(0)).toMatchObject([
-		{
-			label: "− Cartels of Undermine",
-			detail: "Friendly 1500 / 6000",
-			progress: { value: 0.25, color: [0.15, 0.7, 0.25] },
-		},
+it("keeps capped tiles full without misleading numbers while retaining paragon progress and standing colours", () => {
+	const { rows } = render([
+		faction("Renown", 1, {
+			maxed: true,
+			current: 0,
+			maximum: 3000,
+			standing: "Renown 30",
+			progress: "0 / 3000",
+		}),
+		faction("Paragon", 2, {
+			maxed: true,
+			standing: "Paragon",
+			current: 2500,
+			maximum: 10000,
+			progress: "2500 / 10000",
+		}),
+		faction("Hated", 3, { reaction: 1 }),
+		faction("Neutral", 4, { reaction: 4 }),
+	]);
+	expect(rows).toMatchObject([
+		{ detail: "Renown 30", progress: { value: 1, color: [0.15, 0.45, 0.95] } },
+		{ detail: "Paragon 2500 / 10000", progress: { value: 0.25 } },
+		{ progress: { color: [0.8, 0.15, 0.15] } },
+		{ progress: { color: [0.85, 0.65, 0.15] } },
 	]);
 });
 

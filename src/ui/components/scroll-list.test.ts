@@ -3,6 +3,84 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("lays out two-column tiles with full-width headings and spatial navigation", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("tiles", pool, "Test", vi.fn(), {
+		columns: 2,
+		gap: 12,
+		edgeProgress: true,
+	});
+	list.setRows([
+		{
+			id: "heading",
+			label: "Expansion",
+			heading: true,
+			marginBottom: 12,
+			activate: vi.fn(),
+		},
+		...["a", "b", "c"].map((id) => ({
+			id,
+			label: id,
+			height: 60,
+			progress: { value: 0.5, color: [0, 1, 0] as const },
+			activate: vi.fn(),
+		})),
+		{ id: "group", label: "Children", heading: true, activate: vi.fn() },
+		{ id: "d", label: "D", height: 60, activate: vi.fn() },
+	]);
+	list.mount(new Frame("tiles-parent", pool));
+	expect(list.getNavGrid().map((row) => row.map((node) => node.navId))).toEqual(
+		[["a", "b"], ["c"], ["d"]],
+	);
+	expect(frames.get("tiles-row-1")?.layout).toHaveBeenLastCalledWith(
+		222,
+		60,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-44,
+	);
+	expect(frames.get("tiles-row-2")?.layout).toHaveBeenLastCalledWith(
+		222,
+		60,
+		"TOPLEFT",
+		expect.anything(),
+		234,
+		-44,
+	);
+	expect(frames.get("tiles-row-4")?.layout).toHaveBeenLastCalledWith(
+		456,
+		28,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-188,
+	);
+	expect(frames.get("tiles-track-1")?.layout).toHaveBeenLastCalledWith(
+		222,
+		6,
+		"BOTTOMLEFT",
+		expect.anything(),
+		0,
+		0,
+	);
+	list.getNavGrid().at(1)?.at(0)?.onFocus();
+	expect(
+		frames.get("tiles-scroll")?.revealVerticalRange,
+	).toHaveBeenLastCalledWith(116, 176, 292);
+	const node = list.getNavGrid().at(0)?.at(0);
+	list.setWidth(600);
+	expect(list.getNavGrid().at(0)?.at(0)).toBe(node);
+	expect(frames.get("tiles-row-1")?.setLabelWordWrap).toHaveBeenCalledWith(
+		"label",
+		false,
+	);
+	expect(frames.get("tiles-row-1")?.setLabelWordWrap).toHaveBeenCalledWith(
+		"detail",
+		false,
+	);
+});
+
 it("resizes existing rows without replacing their controls", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("resize", pool, "Test", vi.fn());
@@ -50,6 +128,7 @@ const { frames } = vi.hoisted(() => ({
 			setOpacity: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
+			setLabelWordWrap: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -93,6 +172,7 @@ vi.mock("./frame", () => ({
 		setParent = vi.fn();
 		show = vi.fn();
 		setLabel = vi.fn();
+		setLabelWordWrap = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
 		onClick = vi.fn();

@@ -41,10 +41,15 @@ const standings = [
 export class ReputationClient implements IReputationClient {
 	getReputations(): Reputation[] {
 		const rows: Reputation[] = [];
-		const count = C_Reputation.GetNumFactions();
-		for (let index = 1; index <= count; index++) {
-			const data = factionAt(index);
+		// Expanding a header reveals more rows, so the count must stay live.
+		for (let index = 1; index <= C_Reputation.GetNumFactions(); index++) {
+			let data = factionAt(index);
 			if (!data) continue;
+			if (data.isHeader && data.isCollapsed) {
+				C_Reputation.ExpandFactionHeader(index);
+				data = factionAt(index);
+				if (!data) continue;
+			}
 			const hasReputation = !data.isHeader || data.isHeaderWithRep === true;
 			let standing = standings.at(data.reaction - 1) ?? "";
 			let current = data.currentStanding - data.currentReactionThreshold;
@@ -135,11 +140,7 @@ export class ReputationClient implements IReputationClient {
 			current.name !== reputation.name
 		)
 			return;
-		if (current.isHeader) {
-			if (current.isCollapsed)
-				C_Reputation.ExpandFactionHeader(reputation.index);
-			else C_Reputation.CollapseFactionHeader(reputation.index);
-		} else
+		if (!current.isHeader || current.isHeaderWithRep)
 			C_Reputation.SetWatchedFactionByID(
 				current.isWatched ? 0 : current.factionID,
 			);

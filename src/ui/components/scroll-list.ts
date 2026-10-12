@@ -73,6 +73,9 @@ export class ScrollList {
 			readonly scheduler?: ITaskScheduler;
 			readonly onChanged?: (complete: boolean) => void;
 			readonly showClose?: boolean;
+			readonly columns?: number;
+			readonly gap?: number;
+			readonly edgeProgress?: boolean;
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -162,38 +165,39 @@ export class ScrollList {
 		const width =
 			(this.width ?? this.options.width ?? 480) -
 			2 * (this.options.padding ?? 12);
-		this.contentHeight = Math.max(
-			1,
-			this.rows.reduce(
-				(height, row) =>
-					height +
-					(row.height !== undefined
-						? row.height + 4
-						: row.heading
-							? 32
-							: row.progress
-								? 64
-								: 52) +
-					(row.marginBottom ?? 0),
-				0,
-			),
-		);
-		this.layoutContent();
-		let offset = this.rows
-			.slice(0, startRow)
-			.reduce(
-				(height, row) =>
-					height +
-					(row.height !== undefined
-						? row.height + 4
-						: row.heading
-							? 32
-							: row.progress
-								? 64
-								: 52) +
-					(row.marginBottom ?? 0),
-				0,
+		const columns = this.options.columns ?? 1;
+		const gap = this.options.gap ?? 4;
+		let top = 0;
+		let column = 0;
+		let lineHeight = 0;
+		const positions = this.rows.map((row) => {
+			if (row.heading && column > 0) {
+				top += lineHeight;
+				column = 0;
+				lineHeight = 0;
+			}
+			const height = row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
+			const position = {
+				top,
+				column,
+				height,
+				width: row.heading ? width : (width - gap * (columns - 1)) / columns,
+			};
+			lineHeight = Math.max(
+				lineHeight,
+				height + (row.heading ? 4 : gap) + (row.marginBottom ?? 0),
 			);
+			column++;
+			if (row.heading || column === columns) {
+				top += lineHeight;
+				column = 0;
+				lineHeight = 0;
+			}
+			return position;
+		});
+		this.contentHeight = Math.max(1, top + lineHeight);
+		this.layoutContent();
+		let offset = positions.at(startRow)?.top ?? this.contentHeight;
 		let cursor = startRow;
 		const total = Math.max(this.rows.length, this.buttons.length);
 		const step = () => {
@@ -205,6 +209,10 @@ export class ScrollList {
 			const start = cursor;
 			this.rows.slice(start, end).forEach((row, batchIndex) => {
 				const index = start + batchIndex;
+				const position = positions.at(index);
+				if (!position) return;
+				if (columns > 1) offset = position.top;
+				const rowWidth = position.width;
 				let button = this.buttons.at(index);
 				if (!button) {
 					const frame = new Frame(
@@ -323,19 +331,19 @@ export class ScrollList {
 					button.frame.setOpacity(dimmed ? 0.35 : 1);
 				button.dimmed = dimmed;
 				const textWidth =
-					width - indent - textLeft - 8 - (row.secondary ? 48 : 0);
+					rowWidth - indent - textLeft - 8 - (row.secondary ? 48 : 0);
 				const trailingWidth = row.trailingLabel
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
 				if (row.progress) {
 					button.track.setParent(button.frame);
 					button.track.layout(
-						textWidth,
+						this.options.edgeProgress ? rowWidth - indent : textWidth,
 						6,
 						"BOTTOMLEFT",
 						button.frame,
-						textLeft,
-						6,
+						this.options.edgeProgress ? 0 : textLeft,
+						this.options.edgeProgress ? 0 : 6,
 					);
 					button.track.setColor(0.025, 0.025, 0.025);
 					button.track.show();
@@ -343,7 +351,8 @@ export class ScrollList {
 					if (value > 0) {
 						button.progress.setParent(button.track);
 						button.progress.layout(
-							textWidth * value,
+							(this.options.edgeProgress ? rowWidth - indent : textWidth) *
+								value,
 							6,
 							"BOTTOMLEFT",
 							button.track,
@@ -360,14 +369,14 @@ export class ScrollList {
 				button.top = offset;
 				button.bottom = offset + rowHeight;
 				button.frame.layout(
-					width - indent,
+					rowWidth - indent,
 					rowHeight,
 					"TOPLEFT",
 					this.content,
-					indent,
+					indent + position.column * (rowWidth + gap),
 					-offset,
 				);
-				offset += rowHeight + 4 + (row.marginBottom ?? 0);
+				offset += rowHeight + (row.heading ? 4 : gap) + (row.marginBottom ?? 0);
 				button.frame.setLabel(
 					"label",
 					row.label,
@@ -395,7 +404,11 @@ export class ScrollList {
 					12,
 					textWidth,
 				);
-				if (this.options.autoHeight && !row.heading) {
+				if (columns > 1) {
+					button.frame.setLabelWordWrap("label", false);
+					button.frame.setLabelWordWrap("detail", false);
+				}
+				if (this.options.autoHeight && columns === 1 && !row.heading) {
 					button.frame.setLabelWordWrap("label", true);
 					const minimum = rowHeight;
 					const height = Math.max(
@@ -483,6 +496,33 @@ export class ScrollList {
 		this.frame.hide();
 	}
 	getNavGrid(): INavigable[][] {
+		if (this.mounted && (this.options.columns ?? 1) > 1) {
+			const grid: INavigable[][] = [];
+			let line: INavigable[] = [];
+			let column = 0;
+			for (let index = 0; index < this.renderedRows; index++) {
+				const row = this.rows.at(index);
+				if (row?.heading) {
+					if (line.length > 0) grid.push(line);
+					line = [];
+					column = 0;
+					continue;
+				}
+				const button = this.buttons.at(index);
+				if (button && row?.enabled !== false) {
+					button.nav.navColumn = column;
+					line.push(button.nav);
+				}
+				column++;
+				if (column === this.options.columns) {
+					if (line.length > 0) grid.push(line);
+					line = [];
+					column = 0;
+				}
+			}
+			if (line.length > 0) grid.push(line);
+			return grid;
+		}
 		return this.mounted
 			? this.buttons
 					.slice(0, this.renderedRows)
