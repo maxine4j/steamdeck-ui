@@ -149,6 +149,19 @@ it("updates ring contents without rewrapping handlers or allocating for unchange
 	expect(wrap).toHaveBeenCalledOnce();
 });
 
+it("grows beyond twelve entries and returns the added controls to the frame pool", () => {
+	const { menu, frames, create, pool } = setup();
+	menu.setActions({
+		slots: Array.from({ length: 15 }, (_, index) => index + 1),
+	});
+	expect(frames.at(0).attributes.get("capacity")).toBe(15);
+	expect(frames.at(0).attributes.get("slot15")).toBe(15);
+	expect(create).toHaveBeenCalledTimes(49);
+	menu.destroy();
+	new SecureRadialMenu(pool, 15);
+	expect(create).toHaveBeenCalledTimes(49);
+});
+
 it("uses protected frames for every region manipulated by secure ring layout", () => {
 	const { create } = setup();
 	expect(create.mock.calls.map((call) => call.at(0))).toEqual([
