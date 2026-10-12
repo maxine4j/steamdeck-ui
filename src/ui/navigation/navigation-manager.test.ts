@@ -10,6 +10,33 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("publishes focused item changes, refreshes stable nodes and clears during modals and shutdown", () => {
+	const changed = vi.fn();
+	const manager = new NavigationManager(
+		createTestEventBus(),
+		undefined,
+		changed,
+	);
+	let link = "item:42:bonus";
+	const item = { ...node("item"), tooltipItem: () => link };
+	manager.registerGrid("bags", [[item, node("toggle")]]);
+	manager.setActiveGrid("bags");
+	expect(changed).toHaveBeenLastCalledWith(item);
+	changed.mockClear();
+	link = "item:43";
+	manager.refreshGrid("bags");
+	expect(changed).toHaveBeenCalledOnce();
+	expect(changed.mock.lastCall?.at(0).tooltipItem()).toBe("item:43");
+	manager.pushModal("menu", [[node("cancel")]], vi.fn());
+	expect(changed.mock.lastCall?.at(0).tooltipItem).toBeUndefined();
+	manager.popModal("menu");
+	expect(changed).toHaveBeenLastCalledWith(item);
+	manager.moveRight();
+	expect(changed.mock.lastCall?.at(0).tooltipItem).toBeUndefined();
+	manager.destroy();
+	expect(changed).toHaveBeenLastCalledWith(undefined);
+});
+
 it("routes context input and traps modal focus until cancellation restores the item", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

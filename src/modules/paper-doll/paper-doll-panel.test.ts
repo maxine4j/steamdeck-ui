@@ -103,6 +103,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
+	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toBe("item:42");
 	const details = natives.filter((native) =>
 		native.texts.includes("|cffffffff150|r"),
 	);

@@ -172,6 +172,12 @@ export class PaperDollPanel implements IPanel {
 					details,
 					nav: {
 						navId: `equipment-${index}`,
+						tooltipItem: () => {
+							const current = this.equipment.at(index);
+							return this.mounted
+								? (current?.hyperlink ?? current?.itemId)
+								: undefined;
+						},
 						onFocus: () => border.setColor(1, 0.82, 0),
 						onBlur: () => {
 							const current = this.equipment.at(index);
