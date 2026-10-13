@@ -688,119 +688,123 @@ export class AchievementsPanel implements IPanel {
 				18,
 				32,
 			);
-			for (
-				let groupIndex = 0;
-				groupIndex < section.groups.length;
-				groupIndex += 2
-			) {
-				const pair = section.groups.slice(groupIndex, groupIndex + 2);
-				const groupTop = y;
+			const sectionTop = y;
+			const sectionRowBase = grid.length;
+			const columnBottoms = [sectionTop, sectionTop];
+			section.groups.forEach((group) => {
+				const column = columnBottoms[0] <= columnBottoms[1] ? 0 : 1;
+				const previousBottom = columnBottoms[column] ?? sectionTop;
+				const groupTop =
+					previousBottom === sectionTop
+						? sectionTop
+						: sectionTop +
+							Math.ceil((previousBottom - sectionTop) / spacing) * spacing;
 				const top = groupTop + 56;
-				const firstRow = grid.length;
-				const rows = pair.reduce(
-					(maximum, group) =>
-						Math.max(maximum, Math.ceil(group.achievements.length / columns)),
-					0,
+				const rowBase =
+					sectionRowBase + Math.round((groupTop - sectionTop) / spacing);
+				const left = column * (groupWidth + 16);
+				heading(
+					group.name,
+					formatAchievementProgress(group.completed, group.total),
+					13,
+					56,
+					{ left, top: groupTop, width: groupWidth },
 				);
-				for (let row = 0; row < rows; row++) grid.push([]);
-				pair.forEach((group, side) => {
-					const left = side * (groupWidth + 16);
-					heading(
-						group.name,
-						formatAchievementProgress(group.completed, group.total),
-						13,
-						56,
-						{ left, top: groupTop, width: groupWidth },
-					);
-					group.achievements.forEach((achievement, index) => {
-						cellIndex++;
-						const navId = `achievement-${achievement.id}`;
-						let cell = cellsById.get(navId) ?? available.pop();
-						const row = Math.floor(index / columns);
-						const previous = retained.get(navId);
-						if (previous)
-							grid.at(firstRow + row)?.push({
-								...previous,
-								navColumn: side * columns + (index % columns),
-							});
-						const cellTop = top + row * spacing;
-						jobs.push(() => {
-							if (!cell) {
-								const cellNumber = this.cells.length;
-								cell = {
-									border: new Frame(
-										`achievements-border-${cellNumber}`,
-										this.pool,
-									),
-									icon: new Frame(
-										`achievements-icon-${cellNumber}`,
-										this.pool,
-										"Button",
-									),
-								};
-								this.cells.push(cell);
-							}
-							cell.navId = navId;
-							cell.border.setParent(this.content);
-							cell.border.layout(
-								42,
-								42,
-								"TOPLEFT",
-								this.content,
-								left + (index % columns) * spacing,
-								-cellTop,
-							);
-							const [red, green, blue] = achievement.completed
-								? gold
-								: ([0.12, 0.12, 0.12] as const);
-							cell.border.setColor(red, green, blue);
-							cell.icon.setParent(cell.border);
-							cell.icon.layout(38, 38, "CENTER", cell.border);
-							cell.icon.setIcon(achievement.icon);
-							cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
-							const current = () =>
-								this.mounted && cell?.navId === navId && this.page === page.id;
-							const activate = () => {
-								if (current()) {
-									this.selectedAchievement = achievement.id;
-									this.navigationChanged?.(`achievement-${achievement.id}`);
-								}
-							};
-							cell.icon.onClick(activate);
-							const tooltip = () =>
-								current()
-									? { text: this.tooltip(achievement), anchor: this.frame }
-									: undefined;
-							cell.icon.setHoverTooltip(tooltip);
-							const node = cell.icon.navigationNode(
-								`achievement-${achievement.id}`,
-								activate,
-								() =>
-									this.viewport.revealVerticalRange(
-										cellTop,
-										cellTop + 42,
-										this.contentHeight,
-									),
-							);
-							const navRow = grid.at(firstRow + row);
-							const oldIndex =
-								navRow?.findIndex((candidate) => candidate.navId === navId) ??
-								-1;
-							if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
-							navRow?.push({
-								...node,
-								navigationScroll: this.navigationScroll,
-								navColumn: side * columns + (index % columns),
-								tooltipItem: tooltip,
-							});
-							navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
-							cell.border.show();
-							cell.icon.show();
+				group.achievements.forEach((achievement, index) => {
+					cellIndex++;
+					const navId = `achievement-${achievement.id}`;
+					let cell = cellsById.get(navId) ?? available.pop();
+					const row = rowBase + Math.floor(index / columns);
+					const navRow = grid[row] ?? [];
+					grid[row] = navRow;
+					const previous = retained.get(navId);
+					if (previous)
+						navRow.push({
+							...previous,
+							navColumn: column * columns + (index % columns),
 						});
+					const cellTop = top + Math.floor(index / columns) * spacing;
+					jobs.push(() => {
+						if (!cell) {
+							const cellNumber = this.cells.length;
+							cell = {
+								border: new Frame(
+									`achievements-border-${cellNumber}`,
+									this.pool,
+								),
+								icon: new Frame(
+									`achievements-icon-${cellNumber}`,
+									this.pool,
+									"Button",
+								),
+							};
+							this.cells.push(cell);
+						}
+						cell.navId = navId;
+						cell.border.setParent(this.content);
+						cell.border.layout(
+							42,
+							42,
+							"TOPLEFT",
+							this.content,
+							left + (index % columns) * spacing,
+							-cellTop,
+						);
+						const [red, green, blue] = achievement.completed
+							? gold
+							: ([0.12, 0.12, 0.12] as const);
+						cell.border.setColor(red, green, blue);
+						cell.icon.setParent(cell.border);
+						cell.icon.layout(38, 38, "CENTER", cell.border);
+						cell.icon.setIcon(achievement.icon);
+						cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
+						const current = () =>
+							this.mounted && cell?.navId === navId && this.page === page.id;
+						const activate = () => {
+							if (current()) {
+								this.selectedAchievement = achievement.id;
+								this.navigationChanged?.(`achievement-${achievement.id}`);
+							}
+						};
+						cell.icon.onClick(activate);
+						const tooltip = () =>
+							current()
+								? { text: this.tooltip(achievement), anchor: this.frame }
+								: undefined;
+						cell.icon.setHoverTooltip(tooltip);
+						const node = cell.icon.navigationNode(
+							`achievement-${achievement.id}`,
+							activate,
+							() =>
+								this.viewport.revealVerticalRange(
+									cellTop,
+									cellTop + 42,
+									this.contentHeight,
+								),
+						);
+						const rowNodes = grid[row];
+						const oldIndex =
+							rowNodes?.findIndex((candidate) => candidate.navId === navId) ??
+							-1;
+						if (oldIndex >= 0) rowNodes?.splice(oldIndex, 1);
+						rowNodes?.push({
+							...node,
+							navigationScroll: this.navigationScroll,
+							navColumn: column * columns + (index % columns),
+							tooltipItem: tooltip,
+						});
+						rowNodes?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
+						cell.border.show();
+						cell.icon.show();
 					});
 				});
-				y = top + rows * spacing + 12;
-			}
+				columnBottoms[column] =
+					groupTop +
+					56 +
+					Math.ceil(group.achievements.length / columns) * spacing +
+					12;
+			});
+			y = Math.max(...columnBottoms) + 12;
 			y += 12;
 		}
 		// Retain visible controls while replacing their data; only surplus controls

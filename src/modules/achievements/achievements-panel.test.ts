@@ -1080,6 +1080,32 @@ it("pairs five-wide achievement grids and aligns navigation across unequal group
 		frames.get("achievements-border-14")?.layouts.at(-1)?.at(3),
 	).toBeLessThan(right?.at(3) ?? 0);
 });
+it("packs achievement groups into the shorter column without adding a row gap", () => {
+	const { panel, client, flush, activate } = setup();
+	const ids = [
+		6, 7, 8, 9, 14782, 14783, 15805, 19459, 7382, 7383, 7384, 7380, 1176, 889,
+		545,
+	];
+	vi.mocked(client.achievements).mockImplementation((id) =>
+		id === 92 ? ids.map((id) => achievement(id)) : [],
+	);
+	panel.refresh();
+	flush();
+	activate("summary-category-Characters");
+	flush();
+
+	expect(frames.get("achievements-header-3")?.layouts.at(-1)).toEqual([
+		226, 56, 242, -170,
+	]);
+	expect(frames.get("achievements-border-13")?.layouts.at(-1)).toEqual([
+		42, 42, 242, -226,
+	]);
+	const mount = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "achievement-889");
+	expect(mount?.navColumn).toBe(5);
+});
 it("keeps the current page usable while refreshing completion data in the background", () => {
 	const { panel, client, activate, step, flush } = setup();
 	activate("summary-category-Quests");
