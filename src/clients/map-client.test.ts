@@ -65,7 +65,18 @@ function setup() {
 		GetSuperTrackedQuestID: () => 1,
 		SetSuperTrackedQuestID: vi.fn(),
 	});
-	const layout = { bind: vi.fn(), release: vi.fn(), scroll: vi.fn() };
+	const layout = {
+		bind: vi.fn(),
+		release: vi.fn(),
+		scroll: vi.fn(),
+		navigation: vi.fn((_frame, _scroll, navId, onInteract) => ({
+			navId,
+			onInteract,
+			onFocus: vi.fn(),
+			onBlur: vi.fn(),
+		})),
+	};
+	vi.stubGlobal("QuestLogQuests_Update", vi.fn());
 	return {
 		events,
 		hooks,
@@ -73,7 +84,7 @@ function setup() {
 		frame,
 		quests,
 		layout,
-		client: new MapClient(events, layout),
+		client: new MapClient(events, layout, layout),
 	};
 }
 it("retains the native canvas, breadcrumbs and filters while owning a fullscreen layout and restoring it on close", () => {
@@ -113,13 +124,21 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		expect.objectContaining({
 			parent: pane,
 			visible: true,
-			alpha: 0,
-			mouse: false,
+			alpha: 1,
+			mouse: true,
 		}),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests.QuestsFrame,
-		expect.objectContaining({ visible: false }),
+		expect.objectContaining({ visible: true, insets: [0, 0, 22, 0] }),
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame.ScrollFrame,
+		expect.objectContaining({
+			visible: true,
+			insets: [0, 29, 0, 0],
+			clip: true,
+		}),
 	);
 	expect(frame.OnFrameSizeChanged).toHaveBeenCalled();
 	client.unmount();
@@ -128,6 +147,53 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 	changed.mockClear();
 	scripts.get("OnShow")?.();
 	expect(changed).not.toHaveBeenCalled();
+});
+it("navigates Blizzard's visible headers and quest rows in native layout order and toggles native collapse state", () => {
+	const { client, quests, layout, hooks, events } = setup();
+	const header = { IsShown: () => true, questLogIndex: 1, layoutIndex: 1 };
+	const quest = { IsShown: () => true, questID: 7, layoutIndex: 2 };
+	const hidden = { IsShown: () => false, questID: 8, layoutIndex: 3 };
+	Object.assign(quests.QuestsFrame.ScrollFrame, {
+		headerFramePool: { EnumerateActive: () => [header] },
+		titleFramePool: { EnumerateActive: () => [hidden, quest] },
+		campaignHeaderFramePool: { EnumerateActive: () => [] },
+		campaignHeaderMinimalFramePool: { EnumerateActive: () => [] },
+		covenantCallingsHeaderFramePool: { EnumerateActive: () => [] },
+	});
+	vi.stubGlobal("C_QuestLog", {
+		GetInfo: vi.fn(() => ({ isCollapsed: false })),
+	});
+	vi.stubGlobal("CollapseQuestHeader", vi.fn());
+	vi.stubGlobal("ExpandQuestHeader", vi.fn());
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	const rows = client.navigation();
+	expect(rows.map((row) => row.node.navId)).toEqual([
+		"map-header-1",
+		"map-quest-7",
+	]);
+	expect(rows.at(1)?.questID).toBe(7);
+	rows.at(0)?.node.onInteract();
+	expect(CollapseQuestHeader).toHaveBeenCalledWith(1);
+	vi.mocked(C_QuestLog.GetInfo).mockReturnValue({ isCollapsed: true } as never);
+	rows.at(0)?.node.onInteract();
+	expect(ExpandQuestHeader).toHaveBeenCalledWith(1);
+	expect(layout.navigation).toHaveBeenCalledWith(
+		header,
+		quests.QuestsFrame.ScrollFrame,
+		"map-header-1",
+		expect.any(Function),
+	);
+	const refreshed = vi.fn();
+	events.subscribe("QUEST_LOG_UPDATE", refreshed);
+	hooks.get("QuestLogQuests_Update")?.();
+	expect(refreshed).toHaveBeenCalledOnce();
+	client.unmount();
+	hooks.get("QuestLogQuests_Update")?.();
+	expect(refreshed).toHaveBeenCalledOnce();
 });
 it("converts quest log headers and campaign membership without dropping dailies or local stories", () => {
 	const { client } = setup();

@@ -1,6 +1,17 @@
 import type { IEventBus } from "../events/types";
 import type { Frame } from "../ui/components/frame";
 import type { LayoutFrame, NativeLayout } from "../ui/components/native-layout";
+import type {
+	NativeNavigation,
+	NativeNavigationFrame,
+	NativeNavigationScroll,
+} from "../ui/components/native-navigation";
+import type { INavigable } from "../ui/navigation/types";
+
+export interface MapQuestNavigation {
+	readonly questID?: number;
+	readonly node: INavigable;
+}
 
 export interface MapQuest {
 	readonly id: number;
@@ -22,6 +33,7 @@ export interface IMapClient {
 	resize(): void;
 	unmount(): void;
 	read(): MapQuest[];
+	navigation(): MapQuestNavigation[];
 	focus(id: number): void;
 	showDetails(id: number): void;
 	hideDetails(): void;
@@ -37,6 +49,23 @@ interface QuestLogInfo {
 	isHeader: boolean;
 	isHidden: boolean;
 	isTask: boolean;
+	isCollapsed: boolean;
+}
+interface NativeQuestRow extends NativeNavigationFrame {
+	IsShown(): boolean;
+	layoutIndex: number;
+	questID?: number;
+	questLogIndex?: number;
+}
+interface NativeQuestPool {
+	EnumerateActive(): LuaIterable<NativeQuestRow>;
+}
+interface NativeQuestScroll extends LayoutFrame, NativeNavigationScroll {
+	titleFramePool: NativeQuestPool;
+	headerFramePool: NativeQuestPool;
+	campaignHeaderFramePool: NativeQuestPool;
+	campaignHeaderMinimalFramePool: NativeQuestPool;
+	covenantCallingsHeaderFramePool: NativeQuestPool;
 }
 export interface NativeWorldMap extends LayoutFrame {
 	TitleCanvasSpacerFrame: LayoutFrame;
@@ -53,7 +82,7 @@ export interface NativeWorldMap extends LayoutFrame {
 }
 export interface NativeQuestMap extends LayoutFrame {
 	ContentsAnchor: LayoutFrame;
-	QuestsFrame: LayoutFrame & { ScrollFrame: LayoutFrame };
+	QuestsFrame: LayoutFrame & { ScrollFrame: NativeQuestScroll };
 	DetailsFrame: LayoutFrame & {
 		questID?: number;
 		ScrollFrame: {
@@ -68,6 +97,9 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	function ExpandQuestHeader(this: void, index: number): void;
+	function CollapseQuestHeader(this: void, index: number): void;
+	function QuestLogQuests_Update(this: void): void;
 	function IsInGroup(this: void): boolean;
 	const EventRegistry: {
 		TriggerEvent(this: unknown, name: string, id: number): void;
@@ -96,6 +128,7 @@ export class MapClient implements IMapClient {
 	constructor(
 		private readonly events: IEventBus,
 		private readonly layout: Pick<NativeLayout, "bind" | "release" | "scroll">,
+		private readonly controls: Pick<NativeNavigation, "navigation" | "release">,
 	) {}
 	private readonly visibility = () => {
 		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
@@ -107,6 +140,9 @@ export class MapClient implements IMapClient {
 		WorldMapFrame.HookScript("OnShow", this.visibility);
 		WorldMapFrame.HookScript("OnHide", this.visibility);
 		hooksecurefunc(WorldMapFrame, "OnMapChanged", () => this.resize());
+		hooksecurefunc("QuestLogQuests_Update", () => {
+			if (this.enabled && this.parent) this.events.emit("QUEST_LOG_UPDATE");
+		});
 		// ShowUIPanel continues positioning after OnShow; generic frame leases enforce those writes.
 		hooksecurefunc("QuestMapFrame_ShowQuestDetails", (id: number) => {
 			if (!this.enabled || !this.parent) return;
@@ -136,6 +172,7 @@ export class MapClient implements IMapClient {
 		this.questPane = questPane;
 		this.resize();
 		this.applyQuestLayout();
+		QuestLogQuests_Update();
 	}
 	resize(): void {
 		const parent = this.parent;
@@ -202,24 +239,30 @@ export class MapClient implements IMapClient {
 		// Keep QuestMapFrame parented to the map: its scripts call the owner's map methods.
 		this.layout.bind(quests, {
 			parent: this.questPane,
-			insets: [8, 52, 8, 48],
-			// This logical shown state represents our custom quest pane to L/M toggles.
+			insets: [8, 8, 8, 48],
+			// L/M toggles inspect this root's logical shown state.
 			visible: true,
-			alpha: this.details ? 1 : 0,
-			mouse: this.details,
+			alpha: 1,
+			mouse: true,
 			strata: "DIALOG",
 		});
 		this.layout.bind(quests.ContentsAnchor, { parent: quests });
 		this.layout.bind(quests.QuestsFrame, {
 			parent: quests.ContentsAnchor,
-			visible: this.details,
+			insets: [0, 0, 22, 0],
+			visible: true,
 		});
 		this.layout.bind(quests.DetailsFrame, {
 			parent: quests.QuestsFrame,
 			visible: this.details,
 		});
+		this.layout.bind(quests.QuestsFrame.ScrollFrame, {
+			parent: quests.QuestsFrame,
+			insets: [0, 29, 0, 0],
+			visible: !this.details,
+			clip: true,
+		});
 		for (const frame of [
-			quests.QuestsFrame.ScrollFrame,
 			quests.QuestsTab,
 			quests.EventsTab,
 			quests.MapLegendTab,
@@ -234,6 +277,46 @@ export class MapClient implements IMapClient {
 		this.questPane = undefined;
 		this.details = false;
 		this.layout.release();
+		this.controls.release();
+	}
+	navigation(): MapQuestNavigation[] {
+		if (!this.parent || this.details) return [];
+		const scroll = QuestMapFrame.QuestsFrame.ScrollFrame;
+		const rows: NativeQuestRow[] = [];
+		for (const pool of [
+			scroll.titleFramePool,
+			scroll.headerFramePool,
+			scroll.campaignHeaderFramePool,
+			scroll.campaignHeaderMinimalFramePool,
+			scroll.covenantCallingsHeaderFramePool,
+		]) {
+			for (const row of pool.EnumerateActive())
+				if (row.IsShown()) rows.push(row);
+		}
+		rows.sort((a, b) => a.layoutIndex - b.layoutIndex);
+		return rows.map((row) => ({
+			questID: row.questID,
+			node: this.controls.navigation(
+				row,
+				scroll,
+				row.questID
+					? `map-quest-${row.questID}`
+					: `map-header-${row.questLogIndex}`,
+				() => {
+					if (row.questID) this.showDetails(row.questID);
+					else if (row.questLogIndex) {
+						const info = (
+							C_QuestLog.GetInfo as unknown as (
+								this: void,
+								index: number,
+							) => QuestLogInfo | undefined
+						)(row.questLogIndex);
+						if (info?.isCollapsed) ExpandQuestHeader(row.questLogIndex);
+						else CollapseQuestHeader(row.questLogIndex);
+					}
+				},
+			),
+		}));
 	}
 	read(): MapQuest[] {
 		const [count] = C_QuestLog.GetNumQuestLogEntries();

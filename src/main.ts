@@ -23,6 +23,7 @@ import { startSteamDeckUI } from "./start";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
 import { NativeLayout } from "./ui/components/native-layout";
+import { NativeNavigation } from "./ui/components/native-navigation";
 import { FramePoolManager } from "./ui/frame-pool-manager";
 import { WowFrameFactory } from "./ui/wow-frame-factory";
 
@@ -58,5 +59,9 @@ startSteamDeckUI(
 	new ToysClient(scheduler, collectionCache),
 	new SlashCommandsClient(),
 	new AddonConfigClient(),
-	new MapClient(events, new NativeLayout()),
+	new MapClient(
+		events,
+		new NativeLayout(),
+		new NativeNavigation(new FramePoolManager(frameFactory)),
+	),
 );

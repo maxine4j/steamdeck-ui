@@ -123,6 +123,25 @@ function setup() {
 		resize: vi.fn(),
 		unmount: vi.fn(),
 		read: () => quests,
+		navigation: () => [
+			{
+				node: {
+					navId: "map-header-1",
+					onFocus: vi.fn(),
+					onBlur: vi.fn(),
+					onInteract: vi.fn(),
+				},
+			},
+			...quests.map((quest) => ({
+				questID: quest.id,
+				node: {
+					navId: `map-quest-${quest.id}`,
+					onFocus: vi.fn(),
+					onBlur: vi.fn(),
+					onInteract: vi.fn(),
+				},
+			})),
+		],
 		focus: vi.fn(),
 		showDetails: vi.fn(),
 		hideDetails: vi.fn(),
@@ -140,7 +159,7 @@ function setup() {
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	return { panel, client, modal, close, changed, quests };
 }
-it("puts quests on the right, splits campaign from everything else, and restores focus when cycling tabs", () => {
+it("puts Blizzard's unified quest hierarchy on the right without custom tabs or red rows", () => {
 	const { panel, client, changed } = setup();
 	expect(client.mount).toHaveBeenCalled();
 	expect(state.frames.get("map-quests")?.layout).toHaveBeenCalledWith(
@@ -154,23 +173,17 @@ it("puts quests on the right, splits campaign from everything else, and restores
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["map-quest-1"]);
-	panel.onPanelCycle(1);
-	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.map((node) => node.navId),
-	).toEqual(["map-quest-2", "map-quest-3"]);
-	panel.getNavGrid().at(1)?.at(0)?.onFocus();
-	panel.onPanelCycle(-1);
-	panel.onPanelCycle(1);
+	).toEqual(["map-header-1", "map-quest-1", "map-quest-2", "map-quest-3"]);
+	expect(state.frames.has("map-campaign-tab")).toBe(false);
+	expect(state.frames.has("map-other-tab")).toBe(false);
+	expect(state.rows).toEqual([]);
+	panel.getNavGrid().at(3)?.at(0)?.onFocus();
+	panel.refresh();
 	expect(changed).toHaveBeenLastCalledWith("map-quest-3");
 });
 it("maps X to focus, A to native details, and B back to the previous list and selected quest", () => {
 	const { panel, client, changed, close } = setup();
-	panel.onPanelCycle(1);
-	const quest = panel.getNavGrid().at(1)?.at(0);
+	const quest = panel.getNavGrid().at(3)?.at(0);
 	quest?.onFocus();
 	quest?.onAlternate?.();
 	expect(client.focus).toHaveBeenCalledWith(3);
@@ -193,13 +206,13 @@ it("maps X to focus, A to native details, and B back to the previous list and se
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["map-quest-2", "map-quest-3"]);
+	).toEqual(["map-header-1", "map-quest-1", "map-quest-2", "map-quest-3"]);
 	panel.onBack();
 	expect(close).toHaveBeenCalledOnce();
 });
 it("opens Y options with only available actions and uses confirmation before abandonment", () => {
 	const { panel, client, modal } = setup();
-	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	panel.getNavGrid().at(1)?.at(0)?.onContext?.();
 	let options = modal.open.mock.lastCall?.at(1) as ModalOption[];
 	expect(options.map((option) => option.id)).toEqual([
 		"details",
@@ -207,8 +220,7 @@ it("opens Y options with only available actions and uses confirmation before aba
 		"super-track",
 		"focus",
 	]);
-	panel.onPanelCycle(1);
-	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	panel.getNavGrid().at(2)?.at(0)?.onContext?.();
 	options = modal.open.mock.lastCall?.at(1) as ModalOption[];
 	expect(options.map((option) => option.id)).toEqual([
 		"details",
@@ -234,17 +246,16 @@ it("opens Y options with only available actions and uses confirmation before aba
 	confirm.find((option) => option.id === "confirm")?.select();
 	expect(client.abandon).toHaveBeenCalledWith(2);
 });
-it("handles empty tabs, native pin selection, quest removal and closing without retaining stale details", () => {
+it("handles native pin selection, quest removal and closing without retaining stale details", () => {
 	const { panel, quests, client } = setup();
 	panel.showDetails(2);
-	panel.onPanelCycle(1); // Bumpers do not discard the details return location.
 	panel.onBack();
 	expect(
 		panel
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["map-quest-2", "map-quest-3"]);
+	).toEqual(["map-header-1", "map-quest-1", "map-quest-2", "map-quest-3"]);
 	panel.showDetails(2);
 	quests.splice(1, 1);
 	panel.refresh();
@@ -253,10 +264,15 @@ it("handles empty tabs, native pin selection, quest removal and closing without 
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["map-quest-3"]);
+	).toEqual(["map-header-1", "map-quest-1", "map-quest-3"]);
 	quests.length = 0;
 	panel.refresh();
-	expect(state.rows.at(0)?.label).toBe("No other quests");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["map-header-1"]);
 	panel.onUnmount();
 	expect(client.unmount).toHaveBeenCalledOnce();
 	panel.onContainerClosed();
