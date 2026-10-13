@@ -301,7 +301,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	const reagent = grid.flat().find((node) => node?.navId.includes("item-42"));
 	expect(reagent?.tooltipItem?.()).toBe(42);
 	reagent?.onFocus();
-	expect(focus).toHaveBeenLastCalledWith(true);
+	expect(focus).toHaveBeenLastCalledWith(true, true);
 	const edge = vi
 		.spyOn(Frame.prototype, "scrollToEdge")
 		.mockImplementation(() => {});
@@ -314,8 +314,11 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	reagent?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(cloth);
 	reagent?.onBlur();
-	expect(focus).toHaveBeenLastCalledWith(false);
+	expect(focus).toHaveBeenLastCalledWith(false, true);
+	const focusCalls = focus.mock.calls.length;
 	panel.onUnmount();
+	expect(focus.mock.calls.length).toBeGreaterThan(focusCalls);
+	expect(focus).toHaveBeenLastCalledWith(false, true);
 	expect(panel.getNavGrid()).toEqual([]);
 	reagent?.onInteract();
 	reagent?.onAlternate?.();

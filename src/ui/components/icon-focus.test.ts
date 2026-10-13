@@ -1,0 +1,108 @@
+import { expect, it, vi } from "vitest";
+import type { WowFrame } from "../../types";
+import { FramePoolManager } from "../frame-pool-manager";
+import { Frame } from "./frame";
+
+it("raises an expanded icon outline above quality artwork and pulses only its glow", () => {
+	const alpha = {
+		SetFromAlpha: vi.fn(),
+		SetToAlpha: vi.fn(),
+		SetDuration: vi.fn(),
+		SetSmoothing: vi.fn(),
+	};
+	let playing = false;
+	const animation = {
+		CreateAnimation: vi.fn(() => alpha),
+		SetLooping: vi.fn(),
+		IsPlaying: () => playing,
+		Play: vi.fn(() => {
+			playing = true;
+		}),
+		Stop: vi.fn(() => {
+			playing = false;
+		}),
+	};
+	const textures: { SetColorTexture: ReturnType<typeof vi.fn> }[] = [];
+	const natives: ReturnType<typeof create>[] = [];
+	function create() {
+		return {
+			Hide: vi.fn(),
+			Show: vi.fn(),
+			ClearAllPoints: vi.fn(),
+			SetSize: vi.fn(),
+			SetParent: vi.fn(),
+			SetPoint: vi.fn(),
+			GetFrameLevel: () => 5,
+			SetFrameLevel: vi.fn(),
+			SetScript: vi.fn(),
+			RegisterForClicks: vi.fn(),
+			RegisterForDrag: vi.fn(),
+			CreateTexture: vi.fn(() => {
+				const texture = {
+					SetAllPoints: vi.fn(),
+					ClearAllPoints: vi.fn(),
+					SetPoint: vi.fn(),
+					SetTexture: vi.fn(),
+					SetTexCoord: vi.fn(),
+					SetColorTexture: vi.fn(),
+					SetHeight: vi.fn(),
+					SetWidth: vi.fn(),
+					SetBlendMode: vi.fn(),
+					SetVertexColor: vi.fn(),
+					SetAlpha: vi.fn(),
+					CreateAnimationGroup: () => animation,
+				};
+				textures.push(texture);
+				return texture;
+			}),
+		};
+	}
+	const factory = vi.fn(() => {
+		const native = create();
+		natives.push(native);
+		return native as unknown as WowFrame;
+	});
+	const pool = new FramePoolManager({ createFrame: factory });
+	const icon = new Frame("icon", pool, "Button");
+	icon.setFocused(true, true);
+	expect(natives).toHaveLength(2);
+	const outline = natives.at(1);
+	expect(outline?.SetFrameLevel).toHaveBeenLastCalledWith(15);
+	expect(outline?.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		natives.at(0),
+		"TOPLEFT",
+		-2,
+		2,
+	);
+	expect(outline?.SetPoint).toHaveBeenCalledWith(
+		"BOTTOMRIGHT",
+		natives.at(0),
+		"BOTTOMRIGHT",
+		2,
+		-2,
+	);
+	expect(animation.SetLooping).toHaveBeenCalledWith("BOUNCE");
+	expect(alpha.SetFromAlpha).toHaveBeenCalledWith(0.2);
+	expect(alpha.SetToAlpha).toHaveBeenCalledWith(0.45);
+	expect(alpha.SetDuration).toHaveBeenCalledWith(1.2);
+	expect(animation.Play).toHaveBeenCalledOnce();
+	icon.setFocused(true, true);
+	expect(animation.Play).toHaveBeenCalledOnce();
+	expect(factory).toHaveBeenCalledTimes(2);
+	icon.setFocused(false, true);
+	expect(animation.Stop).toHaveBeenCalledOnce();
+	expect(outline?.Hide).toHaveBeenCalled();
+	icon.setFocused(true, true);
+	icon.hide();
+	expect(playing).toBe(false);
+	icon.setFocused(true, true);
+	icon.destroy();
+	expect(playing).toBe(false);
+	expect(outline?.SetFrameLevel).toHaveBeenLastCalledWith(0);
+	expect(
+		textures.every(
+			(texture) => texture.SetColorTexture.mock.lastCall?.at(3) === 0,
+		),
+	).toBe(true);
+});

@@ -204,6 +204,7 @@ export class BagsPanel implements IPanel {
 								top + 42,
 								this.contentHeight,
 							),
+						true,
 					);
 					cells.push({
 						...node,
@@ -325,6 +326,7 @@ export class BagsPanel implements IPanel {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {
+		for (const cell of this.icons) cell.icon.setFocused(false, true);
 		this.visibilityChanged?.(false);
 		this.menu.close();
 		this.mounted = false;

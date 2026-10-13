@@ -3,6 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { GamePadRepeatOptions } from "./gamepad-input";
+import { IconFocus } from "./icon-focus";
 import { drawScrollIndicator } from "./scroll-indicator";
 import { ScrollPan } from "./scroll-pan";
 import {
@@ -52,6 +53,7 @@ interface AtlasAnimationGroup {
 }
 
 export class Frame implements IUIComponent {
+	private iconFocus?: IconFocus;
 	private animation?: AtlasAnimationGroup;
 	private flipbook?: FlipbookAnimation;
 	private animatedAtlas?: AnimatedAtlas;
@@ -393,7 +395,13 @@ export class Frame implements IUIComponent {
 			Math.max(0, Math.min(native.GetVerticalScrollRange(), target)),
 		);
 	}
-	setFocused(focused: boolean): void {
+	setFocused(focused: boolean, animatedIcon = false): void {
+		if (animatedIcon) {
+			if (focused && !this.iconFocus)
+				this.iconFocus = new IconFocus(this.pool, this.acquire());
+			this.iconFocus?.setFocused(focused);
+			return;
+		}
 		setBorder(
 			this.pool,
 			this.acquire(),
@@ -434,14 +442,19 @@ export class Frame implements IUIComponent {
 		navId: string,
 		interact: () => void,
 		focus?: () => void,
+		animatedIcon = false,
 	): INavigable {
 		return {
 			navId,
 			onFocus: (refresh) => {
-				this.setFocused(true);
+				if (animatedIcon) this.setFocused(true, true);
+				else this.setFocused(true);
 				if (!refresh) focus?.();
 			},
-			onBlur: () => this.setFocused(false),
+			onBlur: () => {
+				if (animatedIcon) this.setFocused(false, true);
+				else this.setFocused(false);
+			},
 			onInteract: () => interact(),
 		};
 	}
@@ -978,6 +991,7 @@ export class Frame implements IUIComponent {
 		if (this.animation && !this.animation.IsPlaying()) this.animation.Play();
 	}
 	hide(): void {
+		this.iconFocus?.setFocused(false);
 		this.scrollPan?.reset();
 		this.animation?.Stop();
 		this.native?.Hide();
@@ -989,6 +1003,8 @@ export class Frame implements IUIComponent {
 		this.parent = parent;
 	}
 	destroy(): void {
+		this.iconFocus?.destroy();
+		this.iconFocus = undefined;
 		this.lastRevealTop = undefined;
 		this.revealingUp = false;
 		this.parent = undefined;
