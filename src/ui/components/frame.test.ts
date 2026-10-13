@@ -543,11 +543,36 @@ it("scrolls focused ranges into view and clamps them to the scroll bounds", () =
 		"ScrollFrame",
 	);
 	frame.revealVerticalRange(200, 242, 400);
-	expect(scroll).toBe(142);
+	expect(scroll).toBe(200);
 	frame.revealVerticalRange(20, 62, 400);
 	expect(scroll).toBe(20);
 	frame.revealVerticalRange(380, 422, 400);
 	expect(scroll).toBe(300);
+});
+
+it("starts scrolling with three upcoming items still visible", () => {
+	let scroll = 0;
+	const native = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+		GetHeight: () => 500,
+		GetVerticalScroll: () => scroll,
+		GetVerticalScrollRange: () => 1000,
+		SetVerticalScroll: (value: number) => {
+			scroll = value;
+		},
+	} as unknown as WowFrame;
+	const frame = new Frame(
+		"lookahead",
+		new FramePoolManager({ createFrame: () => native }),
+		"ScrollFrame",
+	);
+	frame.revealVerticalRange(250, 300, 1500);
+	expect(scroll).toBe(0);
+	frame.revealVerticalRange(300, 350, 1500);
+	expect(scroll).toBe(25);
+	frame.revealVerticalRange(300, 350, 1500);
+	expect(scroll).toBe(25);
 });
 
 it("captures handled gamepad buttons, propagates others and resets input before pooling", () => {

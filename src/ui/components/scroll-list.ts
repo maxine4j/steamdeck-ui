@@ -10,7 +10,8 @@ export interface ListRow {
 	readonly id: string;
 	readonly label: string;
 	readonly heading?: boolean;
-	readonly icon?: number;
+	readonly icon?: number | string;
+	readonly iconSize?: number;
 	readonly spell?: number;
 	readonly secondary?: { label: string; activate(): void };
 	readonly detail?: string;
@@ -363,7 +364,7 @@ export class ScrollList {
 						button.animatedFocus = false;
 					}
 				}
-				const iconSize = Math.min(36, rowHeight - 12);
+				const iconSize = Math.min(row.iconSize ?? 36, rowHeight - 12);
 				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
 				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
 				button.icon.setParent(button.frame);

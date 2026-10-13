@@ -558,7 +558,12 @@ it("opens a two-column reputation-style summary with progress buttons and drills
 		lists
 			.get("achievements-list")
 			?.rows.find((r) => r.id === "summary-category-Characters"),
-	).toMatchObject({ label: "Characters", progress: { value: 0.5 } });
+	).toMatchObject({
+		label: "Characters",
+		icon: "Interface\\Icons\\Achievement_Level_10",
+		iconSize: 20,
+		progress: { value: 0.5 },
+	});
 	expect(
 		panel
 			.getNavGrid()

@@ -79,6 +79,14 @@ export class CurrencyPanel implements IPanel {
 				.map((currency) => [currency.id, currency]),
 		);
 		const favourites: ListRow[] = [];
+		const categoryPath: string[] = [];
+		const rows = currencies.map((currency) => {
+			if (currency.header) {
+				categoryPath.length = Math.min(categoryPath.length, currency.depth);
+				categoryPath.push(currency.name);
+			}
+			return this.row(currency, false, categoryPath.join("/"));
+		});
 		for (const id of this.config.getCurrencyFavourites()) {
 			const currency = visible.get(id) ?? this.client.getCurrency(id);
 			if (currency !== undefined && !currency.header)
@@ -99,15 +107,15 @@ export class CurrencyPanel implements IPanel {
 						...favourites,
 					]
 				: []),
-			...currencies.map((currency) => this.row(currency)),
+			...rows,
 		]);
 	}
-	private row(currency: Currency, favourite = false): ListRow {
+	private row(currency: Currency, favourite = false, category = ""): ListRow {
 		return {
 			id: favourite
 				? `currency-favourite-${currency.id}`
 				: currency.header
-					? `currency-category-${currency.index}`
+					? `currency-category-${category}`
 					: `currency-${currency.id}`,
 			label: currency.header
 				? `${currency.expanded ? "−" : "+"} ${currency.name}`

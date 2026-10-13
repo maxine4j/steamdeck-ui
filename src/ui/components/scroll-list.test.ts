@@ -5,6 +5,38 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("uses small category icons and leaves room for their labels", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("small-icons", pool, "", vi.fn());
+	list.setRows([
+		{
+			id: "category",
+			label: "Quests",
+			icon: 133459,
+			iconSize: 20,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(frames.get("small-icons-icon-0")?.layout).toHaveBeenLastCalledWith(
+		20,
+		20,
+		"TOPLEFT",
+		expect.anything(),
+		6,
+		-6,
+	);
+	expect(frames.get("small-icons-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Quests",
+		"TOPLEFT",
+		32,
+		-6,
+		14,
+		416,
+	);
+});
+
 it("shows full reward links on controller focus and hides them on blur", () => {
 	const list = new ScrollList(
 		"tooltip-list",

@@ -38,6 +38,26 @@ const categoryTints: readonly (readonly [number, number, number])[] = [
 	[1, 0.92, 0.91],
 	[0.91, 0.94, 1],
 ];
+const categoryIcons = new Map<string, string>([
+	["Characters", "Achievement_Level_10"],
+	["Quests", "INV_Misc_Note_01"],
+	["Exploration", "INV_Misc_Map_01"],
+	["Player vs. Player", "Ability_DualWield"],
+	["Dungeons & Raids", "Achievement_Boss_Onyxia"],
+	["Professions", "Trade_BlackSmithing"],
+	["Reputation", "Achievement_Reputation_01"],
+	["World Events", "INV_Holiday_Christmas_Present_01"],
+	["Pet Battles", "Ability_Hunter_Pet_Bear"],
+	["Collections", "Ability_Mount_RidingHorse"],
+	["Expansion Features", "INV_Misc_Book_09"],
+	["Feats of Strength", "Ability_Warrior_InnerRage"],
+	["Legacy", "INV_Misc_Book_11"],
+	["Delves", "INV_Misc_Lantern_01"],
+	["Housing", "INV_Misc_Rune_01"],
+]);
+export function achievementCategoryIcon(id: string): string {
+	return `Interface\\Icons\\${categoryIcons.get(id) ?? "INV_Misc_Trophy_Gold"}`;
+}
 export function achievementCategoryTint(
 	id: string,
 ): readonly [number, number, number] {

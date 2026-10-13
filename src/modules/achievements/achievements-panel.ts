@@ -15,6 +15,7 @@ import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import {
 	type AchievementPage,
+	achievementCategoryIcon,
 	achievementCategoryTint,
 	achievementPageFor,
 	achievementPageName,
@@ -412,6 +413,8 @@ export class AchievementsPanel implements IPanel {
 			...this.pages.map((p) => ({
 				id: `summary-category-${p.id}`,
 				label: p.name,
+				icon: achievementCategoryIcon(p.id),
+				iconSize: 20,
 				backgroundAtlas: "ui-journeys-renown-button",
 				backgroundTint: achievementCategoryTint(p.id),
 				fontSize: 12,

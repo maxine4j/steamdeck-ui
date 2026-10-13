@@ -1,8 +1,10 @@
 import { expect, it, vi } from "vitest";
 import type { Currency, ICurrencyClient } from "../../clients/currency-client";
+import { createTestEventBus } from "../../events/test-event-bus";
 import type { ListRow } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { CurrencyPanel } from "./currency-panel";
 
 const config = {
@@ -214,7 +216,7 @@ it("duplicates favourites above categories, including currencies hidden by colla
 		"currency-favourites",
 		"currency-favourite-42",
 		"currency-favourite-9",
-		"currency-category-1",
+		"currency-category-Expansion",
 		"currency-42",
 	]);
 	expect(rendered.at(1)).toMatchObject({
@@ -233,9 +235,67 @@ it("duplicates favourites above categories, including currencies hidden by colla
 	while (pending.length) pending.shift()?.();
 	const updated = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(updated.map((row) => row.id)).toEqual([
-		"currency-category-1",
+		"currency-category-Expansion",
 		"currency-42",
 	]);
+});
+
+it("keeps category identities when preceding categories change list indices", () => {
+	const pending: (() => void)[] = [];
+	let rows = [
+		{ index: 1, name: "Expansion", header: true, depth: 0 },
+		{ index: 15, name: "Dungeon", header: true, depth: 1 },
+	] as Currency[];
+	const panel = new CurrencyPanel(
+		{} as IFramePoolManager,
+		{
+			load: (callback: (rows: Currency[]) => void) => {
+				callback(rows);
+				return vi.fn();
+			},
+		} as unknown as ICurrencyClient,
+		{ open: vi.fn(), close: vi.fn(), transferResult: vi.fn() },
+		vi.fn(),
+		{
+			nextFrame: (callback) => {
+				pending.push(callback);
+				return vi.fn();
+			},
+		},
+		config,
+	);
+	panel.onMount({} as IUIComponent);
+	while (pending.length) pending.shift()?.();
+	const rendered = setRows.mock.lastCall?.at(0) as ListRow[];
+	const before = rendered.map((row) => row.id);
+	rows = rows.map((row) => ({ ...row, index: row.index === 15 ? 2 : 1 }));
+	panel.refresh();
+	while (pending.length) pending.shift()?.();
+	const updated = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(updated.map((row) => row.id)).toEqual(before);
+	const nav = new NavigationManager(createTestEventBus());
+	const grid = () => {
+		const current = setRows.mock.lastCall?.at(0) as ListRow[];
+		return current.map((row) => [
+			{
+				navId: row.id,
+				onFocus: vi.fn(),
+				onBlur: vi.fn(),
+				onInteract: row.activate,
+			},
+		]);
+	};
+	panel.setNavigationChanged(() => nav.refreshGrid(panel.id));
+	nav.registerGrid(panel.id, grid);
+	nav.setActiveGrid(panel.id);
+	nav.moveDown();
+	for (const index of [15, 2]) {
+		rows = rows.map((row) => ({ ...row, index: row.depth === 1 ? index : 1 }));
+		panel.refresh();
+		while (pending.length) pending.shift()?.();
+		listOptions.onChanged?.(true);
+		expect(nav.focusedId).toBe(before.at(1));
+	}
 });
 
 it("coalesces event bursts, cancels partial loads, ignores stale results and defers hidden invalidation", () => {

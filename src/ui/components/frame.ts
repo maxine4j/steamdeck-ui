@@ -368,11 +368,18 @@ export class Frame implements IUIComponent {
 		const height = native.GetHeight();
 		const offset = Math.max(0, (height - contentHeight) / 2);
 		const scroll = native.GetVerticalScroll();
+		// Start within the fourth-last row, keeping three upcoming rows visible.
+		// The half-row buffer crosses that threshold before reaching its bottom.
+		const lookahead = Math.max(
+			0,
+			Math.min(3.5 * (bottom - top), height - (bottom - top)),
+		);
+		const revealBottom = bottom + offset + lookahead;
 		const target =
 			top + offset < scroll
 				? top + offset
-				: bottom + offset > scroll + height
-					? bottom + offset - height
+				: revealBottom > scroll + height
+					? revealBottom - height
 					: scroll;
 		native.SetVerticalScroll(
 			Math.max(0, Math.min(native.GetVerticalScrollRange(), target)),
