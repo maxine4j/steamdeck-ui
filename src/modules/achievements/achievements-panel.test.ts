@@ -170,7 +170,7 @@ function setup(flushLoad = true) {
 			const task = {
 				cancelled: false,
 				callback: () => {
-					progress?.(1, 2);
+					progress?.(1, 2, []);
 					complete(client.achievements(category, false));
 				},
 			};
@@ -274,6 +274,34 @@ it("makes summary categories interactive before scanning and uses the corner loa
 	expect(frames.get("achievements-loading-track")?.visible).toBe(false);
 	expect(frames.get("achievements")?.labels.get("loading")).toBe("");
 });
+it("updates completion counts within a category before the category finishes loading", () => {
+	const { client, step } = setup(false);
+	let partial:
+		| ((completed: number, total: number, rows: readonly Achievement[]) => void)
+		| undefined;
+	vi.mocked(client.loadCategory).mockImplementation(
+		(_id, _complete, progress) => {
+			partial = progress;
+			return vi.fn();
+		},
+	);
+	step();
+	step();
+	partial?.(1, 100, [achievement(6, true), achievement(7)]);
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Characters")
+			?.trailingLabel,
+	).toBe("1/2 50%");
+	partial?.(2, 100, [achievement(8)]);
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Characters")
+			?.trailingLabel,
+	).toBe("1/3 33%");
+});
 it("fills summary button counts as categories arrive while later scans remain pending", () => {
 	const { panel, client, step } = setup(false);
 	step();
@@ -291,6 +319,27 @@ it("fills summary button counts as categories arrive while later scans remain pe
 			.flat()
 			.some((n) => n.navId === "summary-category-Quests"),
 	).toBe(true);
+});
+
+it("keeps publishing category counts when an event restarts the initial scan", () => {
+	const { panel, step } = setup(false);
+	step();
+	panel.refresh();
+	step();
+	step();
+	step();
+	step();
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Characters")
+			?.trailingLabel,
+	).toBe("1/2 50%");
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Quests")?.trailingLabel,
+	).toBe("Loading...");
 });
 it("reuses the complete category grid and its controls on an unchanged reopen", () => {
 	const { panel, parent, activate, flush } = setup();

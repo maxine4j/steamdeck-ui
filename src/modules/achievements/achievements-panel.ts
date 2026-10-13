@@ -53,6 +53,7 @@ export class AchievementsPanel implements IPanel {
 	private entries = new Map<number, readonly Achievement[]>();
 	private pages: AchievementPage[] = [];
 	private summary?: AchievementSummary;
+	private catalogLoaded = false;
 	private page?: string;
 	private pendingCategory?: number;
 	private selectedAchievement?: number;
@@ -115,7 +116,7 @@ export class AchievementsPanel implements IPanel {
 		const entries = new Map<number, readonly Achievement[]>();
 		const totals = new Map<string, { total: number; completed: number }>();
 		const seen = new Set<number>();
-		const firstLoad = this.summary === undefined;
+		const firstLoad = !this.catalogLoaded;
 		this.loading = false;
 		this.scanning = true;
 		this.setLoadingProgress(0);
@@ -137,6 +138,28 @@ export class AchievementsPanel implements IPanel {
 				});
 			this.render();
 		}
+		const publish = (
+			category: AchievementCategory,
+			achievements: readonly Achievement[],
+		) => {
+			const root = achievementRoot(categories, category.id) ?? category;
+			for (const achievement of achievements) {
+				if (seen.has(achievement.id)) continue;
+				seen.add(achievement.id);
+				const name = achievementPageFor(achievement.id, root);
+				const value = totals.get(name) ?? { total: 0, completed: 0 };
+				value.total++;
+				if (achievement.completed) value.completed++;
+				totals.set(name, value);
+			}
+			if (firstLoad) {
+				this.pages = this.pages.map((page) => {
+					const value = totals.get(page.id);
+					return value ? { ...page, ...value, pending: false } : page;
+				});
+				if (this.page === undefined) this.list.updateRows(this.summaryRows());
+			}
+		};
 		const generation = this.generation;
 		let cursor = 0;
 		const step = () => {
@@ -164,24 +187,7 @@ export class AchievementsPanel implements IPanel {
 						if (!this.mounted || generation !== this.generation) return;
 						entries.set(category.id, achievements);
 						cursor++;
-						const root = achievementRoot(categories, category.id) ?? category;
-						for (const achievement of achievements) {
-							if (seen.has(achievement.id)) continue;
-							seen.add(achievement.id);
-							const name = achievementPageFor(achievement.id, root);
-							const value = totals.get(name) ?? { total: 0, completed: 0 };
-							value.total++;
-							if (achievement.completed) value.completed++;
-							totals.set(name, value);
-						}
-						if (firstLoad) {
-							this.pages = this.pages.map((page) => {
-								const value = totals.get(page.id);
-								return value ? { ...page, ...value, pending: false } : page;
-							});
-							if (this.page === undefined)
-								this.list.updateRows(this.summaryRows());
-						}
+						publish(category, achievements);
 						if (firstLoad) this.entries = entries;
 						if (
 							firstLoad &&
@@ -211,17 +217,19 @@ export class AchievementsPanel implements IPanel {
 						);
 						step();
 					},
-					(completed, total) => {
-						if (this.mounted && generation === this.generation)
-							this.setLoadingProgress(
-								(0.5 * (cursor + (total > 0 ? completed / total : 1))) /
-									Math.max(1, categories.length),
-							);
+					(completed, total, rows) => {
+						if (!this.mounted || generation !== this.generation) return;
+						publish(category, rows);
+						this.setLoadingProgress(
+							(0.5 * (cursor + (total > 0 ? completed / total : 1))) /
+								Math.max(1, categories.length),
+						);
 					},
 				);
 			} else {
 				this.loading = false;
 				this.scanning = false;
+				this.catalogLoaded = true;
 				this.categories = categories;
 				this.entries = entries;
 				this.summary = summary;

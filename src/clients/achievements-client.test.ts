@@ -91,6 +91,62 @@ it("bounds category and chain API work per frame and cancels the latest continua
 	expect(read).toHaveBeenCalledTimes(calls);
 	expect(complete).not.toHaveBeenCalled();
 });
+it("publishes category rows before completion", () => {
+	const pending: (() => void)[] = [];
+	const client = setup({
+		nextFrame: (callback) => {
+			pending.push(callback);
+			return vi.fn();
+		},
+	});
+	vi.stubGlobal("GetCategoryNumAchievements", () => [100, 0, 100]);
+	const complete = vi.fn();
+	const progress = vi.fn();
+	client.loadCategory(92, complete, progress);
+	pending.shift()?.();
+	expect(complete).not.toHaveBeenCalled();
+	expect(progress.mock.lastCall?.at(2)?.length).toBeGreaterThan(0);
+	while (pending.length) pending.shift()?.();
+	expect(
+		progress.mock.calls
+			.flatMap((call) => call.at(2))
+			.map((row: { id: number }) => row.id),
+	).toEqual(expect.arrayContaining([921, 922]));
+});
+it("does not walk a whole chain again for each category row already loaded", () => {
+	const pending: (() => void)[] = [];
+	const client = setup({
+		nextFrame: (callback) => {
+			pending.push(callback);
+			return vi.fn();
+		},
+	});
+	vi.stubGlobal("GetCategoryNumAchievements", () => [50, 0, 50]);
+	vi.stubGlobal("GetAchievementInfo", (id: number, index?: number) => [
+		index ?? id,
+		"Achievement",
+		10,
+		false,
+		0,
+		0,
+		0,
+		"",
+		0,
+		1,
+		"",
+	]);
+	const previous = vi.fn((id: number) => (id > 1 ? id - 1 : undefined));
+	const next = vi.fn((id: number) => [id < 50 ? id + 1 : undefined, false]);
+	vi.stubGlobal("GetPreviousAchievement", previous);
+	vi.stubGlobal("GetNextAchievement", next);
+	const complete = vi.fn();
+	client.loadCategory(92, complete);
+	while (pending.length) pending.shift()?.();
+	expect(complete.mock.lastCall?.at(0)).toHaveLength(50);
+	expect(
+		previous.mock.calls.length + next.mock.calls.length,
+	).toBeLessThanOrEqual(51);
+});
 it("loads an arbitrarily long chain across frames without dropping or duplicating levels", () => {
 	const pending: (() => void)[] = [];
 	const client = setup({

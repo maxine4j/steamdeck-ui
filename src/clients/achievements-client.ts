@@ -37,7 +37,11 @@ export interface IAchievementsClient {
 	loadCategory(
 		category: number,
 		complete: (achievements: Achievement[]) => void,
-		progress?: (completed: number, total: number) => void,
+		progress?: (
+			completed: number,
+			total: number,
+			rows: readonly Achievement[],
+		) => void,
 	): () => void;
 	categories(): AchievementCategory[];
 	totals(category: number): AchievementTotals;
@@ -54,7 +58,11 @@ export class AchievementsClient implements IAchievementsClient {
 	loadCategory(
 		category: number,
 		complete: (achievements: Achievement[]) => void,
-		progress?: (completed: number, total: number) => void,
+		progress?: (
+			completed: number,
+			total: number,
+			rows: readonly Achievement[],
+		) => void,
 	): () => void {
 		let cancelled = false;
 		let cancelNext: (() => void) | undefined;
@@ -71,6 +79,7 @@ export class AchievementsClient implements IAchievementsClient {
 		let representative = 0;
 		let chain: Achievement[] = [];
 		const rows: Achievement[] = [];
+		let published = 0;
 		const seen = new Set<number>();
 		let visited = new Set<number>();
 		const step = () => {
@@ -86,6 +95,10 @@ export class AchievementsClient implements IAchievementsClient {
 						return;
 					}
 					const achievement = this.read(category, index);
+					if (seen.has(achievement.id)) {
+						index++;
+						continue;
+					}
 					representative = achievement.id;
 					cursor = representative;
 					chain = [achievement];
@@ -124,7 +137,8 @@ export class AchievementsClient implements IAchievementsClient {
 					phase = "next";
 				}
 			}
-			progress?.(Math.min(index - 1, count), count);
+			progress?.(Math.min(index - 1, count), count, rows.slice(published));
+			published = rows.length;
 			cancelNext = this.scheduler.nextFrame(step);
 		};
 		cancelNext = this.scheduler.nextFrame(step);
