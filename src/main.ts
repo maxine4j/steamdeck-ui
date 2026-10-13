@@ -49,7 +49,7 @@ startSteamDeckUI(
 	new DialogueClient(),
 	new DialogueCamera(),
 	new VendorClient(),
-	new AchievementsClient(),
+	new AchievementsClient(scheduler),
 	new ToysClient(scheduler),
 	new AddonConfigClient(),
 );

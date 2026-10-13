@@ -1,3 +1,4 @@
+import type { ITaskScheduler } from "./task-scheduler";
 export interface AchievementTotals {
 	total: number;
 	completed: number;
@@ -33,10 +34,15 @@ export interface AchievementSummary {
 	categories: (AchievementCategory & AchievementTotals)[];
 }
 export interface IAchievementsClient {
+	loadCategory(
+		category: number,
+		complete: (achievements: Achievement[]) => void,
+		progress?: (completed: number, total: number) => void,
+	): () => void;
 	categories(): AchievementCategory[];
 	totals(category: number): AchievementTotals;
 	achievements(category: number, incomplete: boolean): Achievement[];
-	summary(): AchievementSummary;
+	summary(includeCategories?: boolean): AchievementSummary;
 	criteria(id: number): AchievementCriterion[];
 	chain(id: number): Achievement[];
 	categoryFor(id: number): number;
@@ -44,6 +50,89 @@ export interface IAchievementsClient {
 	selection(id: number): number;
 }
 export class AchievementsClient implements IAchievementsClient {
+	constructor(private readonly scheduler: ITaskScheduler) {}
+	loadCategory(
+		category: number,
+		complete: (achievements: Achievement[]) => void,
+		progress?: (completed: number, total: number) => void,
+	): () => void {
+		let cancelled = false;
+		let cancelNext: (() => void) | undefined;
+		let phase:
+			| "count"
+			| "row"
+			| "previous"
+			| "previous-read"
+			| "next"
+			| "next-read" = "count";
+		let count = 0;
+		let index = 1;
+		let cursor = 0;
+		let representative = 0;
+		let chain: Achievement[] = [];
+		const rows: Achievement[] = [];
+		const seen = new Set<number>();
+		let visited = new Set<number>();
+		const step = () => {
+			if (cancelled) return;
+			cancelNext = undefined;
+			for (let operation = 0; operation < 20; operation++) {
+				if (phase === "count") {
+					[count] = GetCategoryNumAchievements(category);
+					phase = "row";
+				} else if (phase === "row") {
+					if (index > count) {
+						complete(rows);
+						return;
+					}
+					const achievement = this.read(category, index);
+					representative = achievement.id;
+					cursor = representative;
+					chain = [achievement];
+					visited = new Set([representative]);
+					phase = "previous";
+				} else if (phase === "previous") {
+					const id = GetPreviousAchievement(cursor);
+					if (id !== undefined && !visited.has(id)) {
+						cursor = id;
+						visited.add(id);
+						phase = "previous-read";
+					} else {
+						cursor = representative;
+						phase = "next";
+					}
+				} else if (phase === "previous-read") {
+					chain.unshift(this.read(cursor));
+					phase = "previous";
+				} else if (phase === "next") {
+					const [id] = GetNextAchievement(cursor);
+					if (id !== undefined && !visited.has(id)) {
+						cursor = id;
+						visited.add(id);
+						phase = "next-read";
+					} else {
+						for (const achievement of chain)
+							if (!seen.has(achievement.id)) {
+								seen.add(achievement.id);
+								rows.push(achievement);
+							}
+						index++;
+						phase = "row";
+					}
+				} else {
+					chain.push(this.read(cursor));
+					phase = "next";
+				}
+			}
+			progress?.(Math.min(index - 1, count), count);
+			cancelNext = this.scheduler.nextFrame(step);
+		};
+		cancelNext = this.scheduler.nextFrame(step);
+		return () => {
+			cancelled = true;
+			cancelNext?.();
+		};
+	}
 	categories(): AchievementCategory[] {
 		const source = GetCategoryList().map((id) => this.category(id));
 		const ordered: AchievementCategory[] = [];
@@ -172,8 +261,8 @@ export class AchievementsClient implements IAchievementsClient {
 		}
 		return current;
 	}
-	summary(): AchievementSummary {
-		const categories = this.categories();
+	summary(includeCategories = true): AchievementSummary {
+		const categories = includeCategories ? this.categories() : [];
 		const [total, completed] = GetNumCompletedAchievements();
 		const recent = [...GetLatestCompletedAchievements()]
 			.slice(0, 3)

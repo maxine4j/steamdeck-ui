@@ -1,8 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { AchievementsClient } from "./achievements-client";
+import type { ITaskScheduler } from "./task-scheduler";
 
 afterEach(() => vi.unstubAllGlobals());
-const setup = () => {
+const setup = (scheduler: ITaskScheduler = { nextFrame: vi.fn() }) => {
 	vi.stubGlobal("GetCategoryList", () => [92, 12, 96, 15234]);
 	vi.stubGlobal("GetCategoryInfo", (id: number) => [
 		`Category ${id}`,
@@ -30,8 +31,98 @@ const setup = () => {
 	vi.stubGlobal("GetAchievementCategory", () => 92);
 	vi.stubGlobal("GetPreviousAchievement", () => undefined);
 	vi.stubGlobal("GetNextAchievement", () => [undefined, false]);
-	return new AchievementsClient();
+	return new AchievementsClient(scheduler);
 };
+it("bounds category and chain API work per frame and cancels the latest continuation", () => {
+	const pending: (() => void)[] = [];
+	const client = setup({
+		nextFrame: (callback) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
+		},
+	});
+	const read = vi.fn((id: number, index?: number) => [
+		index ?? id,
+		"Achievement",
+		10,
+		false,
+		0,
+		0,
+		0,
+		"",
+		0,
+		1,
+		"",
+	]);
+	const count = vi.fn(() => [100, 0, 100]);
+	const previous = vi.fn(() => undefined);
+	const next = vi.fn(() => [undefined, false]);
+	vi.stubGlobal("GetAchievementInfo", read);
+	vi.stubGlobal("GetCategoryNumAchievements", count);
+	vi.stubGlobal("GetPreviousAchievement", previous);
+	vi.stubGlobal("GetNextAchievement", next);
+	const complete = vi.fn();
+	const progress = vi.fn();
+	const cancel = client.loadCategory(92, complete, progress);
+	expect(read).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(
+		read.mock.calls.length +
+			count.mock.calls.length +
+			previous.mock.calls.length +
+			next.mock.calls.length,
+	).toBeLessThanOrEqual(20);
+	expect(complete).not.toHaveBeenCalled();
+	expect(progress).toHaveBeenCalled();
+	const calls = read.mock.calls.length;
+	cancel();
+	while (pending.length) pending.shift()?.();
+	expect(read).toHaveBeenCalledTimes(calls);
+	expect(complete).not.toHaveBeenCalled();
+});
+it("loads an arbitrarily long chain across frames without dropping or duplicating levels", () => {
+	const pending: (() => void)[] = [];
+	const client = setup({
+		nextFrame: (callback) => {
+			pending.push(callback);
+			return vi.fn();
+		},
+	});
+	vi.stubGlobal("GetCategoryNumAchievements", () => [1, 0, 1]);
+	vi.stubGlobal("GetAchievementInfo", (id: number, index?: number) => [
+		index ? 25 : id,
+		"Achievement",
+		10,
+		false,
+		0,
+		0,
+		0,
+		"",
+		0,
+		1,
+		"",
+	]);
+	vi.stubGlobal("GetPreviousAchievement", (id: number) =>
+		id > 1 ? id - 1 : undefined,
+	);
+	vi.stubGlobal("GetNextAchievement", (id: number) => [
+		id < 50 ? id + 1 : undefined,
+		false,
+	]);
+	const complete = vi.fn();
+	client.loadCategory(92, complete);
+	pending.shift()?.();
+	expect(complete).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(
+		complete.mock.lastCall?.at(0).map((a: { id: number }) => a.id),
+	).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+});
 it("preserves Blizzard category hierarchy and includes immediate children in totals", () => {
 	const client = setup();
 	expect(client.categories().map((c) => c.id)).toEqual([92, 12, 96, 15234]);
@@ -172,4 +263,14 @@ it("reads the category hierarchy once when calculating summary totals", () => {
 	vi.stubGlobal("GetCategoryList", categories);
 	client.summary();
 	expect(categories).toHaveBeenCalledOnce();
+});
+it("reads headline summary data without scanning category totals when requested", () => {
+	const client = setup();
+	const categories = vi.fn(() => []);
+	const totals = vi.fn(() => [0, 0, 0]);
+	vi.stubGlobal("GetCategoryList", categories);
+	vi.stubGlobal("GetCategoryNumAchievements", totals);
+	expect(client.summary(false).points).toBe(100);
+	expect(categories).not.toHaveBeenCalled();
+	expect(totals).not.toHaveBeenCalled();
 });

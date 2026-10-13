@@ -136,9 +136,22 @@ const achievement = (id: number, completed = false): Achievement => ({
 	reward: "Title",
 	icon: 1,
 });
-function setup() {
+function setup(flushLoad = true) {
 	const pending: { callback: () => void; cancelled: boolean }[] = [];
 	const client: IAchievementsClient = {
+		loadCategory: vi.fn((category, complete, progress) => {
+			const task = {
+				cancelled: false,
+				callback: () => {
+					progress?.(1, 2);
+					complete(client.achievements(category, false));
+				},
+			};
+			pending.push(task);
+			return () => {
+				task.cancelled = true;
+			};
+		}),
 		categories: () => [
 			{ id: 92, name: "General", parent: -1 },
 			{ id: 96, name: "Quests", parent: -1 },
@@ -202,9 +215,170 @@ function setup() {
 		flush();
 	};
 	panel.onMount(parent);
-	flush();
+	if (flushLoad) flush();
 	return { panel, client, close, parent, flush, step, activate };
 }
+
+it("makes summary categories interactive before scanning and uses the corner loading bar", () => {
+	const { panel, client, step, flush } = setup(false);
+	step();
+	expect(client.achievements).not.toHaveBeenCalled();
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((r) => r.id === "summary-category-Characters")?.trailingLabel,
+	).toBe("Loading...");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((n) => n.navId),
+	).toContain("summary-category-Quests");
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.some((r) => r.label === "Loading completion categories..."),
+	).toBe(false);
+	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
+	expect(frames.get("achievements")?.labels.get("loading")).toBe(
+		"Loading achievements...",
+	);
+	flush();
+	expect(frames.get("achievements-loading-track")?.visible).toBe(false);
+	expect(frames.get("achievements")?.labels.get("loading")).toBe("");
+});
+it("fills summary button counts as categories arrive while later scans remain pending", () => {
+	const { panel, client, step } = setup(false);
+	step();
+	step();
+	step();
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((r) => r.id === "summary-category-Characters")?.trailingLabel,
+	).toBe("1 / 2 • 50%");
+	expect(client.achievements).toHaveBeenCalledOnce();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((n) => n.navId === "summary-category-Quests"),
+	).toBe(true);
+});
+it("reuses the complete category grid and its controls on an unchanged reopen", () => {
+	const { panel, parent, activate, flush } = setup();
+	activate("summary-category-Quests");
+	const node = panel
+		.getNavGrid()
+		.flat()
+		.find((n) => n.navId === "achievement-503");
+	panel.onUnmount();
+	panel.onMount(parent);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((n) => n.navId === "achievement-503"),
+	).toBe(node);
+});
+it("budgets retained control cleanup instead of hiding the entire grid during an interaction", () => {
+	const { panel, client, activate, flush, step } = setup();
+	vi.mocked(client.achievements).mockImplementation((id) =>
+		id === 92
+			? Array.from({ length: 100 }, (_, i) => achievement(900800 + i))
+			: [],
+	);
+	panel.refresh();
+	flush();
+	activate("summary-category-Characters");
+	const hide = vi.spyOn(Frame.prototype, "hide");
+	panel
+		.getNavGrid()
+		.flat()
+		.find((n) => n.navId === "achievements-filter")
+		?.onInteract();
+	expect(hide.mock.calls.length).toBeLessThan(20);
+	hide.mockClear();
+	step();
+	expect(hide.mock.calls.length).toBeLessThanOrEqual(24);
+	hide.mockRestore();
+	flush();
+});
+it("keeps the corner loading bar visible until deferred grid rendering finishes", () => {
+	const { panel, flush } = setup();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((n) => n.navId === "summary-category-Quests")
+		?.onInteract();
+	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
+	expect(frames.get("achievements")?.labels.get("loading")).toBe(
+		"Loading achievements...",
+	);
+	flush();
+	expect(frames.get("achievements-loading-track")?.visible).toBe(false);
+});
+it("keeps stable category button identities with native summary totals", () => {
+	const { panel, client, step } = setup(false);
+	vi.mocked(client.summary).mockReturnValue({
+		points: 100,
+		totals: { total: 20, completed: 5 },
+		recent: [],
+		categories: [
+			{ id: 92, name: "General", parent: -1, total: 2, completed: 1 },
+		],
+	});
+	step();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((n) => n.navId),
+	).toContain("summary-category-Characters");
+});
+it("loads a requested category ahead of unrelated categories and renders it before the entire catalog", () => {
+	const { panel, client, step } = setup(false);
+	vi.spyOn(client, "categories").mockReturnValue([
+		{ id: 92, name: "General", parent: -1 },
+		{ id: 1000, name: "Future", parent: -1 },
+		{ id: 96, name: "Quests", parent: -1 },
+		{ id: 99, name: "Northrend", parent: 96 },
+	]);
+	step();
+	step(); // start the first category
+	const button = panel
+		.getNavGrid()
+		.flat()
+		.find((n) => n.navId === "summary-category-Quests");
+	button?.onInteract();
+	for (
+		let i = 0;
+		i < 8 && vi.mocked(client.loadCategory).mock.calls.length < 2;
+		i++
+	)
+		step();
+	expect(vi.mocked(client.loadCategory).mock.calls.at(1)?.at(0)).toBe(96);
+	for (
+		let i = 0;
+		i < 8 &&
+		!panel
+			.getNavGrid()
+			.flat()
+			.some((n) => n.navId === "achievement-503");
+		i++
+	)
+		step();
+	expect(
+		vi.mocked(client.achievements).mock.calls.some(([id]) => id === 1000),
+	).toBe(false);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((n) => n.navId === "achievement-503"),
+	).toBe(true);
+});
 it("opens a single-column summary with progress buttons and drills into category grids", () => {
 	const { panel, activate } = setup();
 	expect(

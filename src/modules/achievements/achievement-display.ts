@@ -13,11 +13,27 @@ export interface AchievementSection extends AchievementTotals {
 	groups: AchievementGroup[];
 }
 export interface AchievementPage extends AchievementTotals {
+	pending?: boolean;
 	id: string;
 	name: string;
 	sections: AchievementSection[];
 }
 const membership = new Map<number, (typeof achievementGroups)[number]>();
+const memberRanks = new Map<number, number>();
+const pageRanks = new Map<string, number>();
+const sectionRanks = new Map<string, number>();
+const groupRanks = new Map<string, number>();
+for (const group of achievementGroups) {
+	if (!pageRanks.has(group.category))
+		pageRanks.set(group.category, pageRanks.size);
+	const section = `${group.category}\n${group.section === group.category ? "General" : group.section}`;
+	if (!sectionRanks.has(section)) sectionRanks.set(section, sectionRanks.size);
+	const key = `${section}\n${group.name}`;
+	if (!groupRanks.has(key)) groupRanks.set(key, groupRanks.size);
+	group.ids.forEach((id, rank) => {
+		if (!memberRanks.has(id)) memberRanks.set(id, rank);
+	});
+}
 for (const group of achievementGroups)
 	for (const id of group.ids) {
 		if (!membership.has(id)) membership.set(id, group);
@@ -50,6 +66,15 @@ export function achievementRoot(
 		category = parent;
 	}
 	return category;
+}
+export function achievementPageName(category: AchievementCategory): string {
+	return rootNames.get(category.id) ?? category.name;
+}
+export function achievementPageFor(
+	id: number,
+	category: AchievementCategory,
+): string {
+	return membership.get(id)?.category ?? achievementPageName(category);
 }
 export function buildAchievementPages(
 	categories: readonly AchievementCategory[],
@@ -135,50 +160,31 @@ export function buildAchievementPages(
 		}
 	}
 	// Preserve the reference's order, independent of completion or live API order.
-	const pageOrder = [...new Set(achievementGroups.map((g) => g.category))];
 	pages.sort(
 		(a, b) =>
-			(pageOrder.includes(a.id) ? pageOrder.indexOf(a.id) : pageOrder.length) -
-			(pageOrder.includes(b.id) ? pageOrder.indexOf(b.id) : pageOrder.length),
+			(pageRanks.get(a.id) ?? pageRanks.size) -
+			(pageRanks.get(b.id) ?? pageRanks.size),
 	);
 	for (const page of pages) {
-		const definitions = achievementGroups.filter((g) => g.category === page.id);
-		const sections = [
-			...new Set(
-				definitions.map((g) =>
-					g.section === g.category ? "General" : g.section,
-				),
-			),
-		];
 		page.sections.sort(
 			(a, b) =>
-				(sections.includes(a.name) ? sections.indexOf(a.name) : -1) -
-				(sections.includes(b.name) ? sections.indexOf(b.name) : -1),
+				(sectionRanks.get(`${page.id}\n${a.name}`) ?? -1) -
+				(sectionRanks.get(`${page.id}\n${b.name}`) ?? -1),
 		);
 		for (const section of page.sections) {
 			section.groups = section.groups.filter(
 				(group) => group.achievements.length > 0,
 			);
-			const groups = definitions
-				.filter(
-					(g) =>
-						(g.section === g.category ? "General" : g.section) === section.name,
-				)
-				.map((g) => g.name);
 			section.groups.sort(
 				(a, b) =>
-					(a.name === "Unknown" ? -1 : groups.indexOf(a.name)) -
-					(b.name === "Unknown" ? -1 : groups.indexOf(b.name)),
+					(groupRanks.get(`${page.id}\n${section.name}\n${a.name}`) ?? -1) -
+					(groupRanks.get(`${page.id}\n${section.name}\n${b.name}`) ?? -1),
 			);
 			for (const group of section.groups) {
-				const ids = definitions.find(
-					(g) =>
-						(g.section === g.category ? "General" : g.section) ===
-							section.name && g.name === group.name,
-				)?.ids;
-				if (ids)
+				if (group.name !== "Unknown")
 					group.achievements.sort(
-						(a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
+						(a, b) =>
+							(memberRanks.get(a.id) ?? 0) - (memberRanks.get(b.id) ?? 0),
 					);
 			}
 		}

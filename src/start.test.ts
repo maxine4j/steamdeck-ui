@@ -396,6 +396,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		{
 			categories: () => [],
+			loadCategory: (_category, complete) => {
+				complete([]);
+				return vi.fn();
+			},
 			totals: () => ({ total: 0, completed: 0 }),
 			achievements: () => [],
 			summary: () => ({
