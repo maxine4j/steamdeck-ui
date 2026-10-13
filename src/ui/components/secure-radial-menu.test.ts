@@ -70,6 +70,7 @@ function setup(
 				return {
 					...line,
 					ClearAllPoints: vi.fn(),
+					SetThickness: vi.fn(),
 					SetStartPoint: vi.fn(),
 					SetEndPoint: vi.fn(),
 					SetColorTexture: vi.fn(),
@@ -208,6 +209,29 @@ it("shows and clears the name on mouse hover without changing secure actions", (
 	expect(frames.at(1).fonts.at(1).SetText).toHaveBeenLastCalledWith("Spell 38");
 	frames.at(4).scripts.get("OnLeave")?.();
 	expect(frames.at(1).fonts.at(1).SetText).toHaveBeenLastCalledWith("");
+});
+
+it("backs the center text with a translucent disk that selection does not recolor", () => {
+	const { frames } = setup();
+	const display = frames.at(1);
+	const centerLines = display.CreateLine.mock.results
+		.slice(129, 191)
+		.map((result) => result.value);
+	expect(centerLines).toHaveLength(62);
+	for (const line of centerLines) {
+		expect(line.SetThickness).toHaveBeenLastCalledWith(2);
+		expect(line.SetColorTexture).toHaveBeenLastCalledWith(
+			0.025,
+			0.035,
+			0.05,
+			0.8,
+		);
+		expect(line.Show).toHaveBeenCalled();
+	}
+	display.attributes.set("count", 2);
+	frames.at(2).scripts.get("OnGamePadStick")(undefined, "Right", 0, 1, 1);
+	for (const line of centerLines)
+		expect(line.SetColorTexture).toHaveBeenCalledOnce();
 });
 
 it("updates ring contents without rewrapping handlers or allocating for unchanged capacity", () => {
@@ -370,8 +394,8 @@ it("tracks the exact stick direction continuously, including between positions i
 	expect(display.line.SetStartPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		0,
-		0,
+		expect.closeTo(37.2),
+		expect.closeTo(49.6),
 	);
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
@@ -407,8 +431,8 @@ it("tracks the exact stick direction continuously, including between positions i
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		39,
-		52,
+		expect.closeTo(57.6),
+		expect.closeTo(76.8),
 	);
 });
 
@@ -422,8 +446,8 @@ it("shows subdued analogue feedback inside the deadzone and clears it on center,
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		19.5,
-		26,
+		47.4,
+		63.2,
 	);
 	expect(display.line.SetColorTexture).toHaveBeenLastCalledWith(
 		0.65,
@@ -508,6 +532,6 @@ it("clears handlers and temporary bindings and reuses every native frame", () =>
 	// Ring controls and their twenty-four cooldown frames return to the pool.
 	new SecureRadialMenu(pool, 12);
 	expect(create).toHaveBeenCalledTimes(40);
-	expect(frames.at(1)?.CreateLine).toHaveBeenCalledTimes(141);
+	expect(frames.at(1)?.CreateLine).toHaveBeenCalledTimes(203);
 	expect(frames.at(1)?.line.ClearAllPoints).toHaveBeenCalledOnce();
 });

@@ -6,6 +6,7 @@ import { RADIAL_INDEX_SNIPPET, radialIndex } from "./radial-selection";
 import type { BindingTarget, SlotReader } from "./secure-slot-button";
 
 const RING_RADIUS = 130;
+const INNER_RADIUS = 62;
 const WHEEL_SEGMENTS = 128;
 
 /** API-specific queries are supplied by a client, executed in WoW's restricted environment. */
@@ -96,6 +97,7 @@ export class SecureRadialMenu {
 	private readonly label: WowFontString;
 	private readonly pointer: WowLine;
 	private readonly wheel: WowLine[];
+	private readonly centerBackground: WowLine[];
 	private readonly separators: WowLine[];
 	private readonly center: WowFontString;
 	private readonly names = new Map<number, string>();
@@ -131,6 +133,9 @@ export class SecureRadialMenu {
 		this.wheel = Array.from({ length: WHEEL_SEGMENTS }, (_, i) =>
 			pool.getLine(this.display, `radial-fill-${i}`, "BACKGROUND"),
 		);
+		this.centerBackground = Array.from({ length: INNER_RADIUS }, (_, i) =>
+			pool.getLine(this.display, `radial-center-${i}`, "BACKGROUND"),
+		);
 		this.separators = [];
 	}
 	configure(
@@ -164,6 +169,18 @@ export class SecureRadialMenu {
 		this.center.SetWidth(112);
 		this.center.SetWordWrap(true);
 		this.center.SetText("");
+		// Non-overlapping horizontal chords keep the disk's opacity uniform.
+		for (let i = 0; i < this.centerBackground.length; i++) {
+			const line = this.centerBackground.at(i);
+			if (!line) continue;
+			const y = i * 2 - INNER_RADIUS + 1;
+			const x = Math.sqrt(INNER_RADIUS * INNER_RADIUS - y * y);
+			line.SetStartPoint("CENTER", this.display, -x, y);
+			line.SetEndPoint("CENTER", this.display, x, y);
+			line.SetThickness(2);
+			line.SetColorTexture(0.025, 0.035, 0.05, 0.8);
+			line.Show();
+		}
 		this.pointer.SetThickness(3);
 		this.pointer.SetStartPoint("CENTER", this.display, 0, 0);
 		this.pointer.Hide();
@@ -366,7 +383,12 @@ end`,
 			const angle = (i * Math.PI * 2) / WHEEL_SEGMENTS;
 			const x = Math.sin(angle),
 				y = Math.cos(angle);
-			line.SetStartPoint("CENTER", this.display, x * 62, y * 62);
+			line.SetStartPoint(
+				"CENTER",
+				this.display,
+				x * INNER_RADIUS,
+				y * INNER_RADIUS,
+			);
 			line.SetEndPoint("CENTER", this.display, x * 172, y * 172);
 			line.SetThickness(9);
 			if (
@@ -387,7 +409,12 @@ end`,
 			const angle = ((i + 0.5) * Math.PI * 2) / count;
 			const x = Math.sin(angle),
 				y = Math.cos(angle);
-			line.SetStartPoint("CENTER", this.display, x * 62, y * 62);
+			line.SetStartPoint(
+				"CENTER",
+				this.display,
+				x * INNER_RADIUS,
+				y * INNER_RADIUS,
+			);
 			line.SetEndPoint("CENTER", this.display, x * 172, y * 172);
 			line.SetThickness(2);
 			line.SetColorTexture(0.42, 0.47, 0.55, 0.8);
@@ -404,7 +431,14 @@ end`,
 		}
 		const magnitude = Math.sqrt(x * x + y * y);
 		if (count > 0 && magnitude > 0 && length > 0) {
-			const distance = RING_RADIUS * Math.min(length, 1);
+			const distance =
+				INNER_RADIUS + (RING_RADIUS - INNER_RADIUS) * Math.min(length, 1);
+			this.pointer.SetStartPoint(
+				"CENTER",
+				this.display,
+				(x / magnitude) * INNER_RADIUS,
+				(y / magnitude) * INNER_RADIUS,
+			);
 			this.pointer.SetEndPoint(
 				"CENTER",
 				this.display,
