@@ -78,6 +78,67 @@ import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
 import { PanelContainer } from "./ui/panel/panel-container";
 import { UIOrchestrator } from "./ui/ui-orchestrator";
+
+// Keep feature construction in small functions: WoW limits Lua closures to 60 upvalues.
+function registerMap(
+	pool: FramePoolManager,
+	navigation: NavigationManager,
+	events: IEventBus,
+	ui: UIOrchestrator,
+	modules: ModuleManager,
+	map: IMapClient,
+	scheduler: ITaskScheduler,
+) {
+	const modal = new Modal("quest-options", pool, navigation, events);
+	const panel = new MapPanel(pool, map, modal, () => {
+		map.close();
+		ui.closePanel("fullscreen", "map");
+	});
+	ui.registerPanel(panel);
+	modules.register(new MapModule(ui, events, map, panel, scheduler));
+	return { panel, modal };
+}
+
+function registerCollections(
+	pool: FramePoolManager,
+	navigation: NavigationManager,
+	events: IEventBus,
+	ui: UIOrchestrator,
+	modules: ModuleManager,
+	mounts: IMountsClient,
+	toys: IToysClient,
+	scheduler: ITaskScheduler,
+) {
+	const collections = new CollectionsClient(new FrameSuppression(pool), events);
+	const builtInMounts = new BuiltInMounts(collections);
+	const builtInToys = new BuiltInToys(collections);
+	const toyModal = new Modal("toy-actions", pool, navigation, events);
+	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
+	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler, () =>
+		builtInToys.close(),
+	);
+	ui.registerPanel(toysPanel, "right");
+	modules.register(new ToysModule(ui, events, toysPanel, builtInToys, toys));
+	const mountModal = new Modal("mount-actions", pool, navigation, events);
+	const mountMenu = new MountActionMenu(mountModal, mounts, (id) =>
+		mountsPanel.toggleFavourite(id),
+	);
+	const mountsPanel = new MountsPanel(
+		pool,
+		mounts,
+		() => {
+			builtInMounts.close();
+			ui.closePanel("right", "mounts");
+		},
+		scheduler,
+		mountMenu,
+	);
+	modules.register(
+		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
+	);
+	return { toyModal, mountModal, toysPanel, mountsPanel };
+}
+
 export function startSteamDeckUI(
 	factory: FrameFactory,
 	events: IEventBus,
@@ -182,13 +243,15 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
-	const mapModal = new Modal("quest-options", pool, navigation, events);
-	const mapPanel = new MapPanel(pool, map, mapModal, () => {
-		map.close();
-		ui.closePanel("fullscreen", "map");
-	});
-	ui.registerPanel(mapPanel);
-	modules.register(new MapModule(ui, events, map, mapPanel, scheduler));
+	const mapFeature = registerMap(
+		pool,
+		navigation,
+		events,
+		ui,
+		modules,
+		map,
+		scheduler,
+	);
 	modules.register(new SlashCommandsModule(slashCommands));
 	const builtInAchievements = new BuiltInAchievements(
 		new FrameSuppression(pool),
@@ -282,32 +345,15 @@ export function startSteamDeckUI(
 			},
 		}),
 	);
-	const collections = new CollectionsClient(new FrameSuppression(pool), events);
-	const builtInMounts = new BuiltInMounts(collections);
-	const builtInToys = new BuiltInToys(collections);
-	const toyModal = new Modal("toy-actions", pool, navigation, events);
-	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
-	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler, () =>
-		builtInToys.close(),
-	);
-	ui.registerPanel(toysPanel, "right");
-	modules.register(new ToysModule(ui, events, toysPanel, builtInToys, toys));
-	const mountModal = new Modal("mount-actions", pool, navigation, events);
-	const mountMenu = new MountActionMenu(mountModal, mounts, (id) =>
-		mountsPanel.toggleFavourite(id),
-	);
-	const mountsPanel = new MountsPanel(
+	const collectionsFeature = registerCollections(
 		pool,
+		navigation,
+		events,
+		ui,
+		modules,
 		mounts,
-		() => {
-			builtInMounts.close();
-			ui.closePanel("right", "mounts");
-		},
+		toys,
 		scheduler,
-		mountMenu,
-	);
-	modules.register(
-		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
 	);
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),
@@ -346,7 +392,7 @@ export function startSteamDeckUI(
 	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(titlesPanel, "left");
-	ui.registerPanel(mountsPanel, "right");
+	ui.registerPanel(collectionsFeature.mountsPanel, "right");
 	const talentsPanel = new TalentsPanel(
 		pool,
 		talents,
@@ -389,13 +435,13 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
-			mapPanel.destroy();
-			mapModal.destroy();
+			mapFeature.panel.destroy();
+			mapFeature.modal.destroy();
 			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();
-			toyModal.destroy();
-			mountModal.destroy();
+			collectionsFeature.toyModal.destroy();
+			collectionsFeature.mountModal.destroy();
 			navigation.destroy();
 			itemTooltip.destroy();
 			ui.destroy();
@@ -404,8 +450,8 @@ export function startSteamDeckUI(
 			reputationPanel.destroy();
 			currencyPanel.destroy();
 			titlesPanel.destroy();
-			mountsPanel.destroy();
-			toysPanel.destroy();
+			collectionsFeature.mountsPanel.destroy();
+			collectionsFeature.toysPanel.destroy();
 			talentsPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();
