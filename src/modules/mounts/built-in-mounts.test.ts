@@ -9,6 +9,7 @@ it("suppresses collections only for mounts and restores it on tab changes and sh
 	let shown = false;
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
 	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("MountJournal", {
 		IsShown: () => shown,
 		HookScript: (event: string, callback: () => void) =>

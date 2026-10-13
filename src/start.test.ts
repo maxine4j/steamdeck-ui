@@ -180,6 +180,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	});
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("CollectionsJournal", {
 		IsShown: () => false,
 		HookScript: vi.fn(),
@@ -310,6 +311,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		superTrack: vi.fn(),
 		abandon: vi.fn(),
 		share: vi.fn(),
+	};
+	const pets = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		stop: vi.fn(),
+		load: vi.fn(() => vi.fn()),
+		isInCombat: () => false,
+		canUse: () => true,
+		summon: vi.fn(),
+		summonFavourite: vi.fn(),
+		toggleFavourite: vi.fn(),
 	};
 	const app = startSteamDeckUI(
 		factory,
@@ -495,6 +507,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			useItem: vi.fn(),
 			pickupItem: vi.fn(),
 		},
+		pets,
 	);
 	expect(frames).toHaveLength(4);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -529,6 +542,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("PLAYER_LOGIN");
 	expect(slashCommands.initialize).toHaveBeenCalledOnce();
 	expect(toys.prefetch).toHaveBeenCalledOnce();
+	expect(pets.prefetch).toHaveBeenCalledOnce();
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
@@ -706,10 +720,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		[136243, 0, 0], // Talents
 		[1100023, 0, -58], // Group finder
 		[133158, 0, -136], // Achievements
-		[133633, 1, 97], // Bags
-		[133784, 1, 39], // Currency
-		[132261, 1, -39], // Mounts
-		[454046, 1, -97], // Toys
+		[133633, 1, 126], // Bags
+		[133784, 1, 68], // Currency
+		[132261, 1, -10], // Mounts
+		[454046, 1, -68], // Toys
+		[656552, 1, -126], // Pets
 	] as const) {
 		const tabIndex = textures.findIndex((texture, index) => {
 			const tab = frames.at(index);
@@ -966,7 +981,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("left", "bank").activePanelId).toBe("bank");
 	events.emit("BANKFRAME_CLOSED");
 	expect(app.ui.getContainer("left", "bank").activePanelId).toBeUndefined();
+	app.ui.openPanel("pets", "right");
+	expect(app.ui.getContainer("right").activePanelId).toBe("pets");
+	expect(pets.load).toHaveBeenCalledOnce();
 	app.stop();
+	expect(pets.stop).toHaveBeenCalledOnce();
 	expect(map.disable).toHaveBeenCalledOnce();
 	expect(map.restore).toHaveBeenCalledOnce();
 	expect(controller.shutdown).toHaveBeenCalledOnce();

@@ -29,6 +29,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
 	MOUNTS_CHANGED: { id: number } | undefined;
 	TOYS_CHANGED: { id: number } | undefined;
+	PETS_CHANGED: { id: string } | undefined;
 	ACHIEVEMENTS_CHANGED: { id: number } | undefined;
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
@@ -94,6 +95,7 @@ export type ApplicationEvent =
 	| "TOYS_CHANGED"
 	| "TOYS_COOLDOWN_CHANGED"
 	| "TOYS_VISIBILITY_CHANGED"
+	| "PETS_VISIBILITY_CHANGED"
 	| "MOUNTS_VISIBILITY_CHANGED"
 	| "PLAYER_EQUIPMENT_CHANGED";
 export type EventPayload<E extends ApplicationEvent> =

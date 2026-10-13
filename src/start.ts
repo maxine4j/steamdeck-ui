@@ -13,6 +13,7 @@ import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
+import type { IPetsClient } from "./clients/pets-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ISlashCommandsClient } from "./clients/slash-commands-client";
 import type { ITalentsClient } from "./clients/talents-client";
@@ -58,6 +59,9 @@ import { BuiltInTitles } from "./modules/paper-doll/built-in-titles";
 import { EquipmentActionMenu } from "./modules/paper-doll/equipment-action-menu";
 import { PaperDollModule } from "./modules/paper-doll/paper-doll-module";
 import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
+import { PetActionMenu } from "./modules/pets/pet-action-menu";
+import { BuiltInPets, PetsModule } from "./modules/pets/pets-module";
+import { PetsPanel } from "./modules/pets/pets-panel";
 import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
@@ -145,10 +149,19 @@ function registerCollections(
 	mounts: IMountsClient,
 	toys: IToysClient,
 	scheduler: ITaskScheduler,
+	pets: IPetsClient,
 ) {
 	const collections = new CollectionsClient(new FrameSuppression(pool), events);
 	const builtInMounts = new BuiltInMounts(collections);
 	const builtInToys = new BuiltInToys(collections);
+	const builtInPets = new BuiltInPets(collections);
+	const petModal = new Modal("pet-actions", pool, navigation, events);
+	const petMenu = new PetActionMenu(petModal, pets, () => petsPanel.refresh());
+	const petsPanel = new PetsPanel(pool, pets, petMenu, scheduler, () =>
+		builtInPets.close(),
+	);
+	ui.registerPanel(petsPanel, "right");
+	modules.register(new PetsModule(ui, events, petsPanel, builtInPets, pets));
 	const toyModal = new Modal("toy-actions", pool, navigation, events);
 	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
 	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler, () =>
@@ -173,7 +186,7 @@ function registerCollections(
 	modules.register(
 		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
 	);
-	return { toyModal, mountModal, toysPanel, mountsPanel };
+	return { toyModal, mountModal, petModal, toysPanel, mountsPanel, petsPanel };
 }
 
 export function startSteamDeckUI(
@@ -199,6 +212,7 @@ export function startSteamDeckUI(
 	config: IAddonConfigClient,
 	map: IMapClient,
 	bank: IBankClient,
+	pets: IPetsClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -260,7 +274,7 @@ export function startSteamDeckUI(
 						: position === "right"
 							? [
 									["bags", "currency"],
-									["mounts", "toys"],
+									["mounts", "toys", "pets"],
 								]
 							: [],
 			),
@@ -423,6 +437,7 @@ export function startSteamDeckUI(
 		mounts,
 		toys,
 		scheduler,
+		pets,
 	);
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),
@@ -511,6 +526,7 @@ export function startSteamDeckUI(
 			currencyModal.destroy();
 			dungeonQueueConfirmation.destroy();
 			collectionsFeature.toyModal.destroy();
+			collectionsFeature.petModal.destroy();
 			collectionsFeature.mountModal.destroy();
 			navigation.destroy();
 			itemTooltip.destroy();
@@ -521,6 +537,7 @@ export function startSteamDeckUI(
 			currencyPanel.destroy();
 			collectionsFeature.mountsPanel.destroy();
 			collectionsFeature.toysPanel.destroy();
+			collectionsFeature.petsPanel.destroy();
 			talentsPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();

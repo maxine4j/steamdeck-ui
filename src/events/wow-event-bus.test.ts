@@ -67,10 +67,12 @@ it("preserves collection IDs for targeted cache refreshes", () => {
 	const bus = new WowEventBus({ createEventFrame: () => frame });
 	const mounts = vi.fn(),
 		toys = vi.fn(),
+		pets = vi.fn(),
 		achievements = vi.fn(),
 		items = vi.fn();
 	bus.subscribe("MOUNTS_CHANGED", mounts);
 	bus.subscribe("TOYS_CHANGED", toys);
+	bus.subscribe("PETS_CHANGED", pets);
 	bus.subscribe("ACHIEVEMENTS_CHANGED", achievements);
 	bus.subscribe("ITEM_DATA_LOAD_RESULT", items);
 	dispatch(frame, "NEW_MOUNT_ADDED", 42);
@@ -79,6 +81,18 @@ it("preserves collection IDs for targeted cache refreshes", () => {
 	dispatch(frame, "ITEM_DATA_LOAD_RESULT", 99, true);
 	expect(mounts).toHaveBeenCalledWith({ id: 42 });
 	expect(toys).toHaveBeenCalledWith({ id: 99 });
+	for (const event of [
+		"PET_JOURNAL_LIST_UPDATE",
+		"NEW_PET_ADDED",
+		"PET_JOURNAL_PET_DELETED",
+		"PET_JOURNAL_PET_REVOKED",
+		"PET_JOURNAL_PET_RESTORED",
+	])
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+	dispatch(frame, "NEW_PET_ADDED", "BattlePet-1");
+	expect(pets).toHaveBeenCalledWith(undefined);
+	dispatch(frame, "PET_JOURNAL_LIST_UPDATE");
+	expect(pets).toHaveBeenCalledTimes(2);
 	expect(achievements).toHaveBeenCalledWith({ id: 123 });
 	expect(items).toHaveBeenCalledWith({ id: 99, success: true });
 });

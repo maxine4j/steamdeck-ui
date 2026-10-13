@@ -12,6 +12,7 @@ import { DungeonFinderClient } from "./clients/dungeon-finder-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MapClient } from "./clients/map-client";
 import { MountsClient } from "./clients/mounts-client";
+import { PetsClient } from "./clients/pets-client";
 import { ReputationClient } from "./clients/reputation-client";
 import { SlashCommandsClient } from "./clients/slash-commands-client";
 import { TalentsClient } from "./clients/talents-client";
@@ -71,4 +72,5 @@ startSteamDeckUI(
 		new NativeScrollIndicator(new FramePoolManager(frameFactory)),
 	),
 	bank,
+	new PetsClient(scheduler, collectionCache),
 );

@@ -6,6 +6,13 @@ import type {
 	IEventBus,
 } from "./types";
 
+const petEvents = [
+	"PET_JOURNAL_LIST_UPDATE",
+	"NEW_PET_ADDED",
+	"PET_JOURNAL_PET_DELETED",
+	"PET_JOURNAL_PET_REVOKED",
+	"PET_JOURNAL_PET_RESTORED",
+];
 const dialogueEvents = [
 	"GOSSIP_SHOW",
 	"GOSSIP_OPTIONS_REFRESHED",
@@ -207,6 +214,7 @@ export class WowEventBus implements IEventBus {
 		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
+		for (const event of petEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
 		this.frame.RegisterEvent("BAG_OPEN");
@@ -326,6 +334,7 @@ export class WowEventBus implements IEventBus {
 						? { id: unit }
 						: undefined,
 				);
+			if (petEvents.includes(event)) this.emit("PETS_CHANGED");
 			if (event === "MOUNT_JOURNAL_SEARCH_UPDATED")
 				this.emit("MOUNTS_SEARCH_CHANGED");
 			if (event === "MOUNT_EQUIPMENT_APPLY_RESULT")
