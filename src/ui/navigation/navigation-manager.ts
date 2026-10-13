@@ -31,6 +31,13 @@ export class NavigationManager implements INavManager {
 	private modal?: { id: string; previous?: string; cancel: () => void };
 	private focused?: INavigable;
 	private graph = new NavigationGrid([]);
+	private readonly directionChanged = ({
+		direction,
+		pressed,
+	}: {
+		direction: NavDirection;
+		pressed: boolean;
+	}) => this.focused?.onMove?.(direction, pressed);
 	private readonly handlers: [ApplicationEvent, () => void][] = [
 		["NAV_UP", () => this.moveUp()],
 		["NAV_DOWN", () => this.moveDown()],
@@ -56,6 +63,7 @@ export class NavigationManager implements INavManager {
 		private readonly onActiveChanged?: (active: boolean) => void,
 		private readonly onFocusChanged?: (control?: INavigable) => void,
 	) {
+		events.subscribe("NAV_DIRECTION_CHANGED", this.directionChanged);
 		for (const [event, handler] of this.handlers)
 			events.subscribe(event, handler);
 	}
@@ -140,10 +148,7 @@ export class NavigationManager implements INavManager {
 	}
 	private move(direction: NavDirection): void {
 		if (!this.active) return;
-		if (this.focused?.onMove) {
-			this.focused.onMove(direction);
-			return;
-		}
+		if (this.focused?.onMove) return;
 		const next = this.focusedId
 			? this.graph.neighbor(this.focusedId, direction)
 			: undefined;
@@ -179,6 +184,7 @@ export class NavigationManager implements INavManager {
 		this.focused?.onInteract();
 	}
 	destroy(): void {
+		this.events.unsubscribe("NAV_DIRECTION_CHANGED", this.directionChanged);
 		this.modal = undefined;
 		for (const [event, handler] of this.handlers)
 			this.events.unsubscribe(event, handler);

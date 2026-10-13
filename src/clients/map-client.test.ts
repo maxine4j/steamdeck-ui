@@ -21,6 +21,7 @@ function setup() {
 		},
 	);
 	const frame = {
+		dataProviders: [] as { Label?: object; GetOffsetY?: () => number }[],
 		IsShown: vi.fn(() => true),
 		HookScript: (name: string, callback: () => void) =>
 			scripts.set(name, callback),
@@ -28,6 +29,11 @@ function setup() {
 		SetMapID: vi.fn(),
 		GetMapID: vi.fn(() => 101),
 		SetFocusedQuestID: vi.fn(),
+		GetNormalizedCursorPosition: vi.fn(() => [0.9, 0.9]),
+		IsCanvasMouseFocus: vi.fn(() => false),
+		IsCanvasMouseFocusOrPinFocus: vi.fn(() => false),
+		ExecuteOnAllPins: vi.fn(),
+		EnumeratePinsByTemplate: vi.fn(() => []),
 		HandleUserActionToggleSelf: vi.fn(),
 		TitleCanvasSpacerFrame: {},
 		ScrollContainer: {},
@@ -36,6 +42,15 @@ function setup() {
 		BlackoutFrame: {},
 		SidePanelToggle: {},
 	};
+	vi.stubGlobal(
+		"secureexecuterange",
+		(
+			providers: typeof frame.dataProviders,
+			callback: (provider: (typeof frame.dataProviders)[number]) => void,
+		) => {
+			for (const provider of providers) callback(provider);
+		},
+	);
 	const quests = {
 		ContentsAnchor: {},
 		QuestsFrame: { ScrollFrame: {} },
@@ -84,7 +99,13 @@ function setup() {
 		position: vi.fn(() => [420, 300] as const),
 		contains: vi.fn(() => false),
 		release: vi.fn(),
+		trackMouseOver: vi.fn(),
+		hover: vi.fn(),
 	};
+	Object.assign(frame.ScrollContainer, {
+		NormalizeUIPosition: vi.fn(() => [0.25, 0.75]),
+		ShouldNavigateOnClick: () => false,
+	});
 	vi.stubGlobal("QuestLogQuests_Update", vi.fn());
 	return {
 		events,
@@ -107,17 +128,108 @@ it("shows and moves the map cursor only while mounted and releases it on close",
 		{} as Frame,
 	);
 	client.setCursorActive(true);
-	expect(cursor.show).toHaveBeenCalledWith(frame.ScrollContainer);
-	client.moveCursor("up");
-	expect(cursor.move).toHaveBeenCalledWith("up");
+	expect(cursor.show).toHaveBeenCalledWith(
+		frame.ScrollContainer,
+		expect.any(Function),
+	);
+	client.moveCursor("up", true);
+	expect(cursor.move).toHaveBeenCalledWith("up", true);
 	hooks.get("OnMapChanged")?.();
 	expect(cursor.show).toHaveBeenCalledTimes(2);
 	client.setCursorActive(false);
 	expect(cursor.hide).toHaveBeenCalled();
-	client.moveCursor("left");
+	client.moveCursor("left", true);
 	expect(cursor.move).toHaveBeenCalledOnce();
 	client.unmount();
 	expect(cursor.release).toHaveBeenCalledOnce();
+});
+
+it("hovers icons with motion enabled even when mouse clicks are disabled", () => {
+	const { client, frame, cursor } = setup();
+	const icon = {
+		IsShown: () => true,
+		IsMouseEnabled: () => false,
+		IsMouseMotionEnabled: () => true,
+		IsMouseClickEnabled: () => false,
+		GetAlpha: () => 1,
+		GetFrameLevel: () => 5,
+		OnClick: vi.fn(),
+	};
+	frame.ExecuteOnAllPins.mockImplementation((callback) => callback(icon));
+	cursor.contains.mockReturnValue(true);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	expect(cursor.hover).toHaveBeenLastCalledWith(icon);
+	client.clickMap("LeftButton");
+	expect(icon.OnClick).not.toHaveBeenCalled();
+});
+
+it("uses virtual map positions for party dot tooltips and restores the native unit query", () => {
+	const { client, frame, cursor } = setup();
+	const original = vi.fn(() => ["physical-party"]);
+	const units = {
+		IsShown: () => true,
+		IsMouseMotionEnabled: () => false,
+		IsMouseClickEnabled: () => false,
+		GetAlpha: () => 1,
+		GetFrameLevel: () => 5,
+		GetMouseOverUnits: original,
+		GetMemberCountAndUnitTokenPrefix: () => [2, "party"],
+		IsMouseOverUnitExcluded: () => false,
+		dataProvider: { GetUnitPinSizesTable: () => ({ party: 12, raid: 8 }) },
+	};
+	frame.ExecuteOnAllPins.mockImplementation((callback) => callback(units));
+	Object.assign(frame.ScrollContainer, {
+		GetCanvasScale: () => 1,
+		DenormalizeHorizontalSize: () => 800,
+		DenormalizeVerticalSize: () => 400,
+	});
+	const position = vi.fn((_id: number, unit: string) => ({
+		GetXY: () => (unit === "party1" ? [0.25, 0.75] : [0.8, 0.8]),
+	}));
+	Object.assign(C_Map, { GetPlayerMapPosition: position });
+	vi.stubGlobal("UnitInSubgroup", () => true);
+	vi.stubGlobal("UnitExists", () => true);
+	vi.stubGlobal("unpack", (values: string[]) => values);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	expect(units.GetMouseOverUnits()).toEqual(["party1"]);
+	expect(units.GetMouseOverUnits()).toEqual(["party1"]);
+	expect(position).toHaveBeenCalledTimes(2);
+	const tick = cursor.show.mock.lastCall?.at(1) as (() => void) | undefined;
+	tick?.();
+	units.GetMouseOverUnits();
+	expect(position).toHaveBeenCalledTimes(4);
+	client.setCursorActive(false);
+	expect(units.GetMouseOverUnits).toBe(original);
+});
+
+it("keeps the native area name above the fullscreen map artwork", () => {
+	const { client, frame, layout } = setup();
+	const label = {};
+	frame.dataProviders.push({ Label: label, GetOffsetY: () => -10 });
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		label,
+		expect.objectContaining({
+			strata: "DIALOG",
+			parent: frame.ScrollContainer,
+			levelOffset: 101,
+			anchors: [["TOP", "TOP", 0, -10]],
+		}),
+	);
 });
 
 it("left clicks quest pins and blobs before zones using virtual coordinates; right click navigates out", () => {
@@ -136,6 +248,13 @@ it("left clicks quest pins and blobs before zones using virtual coordinates; rig
 					: [],
 		NavigateToParentMap: vi.fn(),
 	});
+	Object.assign(pin, {
+		IsMouseMotionEnabled: () => true,
+		IsMouseClickEnabled: () => true,
+		GetAlpha: () => 1,
+		GetFrameLevel: () => 5,
+	});
+	frame.ExecuteOnAllPins.mockImplementation((callback) => callback(pin));
 	const normalize = vi.fn(() => [0.25, 0.75]);
 	Object.assign(frame.ScrollContainer, {
 		NormalizeUIPosition: normalize,
@@ -170,6 +289,97 @@ it("left clicks quest pins and blobs before zones using virtual coordinates; rig
 	expect(frame.SetMapID).toHaveBeenCalledWith(202);
 	client.clickMap("RightButton");
 	expect(frame.NavigateToParentMap).toHaveBeenCalledOnce();
+});
+
+it("clicks world map quest variants and non-quest icons using the topmost enabled pin", () => {
+	const { client, cursor, frame } = setup();
+	const pin = (template: string, level: number) => ({
+		pinTemplate: template,
+		IsShown: () => true,
+		IsMouseMotionEnabled: () => true,
+		IsMouseClickEnabled: () => true,
+		GetAlpha: () => 1,
+		GetFrameLevel: () => level,
+		OnClick: vi.fn(),
+		OnMouseDown: vi.fn(),
+		OnMouseUp: vi.fn(),
+	});
+	const quest = pin("WorldMap_WorldQuestPinTemplate", 4),
+		poi = pin("AreaPOIPinTemplate", 5),
+		hidden = { ...pin("hidden", 100), IsShown: () => false },
+		disabled = {
+			...pin("disabled", 101),
+			IsMouseClickEnabled: () => false,
+			IsMouseMotionEnabled: () => false,
+		};
+	frame.ExecuteOnAllPins.mockImplementation((callback) => {
+		for (const target of [quest, poi, hidden, disabled]) callback(target);
+	});
+	cursor.contains.mockReturnValue(true);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	client.clickMap("LeftButton");
+	expect(poi.OnClick).toHaveBeenCalledWith("LeftButton");
+	expect(poi.OnMouseDown).toHaveBeenCalledWith("LeftButton");
+	expect(poi.OnMouseUp).toHaveBeenCalledWith("LeftButton", true);
+	expect(quest.OnClick).not.toHaveBeenCalled();
+	poi.IsMouseClickEnabled = () => false;
+	client.clickMap("LeftButton");
+	expect(quest.OnClick).toHaveBeenCalledWith("LeftButton");
+});
+
+it("supplies virtual coordinates to native hover providers and restores physical mouse queries on blur", () => {
+	const { client, cursor, frame } = setup();
+	const originalPosition = frame.GetNormalizedCursorPosition,
+		originalFocus = frame.IsCanvasMouseFocus;
+	const highlight = {
+		pinTemplate: "MapHighlightPinTemplate",
+		IsShown: () => true,
+		IsMouseMotionEnabled: () => false,
+		IsMouseClickEnabled: () => false,
+		IsMouseOver: vi.fn(),
+		GetAlpha: () => 1,
+		GetFrameLevel: () => 0,
+	};
+	const icon = {
+		pinTemplate: "AreaPOIPinTemplate",
+		IsShown: () => true,
+		IsMouseMotionEnabled: () => true,
+		IsMouseClickEnabled: () => true,
+		IsMouseOver: vi.fn(),
+		GetAlpha: () => 1,
+		GetFrameLevel: () => 5,
+		OnMouseEnter: vi.fn(),
+	};
+	frame.ExecuteOnAllPins.mockImplementation((callback) => {
+		callback(highlight);
+		callback(icon);
+	});
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	expect(frame.GetNormalizedCursorPosition()).toEqual([0.25, 0.75]);
+	expect(frame.IsCanvasMouseFocus()).toBe(true);
+	expect(cursor.trackMouseOver).toHaveBeenCalledWith(
+		frame.ScrollContainer,
+		highlight,
+	);
+	cursor.contains.mockReturnValue(true);
+	const tick = cursor.show.mock.lastCall?.at(1) as (() => void) | undefined;
+	tick?.();
+	expect(cursor.hover).toHaveBeenLastCalledWith(icon);
+	expect(frame.IsCanvasMouseFocus()).toBe(false);
+	client.setCursorActive(false);
+	expect(frame.GetNormalizedCursorPosition).toBe(originalPosition);
+	expect(frame.IsCanvasMouseFocus).toBe(originalFocus);
+	expect(cursor.hide).toHaveBeenCalled();
 });
 it("makes M close and reopen the combined pane without native flyout transitions, and restores the native handler", () => {
 	const { client, frame, scripts, events } = setup();

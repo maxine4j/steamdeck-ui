@@ -23,6 +23,15 @@ export class MapPanel implements IPanel {
 	private details?: number;
 	private mounted = false;
 	private navigationChanged?: (focusId?: string) => void;
+	private readonly cursorNode: INavigable = {
+		navId: "map-cursor",
+		onFocus: () => this.client.setCursorActive(true),
+		onBlur: () => this.client.setCursorActive(false),
+		onMove: (direction, pressed) => this.client.moveCursor(direction, pressed),
+		onInteract: () => {},
+		onAlternate: () => this.client.clickMap("LeftButton"),
+		onContext: () => this.client.clickMap("RightButton"),
+	};
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IMapClient,
@@ -159,20 +168,7 @@ export class MapPanel implements IPanel {
 		this.render();
 	}
 	getNavGrid(): NavGrid {
-		if (this.section === "map")
-			return [
-				[
-					{
-						navId: "map-cursor",
-						onFocus: () => this.client.setCursorActive(true),
-						onBlur: () => this.client.setCursorActive(false),
-						onMove: (direction) => this.client.moveCursor(direction),
-						onInteract: () => {},
-						onAlternate: () => this.client.clickMap("LeftButton"),
-						onContext: () => this.client.clickMap("RightButton"),
-					},
-				],
-			];
+		if (this.section === "map") return [[this.cursorNode]];
 		if (this.details !== undefined)
 			return this.reading.map((button, index) => [
 				button.navigationNode(

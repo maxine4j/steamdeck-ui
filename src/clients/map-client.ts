@@ -2,6 +2,7 @@ import type { IEventBus } from "../events/types";
 import type { Frame } from "../ui/components/frame";
 import type {
 	CursorSurface,
+	CursorTarget,
 	NativeCursor,
 } from "../ui/components/native-cursor";
 import type { LayoutFrame, NativeLayout } from "../ui/components/native-layout";
@@ -38,7 +39,7 @@ export interface IMapClient {
 	unmount(): void;
 	read(): MapQuest[];
 	navigation(): MapQuestNavigation[];
-	moveCursor(direction: NavDirection): void;
+	moveCursor(direction: NavDirection, pressed: boolean): void;
 	setCursorActive(active: boolean): void;
 	clickMap(button: "LeftButton" | "RightButton"): void;
 	focus(id: number): void;
@@ -74,10 +75,20 @@ interface NativeQuestScroll extends LayoutFrame, NativeNavigationScroll {
 	campaignHeaderMinimalFramePool: NativeQuestPool;
 	covenantCallingsHeaderFramePool: NativeQuestPool;
 }
-interface MapPin extends CursorSurface {
+interface MapPin extends CursorTarget {
+	readonly pinTemplate?: string;
 	IsShown(): boolean;
+	IsMouseMotionEnabled(): boolean;
+	IsMouseClickEnabled(): boolean;
+	GetAlpha(): number;
 	questID?: number;
 	OnClick?(button: string): void;
+	OnMouseDown?(button: string): void;
+	OnMouseUp?(button: string, upInside: boolean): void;
+	GetMouseOverUnits?(): LuaMultiReturn<string[]>;
+	GetMemberCountAndUnitTokenPrefix?(): LuaMultiReturn<[number, string]>;
+	IsMouseOverUnitExcluded?(unit: string): boolean;
+	dataProvider?: { GetUnitPinSizesTable?(): Readonly<Record<string, number>> };
 	UpdateMouseOverTooltip?(
 		x: number,
 		y: number,
@@ -89,12 +100,24 @@ interface MapScroll extends LayoutFrame, CursorSurface {
 	ShouldNavigateIgnoreZoneMapPositionData(): boolean;
 	ShouldZoomInOnClick(): boolean;
 	ZoomOut(): void;
+	GetCanvasScale(): number;
+	DenormalizeHorizontalSize(size: number): number;
+	DenormalizeVerticalSize(size: number): number;
+}
+interface MapProvider {
+	Label?: LayoutFrame;
+	GetOffsetY?(): number;
 }
 export interface NativeWorldMap extends LayoutFrame {
+	readonly dataProviders: unknown;
 	HandleUserActionToggleSelf(): void;
 	TitleCanvasSpacerFrame: LayoutFrame;
 	ScrollContainer: MapScroll;
 	EnumeratePinsByTemplate(template: string): LuaIterable<MapPin>;
+	ExecuteOnAllPins(callback: (this: void, pin: MapPin) => void): void;
+	GetNormalizedCursorPosition(): LuaMultiReturn<[number, number]>;
+	IsCanvasMouseFocus(): boolean;
+	IsCanvasMouseFocusOrPinFocus(): boolean;
 	NavigateToParentMap(): void;
 	NavBar: LayoutFrame;
 	BorderFrame: LayoutFrame;
@@ -123,6 +146,11 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	function secureexecuterange(
+		this: void,
+		providers: unknown,
+		callback: (this: void, provider: MapProvider) => void,
+	): void;
 	function ShowUIPanel(this: void, frame: NativeWorldMap): void;
 	function ExpandQuestHeader(this: void, index: number): void;
 	function CollapseQuestHeader(this: void, index: number): void;
@@ -155,13 +183,31 @@ export class MapClient implements IMapClient {
 	private questPane?: Frame;
 	private details = false;
 	private cursorActive = false;
+	private hoveredPin?: MapPin;
+	private readonly unitQueries = new Map<
+		MapPin,
+		NonNullable<MapPin["GetMouseOverUnits"]>
+	>();
+	private readonly unitHits = new Map<MapPin, string[]>();
+	private mouseQueries?: {
+		position: NativeWorldMap["GetNormalizedCursorPosition"];
+		focus: NativeWorldMap["IsCanvasMouseFocus"];
+		pinFocus: NativeWorldMap["IsCanvasMouseFocusOrPinFocus"];
+	};
 	constructor(
 		private readonly events: IEventBus,
 		private readonly layout: Pick<NativeLayout, "bind" | "release" | "scroll">,
 		private readonly controls: Pick<NativeNavigation, "navigation" | "release">,
 		private readonly cursor: Pick<
 			NativeCursor,
-			"show" | "hide" | "move" | "position" | "contains" | "release"
+			| "show"
+			| "hide"
+			| "move"
+			| "position"
+			| "contains"
+			| "release"
+			| "trackMouseOver"
+			| "hover"
 		>,
 	) {}
 	private readonly visibility = () => {
@@ -288,7 +334,19 @@ export class MapClient implements IMapClient {
 		])
 			if (frame) this.layout.bind(frame, { visible: false });
 		map.OnFrameSizeChanged();
-		if (this.cursorActive) this.cursor.show(map.ScrollContainer);
+		secureexecuterange(map.dataProviders, (provider) => {
+			if (provider.Label && provider.GetOffsetY)
+				this.layout.bind(provider.Label, {
+					parent: map.ScrollContainer,
+					strata: "DIALOG",
+					levelOffset: 101,
+					anchors: [["TOP", "TOP", 0, provider.GetOffsetY()]],
+				});
+		});
+		if (this.cursorActive) {
+			this.cursor.show(map.ScrollContainer, this.updateHover);
+			this.updateHover();
+		}
 	}
 	private applyQuestLayout(): void {
 		if (!this.questPane) return;
@@ -333,7 +391,7 @@ export class MapClient implements IMapClient {
 			this.layout.bind(frame, { visible: false });
 	}
 	unmount(): void {
-		this.cursorActive = false;
+		this.setCursorActive(false);
 		this.cursor.release();
 		this.parent = undefined;
 		this.questPane = undefined;
@@ -343,11 +401,119 @@ export class MapClient implements IMapClient {
 	}
 	setCursorActive(active: boolean): void {
 		this.cursorActive = active && this.enabled && this.parent !== undefined;
-		if (this.cursorActive) this.cursor.show(WorldMapFrame.ScrollContainer);
-		else this.cursor.hide();
+		const map = WorldMapFrame;
+		if (this.cursorActive) {
+			if (!this.mouseQueries) {
+				this.mouseQueries = {
+					position: map.GetNormalizedCursorPosition,
+					focus: map.IsCanvasMouseFocus,
+					pinFocus: map.IsCanvasMouseFocusOrPinFocus,
+				};
+				// Native hover providers ask the map for coordinates and focus each frame.
+				map.GetNormalizedCursorPosition = () =>
+					map.ScrollContainer.NormalizeUIPosition(
+						...this.cursor.position(map.ScrollContainer),
+					);
+				map.IsCanvasMouseFocus = () => this.hoveredPin === undefined;
+				map.IsCanvasMouseFocusOrPinFocus = () => true;
+			}
+			this.cursor.show(map.ScrollContainer, this.updateHover);
+			this.updateHover();
+		} else {
+			this.cursor.hide();
+			for (const [pin, query] of this.unitQueries)
+				pin.GetMouseOverUnits = query;
+			this.unitQueries.clear();
+			this.unitHits.clear();
+			this.hoveredPin = undefined;
+			if (this.mouseQueries) {
+				map.GetNormalizedCursorPosition = this.mouseQueries.position;
+				map.IsCanvasMouseFocus = this.mouseQueries.focus;
+				map.IsCanvasMouseFocusOrPinFocus = this.mouseQueries.pinFocus;
+				this.mouseQueries = undefined;
+			}
+		}
 	}
-	moveCursor(direction: NavDirection): void {
-		if (this.cursorActive) this.cursor.move(direction);
+	private readonly updateHover = () => {
+		if (!this.cursorActive) return;
+		this.unitHits.clear();
+		this.hoveredPin = this.findPin(false);
+		this.cursor.hover(this.hoveredPin);
+	};
+	private findPin(click: boolean): MapPin | undefined {
+		const map = WorldMapFrame;
+		let target: MapPin | undefined;
+		map.ExecuteOnAllPins((pin) => {
+			this.cursor.trackMouseOver(map.ScrollContainer, pin);
+			if (
+				pin.GetMouseOverUnits &&
+				pin.GetMemberCountAndUnitTokenPrefix &&
+				pin.dataProvider?.GetUnitPinSizesTable &&
+				!this.unitQueries.has(pin)
+			) {
+				this.unitQueries.set(pin, pin.GetMouseOverUnits);
+				pin.GetMouseOverUnits = () => this.unitsUnderCursor(pin);
+			}
+			if (
+				pin.IsShown() &&
+				(click ? pin.IsMouseClickEnabled() : pin.IsMouseMotionEnabled()) &&
+				pin.GetAlpha() > 0 &&
+				this.cursor.contains(map.ScrollContainer, pin) &&
+				(!target || pin.GetFrameLevel() > target.GetFrameLevel())
+			)
+				target = pin;
+		});
+		return target;
+	}
+	private unitsUnderCursor(pin: MapPin): LuaMultiReturn<string[]> {
+		const cached = this.unitHits.get(pin);
+		if (cached) return unpack(cached);
+		const units: string[] = [];
+		this.unitHits.set(pin, units);
+		if (
+			!pin.IsShown() ||
+			!pin.GetMemberCountAndUnitTokenPrefix ||
+			!pin.dataProvider?.GetUnitPinSizesTable
+		)
+			return unpack(units);
+		const map = WorldMapFrame,
+			scroll = map.ScrollContainer;
+		const [x, y] = map.GetNormalizedCursorPosition();
+		const [count, prefix] = pin.GetMemberCountAndUnitTokenPrefix();
+		const sizes = pin.dataProvider.GetUnitPinSizesTable();
+		const exists = UnitExists as unknown as (
+			this: void,
+			unit: string,
+		) => boolean;
+		const inSubgroup = UnitInSubgroup as unknown as (
+			this: void,
+			unit: string,
+		) => boolean;
+		for (let index = 1; index <= count; index++) {
+			const unit = `${prefix}${index}`;
+			if (!exists(unit) || pin.IsMouseOverUnitExcluded?.(unit)) continue;
+			const size = sizes[inSubgroup(unit) ? "party" : "raid"] ?? 0;
+			if (size <= 0) continue;
+			const position = (
+				C_Map.GetPlayerMapPosition as unknown as (
+					this: void,
+					id: number,
+					unit: string,
+				) => { GetXY(): LuaMultiReturn<[number, number]> } | undefined
+			)(map.GetMapID(), unit);
+			if (!position) continue;
+			const [unitX, unitY] = position.GetXY();
+			const radius = size / 2 / Math.max(0.001, scroll.GetCanvasScale());
+			if (
+				Math.abs(x - unitX) * scroll.DenormalizeHorizontalSize(1) <= radius &&
+				Math.abs(y - unitY) * scroll.DenormalizeVerticalSize(1) <= radius
+			)
+				units.push(unit);
+		}
+		return unpack(units);
+	}
+	moveCursor(direction: NavDirection, pressed: boolean): void {
+		if (this.cursorActive) this.cursor.move(direction, pressed);
 	}
 	clickMap(button: "LeftButton" | "RightButton"): void {
 		if (!this.cursorActive) return;
@@ -362,22 +528,13 @@ export class MapClient implements IMapClient {
 			if (scroll.ShouldZoomInOnClick()) scroll.ZoomOut();
 			return;
 		}
-		for (const template of [
-			"QuestPinTemplate",
-			"WorldQuestPinTemplate",
-			"BonusObjectivePinTemplate",
-		]) {
-			for (const pin of map.EnumeratePinsByTemplate(template)) {
-				if (
-					pin.IsShown() &&
-					pin.questID &&
-					pin.OnClick &&
-					this.cursor.contains(scroll, pin)
-				) {
-					pin.OnClick("LeftButton");
-					return;
-				}
-			}
+		this.updateHover();
+		const pin = this.findPin(true);
+		if (pin) {
+			pin.OnMouseDown?.("LeftButton");
+			pin.OnMouseUp?.("LeftButton", true);
+			pin.OnClick?.("LeftButton");
+			return;
 		}
 		const [x, y] = scroll.NormalizeUIPosition(...this.cursor.position(scroll));
 		for (const blob of map.EnumeratePinsByTemplate("QuestBlobPinTemplate")) {

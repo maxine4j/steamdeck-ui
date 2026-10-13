@@ -191,6 +191,36 @@ it("captures navigation only while active, propagates other buttons and restores
 	expect(handler).toBeUndefined();
 });
 
+it("publishes directional holds and releases independently of grid repeats", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("IsModifierKeyDown", () => false);
+	const events = createTestEventBus();
+	const held = vi.fn();
+	events.subscribe("NAV_DIRECTION_CHANGED", held);
+	const surface = {
+		setClickBindings: vi.fn(),
+		setGamePadInput: vi.fn(),
+		destroy: vi.fn(),
+	};
+	const client = new ControllerInputClient(events, surface);
+	client.setActive(true);
+	const [down, up] = surface.setGamePadInput.mock.lastCall as unknown as [
+		(button: string) => boolean,
+		(button: string) => void,
+	];
+	down("PADDRIGHT");
+	down("PADDRIGHT");
+	up("PADDRIGHT");
+	down("PADDUP");
+	client.setActive(false);
+	expect(held.mock.calls).toEqual([
+		[{ direction: "right", pressed: true }],
+		[{ direction: "right", pressed: false }],
+		[{ direction: "up", pressed: true }],
+		[{ direction: "up", pressed: false }],
+	]);
+});
+
 it("configures quick repeats for D-pad directions only", () => {
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("IsModifierKeyDown", () => false);

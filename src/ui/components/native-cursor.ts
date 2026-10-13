@@ -12,8 +12,21 @@ export interface CursorSurface extends WowFrame {
 	GetFrameLevel(): number;
 }
 type CursorOverlay = WowFrame & {
+	SetScript(
+		script: "OnUpdate",
+		handler?: (this: void, frame: WowFrame, elapsed: number) => void,
+	): void;
 	SetFrameLevel(level: number): void;
 	EnableMouse(enabled: boolean): void;
+};
+export interface CursorTarget extends CursorSurface {
+	IsMouseOver(): boolean;
+	OnMouseEnter?(): void;
+	OnMouseLeave?(): void;
+}
+type CursorTooltip = WowFrame & {
+	GetOwner(): WowFrame | undefined;
+	SetAnchorType(type: string): void;
 };
 
 /** A pooled crosshair positioned in viewport coordinates. */
@@ -22,8 +35,14 @@ export class NativeCursor {
 	private y = 0.5;
 	private surface?: CursorSurface;
 	private overlay?: CursorOverlay;
+	private readonly held = new Set<NavDirection>();
+	private hovered?: CursorTarget;
+	private readonly mouseQueries = new Map<
+		CursorTarget,
+		CursorTarget["IsMouseOver"]
+	>();
 	constructor(private readonly pool: IFramePoolManager) {}
-	show(surface: CursorSurface): void {
+	show(surface: CursorSurface, onUpdate?: () => void): void {
 		this.surface = surface;
 		if (!this.overlay)
 			this.overlay = this.pool.acquire("Frame") as CursorOverlay;
@@ -36,24 +55,79 @@ export class NativeCursor {
 		overlay.SetFrameStrata("DIALOG");
 		overlay.SetFrameLevel(surface.GetFrameLevel() + 100);
 		overlay.EnableMouse(false);
+		overlay.SetScript("OnUpdate", (_frame, elapsed) => {
+			const dx =
+				(this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+			const dy =
+				(this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+			const distance =
+				(240 * Math.min(elapsed, 0.1)) /
+				(dx !== 0 && dy !== 0 ? Math.sqrt(2) : 1);
+			this.x = Math.max(
+				0,
+				Math.min(1, this.x + (dx * distance) / Math.max(1, surface.GetWidth())),
+			);
+			this.y = Math.max(
+				0,
+				Math.min(
+					1,
+					this.y + (dy * distance) / Math.max(1, surface.GetHeight()),
+				),
+			);
+			if (dx !== 0 || dy !== 0) this.render();
+			onUpdate?.();
+		});
 		this.render();
 		overlay.Show();
 	}
 	hide(): void {
+		const previous = this.hovered;
+		this.hover();
+		const tooltip = GameTooltip as unknown as CursorTooltip;
+		if (
+			tooltip.GetOwner() !== previous &&
+			this.mouseQueries.has(tooltip.GetOwner() as CursorTarget)
+		)
+			tooltip.Hide();
+		for (const [target, query] of this.mouseQueries) target.IsMouseOver = query;
+		this.mouseQueries.clear();
+		this.held.clear();
+		this.overlay?.SetScript("OnUpdate", undefined);
 		this.overlay?.Hide();
 	}
-	move(direction: NavDirection): void {
-		if (direction === "left" || direction === "right")
-			this.x = Math.max(
-				0,
-				Math.min(1, this.x + (direction === "left" ? -0.01 : 0.01)),
+	move(direction: NavDirection, pressed: boolean): void {
+		if (pressed) this.held.add(direction);
+		else this.held.delete(direction);
+	}
+	trackMouseOver(surface: CursorSurface, target: CursorTarget): void {
+		if (this.mouseQueries.has(target)) return;
+		this.mouseQueries.set(target, target.IsMouseOver);
+		target.IsMouseOver = () => this.contains(surface, target);
+	}
+	hover(target?: CursorTarget): void {
+		const tooltip = GameTooltip as unknown as CursorTooltip;
+		if (this.hovered !== target) {
+			const previous = this.hovered;
+			previous?.OnMouseLeave?.();
+			if (previous && tooltip.GetOwner() === previous) tooltip.Hide();
+			this.hovered = target;
+			target?.OnMouseEnter?.();
+		}
+		if (
+			this.overlay &&
+			this.surface &&
+			this.mouseQueries.has(tooltip.GetOwner() as CursorTarget)
+		) {
+			tooltip.SetAnchorType("ANCHOR_NONE");
+			tooltip.ClearAllPoints();
+			tooltip.SetPoint(
+				"TOPLEFT",
+				this.overlay,
+				"TOPLEFT",
+				this.x * this.surface.GetWidth() + 16,
+				-this.y * this.surface.GetHeight() - 16,
 			);
-		else
-			this.y = Math.max(
-				0,
-				Math.min(1, this.y + (direction === "up" ? -0.01 : 0.01)),
-			);
-		this.render();
+		}
 	}
 	private render(): void {
 		const overlay = this.overlay,
@@ -115,6 +189,7 @@ export class NativeCursor {
 		);
 	}
 	release(): void {
+		this.hide();
 		if (this.overlay) {
 			this.overlay.SetFrameLevel(0);
 			this.pool.release("Frame", this.overlay);

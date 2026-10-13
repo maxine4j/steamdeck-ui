@@ -18,7 +18,13 @@ it("routes D-pad input to a continuous control without changing focus", () => {
 	manager.setActiveGrid("canvas");
 	for (const event of ["NAV_UP", "NAV_DOWN", "NAV_LEFT", "NAV_RIGHT"] as const)
 		events.emit(event);
-	expect(move.mock.calls).toEqual([["up"], ["down"], ["left"], ["right"]]);
+	expect(move).not.toHaveBeenCalled();
+	events.emit("NAV_DIRECTION_CHANGED", { direction: "right", pressed: true });
+	events.emit("NAV_DIRECTION_CHANGED", { direction: "right", pressed: false });
+	expect(move.mock.calls).toEqual([
+		["right", true],
+		["right", false],
+	]);
 	expect(manager.focusedId).toBe("cursor");
 });
 

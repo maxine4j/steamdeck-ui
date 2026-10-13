@@ -171,8 +171,8 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	expect(cursor?.navId).toBe("map-cursor");
 	cursor?.onFocus();
 	expect(client.setCursorActive).toHaveBeenLastCalledWith(true);
-	cursor?.onMove?.("left");
-	expect(client.moveCursor).toHaveBeenCalledWith("left");
+	cursor?.onMove?.("left", true);
+	expect(client.moveCursor).toHaveBeenCalledWith("left", true);
 	cursor?.onAlternate?.();
 	cursor?.onContext?.();
 	expect(client.clickMap.mock.calls).toEqual([["LeftButton"], ["RightButton"]]);

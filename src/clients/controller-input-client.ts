@@ -1,7 +1,10 @@
 import type { ApplicationEvent, IEventBus } from "../events/types";
 import type { GamePadRepeatOptions } from "../ui/components/gamepad-input";
 import type { ClickBinding } from "../ui/components/secure-click-bindings";
-import type { SecureNavigationActions } from "../ui/navigation/types";
+import type {
+	NavDirection,
+	SecureNavigationActions,
+} from "../ui/navigation/types";
 
 // Undocumented globals used by Blizzard's UIParentPanelManager/Game.lua.
 declare global {
@@ -73,6 +76,12 @@ const buttons: Readonly<Record<string, ApplicationEvent | undefined>> = {
 };
 
 const directionalButtons = ["PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT"];
+const directions: Readonly<Record<string, NavDirection | undefined>> = {
+	PADDUP: "up",
+	PADDDOWN: "down",
+	PADDLEFT: "left",
+	PADDRIGHT: "right",
+};
 const repeatOptions: GamePadRepeatOptions = {
 	buttons: directionalButtons,
 	delaySeconds: 0.5,
@@ -88,6 +97,12 @@ export class ControllerInputClient implements IControllerInputClient {
 	private active = false;
 	private listening = false;
 	private secureActions?: SecureNavigationActions;
+	private readonly heldDirections = new Set<NavDirection>();
+	private releaseDirections(): void {
+		for (const direction of this.heldDirections)
+			this.events.emit("NAV_DIRECTION_CHANGED", { direction, pressed: false });
+		this.heldDirections.clear();
+	}
 	setSecureActions(actions?: SecureNavigationActions): void {
 		this.secureActions = actions;
 		this.syncBindings();
@@ -106,11 +121,21 @@ export class ControllerInputClient implements IControllerInputClient {
 		const listening = this.active && !InCombatLockdown();
 		if (listening === this.listening) return;
 		this.listening = listening;
+		if (!listening) this.releaseDirections();
 		this.syncBindings();
 		this.syncModifiers();
 		this.surface.setGamePadInput(
 			listening ? (button) => this.handleButtonDown(button) : undefined,
-			undefined,
+			listening
+				? (button) => {
+						const direction = directions[button];
+						if (direction && this.heldDirections.delete(direction))
+							this.events.emit("NAV_DIRECTION_CHANGED", {
+								direction,
+								pressed: false,
+							});
+					}
+				: undefined,
 			listening ? repeatOptions : undefined,
 		);
 	};
@@ -137,6 +162,11 @@ export class ControllerInputClient implements IControllerInputClient {
 		if (!this.canHandleInput()) return false;
 		const event = buttons[button];
 		if (!event) return false;
+		const direction = directions[button];
+		if (direction && !this.heldDirections.has(direction)) {
+			this.heldDirections.add(direction);
+			this.events.emit("NAV_DIRECTION_CHANGED", { direction, pressed: true });
+		}
 		// Let the hardware event reach its secure binding, bypassing addon dispatch.
 		if (
 			(button === "PAD1" && this.secureActions?.interact) ||

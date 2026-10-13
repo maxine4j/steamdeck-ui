@@ -20,6 +20,10 @@ export interface DialogueEventPayloads {
 	DIALOGUE_ERROR: { message: string };
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
+	NAV_DIRECTION_CHANGED: {
+		direction: "up" | "down" | "left" | "right";
+		pressed: boolean;
+	};
 	MAP_DETAILS_CHANGED: { id?: number };
 	ACHIEVEMENTS_SELECTED: { id: number };
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
