@@ -5,6 +5,44 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reports hover changes alongside tooltips and replaces old hover callbacks", () => {
+	const scripts = new Map<string, (() => void) | undefined>();
+	const native = {
+		Hide: vi.fn(),
+		SetParent: vi.fn(),
+		SetScript: (script: string, callback?: () => void) => {
+			scripts.set(script, callback);
+		},
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+		}),
+	};
+	const tooltip = {
+		SetOwner: vi.fn(),
+		SetText: vi.fn(),
+		Show: vi.fn(),
+		Hide: vi.fn(),
+	};
+	vi.stubGlobal("GameTooltip", tooltip);
+	const frame = new Frame(
+		"hover",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	const hover = vi.fn();
+	frame.setTooltip("Wing", undefined, true, hover);
+	scripts.get("OnEnter")?.();
+	expect(hover).toHaveBeenLastCalledWith(true);
+	expect(tooltip.SetText).toHaveBeenCalledWith("Wing");
+	scripts.get("OnLeave")?.();
+	expect(hover).toHaveBeenLastCalledWith(false);
+	expect(tooltip.Hide).toHaveBeenCalledOnce();
+	frame.setTooltip("Replacement");
+	scripts.get("OnEnter")?.();
+	expect(hover).toHaveBeenCalledTimes(2);
+});
+
 it("styles readable prose without the default outlined gold font", () => {
 	const label = {
 		ClearAllPoints: vi.fn(),

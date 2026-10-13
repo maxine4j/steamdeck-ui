@@ -5,6 +5,107 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("shows a second-line prompt on mouse hover or controller focus and retains queued status on line two", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("queue-tile", pool, "", vi.fn(), {
+		centerText: true,
+		buttonWidth: 280,
+	});
+	const tile = {
+		id: "wing",
+		label: "Wing one",
+		height: 60,
+		hoverDetail: "Enter Queue?",
+		backgroundAtlas: "ui-journeys-renown-button",
+		activate: vi.fn(),
+	};
+	list.setRows([tile]);
+	list.mount(new Frame("parent", pool));
+	const frame = frames.get("queue-tile-row-0");
+	expect(frame?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Wing one",
+		"TOP",
+		0,
+		-6,
+		14,
+		264,
+	);
+	const hover = frame?.setTooltip.mock.lastCall?.at(3) as
+		| ((hovered: boolean) => void)
+		| undefined;
+	expect(hover).toBeTypeOf("function");
+	hover?.(true);
+	expect(frame?.setLabel).toHaveBeenLastCalledWith(
+		"detail",
+		"Enter Queue?",
+		"BOTTOM",
+		0,
+		6,
+		12,
+		264,
+	);
+	hover?.(false);
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("");
+	const nav = list.getNavGrid().at(0)?.at(0);
+	nav?.onFocus();
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("Enter Queue?");
+	list.setRows([
+		{
+			...tile,
+			detail: "In Queue",
+			hoverDetail: undefined,
+			animatedIconOnDetail: true,
+			animatedIcon: {
+				atlas: "eye",
+				rows: 8,
+				columns: 11,
+				frames: 80,
+				duration: 2,
+			},
+			backgroundTint: [0.2, 0.8, 0.3],
+		},
+	]);
+	expect(frames.get("queue-tile-animation-0")?.layout).toHaveBeenLastCalledWith(
+		20,
+		20,
+		"BOTTOMRIGHT",
+		expect.anything(),
+		-8,
+		4,
+	);
+	expect(frame?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Wing one",
+		"TOP",
+		0,
+		-6,
+		14,
+		264,
+	);
+	nav?.onBlur();
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("In Queue");
+	expect(frame?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"ui-journeys-renown-button",
+		[0.2, 0.8, 0.3],
+	);
+	list.setRows([{ ...tile, enabled: false }]);
+	const disabledHover = frame?.setTooltip.mock.lastCall?.at(3) as
+		| ((hovered: boolean) => void)
+		| undefined;
+	disabledHover?.(true);
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("");
+	list.setRows([tile]);
+	nav?.onFocus();
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("Enter Queue?");
+	list.unmount();
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("");
+	hover?.(true);
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("");
+	list.mount(new Frame("reopened-parent", pool));
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("");
+});
+
 it("centers compact buttons and their text while retaining full-width headings", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("compact", pool, "", vi.fn(), {
@@ -715,6 +816,7 @@ const { frames } = vi.hoisted(() => ({
 			setBorder: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
+			setTooltip: ReturnType<typeof vi.fn>;
 			setLabelWordWrap: ReturnType<typeof vi.fn>;
 		}
 	>(),

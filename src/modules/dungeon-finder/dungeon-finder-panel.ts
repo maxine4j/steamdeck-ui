@@ -59,6 +59,18 @@ const searchingEye = {
 	duration: 2,
 };
 
+function queueTile(queued: boolean, hoverDetail = "Enter Queue?") {
+	return {
+		height: 60,
+		backgroundAtlas: "ui-journeys-renown-button",
+		backgroundTint: queued ? ([0.2, 0.8, 0.3] as const) : undefined,
+		detail: queued ? "In Queue" : undefined,
+		hoverDetail: queued ? undefined : hoverDetail,
+		animatedIcon: queued ? searchingEye : undefined,
+		animatedIconOnDetail: queued ? true : undefined,
+	};
+}
+
 export class DungeonFinderPanel implements IPanel {
 	readonly id = "dungeon-finder";
 	readonly title = "Dungeon Finder";
@@ -140,14 +152,9 @@ export class DungeonFinderPanel implements IPanel {
 					id: `dungeon-${dungeon.id}`,
 					label: dungeon.name,
 					enabled: queued ? selected === dungeon.id : dungeon.available,
-					background:
-						queued && selected === dungeon.id ? [0.05, 0.25, 0.5] : undefined,
-					animatedIcon:
-						queued && selected === dungeon.id ? searchingEye : undefined,
-					height: 32,
+					...queueTile(queued && selected === dungeon.id),
 					tooltip:
 						queued && selected === dungeon.id ? "Leave Queue" : dungeon.name,
-					detail: undefined,
 					marginBottom: index === entries.length - 1 ? 20 : 4,
 					activate: () => {
 						if (
@@ -180,11 +187,8 @@ export class DungeonFinderPanel implements IPanel {
 			rows.push({
 				id: `list-${list.id}`,
 				label: list.label,
-				height: 32,
+				...queueTile(queued && selected === list.id, "Choose Dungeons"),
 				enabled: !queued || selected === list.id,
-				background:
-					queued && selected === list.id ? [0.05, 0.25, 0.5] : undefined,
-				animatedIcon: queued && selected === list.id ? searchingEye : undefined,
 				marginBottom: 20,
 				activate: () => {
 					if (
@@ -202,7 +206,8 @@ export class DungeonFinderPanel implements IPanel {
 		}
 		rows.push({
 			id: "heading-raids",
-			label: "Raid Finder",
+			label:
+				"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:22:22|t Raid Finder",
 			heading: true,
 			fontSize: 22,
 			marginTop: 20,
@@ -215,6 +220,7 @@ export class DungeonFinderPanel implements IPanel {
 			rows.push({
 				id: `raid-${raid.id}`,
 				label: raid.name,
+				indent: 24,
 				heading: true,
 				fontSize: 18,
 				marginBottom: 8,
@@ -224,10 +230,8 @@ export class DungeonFinderPanel implements IPanel {
 				rows.push({
 					id: `wing-${wing.id}`,
 					label: wing.name,
-					height: 32,
+					...queueTile(wing.queued),
 					enabled: wing.queued || (wing.available && capacity),
-					background: wing.queued ? [0.05, 0.25, 0.5] : undefined,
-					animatedIcon: wing.queued ? searchingEye : undefined,
 					tooltip: wing.queued
 						? "Leave Queue"
 						: !capacity
@@ -320,13 +324,14 @@ export class DungeonFinderPanel implements IPanel {
 		const queued = this.client.isQueued();
 		rows.push({
 			id: "queue-action",
-			label: queued ? "Leave Queue" : "Find Dungeon",
+			label:
+				this.client.getDungeonLists().find((list) => list.id === page)?.label ??
+				"Find Dungeon",
 			enabled: queued
 				? this.client.getSelected() === page
 				: choices.some((dungeon) => dungeon.checked && dungeon.available),
-			background: queued ? [0.05, 0.25, 0.5] : [0.3, 0.22, 0.06],
-			height: 32,
-			animatedIcon: queued ? searchingEye : undefined,
+			...queueTile(queued),
+			tooltip: queued ? "Leave Queue" : "Enter Queue?",
 			activate: () => {
 				if (!this.mounted || this.page !== page) return;
 				if (this.client.isQueued()) {

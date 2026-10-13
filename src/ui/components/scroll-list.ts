@@ -15,6 +15,7 @@ export interface ListRow {
 	readonly spell?: number;
 	readonly secondary?: { label: string; activate(): void };
 	readonly detail?: string;
+	readonly hoverDetail?: string;
 	readonly height?: number;
 	readonly trailingLabel?: string;
 	readonly trailingOnFirstLine?: boolean;
@@ -23,6 +24,7 @@ export interface ListRow {
 	readonly tooltipContent?: TooltipContent;
 	readonly selected?: boolean;
 	readonly animatedIcon?: AnimatedAtlas;
+	readonly animatedIconOnDetail?: boolean;
 	readonly checked?: boolean;
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
@@ -56,6 +58,9 @@ export class ScrollList {
 		check?: Frame;
 		animation?: Frame;
 		animatedFocus?: boolean;
+		focused?: boolean;
+		hovered?: boolean;
+		detailLayout?: { point: string; x: number; y: number; width: number };
 		dimmed: boolean;
 		tooltipContent?: TooltipContent;
 		secondaryNav: INavigable;
@@ -320,6 +325,8 @@ export class ScrollList {
 							navId: row.id,
 							navigationScroll: this.scroll,
 							onFocus: (refresh) => {
+								const focused = this.buttons.at(index);
+								if (focused) focused.focused = true;
 								if (this.rows.at(index)?.animatedIcon) {
 									this.style(index);
 									frame.setBorder([1, 0.82, 0, 1]);
@@ -329,14 +336,17 @@ export class ScrollList {
 								if (!refresh) this.reveal(index);
 								const tooltip = this.rows.at(index)?.tooltipContent;
 								if (tooltip !== undefined) frame.showTooltip(tooltip);
+								this.updateDetail(index);
 							},
 							onBlur: () => {
 								const control = this.buttons.at(index);
+								if (control) control.focused = false;
 								if (control?.animatedFocus) {
 									frame.setBorder([0, 0, 0, 0]);
 									control.animatedFocus = false;
 								}
 								this.style(index);
+								this.updateDetail(index);
 								if (this.rows.at(index)?.tooltipContent !== undefined)
 									frame.hideTooltip();
 							},
@@ -353,8 +363,11 @@ export class ScrollList {
 					};
 					this.buttons.push(button);
 				}
-				if (button.nav.navId !== row.id)
+				if (button.nav.navId !== row.id) {
+					button.focused = false;
+					button.hovered = false;
 					button.nav = { ...button.nav, navId: row.id };
+				}
 				if (
 					button.tooltipContent !== undefined &&
 					button.tooltipContent !== row.tooltipContent
@@ -370,8 +383,20 @@ export class ScrollList {
 						this.pool,
 					);
 					button.animation.setParent(button.frame);
-					const size = Math.min(32, rowHeight - 4);
-					button.animation.layout(size, size, "RIGHT", button.frame, -8, 0);
+					const size = Math.min(
+						row.animatedIconOnDetail ? 20 : 32,
+						rowHeight - 4,
+					);
+					button.animation.layout(
+						size,
+						size,
+						row.animatedIconOnDetail ? "BOTTOMRIGHT" : "RIGHT",
+						button.frame,
+						-8,
+						row.animatedIconOnDetail
+							? (this.options.contentPadding?.vertical ?? 6) - 2
+							: 0,
+					);
 					button.animation.setAnimatedAtlas(row.animatedIcon);
 					button.animation.show();
 				} else {
@@ -449,7 +474,7 @@ export class ScrollList {
 					textLeft -
 					horizontalPadding -
 					(row.secondary ? 48 : 0) -
-					(row.animatedIcon ? 40 : 0);
+					(row.animatedIcon && !row.animatedIconOnDetail ? 40 : 0);
 				const trailingWidth = row.trailingLabel
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
@@ -461,8 +486,9 @@ export class ScrollList {
 							!row.heading &&
 							!row.detail &&
 							!row.progress));
-				const centerText =
-					this.options.centerText && !row.heading && !row.detail;
+				const centerText = this.options.centerText && !row.heading;
+				const twoLines =
+					row.detail !== undefined || row.hoverDetail !== undefined;
 				if (row.progress) {
 					const horizontal = this.options.progressInset?.horizontal ?? 0;
 					const progressWidth = Math.max(
@@ -516,9 +542,21 @@ export class ScrollList {
 				button.frame.setLabel(
 					"label",
 					row.label,
-					centerText ? "CENTER" : centeredLabel ? "LEFT" : "TOPLEFT",
+					centerText
+						? twoLines
+							? "TOP"
+							: "CENTER"
+						: centeredLabel
+							? "LEFT"
+							: "TOPLEFT",
 					centerText ? 0 : textLeft,
-					centerText ? 0 : centeredLabel ? 0 : -verticalPadding,
+					centerText
+						? twoLines
+							? -verticalPadding
+							: 0
+						: centeredLabel
+							? 0
+							: -verticalPadding,
 					row.fontSize ?? (row.heading ? 18 : 14),
 					Math.max(
 						1,
@@ -540,15 +578,13 @@ export class ScrollList {
 					row.fontSize ?? 14,
 					trailingWidth,
 				);
-				button.frame.setLabel(
-					"detail",
-					row.detail ?? "",
-					"BOTTOMLEFT",
-					textLeft,
-					row.progress ? 18 : verticalPadding,
-					12,
-					textWidth,
-				);
+				button.detailLayout = {
+					point: centerText ? "BOTTOM" : "BOTTOMLEFT",
+					x: centerText ? (row.animatedIconOnDetail ? -14 : 0) : textLeft,
+					y: row.progress ? 18 : verticalPadding,
+					width: textWidth - (row.animatedIconOnDetail ? 28 : 0),
+				};
+				this.updateDetail(index);
 				button.frame.setLabelWordWrap("detail", columns === 1);
 				if (this.options.textColor) {
 					button.frame.setLabelStyle("label", this.options.textColor);
@@ -578,7 +614,19 @@ export class ScrollList {
 						-button.top,
 					);
 				}
-				button.frame.setTooltip(row.tooltip ?? row.label);
+				button.frame.setTooltip(
+					row.tooltip ?? row.label,
+					undefined,
+					true,
+					row.hoverDetail === undefined
+						? undefined
+						: (hovered) => {
+								if (!this.mounted) return;
+								const control = this.buttons.at(index);
+								if (control) control.hovered = hovered;
+								this.updateDetail(index);
+							},
+				);
 				if (row.tooltipContent !== undefined)
 					button.frame.setHoverTooltip(
 						() => this.rows.at(index)?.tooltipContent,
@@ -638,6 +686,27 @@ export class ScrollList {
 		} else if (row?.background) frame?.setColor(...row.background);
 		else frame?.setButtonBackground(row?.selected ?? false);
 	}
+	private updateDetail(index: number): void {
+		const row = this.rows.at(index);
+		const button = this.buttons.at(index);
+		const layout = button?.detailLayout;
+		if (!row || !button || !layout) return;
+		const detail =
+			row.detail ??
+			(this.isReady(index) && (button.focused || button.hovered)
+				? row.hoverDetail
+				: undefined) ??
+			"";
+		button.frame.setLabel(
+			"detail",
+			detail,
+			layout.point,
+			layout.x,
+			layout.y,
+			12,
+			layout.width,
+		);
+	}
 	private reveal(index: number): void {
 		const button = this.buttons.at(index);
 		if (button && this.mounted)
@@ -661,6 +730,9 @@ export class ScrollList {
 	}
 	unmount(): void {
 		for (const [index, button] of this.buttons.entries()) {
+			button.focused = false;
+			button.hovered = false;
+			this.updateDetail(index);
 			button.animation?.hide();
 			if (this.rows.at(index)?.tooltipContent !== undefined)
 				button.frame.hideTooltip();

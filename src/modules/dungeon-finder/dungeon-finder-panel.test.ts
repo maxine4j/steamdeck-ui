@@ -240,7 +240,9 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	expect(rows.find((row) => row.id === "dungeon-1")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "list-specific")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
-		background: [0.05, 0.25, 0.5],
+		backgroundTint: [0.2, 0.8, 0.3],
+		detail: "In Queue",
+		animatedIconOnDetail: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		enabled: true,
 	});
@@ -279,6 +281,11 @@ it("renders ordered sections and immediately joins available random dungeons", (
 	expect(client.select).toHaveBeenCalledWith(3);
 	expect(client.join).toHaveBeenCalledOnce();
 	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBeUndefined();
+	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
+		backgroundAtlas: "ui-journeys-renown-button",
+		height: 60,
+		hoverDetail: "Enter Queue?",
+	});
 	rows.find((row) => row.id === "dungeon-2")?.activate();
 	expect(client.select).toHaveBeenCalledTimes(1);
 });
@@ -442,13 +449,22 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 		marginTop: 16,
 	});
 	expect(rows.filter((row) => row.heading).slice(-2)).toMatchObject([
-		{ id: "heading-raids", label: "Raid Finder", fontSize: 22 },
-		{ id: "raid-60", label: "New raid", fontSize: 18 },
+		{
+			id: "heading-raids",
+			label: expect.stringMatching(/\|T.+:22:22\|t Raid Finder/),
+			fontSize: 22,
+		},
+		{ id: "raid-60", label: "New raid", fontSize: 18, indent: 24 },
 	]);
 	expect(rows.findIndex((row) => row.id === "heading-raids")).toBeGreaterThan(
 		rows.findIndex((row) => row.id === "list-specific"),
 	);
 	rows.find((row) => row.id === "wing-103")?.activate();
+	expect(rows.find((row) => row.id === "wing-103")).toMatchObject({
+		backgroundAtlas: "ui-journeys-renown-button",
+		height: 60,
+		hoverDetail: "Enter Queue?",
+	});
 	expect(client.joinRaid).toHaveBeenCalledWith(103);
 	rows.find((row) => row.id === "wing-104")?.activate();
 	expect(client.joinRaid).toHaveBeenCalledOnce();
@@ -457,6 +473,9 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(rows.find((row) => row.id === "wing-103")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "wing-102")).toMatchObject({
+		backgroundTint: [0.2, 0.8, 0.3],
+		detail: "In Queue",
+		animatedIconOnDetail: true,
 		enabled: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 	});
@@ -482,7 +501,7 @@ it("removes navigation and guards retained controls when unmounted", () => {
 });
 
 it.each(["specific", "follower"] as const)(
-	"shows the active %s queue in blue and leaves it from its bottom action",
+	"shows the active %s queue in green and leaves it from its bottom action",
 	(list) => {
 		const { panel, client, rows, callbacks } = setup();
 		rows.find((row) => row.id === `list-${list}`)?.activate();
@@ -494,9 +513,11 @@ it.each(["specific", "follower"] as const)(
 		const choices = setRows.mock.lastCall?.at(0) as ListRow[];
 		expect(choices.at(-1)).toMatchObject({
 			id: "queue-action",
-			label: "Leave Queue",
+			label: list === "follower" ? "Follower Dungeon" : "Specific Dungeons",
 			enabled: true,
-			background: [0.05, 0.25, 0.5],
+			backgroundTint: [0.2, 0.8, 0.3],
+			detail: "In Queue",
+			animatedIconOnDetail: true,
 			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		});
 		choices.at(-1)?.activate();

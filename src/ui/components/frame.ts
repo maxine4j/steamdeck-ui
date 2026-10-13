@@ -574,12 +574,18 @@ export class Frame implements IUIComponent {
 		);
 		this.opacityChanged = alpha !== 1;
 	}
-	setTooltip(text: string, hyperlink?: string, compareItems = true): void {
+	setTooltip(
+		text: string,
+		hyperlink?: string,
+		compareItems = true,
+		onHover?: (hovered: boolean) => void,
+	): void {
 		const native = this.acquire();
 		type HoverTooltip = typeof GameTooltip & {
 			suppressAutomaticCompareItem: boolean;
 		};
 		native.SetScript("OnEnter", () => {
+			onHover?.(true);
 			const tooltip = GameTooltip as HoverTooltip;
 			tooltip.SetOwner(native, "ANCHOR_RIGHT");
 			tooltip.suppressAutomaticCompareItem = !compareItems;
@@ -588,6 +594,7 @@ export class Frame implements IUIComponent {
 			tooltip.Show();
 		});
 		native.SetScript("OnLeave", () => {
+			onHover?.(false);
 			const tooltip = GameTooltip as HoverTooltip;
 			tooltip.Hide();
 			tooltip.suppressAutomaticCompareItem = false;
