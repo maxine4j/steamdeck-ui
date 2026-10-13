@@ -1,7 +1,111 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ReputationClient } from "./reputation-client";
 
 afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => {
+	vi.stubGlobal("GetExpansionLevel", () => 11);
+	vi.stubGlobal("C_MajorFactions", { GetMajorFactionIDs: () => [] });
+});
+
+it("adds current seasonal journeys once, excluding hidden journeys and ordinary renown", () => {
+	const major = {
+		GetMajorFactionIDs: vi.fn(() => [10, 20, 30, 40]),
+		ShouldDisplayMajorFactionAsJourney: (id: number) => id !== 30,
+		IsMajorFactionHiddenFromExpansionPage: (id: number) => id === 40,
+		GetMajorFactionData: (id: number) => ({
+			name: id === 10 ? "Prey" : "Delves",
+			description: "Seasonal journey",
+			isUnlocked: id === 10,
+			renownLevel: 5,
+			maxLevel: 10,
+			renownReputationEarned: 400,
+			renownLevelThreshold: 1000,
+		}),
+		HasMaximumRenown: () => false,
+	};
+	vi.stubGlobal("C_MajorFactions", major);
+	const api = {
+		GetNumFactions: () => 1,
+		GetFactionDataByIndex: () => ({
+			factionID: 10,
+			name: "Prey",
+			reaction: 5,
+			currentStanding: 400,
+			currentReactionThreshold: 0,
+			nextReactionThreshold: 1000,
+		}),
+		IsMajorFaction: () => true,
+		IsFactionParagonForCurrentPlayer: () => false,
+		GetWatchedFactionData: () => ({ factionID: 10 }),
+		SetWatchedFactionByID: vi.fn(),
+	};
+	vi.stubGlobal("C_Reputation", api);
+	vi.stubGlobal("C_GossipInfo", { GetFriendshipReputation: () => undefined });
+	const client = new ReputationClient();
+	const rows = client.getReputations();
+	expect(major.GetMajorFactionIDs).toHaveBeenCalledWith(11);
+	expect(rows).toMatchObject([
+		{
+			id: 10,
+			name: "Prey",
+			seasonal: true,
+			standing: "Level 5 / 10",
+			current: 400,
+			maximum: 1000,
+			watched: true,
+		},
+		{
+			id: 20,
+			name: "Delves",
+			seasonal: true,
+			standing: "Locked",
+			current: 0,
+			maximum: 0,
+			locked: true,
+		},
+	]);
+	const prey = rows.at(0);
+	const delves = rows.at(1);
+	if (!prey || !delves) throw new Error("Missing seasonal journeys");
+	client.activate(prey);
+	expect(api.SetWatchedFactionByID).toHaveBeenCalledWith(0);
+	client.activate(delves);
+	expect(api.SetWatchedFactionByID).toHaveBeenCalledOnce();
+});
+
+it("keeps capped seasonal journeys full and retains their paragon progress", () => {
+	vi.stubGlobal("C_MajorFactions", {
+		GetMajorFactionIDs: () => [10, 20],
+		ShouldDisplayMajorFactionAsJourney: () => true,
+		IsMajorFactionHiddenFromExpansionPage: () => false,
+		GetMajorFactionData: () => ({
+			name: "Journey",
+			description: "",
+			isUnlocked: true,
+			renownLevel: 10,
+			maxLevel: 10,
+			renownReputationEarned: 0,
+			renownLevelThreshold: 1000,
+		}),
+		HasMaximumRenown: () => true,
+	});
+	vi.stubGlobal("C_Reputation", {
+		GetNumFactions: () => 0,
+		GetWatchedFactionData: () => undefined,
+		IsFactionParagonForCurrentPlayer: (id: number) => id === 20,
+		GetFactionParagonInfo: () => [1250, 1000, 1, true],
+	});
+	expect(new ReputationClient().getReputations()).toMatchObject([
+		{ id: 10, maxed: true, standing: "Level 10 / 10" },
+		{
+			id: 20,
+			maxed: true,
+			standing: "Paragon — Reward available",
+			current: 250,
+			maximum: 1000,
+		},
+	]);
+});
 it("reads every collapsed group including newly revealed child groups", () => {
 	const expansion = {
 		factionID: 0,
@@ -145,6 +249,7 @@ it("displays friendship, renown and pending paragon progress", () => {
 				: undefined,
 	});
 	vi.stubGlobal("C_MajorFactions", {
+		GetMajorFactionIDs: () => [],
 		HasMaximumRenown: () => false,
 		GetMajorFactionData: () => ({
 			renownLevel: 12,
@@ -195,6 +300,7 @@ it("recognizes capped ordinary, friendship and renown reputations", () => {
 				: undefined,
 	});
 	vi.stubGlobal("C_MajorFactions", {
+		GetMajorFactionIDs: () => [],
 		GetMajorFactionData: () => ({
 			renownLevel: 30,
 			renownReputationEarned: 0,

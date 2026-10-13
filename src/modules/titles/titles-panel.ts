@@ -22,6 +22,8 @@ export class TitlesPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
+			columns: 2,
+			gap: 12,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
@@ -36,6 +38,9 @@ export class TitlesPanel implements IPanel {
 				label: title.name,
 				detail: title.selected ? "Selected" : "Click to use this title",
 				selected: title.selected,
+				background: title.selected
+					? ([0.18, 0.28, 0.38] as const)
+					: ([0.1, 0.12, 0.16] as const),
 				activate: () => {
 					this.client.select(title.id);
 					this.refresh();

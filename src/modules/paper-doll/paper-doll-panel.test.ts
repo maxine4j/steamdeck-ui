@@ -96,7 +96,8 @@ it("fits equipment around a character model with stats below, reuses controls an
 	);
 	const equipment = Array.from({ length: 18 }, (_, index) => ({
 		slotId: index + 1,
-		name: `Slot ${index}`,
+		name:
+			index === 0 ? "An Extremely Long Equipment Item Name" : `Slot ${index}`,
 		icon: 123,
 		quality: 4,
 		itemId: 42,
@@ -134,15 +135,18 @@ it("fits equipment around a character model with stats below, reuses controls an
 	);
 	expect(details).toHaveLength(18);
 	expect(details.at(0)?.texts).toContain("|cffffffff150|r");
-	expect(
-		details.every((detail) =>
-			detail.texts.every((text) => !text.includes("Slot ")),
-		),
-	).toBe(true);
-	expect(details.at(0)?.texts).toContain("|cff0070ddChampion 5/6|r");
-	expect(details.at(1)?.texts).toContain("|cffa335eeHero 5/6|r");
-	expect(details.at(8)?.texts).toContain("|cff725e7cHero 6/6|r");
-	expect(details.at(17)?.texts).toContain("|cffff8000Myth 5/6|r");
+	expect(details.at(0)?.texts).toContain("An Extremely Long Equ…");
+	expect(details.at(1)?.texts).toContain("Slot 1");
+	expect(details.at(0)?.texts).toContain(
+		"|cff0070ddChampion |cffffff005|cff0070dd/6|r",
+	);
+	expect(details.at(1)?.texts).toContain(
+		"|cffa335eeHero |cffffff005|cffa335ee/6|r",
+	);
+	expect(details.at(8)?.texts).toContain("|cffa335eeHero 6/6|r");
+	expect(details.at(17)?.texts).toContain(
+		"|cffff8000Myth |cffffff005|cffff8000/6|r",
+	);
 	expect(details.at(0)?.SetPoint).toHaveBeenLastCalledWith(
 		"TOPLEFT",
 		expect.anything(),
@@ -297,6 +301,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	);
 	expect(details.at(0)?.labels.at(0)?.SetText).toHaveBeenLastCalledWith("");
 	expect(details.at(0)?.labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
+	expect(details.at(0)?.labels.at(2)?.SetText).toHaveBeenLastCalledWith("");
 	panel.destroy();
 	expect(model.ClearModel).toHaveBeenCalledOnce();
 	expect(equipmentButtons.every((native) => native.handlers.size === 0)).toBe(

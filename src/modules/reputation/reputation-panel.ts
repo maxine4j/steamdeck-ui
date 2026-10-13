@@ -40,6 +40,21 @@ export class ReputationPanel implements IPanel {
 	}
 	private render(): void {
 		const rows: ListRow[] = [];
+		const reputations = this.client.getReputations();
+		const seasonal = reputations.filter((reputation) => reputation.seasonal);
+		if (seasonal.length > 0) {
+			rows.push({
+				id: "reputation-seasonal",
+				label: "Seasonal",
+				heading: true,
+				fontSize: 20,
+				height: 28,
+				marginTop: 8,
+				marginBottom: 8,
+				activate: () => {},
+			});
+			rows.push(...seasonal.map((reputation) => this.tile(reputation)));
+		}
 		let standard: Reputation[] = [];
 		let groups: { parent: Reputation; children: Reputation[] }[] = [];
 		let group: { parent: Reputation; children: Reputation[] } | undefined;
@@ -56,7 +71,8 @@ export class ReputationPanel implements IPanel {
 			groups = [];
 			group = undefined;
 		};
-		for (const reputation of this.client.getReputations()) {
+		for (const reputation of reputations) {
+			if (reputation.seasonal) continue;
 			if (reputation.header && !reputation.child && !reputation.hasReputation) {
 				flush();
 				rows.push(this.heading(reputation, false));
@@ -100,6 +116,7 @@ export class ReputationPanel implements IPanel {
 			detail: `${reputation.standing}${!capped && reputation.progress ? ` ${reputation.progress}` : ""}${reputation.watched ? " • Watched" : ""}`,
 			tooltip: reputation.description,
 			selected: reputation.watched,
+			enabled: !reputation.locked,
 			progress: {
 				value: capped
 					? 1

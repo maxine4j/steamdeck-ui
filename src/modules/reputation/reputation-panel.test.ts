@@ -73,6 +73,40 @@ const render = (reputations: Reputation[]) => {
 	return { panel, client, rows: setRows.mock.lastCall?.at(0) as ListRow[] };
 };
 
+it("places journeys in their own Seasonal category before expansions and disables locked journeys", () => {
+	const { rows } = render([
+		faction("Midnight", 1, {
+			header: true,
+			child: false,
+			hasReputation: false,
+		}),
+		faction("Court", 2, { child: false }),
+		faction("Prey", -10, { seasonal: true, child: false }),
+		faction("Delves", -20, {
+			seasonal: true,
+			child: false,
+			locked: true,
+			standing: "Locked",
+			current: 0,
+			maximum: 0,
+			progress: "",
+		}),
+	]);
+	expect(rows.map((row) => row.label)).toEqual([
+		"Seasonal",
+		"Prey",
+		"Delves",
+		"Midnight",
+		"Court",
+	]);
+	expect(rows.at(0)).toMatchObject({ heading: true });
+	expect(rows.at(2)).toMatchObject({
+		enabled: false,
+		detail: "Locked",
+		progress: { value: 0 },
+	});
+});
+
 it("shows expansion tiles before child sections, with reputation-bearing parents at the top level", () => {
 	const { rows, client } = render([
 		faction("Midnight", 1, {

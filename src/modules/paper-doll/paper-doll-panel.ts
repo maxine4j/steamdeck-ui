@@ -31,18 +31,19 @@ function trackText(slot: EquipmentSlot): string {
 	switch (track.name.toLowerCase()) {
 		case "champ":
 		case "champion":
-			color = maxed ? "52677c" : "0070dd";
+			color = "0070dd";
 			break;
 		case "hero":
-			color = maxed ? "725e7c" : "a335ee";
+			color = "a335ee";
 			break;
 		case "myth":
-			color = maxed ? "8c704d" : "ff8000";
+			color = "ff8000";
 			break;
 		default:
-			color = maxed ? "777777" : "bbbbbb";
+			color = "bbbbbb";
 	}
-	return `|cff${color}${track.name} ${track.rank}/${track.maxRank}|r`;
+	const rank = maxed ? `${track.rank}` : `|cffffff00${track.rank}|cff${color}`;
+	return `|cff${color}${track.name} ${rank}/${track.maxRank}|r`;
 }
 
 export class PaperDollPanel implements IPanel {
@@ -217,7 +218,7 @@ export class PaperDollPanel implements IPanel {
 			cell.details.setParent(this.body);
 			cell.details.layout(
 				width,
-				40,
+				44,
 				"TOPLEFT",
 				this.body,
 				weapon ? 16 + (index - 16) * 242 : index < 8 ? 68 : 282,
@@ -230,11 +231,26 @@ export class PaperDollPanel implements IPanel {
 					: `|cffffffff${Math.floor(slot.itemLevel)}|r`,
 				point,
 				0,
-				-5,
+				-15,
 				11,
 				width,
 			);
-			cell.details.setLabel("track", trackText(slot), point, 0, -23, 11, width);
+			cell.details.setLabel("track", trackText(slot), point, 0, -29, 10, width);
+			const nameLimit = weapon ? 34 : 22;
+			cell.details.setLabel(
+				"name",
+				slot.itemId === undefined
+					? ""
+					: slot.name.length > nameLimit
+						? `${slot.name.slice(0, nameLimit - 1)}…`
+						: slot.name,
+				point,
+				0,
+				-1,
+				10,
+				width,
+			);
+			cell.details.setLabelWordWrap("name", false);
 			cell.details.setLabelWordWrap("item", false);
 			cell.details.setLabelWordWrap("track", false);
 			cell.button.onClick((button) => {

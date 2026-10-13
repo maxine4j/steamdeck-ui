@@ -14,6 +14,8 @@ export interface Reputation {
 	readonly current: number;
 	readonly maximum: number;
 	readonly maxed: boolean;
+	readonly seasonal?: boolean;
+	readonly locked?: boolean;
 }
 export interface IReputationClient {
 	getReputations(): Reputation[];
@@ -28,6 +30,29 @@ const factionAt = (index: number) =>
 			index: number,
 		) => NativeFaction | undefined
 	)(index);
+type NativeMajorFaction = Pick<
+	MajorFactionData,
+	| "name"
+	| "description"
+	| "isUnlocked"
+	| "renownLevel"
+	| "maxLevel"
+	| "renownReputationEarned"
+	| "renownLevelThreshold"
+>;
+const majorFaction = (id: number) =>
+	(
+		C_MajorFactions.GetMajorFactionData as unknown as (
+			this: void,
+			id: number,
+		) => NativeMajorFaction | undefined
+	)(id);
+const watchedFaction = () =>
+	(
+		C_Reputation.GetWatchedFactionData as unknown as (
+			this: void,
+		) => NativeFaction | undefined
+	)();
 const standings = [
 	"Hated",
 	"Hostile",
@@ -40,6 +65,7 @@ const standings = [
 ];
 export class ReputationClient implements IReputationClient {
 	getReputations(): Reputation[] {
+		const journeys = this.getJourneys();
 		const rows: Reputation[] = [];
 		// Expanding a header reveals more rows, so the count must stay live.
 		for (let index = 1; index <= C_Reputation.GetNumFactions(); index++) {
@@ -80,18 +106,7 @@ export class ReputationClient implements IReputationClient {
 						(friendship.nextThreshold ?? friendship.reactionThreshold) -
 						friendship.reactionThreshold;
 				} else if (C_Reputation.IsMajorFaction(data.factionID)) {
-					const major = (
-						C_MajorFactions.GetMajorFactionData as unknown as (
-							this: void,
-							id: number,
-						) =>
-							| {
-									renownLevel: number;
-									renownReputationEarned: number;
-									renownLevelThreshold: number;
-							  }
-							| undefined
-					)(data.factionID);
+					const major = majorFaction(data.factionID);
 					if (major) {
 						maxed = C_MajorFactions.HasMaximumRenown(data.factionID);
 						reaction = 5;
@@ -130,9 +145,74 @@ export class ReputationClient implements IReputationClient {
 				maxed: hasReputation && maxed,
 			});
 		}
+		return [
+			...journeys,
+			...rows.filter(
+				(row) => !journeys.some((journey) => journey.id === row.id),
+			),
+		];
+	}
+	private getJourneys(): Reputation[] {
+		const ids = (
+			C_MajorFactions.GetMajorFactionIDs as unknown as (
+				this: void,
+				expansion: number,
+			) => number[]
+		)(GetExpansionLevel());
+		const rows: Reputation[] = [];
+		const watched = ids.length > 0 ? watchedFaction()?.factionID : undefined;
+		for (const id of ids) {
+			if (
+				!C_MajorFactions.ShouldDisplayMajorFactionAsJourney(id) ||
+				C_MajorFactions.IsMajorFactionHiddenFromExpansionPage(id)
+			)
+				continue;
+			const data = majorFaction(id);
+			if (!data) continue;
+			const locked = !data.isUnlocked;
+			const maxed = !locked && C_MajorFactions.HasMaximumRenown(id);
+			let current = locked ? 0 : data.renownReputationEarned;
+			let maximum = locked ? 0 : data.renownLevelThreshold;
+			let standing = locked
+				? "Locked"
+				: `Level ${data.renownLevel} / ${data.maxLevel}`;
+			if (!locked && C_Reputation.IsFactionParagonForCurrentPlayer(id)) {
+				const [value, threshold, , pending] =
+					C_Reputation.GetFactionParagonInfo(id);
+				current = threshold > 0 ? value % threshold : 0;
+				maximum = threshold;
+				standing = pending ? "Paragon — Reward available" : "Paragon";
+			}
+			rows.push({
+				index: -id,
+				id,
+				name: data.name,
+				description: data.description,
+				header: false,
+				hasReputation: true,
+				child: false,
+				collapsed: false,
+				watched: watched === id,
+				standing,
+				progress: maximum > 0 ? `${current} / ${maximum}` : "",
+				reaction: 5,
+				current,
+				maximum,
+				maxed,
+				seasonal: true,
+				locked,
+			});
+		}
 		return rows;
 	}
 	activate(reputation: Reputation): void {
+		if (reputation.seasonal) {
+			if (majorFaction(reputation.id)?.isUnlocked)
+				C_Reputation.SetWatchedFactionByID(
+					watchedFaction()?.factionID === reputation.id ? 0 : reputation.id,
+				);
+			return;
+		}
 		const current = factionAt(reputation.index);
 		if (
 			!current ||
