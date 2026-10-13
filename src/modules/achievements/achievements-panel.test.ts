@@ -1091,8 +1091,25 @@ it("packs achievement groups into the shorter column without adding a row gap", 
 	);
 	panel.refresh();
 	flush();
-	activate("summary-category-Characters");
-	flush();
+	const luaFilter = vi
+		.spyOn(Array.prototype, "filter")
+		.mockImplementation(function <T>(
+			this: T[],
+			predicate: (value: T, index: number, array: T[]) => unknown,
+			thisArg?: unknown,
+		) {
+			const result: T[] = [];
+			for (let index = 0; index < this.length; index++) {
+				const value = this[index] as T;
+				if (predicate.call(thisArg, value, index, this)) result.push(value);
+			}
+			return result;
+		});
+	try {
+		activate("summary-category-Characters");
+	} finally {
+		luaFilter.mockRestore();
+	}
 
 	expect(frames.get("achievements-header-3")?.layouts.at(-1)).toEqual([
 		226, 56, 242, -170,

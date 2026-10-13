@@ -715,8 +715,8 @@ export class AchievementsPanel implements IPanel {
 					const navId = `achievement-${achievement.id}`;
 					let cell = cellsById.get(navId) ?? available.pop();
 					const row = rowBase + Math.floor(index / columns);
+					while (grid.length <= row) grid.push([]);
 					const navRow = grid[row] ?? [];
-					grid[row] = navRow;
 					const previous = retained.get(navId);
 					if (previous)
 						navRow.push({
