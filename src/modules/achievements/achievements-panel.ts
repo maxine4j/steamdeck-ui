@@ -38,7 +38,7 @@ interface AchievementCell {
 export class AchievementsPanel implements IPanel {
 	readonly id = "achievements";
 	readonly title = "Achievements";
-	readonly icon = 133158;
+	readonly iconAtlas = "UI-HUD-MicroMenu-Achievements-Up";
 	private readonly frame: Frame;
 	private readonly body: Frame;
 	private readonly viewport: Frame;

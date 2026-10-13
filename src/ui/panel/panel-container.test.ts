@@ -264,6 +264,8 @@ it.each(["left", "right"] as const)(
 			destroy: vi.fn(),
 		} as unknown as Frame;
 		const buttons: {
+			setAtlasBackground: ReturnType<typeof vi.fn>;
+			setIcon: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
 			setTooltip: ReturnType<typeof vi.fn>;
 			setIconSize: ReturnType<typeof vi.fn>;
@@ -278,6 +280,7 @@ it.each(["left", "right"] as const)(
 			frame,
 			(_id, isButton) => {
 				const button = {
+					setAtlasBackground: vi.fn(),
 					setParent: vi.fn(),
 					layout: vi.fn(),
 					setIcon: vi.fn(),
@@ -314,6 +317,7 @@ it.each(["left", "right"] as const)(
 		const second = {
 			...first,
 			id: "second",
+			iconAtlas: "UI-HUD-MicroMenu-Achievements-Up",
 			onMount: vi.fn(),
 			onUnmount: vi.fn(),
 		};
@@ -354,6 +358,11 @@ it.each(["left", "right"] as const)(
 		buttons.at(1)?.onClick.mock.calls.at(-1)?.at(0)("LeftButton");
 		expect(first.onUnmount).toHaveBeenCalledOnce();
 		expect(second.onMount).toHaveBeenCalledOnce();
+		expect(buttons.at(0)?.setIcon).toHaveBeenCalledWith(1);
+		expect(buttons.at(1)?.setAtlasBackground).toHaveBeenLastCalledWith(
+			"UI-HUD-MicroMenu-Achievements-Up",
+		);
+		expect(buttons.at(1)?.setIcon).not.toHaveBeenCalled();
 		expect(borders.at(0)?.setSideTabBackground).toHaveBeenLastCalledWith(
 			false,
 			position === "right",

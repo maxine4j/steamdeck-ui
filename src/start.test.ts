@@ -18,7 +18,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("AchievementFrame", undefined);
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
-	const textureIcons = new Map<WowTexture, number>();
+	const textureIcons = new Map<WowTexture, number | string>();
 	const labels: string[][] = [];
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -42,7 +42,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			const texture = {
 				ClearAllPoints: vi.fn(),
 				SetAllPoints: vi.fn(),
-				SetAtlas: vi.fn(() => textureIcons.delete(texture)),
+				SetAtlas: vi.fn((atlas: string) => textureIcons.set(texture, atlas)),
 				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
 				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
 				SetTexCoord: vi.fn(),
@@ -718,14 +718,14 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	for (const [icon, dock, y] of [
 		[133127, 0, 136], // Equipment
 		[236683, 0, 78], // Reputation
-		[136243, 0, 0], // Talents
-		[1100023, 0, -58], // Group finder
-		[133158, 0, -136], // Achievements
+		["UI-HUD-MicroMenu-SpecTalents-Up", 0, 0], // Talents
+		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -58], // Group finder
+		["UI-HUD-MicroMenu-Achievements-Up", 0, -136], // Achievements
 		[133633, 1, 126], // Bags
 		[133784, 1, 68], // Currency
 		[132261, 1, -10], // Mounts
 		[454046, 1, -68], // Toys
-		[656552, 1, -126], // Pets
+		[132599, 1, -126], // Pets
 	] as const) {
 		const tabIndex = textures.findIndex((texture, index) => {
 			const tab = frames.at(index);
@@ -746,7 +746,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		const border = vi.mocked(tab.SetParent).mock.lastCall?.at(0) as WowFrame;
 		expect(vi.mocked(border.SetPoint).mock.lastCall?.at(4)).toBe(y);
 	}
-	const clickTab = (icon: number) => {
+	const clickTab = (icon: number | string) => {
 		const index = textures.findIndex((texture, index) => {
 			const frame = frames.at(index);
 			return (
@@ -850,7 +850,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.ui.openPanel("bags", "right");
 	app.ui.openPanel("paper-doll", "left");
 	flush();
-	clickTab(1100023);
+	clickTab("UI-HUD-MicroMenu-Groupfinder-Up");
 	expect(PVEFrame_ShowFrame).toHaveBeenCalledWith(
 		"GroupFinderFrame",
 		LFDParentFrame,
@@ -944,14 +944,14 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("ToggleCharacter", openCharacterPanel);
 	app.ui.openPanel("paper-doll", "left");
 	for (const icon of [133127, 236683]) {
-		clickTab(136243);
+		clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
 		expect(spellsShown).toBe(true);
 		expect(app.ui.getContainer("left").activePanelId).toBe("talents");
 		clickTab(icon);
 		expect(spellbookOpened).not.toHaveBeenCalled();
 		expect(spellsShown, `after selecting tab ${icon}`).toBe(false);
 	}
-	clickTab(136243);
+	clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
 	events.emit("NAV_PANEL_PREVIOUS");
 	expect(app.ui.getContainer("left").activePanelId).toBe("reputation");
 	expect(spellbookOpened).not.toHaveBeenCalled();

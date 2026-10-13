@@ -118,7 +118,7 @@ function actionTile(
 export class DungeonFinderPanel implements IPanel {
 	readonly id = "dungeon-finder";
 	readonly title = "Dungeon Finder";
-	readonly icon = 1100023;
+	readonly iconAtlas = "UI-HUD-MicroMenu-Groupfinder-Up";
 	private readonly list: ScrollList;
 	private readonly frame: Frame;
 	private readonly back: Frame;

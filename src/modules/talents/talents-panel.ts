@@ -15,7 +15,7 @@ const roleIcons = new Map<string, string>([
 export class TalentsPanel implements IPanel {
 	readonly id = "talents";
 	readonly title = "Talents";
-	readonly icon = 136243;
+	readonly iconAtlas = "UI-HUD-MicroMenu-SpecTalents-Up";
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;

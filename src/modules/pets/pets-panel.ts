@@ -22,7 +22,7 @@ interface PetCell {
 export class PetsPanel implements IPanel {
 	readonly id = "pets";
 	readonly title = "Pets";
-	readonly icon = 656552;
+	readonly icon = 132599;
 	private readonly summonButton: Frame;
 	private readonly summonNode: INavigable;
 	private readonly frame: Frame;
