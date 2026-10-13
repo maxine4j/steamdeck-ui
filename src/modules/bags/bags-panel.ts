@@ -108,7 +108,7 @@ export class BagsPanel implements IPanel {
 		);
 		this.frame.show();
 		this.toggle.setParent(this.frame);
-		this.toggle.layout(180, 30, "TOPLEFT", this.frame, 16, -16);
+		this.toggle.layout(180, 30, "TOPRIGHT", this.frame, -16, -24);
 		this.toggle.setButtonBackground();
 		this.toggle.onClick((button) => {
 			if (button !== "LeftButton") return;

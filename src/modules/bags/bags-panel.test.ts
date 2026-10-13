@@ -96,6 +96,14 @@ it.each(["category", "expansion"] as const)(
 		const visibilityChanged = vi.fn();
 		panel.setVisibilityChanged(visibilityChanged);
 		panel.onMount(new Frame("parent", pool));
+		expect(vi.mocked(Frame.prototype.layout)).toHaveBeenCalledWith(
+			180,
+			30,
+			"TOPRIGHT",
+			expect.any(Frame),
+			-16,
+			-24,
+		);
 		expect(visibilityChanged).toHaveBeenLastCalledWith(true);
 		flush();
 		const toggle = () => {
