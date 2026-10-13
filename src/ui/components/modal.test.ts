@@ -54,6 +54,14 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 		{ id: "use", label: "Use", toy: 42, select: selected },
 	]);
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Toy actions",
+		"TOP",
+		0,
+		-6,
+		12,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"hint",
 		expect.stringContaining("xbox_r_a.blp:18:18|t Select"),
 		"BOTTOMRIGHT",
@@ -112,20 +120,16 @@ it("moves the active gold border to the modal and restores panel focus on close"
 	);
 	const selected = vi.fn();
 	modal.open("Item actions", [{ id: "use", label: "Use", select: selected }]);
-	modal.open(
-		"Marks • 125 / 500",
-		[{ id: "watch", label: "Watch", select: selected }],
-		undefined,
-		"left",
-	);
+	modal.open("Marks • 125 / 500", [
+		{ id: "watch", label: "Watch", select: selected },
+	]);
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
-		"title",
+		"window-title",
 		"Marks • 125 / 500",
-		"TOPLEFT",
-		20,
-		-20,
-		18,
-		328,
+		"TOP",
+		0,
+		-6,
+		12,
 	);
 	expect(panelActive).toHaveBeenLastCalledWith(false);
 	expect(borders).toHaveBeenLastCalledWith(true);
@@ -140,3 +144,83 @@ it("moves the active gold border to the modal and restores panel focus on close"
 	expect(borders).toHaveBeenLastCalledWith(false);
 	expect(panelActive).toHaveBeenLastCalledWith(true);
 });
+
+it.each([
+	["item-actions", "Item actions", 42],
+	["equipment-options", "Head options", "item:42"],
+	["mount-actions", "Mount actions", { mountSpell: 42 }],
+	["toy-actions", "Toy actions", { toy: 42 }],
+	["quest-options", "Quest options", undefined],
+	["currency-options", "Marks • 125 / 500", undefined],
+	["dungeon-queue-confirmation", "Leave Queue?", undefined],
+] as const)(
+	"centers %s titles across the whole modal title bar",
+	(id, title, item) => {
+		for (const method of [
+			"modalBackdrop",
+			"setColor",
+			"setWindowBackground",
+			"setButtonBackground",
+			"onClose",
+			"setParent",
+			"setModalLayer",
+			"setFocusBorder",
+			"layout",
+			"setLabel",
+			"onClick",
+			"show",
+			"hide",
+			"setFocused",
+		] as const)
+			vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
+		vi.spyOn(Frame.prototype, "getSize").mockReturnValue({
+			width: 1280,
+			height: 800,
+		});
+		vi.spyOn(Frame.prototype, "showItemTooltip").mockReturnValue({
+			width: 400,
+			height: 300,
+		});
+		const navigation = { pushModal: vi.fn(), popModal: vi.fn() };
+		const modal = new Modal(
+			id,
+			{} as IFramePoolManager,
+			navigation,
+			createTestEventBus(),
+		);
+		modal.open(
+			title,
+			[{ id: "cancel", label: "Cancel", select: vi.fn() }],
+			item,
+		);
+		expect(Frame.prototype.layout).toHaveBeenCalledWith(
+			item === undefined ? 360 : 740,
+			item === undefined ? 144 : 340,
+			"CENTER",
+			expect.any(Frame),
+		);
+		const labels = vi.mocked(Frame.prototype.setLabel);
+		const index = labels.mock.calls.findIndex((call) => call.at(1) === title);
+		expect(labels.mock.contexts.at(index)?.id).toBe(`${id}-window`);
+		expect(labels.mock.calls.at(index)).toEqual([
+			"window-title",
+			title,
+			"TOP",
+			0,
+			-6,
+			12,
+		]);
+		modal.close();
+		modal.open("Confirm action", [
+			{ id: "cancel", label: "Cancel", select: vi.fn() },
+		]);
+		expect(labels).toHaveBeenCalledWith(
+			"window-title",
+			"Confirm action",
+			"TOP",
+			0,
+			-6,
+			12,
+		);
+	},
+);

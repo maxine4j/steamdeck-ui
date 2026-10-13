@@ -136,19 +136,14 @@ export class DungeonFinderPanel implements IPanel {
 			this.refresh();
 		};
 		this.pendingLeave = confirm;
-		this.confirmation.open(
-			"Leave Queue?",
-			[
-				{
-					id: "cancel",
-					label: "Stay in Queue",
-					select: () => this.dismissLeave(),
-				},
-				{ id: "leave", label: "Leave Queue", select: confirm },
-			],
-			undefined,
-			"left",
-		);
+		this.confirmation.open("Leave Queue?", [
+			{
+				id: "cancel",
+				label: "Stay in Queue",
+				select: () => this.dismissLeave(),
+			},
+			{ id: "leave", label: "Leave Queue", select: confirm },
+		]);
 	}
 	private confirmDungeonLeave(id: number | DungeonListId): void {
 		this.confirmLeave(

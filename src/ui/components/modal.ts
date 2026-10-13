@@ -4,6 +4,7 @@ import type { NavGrid } from "../navigation/types";
 import { controllerIcon } from "./controller-icon";
 import { Frame } from "./frame";
 import type { TooltipContent } from "./tooltip-content";
+import { setWindowTitle } from "./window-title";
 
 export interface ModalOption {
 	readonly id: string;
@@ -17,7 +18,6 @@ export interface IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: TooltipContent,
-		titleAlignment?: "left" | "right",
 	): void;
 	close(): void;
 }
@@ -52,7 +52,6 @@ export class Modal implements IModal {
 		title: string,
 		options: readonly ModalOption[],
 		tooltipItem?: TooltipContent,
-		titleAlignment: "left" | "right" = "right",
 	): void {
 		this.backdrop.modalBackdrop();
 		this.backdrop.setColor(0, 0, 0, 0.65);
@@ -85,15 +84,7 @@ export class Modal implements IModal {
 		}
 		this.window.layout(width, height, "CENTER", this.backdrop);
 		this.window.setFocusBorder(true);
-		this.window.setLabel(
-			"title",
-			title,
-			titleAlignment === "left" ? "TOPLEFT" : "TOPRIGHT",
-			titleAlignment === "left" ? 20 : -20,
-			-20,
-			18,
-			optionWidth,
-		);
+		setWindowTitle(this.window, title);
 		this.window.setLabel(
 			"hint",
 			`${controllerIcon("A")} Select   ${controllerIcon("B")} Cancel`,

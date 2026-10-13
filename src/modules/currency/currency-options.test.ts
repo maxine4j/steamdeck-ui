@@ -47,8 +47,6 @@ it("offers addon favourites and inactive actions, and confirms source and transf
 	expect(modal.open).toHaveBeenCalledWith(
 		"Marks • 125 / 500",
 		expect.any(Array),
-		undefined,
-		"left",
 	);
 	expect(options.map((option) => option.label)).toEqual([
 		"|A:collections-icon-favorites:18:18|a Add to favourites",

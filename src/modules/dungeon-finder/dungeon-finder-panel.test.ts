@@ -262,7 +262,7 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	});
 	rows.find((row) => row.id === "dungeon-3")?.activate();
 	expect(client.leave).not.toHaveBeenCalled();
-	expect(modal.open).toHaveBeenCalled();
+	expect(modal.open).toHaveBeenCalledWith("Leave Queue?", expect.any(Array));
 	confirm();
 	expect(client.leave).toHaveBeenCalledOnce();
 	expect(
