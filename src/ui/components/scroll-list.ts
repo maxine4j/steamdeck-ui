@@ -18,6 +18,7 @@ export interface ListRow {
 	readonly height?: number;
 	readonly trailingLabel?: string;
 	readonly trailingOnFirstLine?: boolean;
+	readonly trailingOnSecondLine?: boolean;
 	readonly tooltip?: string;
 	readonly tooltipContent?: TooltipContent;
 	readonly selected?: boolean;
@@ -438,6 +439,7 @@ export class ScrollList {
 					: 0;
 				const centeredLabel =
 					!row.trailingOnFirstLine &&
+					!row.trailingOnSecondLine &&
 					(row.trailingLabel ||
 						(this.options.centerSingleLine &&
 							!row.heading &&
@@ -498,14 +500,23 @@ export class ScrollList {
 					textLeft,
 					centeredLabel ? 0 : -verticalPadding,
 					row.fontSize ?? (row.heading ? 18 : 14),
-					Math.max(1, textWidth - trailingWidth),
+					Math.max(
+						1,
+						textWidth - (row.trailingOnSecondLine ? 0 : trailingWidth),
+					),
 				);
 				button.frame.setLabel(
 					"trailing",
 					row.trailingLabel ?? "",
-					row.trailingOnFirstLine ? "TOPRIGHT" : "RIGHT",
+					row.trailingOnFirstLine || row.trailingOnSecondLine
+						? "TOPRIGHT"
+						: "RIGHT",
 					row.secondary ? -56 : -horizontalPadding,
-					row.trailingOnFirstLine ? -verticalPadding : 0,
+					row.trailingOnSecondLine
+						? -verticalPadding - (row.fontSize ?? 14) - 8
+						: row.trailingOnFirstLine
+							? -verticalPadding
+							: 0,
 					row.fontSize ?? 14,
 					trailingWidth,
 				);

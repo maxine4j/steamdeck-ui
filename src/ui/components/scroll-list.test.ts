@@ -37,6 +37,45 @@ it("uses small category icons and leaves room for their labels", () => {
 	);
 });
 
+it("places counts on the right of line two and gives the name the full text width", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("second-line", pool, "", vi.fn(), {
+		contentPadding: { horizontal: 18, vertical: 16 },
+	});
+	list.setRows([
+		{
+			id: "category",
+			label: "Expansion Features",
+			icon: 133158,
+			iconSize: 20,
+			fontSize: 12,
+			height: 80,
+			trailingLabel: "2/3 67%",
+			trailingOnSecondLine: true,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(frames.get("second-line-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Expansion Features",
+		"TOPLEFT",
+		46,
+		-16,
+		12,
+		392,
+	);
+	expect(frames.get("second-line-row-0")?.setLabel).toHaveBeenCalledWith(
+		"trailing",
+		"2/3 67%",
+		"TOPRIGHT",
+		-18,
+		-36,
+		12,
+		expect.any(Number),
+	);
+});
+
 it("shows full reward links on controller focus and hides them on blur", () => {
 	const list = new ScrollList(
 		"tooltip-list",

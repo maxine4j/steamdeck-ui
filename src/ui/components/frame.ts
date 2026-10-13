@@ -58,6 +58,8 @@ export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private scrollIndicator?: WowTexture;
 	private scrollPan?: ScrollPan;
+	private lastRevealTop?: number;
+	private revealingUp = false;
 	private parent?: Frame;
 	private cancelledSecureType?: string;
 	private cancelledSecureClick = false;
@@ -332,6 +334,8 @@ export class Frame implements IUIComponent {
 		);
 	}
 	resetScroll(): void {
+		this.lastRevealTop = undefined;
+		this.revealingUp = false;
 		this.native?.SetVerticalScroll(0);
 	}
 	scrollToEdge(direction: "up" | "down"): void {
@@ -368,16 +372,20 @@ export class Frame implements IUIComponent {
 		const height = native.GetHeight();
 		const offset = Math.max(0, (height - contentHeight) / 2);
 		const scroll = native.GetVerticalScroll();
+		if (this.lastRevealTop !== undefined && top !== this.lastRevealTop)
+			this.revealingUp = top < this.lastRevealTop;
+		this.lastRevealTop = top;
 		// Start within the fourth-last row, keeping three upcoming rows visible.
 		// The half-row buffer crosses that threshold before reaching its bottom.
 		const lookahead = Math.max(
 			0,
 			Math.min(3.5 * (bottom - top), height - (bottom - top)),
 		);
-		const revealBottom = bottom + offset + lookahead;
+		const revealTop = top + offset - (this.revealingUp ? lookahead : 0);
+		const revealBottom = bottom + offset + (this.revealingUp ? 0 : lookahead);
 		const target =
-			top + offset < scroll
-				? top + offset
+			revealTop < scroll
+				? revealTop
 				: revealBottom > scroll + height
 					? revealBottom - height
 					: scroll;
@@ -981,6 +989,8 @@ export class Frame implements IUIComponent {
 		this.parent = parent;
 	}
 	destroy(): void {
+		this.lastRevealTop = undefined;
+		this.revealingUp = false;
 		this.parent = undefined;
 		this.scrollPan = undefined;
 		this.animation?.Stop();

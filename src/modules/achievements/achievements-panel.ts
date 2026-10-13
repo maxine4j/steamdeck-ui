@@ -426,7 +426,7 @@ export class AchievementsPanel implements IPanel {
 					: formatAchievementProgress(p.completed, p.total)
 							.replace(" / ", "/")
 							.replace(" • ", " "),
-				trailingOnFirstLine: true,
+				trailingOnSecondLine: true,
 				height: 80,
 				progress: {
 					value: p.total > 0 ? p.completed / p.total : 0,

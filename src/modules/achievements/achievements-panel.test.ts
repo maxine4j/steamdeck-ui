@@ -970,7 +970,7 @@ it("restarts an interrupted scan when reopened instead of retaining a partial ca
 			.some((n) => n.navId === "summary-category-Quests"),
 	).toBe(true);
 });
-it("formats section percentages and large numbers and keeps padded category counts on line one", () => {
+it("formats section percentages and large numbers and puts category counts on line two", () => {
 	const { panel, client, flush, activate } = setup();
 	vi.mocked(client.summary).mockReturnValue({
 		points: 1234567,
@@ -993,7 +993,7 @@ it("formats section percentages and large numbers and keeps padded category coun
 		?.rows.find((r) => r.id === "summary-category-Characters");
 	expect(category).toMatchObject({
 		trailingLabel: "2/3 67%",
-		trailingOnFirstLine: true,
+		trailingOnSecondLine: true,
 		height: 80,
 	});
 	expect(category?.detail).toBeUndefined();

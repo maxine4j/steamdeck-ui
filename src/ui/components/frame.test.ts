@@ -545,7 +545,7 @@ it("scrolls focused ranges into view and clamps them to the scroll bounds", () =
 	frame.revealVerticalRange(200, 242, 400);
 	expect(scroll).toBe(200);
 	frame.revealVerticalRange(20, 62, 400);
-	expect(scroll).toBe(20);
+	expect(scroll).toBe(0);
 	frame.revealVerticalRange(380, 422, 400);
 	expect(scroll).toBe(300);
 });
@@ -571,6 +571,38 @@ it("starts scrolling with three upcoming items still visible", () => {
 	expect(scroll).toBe(0);
 	frame.revealVerticalRange(300, 350, 1500);
 	expect(scroll).toBe(25);
+	frame.revealVerticalRange(300, 350, 1500);
+	expect(scroll).toBe(25);
+});
+
+it("looks ahead upward without oscillating on repeated focus or direction changes", () => {
+	let scroll = 500;
+	const native = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+		GetHeight: () => 500,
+		GetVerticalScroll: () => scroll,
+		GetVerticalScrollRange: () => 1000,
+		SetVerticalScroll: (value: number) => {
+			scroll = value;
+		},
+	} as unknown as WowFrame;
+	const frame = new Frame(
+		"up-lookahead",
+		new FramePoolManager({ createFrame: () => native }),
+		"ScrollFrame",
+	);
+	frame.revealVerticalRange(750, 800, 1500);
+	expect(scroll).toBe(500);
+	frame.revealVerticalRange(650, 700, 1500);
+	expect(scroll).toBe(475);
+	frame.revealVerticalRange(650, 700, 1500);
+	expect(scroll).toBe(475);
+	frame.revealVerticalRange(800, 850, 1500);
+	expect(scroll).toBe(525);
+	frame.revealVerticalRange(100, 150, 1500);
+	expect(scroll).toBe(0);
+	frame.resetScroll();
 	frame.revealVerticalRange(300, 350, 1500);
 	expect(scroll).toBe(25);
 });
