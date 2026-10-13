@@ -5,12 +5,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 function setupRaids(queuedCount = 0) {
 	setup();
+	vi.stubGlobal("GetServerExpansionLevel", () => 10);
 	vi.stubGlobal("GetNumRFDungeons", () => 4);
 	vi.stubGlobal("GetRFDungeonInfo", (index: number) => {
 		const info: (string | number)[] = [];
 		info[0] = 100 + index;
 		info[1] = `Wing ${index}`;
-		info[9] = index === 1 ? 9 : 10;
+		info[9] = 10;
 		info[19] = index === 1 ? "Old raid" : "New raid";
 		info[22] = index === 1 ? 50 : 60;
 		return info;
@@ -54,6 +55,26 @@ it("groups visible raid wings by raid, newest first, preserving wing order", () 
 		},
 	]);
 });
+
+it.each([undefined, "queued"])(
+	"excludes legacy raid wings even when joinable or already queued (%s)",
+	(mode) => {
+		setupRaids();
+		const dungeonInfo = GetRFDungeonInfo;
+		vi.stubGlobal("GetRFDungeonInfo", (index: number) => {
+			const info = [...dungeonInfo(index)];
+			if (index === 1) info[9] = 6;
+			return info;
+		});
+		vi.stubGlobal("GetLFGMode", (_category: number, id?: number) =>
+			id === 101 ? [mode] : [],
+		);
+		const client = new DungeonFinderClient();
+		expect(client.getRaids().map((raid) => raid.id)).toEqual([60]);
+		client.joinRaid(101);
+		expect(RaidFinderQueueFrame_Join).not.toHaveBeenCalled();
+	},
+);
 
 it("joins multiple raid wings while a dungeon is queued, stopping at seven raid queues", () => {
 	setupRaids(1);

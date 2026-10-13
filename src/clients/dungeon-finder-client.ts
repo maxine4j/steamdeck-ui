@@ -68,6 +68,7 @@ function activeQueue(mode: string | undefined): boolean {
 
 export class DungeonFinderClient implements IDungeonFinderClient {
 	getRaids(): FinderRaid[] {
+		const currentExpansion = GetServerExpansionLevel();
 		const raids: (FinderRaid & { expansion: number; newestWing: number })[] =
 			[];
 		for (let index = 1; index <= GetNumRFDungeons(); index++) {
@@ -96,6 +97,7 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 				,
 				mapId,
 			] = GetRFDungeonInfo(index);
+			if (expansion !== currentExpansion) continue;
 			const [available, playerAvailable, hide] = IsLFGDungeonJoinable(id);
 			const [mode] = GetLFGMode(raidCategory, id);
 			const queued = activeQueue(mode);
