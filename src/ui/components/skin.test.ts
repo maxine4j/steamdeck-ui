@@ -29,6 +29,8 @@ function setup() {
 		return {
 			SetAtlas: vi.fn(),
 			SetTexture: vi.fn(),
+			AddMaskTexture: vi.fn(),
+			RemoveMaskTexture: vi.fn(),
 			SetTexCoord: vi.fn(),
 			SetHorizTile: vi.fn(),
 			SetColorTexture: vi.fn(),
@@ -39,7 +41,9 @@ function setup() {
 			SetHeight: vi.fn(),
 		};
 	}
+	const mask = texture();
 	const native = {
+		CreateMaskTexture: vi.fn(() => mask),
 		SetPoint: vi.fn(),
 		SetScript: vi.fn(),
 		RegisterForClicks: vi.fn(),
@@ -58,7 +62,7 @@ function setup() {
 	} as unknown as WowFrame;
 	const pool = new FramePoolManager({ createFrame: () => native });
 	pool.acquire("Frame");
-	return { native, pool, textures };
+	return { native, pool, textures, mask };
 }
 
 it("replaces a sliced button with a full-frame atlas and clears its old caps", () => {
@@ -195,6 +199,31 @@ it("adds reusable rounded action icon artwork without replacing the icon", () =>
 	);
 	expect(textures.at(1)?.SetAllPoints).toHaveBeenCalled();
 	expect(native.CreateTexture).toHaveBeenCalledTimes(2);
+});
+
+it("clips action icons to the rounded mask and detaches it before pooled reuse", () => {
+	const { pool, native, textures, mask } = setup();
+	const frame = new Frame("target", pool);
+	frame.setIcon("target-art", false);
+	frame.setIconOutline();
+	frame.setIconOutline();
+	expect(mask.SetAtlas).toHaveBeenLastCalledWith(
+		"UI-HUD-ActionBar-IconFrame-Mask",
+		false,
+	);
+	expect(mask.SetAllPoints).toHaveBeenCalled();
+	expect(textures.at(0)?.AddMaskTexture).toHaveBeenCalledExactlyOnceWith(mask);
+	expect(native.CreateMaskTexture).toHaveBeenCalledOnce();
+	frame.destroy();
+	expect(textures.at(0)?.RemoveMaskTexture).toHaveBeenCalledExactlyOnceWith(
+		mask,
+	);
+	const reused = new Frame("another-icon", pool);
+	reused.setIcon("next-art");
+	expect(textures.at(0)?.AddMaskTexture).toHaveBeenCalledTimes(1);
+	reused.setIconOutline();
+	expect(textures.at(0)?.AddMaskTexture).toHaveBeenCalledTimes(2);
+	expect(native.CreateMaskTexture).toHaveBeenCalledOnce();
 });
 
 it.each([

@@ -1,4 +1,9 @@
 import type { WowFrame, WowLine, WowTexture } from "../types";
+
+type MaskableTexture = WowTexture & {
+	AddMaskTexture(mask: WowTexture): void;
+	RemoveMaskTexture(mask: WowTexture): void;
+};
 export type FrameType =
 	| "FocusTimer"
 	| "GameTooltip"
@@ -21,6 +26,7 @@ export interface IFramePoolManager {
 	acquire(type: FrameType): WowFrame;
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
+	setBackgroundMask(frame: WowFrame, atlas: string): void;
 	getDecoration(frame: WowFrame, key: string): WowTexture;
 	getLine(
 		frame: WowFrame,
@@ -31,6 +37,8 @@ export interface IFramePoolManager {
 export class FramePoolManager implements IFramePoolManager {
 	private readonly available = new Map<FrameType, WowFrame[]>();
 	private readonly backgrounds = new Map<WowFrame, WowTexture>();
+	private readonly backgroundMasks = new Map<WowFrame, WowTexture>();
+	private readonly maskedBackgrounds = new Set<WowFrame>();
 	private readonly decorations = new Map<WowFrame, Map<string, WowTexture>>();
 	private readonly lines = new Map<WowFrame, Map<string, WowLine>>();
 	private readonly leased = new Map<WowFrame, FrameType>();
@@ -67,6 +75,24 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
+	setBackgroundMask(frame: WowFrame, atlas: string): void {
+		let mask = this.backgroundMasks.get(frame);
+		if (!mask) {
+			mask = (
+				frame as WowFrame & {
+					CreateMaskTexture(name?: string, layer?: string): WowTexture;
+				}
+			).CreateMaskTexture(undefined, "BACKGROUND");
+			this.backgroundMasks.set(frame, mask);
+		}
+		mask.ClearAllPoints();
+		mask.SetAllPoints();
+		mask.SetAtlas(atlas, false);
+		if (!this.maskedBackgrounds.has(frame)) {
+			(this.getBackground(frame) as MaskableTexture).AddMaskTexture(mask);
+			this.maskedBackgrounds.add(frame);
+		}
+	}
 	getLine(
 		frame: WowFrame,
 		key: string,
@@ -88,6 +114,9 @@ export class FramePoolManager implements IFramePoolManager {
 	release(type: FrameType, frame: WowFrame): void {
 		if (this.leased.get(frame) !== type) return;
 		frame.Hide();
+		const mask = this.backgroundMasks.get(frame);
+		if (mask && this.maskedBackgrounds.delete(frame))
+			(this.getBackground(frame) as MaskableTexture).RemoveMaskTexture(mask);
 		this.backgrounds.get(frame)?.SetTexture(undefined);
 		this.backgrounds.get(frame)?.SetTexCoord(0, 1, 0, 1);
 		this.backgrounds.get(frame)?.SetColorTexture(0, 0, 0, 0);

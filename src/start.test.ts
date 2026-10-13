@@ -45,6 +45,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetAtlas: vi.fn((atlas: string) => textureIcons.set(texture, atlas)),
 				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
 				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
+				AddMaskTexture: vi.fn(),
+				RemoveMaskTexture: vi.fn(),
 				SetTexCoord: vi.fn(),
 				SetHorizTile: vi.fn(),
 				SetPoint: vi.fn(),
@@ -133,6 +135,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetFacing: vi.fn(),
 				ClearModel: vi.fn(),
 				CreateTexture: () => texture,
+				CreateMaskTexture: () => ({
+					ClearAllPoints: vi.fn(),
+					SetAllPoints: vi.fn(),
+					SetAtlas: vi.fn(),
+				}),
 			};
 			frames.push(frame);
 			textures.push(texture);
