@@ -19,6 +19,7 @@ declare global {
 	): LuaMultiReturn<[string | undefined, number]>;
 	const ExtraActionButton1: { action: number };
 	const ExtraActionBarFrame: NativeBar | undefined;
+	const PetActionBarFrame: NativeBar | undefined;
 	const ZoneAbilityFrame: NativeBar | undefined;
 	function GetPetActionInfo(
 		this: void,
@@ -106,6 +107,7 @@ export class ActionBarClient implements IActionBarClient {
 	disableBuiltIn(): void {
 		if (this.suppressed) return;
 		this.frames.suppress([
+			PetActionBarFrame,
 			ZoneAbilityFrame,
 			ExtraActionBarFrame,
 			MainActionBar,

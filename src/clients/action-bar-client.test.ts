@@ -75,6 +75,7 @@ it("reads the highest-priority zone spell and leaves an absent zone ability empt
 
 it("suppresses the native action controls once and restores their parents", () => {
 	const bars = [
+		"PetActionBarFrame",
 		"ZoneAbilityFrame",
 		"ExtraActionBarFrame",
 		"MainActionBar",
@@ -141,6 +142,7 @@ it("keeps dynamic main-bar paging for the face buttons and directions", () => {
 
 it("reveals native bars only for action drags, hides them after dropping, and defers changes in combat", () => {
 	for (const name of [
+		"PetActionBarFrame",
 		"ZoneAbilityFrame",
 		"ExtraActionBarFrame",
 		"MainActionBar",
