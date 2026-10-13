@@ -80,7 +80,8 @@ export class AchievementsPanel implements IPanel {
 			padding: 0,
 			top: 0,
 			bottom: 0,
-			contentPadding: { horizontal: 9.2, vertical: 6.9 },
+			contentPadding: { horizontal: 18, vertical: 16 },
+			progressInset: { horizontal: 0, bottom: 12 },
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});

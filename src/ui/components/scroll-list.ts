@@ -449,7 +449,7 @@ export class ScrollList {
 					"trailing",
 					row.trailingLabel ?? "",
 					row.trailingOnFirstLine ? "TOPRIGHT" : "RIGHT",
-					row.secondary ? -56 : -8,
+					row.secondary ? -56 : -horizontalPadding,
 					row.trailingOnFirstLine ? -verticalPadding : 0,
 					row.fontSize ?? 14,
 					trailingWidth,

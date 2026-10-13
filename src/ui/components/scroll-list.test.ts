@@ -5,6 +5,49 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("keeps first-line labels and counts equally inset from a progress button's edges", () => {
+	const list = new ScrollList(
+		"padded-category",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+		{
+			contentPadding: { horizontal: 18, vertical: 16 },
+			progressInset: { horizontal: 0, bottom: 12 },
+		},
+	);
+	list.setRows([
+		{
+			id: "quests",
+			label: "Quests",
+			trailingLabel: "1 / 2 • 50%",
+			trailingOnFirstLine: true,
+			height: 67,
+			progress: { value: 0.5, color: [1, 1, 1] },
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	expect(frames.get("padded-category-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Quests",
+		"TOPLEFT",
+		18,
+		-16,
+		14,
+		expect.any(Number),
+	);
+	expect(frames.get("padded-category-row-0")?.setLabel).toHaveBeenCalledWith(
+		"trailing",
+		"1 / 2 • 50%",
+		"TOPRIGHT",
+		-18,
+		-16,
+		14,
+		expect.any(Number),
+	);
+});
+
 it("aligns optional trailing counts with the first text line", () => {
 	const list = new ScrollList(
 		"top-count",
