@@ -181,3 +181,49 @@ it("tiles the button center across its width and clears tiling when replacing it
 	frame.destroy();
 	expect(center?.SetHorizTile).toHaveBeenLastCalledWith(false);
 });
+
+it("adds reusable rounded action icon artwork without replacing the icon", () => {
+	const { pool, textures, native } = setup();
+	const frame = new Frame("target", pool);
+	frame.setIcon("target-art", false);
+	frame.setIconOutline();
+	frame.setIconOutline();
+	expect(textures.at(0)?.SetTexture).toHaveBeenLastCalledWith("target-art");
+	expect(textures.at(1)?.SetAtlas).toHaveBeenLastCalledWith(
+		"UI-HUD-ActionBar-IconFrame",
+		false,
+	);
+	expect(textures.at(1)?.SetAllPoints).toHaveBeenCalled();
+	expect(native.CreateTexture).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+	[20, 30, 32 * (20 / 30), 32],
+	[32, 32, 32, 32],
+	[60, 30, 32, 16],
+])(
+	"fits a %ix%i atlas icon without distorting its proportions",
+	(width, height, expectedWidth, expectedHeight) => {
+		const { pool, textures } = setup();
+		vi.stubGlobal("C_Texture", { GetAtlasInfo: () => ({ width, height }) });
+		const frame = new Frame("tab", pool);
+		frame.setAtlasIcon("micro-menu-art", 32, 32, 2);
+		expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+			"micro-menu-art",
+			false,
+		);
+		expect(textures.at(0)?.SetWidth.mock.lastCall?.at(0)).toBeCloseTo(
+			expectedWidth,
+		);
+		expect(textures.at(0)?.SetHeight.mock.lastCall?.at(0)).toBeCloseTo(
+			expectedHeight,
+		);
+		expect(textures.at(0)?.SetPoint).toHaveBeenLastCalledWith(
+			"CENTER",
+			expect.anything(),
+			"CENTER",
+			2,
+			0,
+		);
+	},
+);

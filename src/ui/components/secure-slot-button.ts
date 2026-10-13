@@ -1,6 +1,7 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { type CooldownDuration, CooldownOverlay } from "./cooldown-overlay";
+import { applyIconOutline } from "./skin";
 
 export type { CooldownDuration } from "./cooldown-overlay";
 export interface BindingTarget {
@@ -73,9 +74,7 @@ export class SecureSlotButton {
 		read: SlotReader,
 	): void {
 		this.frame.SetSize(48, 48);
-		const artwork = this.pool.getDecoration(this.frame, "action-slot-artwork");
-		artwork.SetAllPoints();
-		artwork.SetAtlas("UI-HUD-ActionBar-IconFrame", false);
+		applyIconOutline(this.pool, this.frame);
 		this.read = undefined;
 		this.frame.ClearAllPoints();
 		this.frame.SetPoint("BOTTOM", UIParent, "BOTTOM", x, y);

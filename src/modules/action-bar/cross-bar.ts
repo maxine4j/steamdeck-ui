@@ -108,7 +108,10 @@ export class CrossBar {
 			indicator.layout(48, 48, "BOTTOM", undefined, modifier.x, modifier.y);
 			indicator.setColor(0.12, 0.18, 0.25, 0.9);
 			indicator.setIcon(modifier.icon, false);
-			if (modifier.label !== "") indicator.setLabel("modifier", modifier.label);
+			if (modifier.label !== "") {
+				indicator.setIconOutline();
+				indicator.setLabel("modifier", modifier.label, "TOPLEFT", 4, -4);
+			}
 			indicator.show();
 			this.indicators.push(indicator);
 		}

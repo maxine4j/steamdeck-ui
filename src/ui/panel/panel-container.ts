@@ -105,9 +105,12 @@ export class PanelContainer implements IPanelContainer {
 			tab.border.setSideTabBackground(selected, mirrored);
 			tab.button.setParent(tab.border);
 			tab.button.layout(43, 55, "CENTER", tab.border);
-			if (panel.iconAtlas) tab.button.setAtlasBackground(panel.iconAtlas);
-			else tab.button.setIcon(panel.icon ?? 134400);
-			tab.button.setIconSize(32, 32, mirrored ? 2 : -2);
+			if (panel.iconAtlas)
+				tab.button.setAtlasIcon(panel.iconAtlas, 32, 32, mirrored ? 2 : -2);
+			else {
+				tab.button.setIcon(panel.icon ?? 134400);
+				tab.button.setIconSize(32, 32, mirrored ? 2 : -2);
+			}
 			const border = tab.border;
 			tab.button.setTooltip(panel.title, undefined, false, (hovered) =>
 				border.setSideTabBackground(selected, mirrored, hovered),

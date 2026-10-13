@@ -743,6 +743,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		});
 		const tab = frames.at(tabIndex);
 		if (!tab || tabIndex < 0) throw new Error(`Missing tab ${icon}`);
+		const texture = textures.at(tabIndex);
+		if (!texture) throw new Error(`Missing tab texture ${icon}`);
+		expect(vi.mocked(texture.SetWidth).mock.lastCall?.at(0)).toBe(
+			typeof icon === "string" ? 8 : 32,
+		);
+		expect(vi.mocked(texture.SetHeight).mock.lastCall?.at(0)).toBe(32);
 		const border = vi.mocked(tab.SetParent).mock.lastCall?.at(0) as WowFrame;
 		expect(vi.mocked(border.SetPoint).mock.lastCall?.at(4)).toBe(y);
 	}

@@ -1,6 +1,15 @@
 import type { WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 
+export function applyIconOutline(
+	pool: IFramePoolManager,
+	frame: WowFrame,
+): void {
+	const artwork = pool.getDecoration(frame, "action-slot-artwork");
+	artwork.SetAllPoints();
+	artwork.SetAtlas("UI-HUD-ActionBar-IconFrame", false);
+}
+
 // CharacterFrame.xml and ButtonFrameTemplateNoPortrait in Blizzard_SharedXML.
 // Keep the atlas-sized corners intact while the edges stretch with the window.
 const corners = [

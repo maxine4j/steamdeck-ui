@@ -13,6 +13,7 @@ const { configure, refresh, destroy, setSpell, target, indicators } =
 			layout: ReturnType<typeof vi.fn>;
 			setLabel: ReturnType<typeof vi.fn>;
 			setIcon: ReturnType<typeof vi.fn>;
+			setIconOutline: ReturnType<typeof vi.fn>;
 			setColor: ReturnType<typeof vi.fn>;
 			setBorder: ReturnType<typeof vi.fn>;
 			show: ReturnType<typeof vi.fn>;
@@ -24,6 +25,7 @@ vi.mock("../../ui/components/frame", () => ({
 		layout = vi.fn();
 		setLabel = vi.fn();
 		setIcon = vi.fn();
+		setIconOutline = vi.fn();
 		setColor = vi.fn();
 		setBorder = vi.fn();
 		show = vi.fn();
@@ -148,7 +150,12 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 	expect(indicators.at(1)?.setLabel).toHaveBeenCalledWith(
 		"modifier",
 		"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t",
+		"TOPLEFT",
+		4,
+		-4,
 	);
+	expect(indicators.at(1)?.setIconOutline).toHaveBeenCalledOnce();
+	expect(indicators.at(0)?.setIconOutline).not.toHaveBeenCalled();
 	for (const indicator of indicators)
 		expect(indicator.setBorder).not.toHaveBeenCalled();
 	expect(indicators.at(0)?.layout).toHaveBeenCalledExactlyOnceWith(

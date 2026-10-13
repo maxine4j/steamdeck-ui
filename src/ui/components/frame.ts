@@ -12,7 +12,7 @@ import {
 	SecureClickBindings,
 } from "./secure-click-bindings";
 import { applySideTabSkin } from "./side-tab-skin";
-import { applyButtonSkin, applyWindowSkin } from "./skin";
+import { applyButtonSkin, applyIconOutline, applyWindowSkin } from "./skin";
 import {
 	setTooltipContent,
 	type TooltipContent,
@@ -581,6 +581,27 @@ export class Frame implements IUIComponent {
 		this.texture?.SetWidth(width);
 		this.texture?.SetHeight(height);
 		this.texture?.SetPoint("CENTER", native, "CENTER", x, y);
+	}
+	setIconOutline(): void {
+		applyIconOutline(this.pool, this.acquire());
+	}
+	setAtlasIcon(
+		atlas: string,
+		width: number,
+		height: number,
+		x = 0,
+		y = 0,
+	): void {
+		const atlasClient = C_Texture as unknown as {
+			GetAtlasInfo(
+				this: void,
+				atlas: string,
+			): { width: number; height: number };
+		};
+		const info = atlasClient.GetAtlasInfo(atlas);
+		const scale = Math.min(width / info.width, height / info.height);
+		this.setAtlasBackground(atlas);
+		this.setIconSize(info.width * scale, info.height * scale, x, y);
 	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")
