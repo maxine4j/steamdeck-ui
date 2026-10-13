@@ -1,21 +1,17 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 
-afterEach(() => vi.unstubAllGlobals());
-
 it.each([false, true])(
 	"renders Blizzard side-tab artwork and clears selection and hover on reuse (mirrored: %s)",
 	(mirrored) => {
-		vi.stubGlobal("C_Texture", {
-			GetAtlasInfo: () => ({
-				leftTexCoord: 0.1,
-				rightTexCoord: 0.4,
-				topTexCoord: 0.2,
-				bottomTexCoord: 0.8,
-			}),
-		});
+		const atlasBounds = {
+			leftTexCoord: 0.1,
+			rightTexCoord: 0.4,
+			topTexCoord: 0.2,
+			bottomTexCoord: 0.8,
+		};
 		const textures: {
 			SetAtlas: ReturnType<typeof vi.fn>;
 			SetTexture: ReturnType<typeof vi.fn>;
@@ -23,6 +19,7 @@ it.each([false, true])(
 			SetPoint: ReturnType<typeof vi.fn>;
 			SetWidth: ReturnType<typeof vi.fn>;
 			SetHeight: ReturnType<typeof vi.fn>;
+			sampledBounds(): readonly number[];
 		}[] = [];
 		const native = {
 			Hide: vi.fn(),
@@ -31,10 +28,21 @@ it.each([false, true])(
 			SetSize: vi.fn(),
 			SetScript: vi.fn(),
 			CreateTexture: () => {
+				let coords = [0, 1, 0, 1];
 				const texture = {
 					SetAtlas: vi.fn(),
 					SetTexture: vi.fn(),
-					SetTexCoord: vi.fn(),
+					SetTexCoord: vi.fn(
+						(left: number, right: number, top: number, bottom: number) => {
+							coords = [left, right, top, bottom];
+						},
+					),
+					sampledBounds: () => [
+						atlasBounds.leftTexCoord + (coords.at(0) ?? 0) * 0.3,
+						atlasBounds.leftTexCoord + (coords.at(1) ?? 1) * 0.3,
+						atlasBounds.topTexCoord + (coords.at(2) ?? 0) * 0.6,
+						atlasBounds.topTexCoord + (coords.at(3) ?? 1) * 0.6,
+					],
 					SetPoint: vi.fn(),
 					SetAllPoints: vi.fn(),
 					ClearAllPoints: vi.fn(),
@@ -57,6 +65,9 @@ it.each([false, true])(
 		] as const) {
 			const texture = textures.at(index);
 			expect(texture?.SetAtlas).toHaveBeenLastCalledWith(atlas, true);
+			expect(texture?.SetTexCoord.mock.invocationCallOrder.at(-1)).toBeLessThan(
+				texture?.SetAtlas.mock.invocationCallOrder.at(-1) ?? 0,
+			);
 			expect(texture?.SetPoint).toHaveBeenLastCalledWith(
 				"CENTER",
 				native,
@@ -64,14 +75,13 @@ it.each([false, true])(
 				0,
 				0,
 			);
-			if (mirrored) {
-				expect(texture?.SetTexCoord).toHaveBeenLastCalledWith(
-					0.4,
-					0.1,
-					0.2,
-					0.8,
-				);
-			} else expect(texture?.SetTexCoord).not.toHaveBeenCalled();
+			const bounds = texture?.sampledBounds();
+			for (const [index, expected] of (mirrored
+				? [0.4, 0.1, 0.2, 0.8]
+				: [0.1, 0.4, 0.2, 0.8]
+			).entries()) {
+				expect(bounds?.at(index)).toBeCloseTo(expected);
+			}
 		}
 		tab.setSideTabBackground(false, mirrored);
 		expect(textures.at(1)?.SetTexture).toHaveBeenLastCalledWith(undefined);
@@ -97,6 +107,12 @@ it.each([false, true])(
 		const reused = new Frame("reused", pool);
 		reused.setSideTabBackground(false, !mirrored);
 		expect(textures).toHaveLength(3);
+		expect(textures.at(0)?.SetTexCoord).toHaveBeenLastCalledWith(
+			mirrored ? 0 : 1,
+			mirrored ? 1 : 0,
+			0,
+			1,
+		);
 		expect(textures.at(1)?.SetTexture).toHaveBeenLastCalledWith(undefined);
 		expect(textures.at(2)?.SetTexture).toHaveBeenLastCalledWith(undefined);
 	},

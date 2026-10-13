@@ -9,34 +9,17 @@ export function applySideTabSkin(
 	mirrored: boolean,
 	hovered: boolean,
 ): void {
-	const atlasClient = C_Texture as unknown as {
-		GetAtlasInfo(
-			this: void,
-			atlas: string,
-		): {
-			leftTexCoord: number;
-			rightTexCoord: number;
-			topTexCoord: number;
-			bottomTexCoord: number;
-		};
-	};
 	const draw = (texture: WowTexture, atlas: string, visible: boolean) => {
 		texture.ClearAllPoints();
 		if (!visible) {
 			texture.SetTexture(undefined);
 			return;
 		}
+		// Atlas UVs are local to the atlas region. Match Blizzard's NineSlice.lua:
+		// set the normalized flip before applying the atlas, including on reuse.
+		texture.SetTexCoord(mirrored ? 1 : 0, mirrored ? 0 : 1, 0, 1);
 		texture.SetAtlas(atlas, true);
 		texture.SetPoint("CENTER", frame, "CENTER", 0, 0);
-		if (mirrored) {
-			const info = atlasClient.GetAtlasInfo(atlas);
-			texture.SetTexCoord(
-				info.rightTexCoord,
-				info.leftTexCoord,
-				info.topTexCoord,
-				info.bottomTexCoord,
-			);
-		}
 	};
 	draw(pool.getBackground(frame), "common-sidetab", true);
 	draw(
