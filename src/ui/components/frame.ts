@@ -54,6 +54,7 @@ export class Frame implements IUIComponent {
 	private flipbook?: FlipbookAnimation;
 	private animatedAtlas?: AnimatedAtlas;
 	private native?: WowFrame;
+	private scrollIndicator?: WowTexture;
 	private clickBindings?: SecureClickBindings;
 	private hoverTooltipConfigured = false;
 	private hoverTooltip?: Frame;
@@ -121,7 +122,15 @@ export class Frame implements IUIComponent {
 		const native = this.acquire() as WowFrame & {
 			SetScript(script: "OnSizeChanged", handler?: (this: void) => void): void;
 		};
-		native.SetScript("OnSizeChanged", callback);
+		native.SetScript(
+			"OnSizeChanged",
+			this.scrollIndicator
+				? () => {
+						this.updateScrollIndicator();
+						callback?.();
+					}
+				: callback,
+		);
 	}
 	/** Use the standard Escape-close registry; OnHide also keeps owner state in sync. */
 	onClose(callback: (this: void) => void): void {
@@ -195,6 +204,19 @@ export class Frame implements IUIComponent {
 	setScrollContent(content: Frame): void {
 		const native = this.acquire();
 		native.SetScrollChild(content.acquire());
+		this.scrollIndicator = this.pool.getDecoration(native, "scroll-indicator");
+		const scroll = native as WowFrame & {
+			SetScript(
+				script: "OnVerticalScroll" | "OnScrollRangeChanged",
+				handler?: (this: void) => void,
+			): void;
+		};
+		scroll.SetScript("OnVerticalScroll", () => this.updateScrollIndicator());
+		scroll.SetScript("OnScrollRangeChanged", () =>
+			this.updateScrollIndicator(),
+		);
+		this.onSizeChanged();
+		this.updateScrollIndicator();
 		native.EnableMouseWheel(true);
 		native.SetScript("OnMouseWheel", (_frame, delta) => {
 			native.SetVerticalScroll(
@@ -207,6 +229,33 @@ export class Frame implements IUIComponent {
 				),
 			);
 		});
+	}
+	private updateScrollIndicator(): void {
+		if (!this.native || !this.scrollIndicator) return;
+		const native = this.native as WowFrame & { GetHeight(): number };
+		const range = native.GetVerticalScrollRange();
+		const viewport = native.GetHeight();
+		const track = Math.max(0, viewport - 8);
+		const height = Math.min(
+			track,
+			Math.max(24, (track * viewport) / Math.max(1, viewport + range)),
+		);
+		const progress =
+			range > 0
+				? Math.max(0, Math.min(1, native.GetVerticalScroll() / range))
+				: 0;
+		const thumb = this.scrollIndicator;
+		thumb.ClearAllPoints();
+		thumb.SetPoint(
+			"TOPRIGHT",
+			native,
+			"TOPRIGHT",
+			-3,
+			-4 - progress * (track - height),
+		);
+		thumb.SetWidth(3);
+		thumb.SetHeight(height);
+		thumb.SetColorTexture(1, 1, 1, range > 0 && track > 0 ? 0.35 : 0);
 	}
 	resetScroll(): void {
 		this.native?.SetVerticalScroll(0);
@@ -887,6 +936,16 @@ export class Frame implements IUIComponent {
 			this.native.RegisterForDrag();
 		}
 		if (this.frameType === "ScrollFrame") {
+			const scroll = this.native as WowFrame & {
+				SetScript(
+					script: "OnVerticalScroll" | "OnScrollRangeChanged",
+					handler?: (this: void) => void,
+				): void;
+			};
+			scroll.SetScript("OnVerticalScroll", undefined);
+			scroll.SetScript("OnScrollRangeChanged", undefined);
+			this.scrollIndicator = undefined;
+			this.onSizeChanged();
 			this.native.SetScript("OnMouseWheel", undefined);
 			this.native.EnableMouseWheel(false);
 			this.native.SetVerticalScroll(0);
