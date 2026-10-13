@@ -33,6 +33,11 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "BANKFRAME_OPENED"
+	| "BANK_CONTENTS_CHANGED"
+	| "BANKFRAME_CLOSED"
+	| "BANK_TABS_CHANGED"
+	| "ACCOUNT_MONEY"
 	| keyof ApplicationEventPayloads
 	| "NAV_UP"
 	| "NAV_DOWN"

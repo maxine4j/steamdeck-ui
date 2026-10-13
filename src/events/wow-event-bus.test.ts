@@ -3,6 +3,54 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("registers and delivers native bank lifecycle, tab and warband money updates", () => {
+	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	for (const event of [
+		"BANKFRAME_OPENED",
+		"BANKFRAME_CLOSED",
+		"BANK_TABS_CHANGED",
+		"ACCOUNT_MONEY",
+	] as const) {
+		const handler = vi.fn();
+		bus.subscribe(event, handler);
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+		expect(handler).toHaveBeenCalledOnce();
+	}
+});
+
+it("delivers bank slot and lock changes even without a carried-bag delayed update", () => {
+	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const changed = vi.fn();
+	bus.subscribe("BANK_CONTENTS_CHANGED", changed);
+	for (const event of [
+		"BAG_UPDATE",
+		"PLAYERBANKSLOTS_CHANGED",
+		"PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED",
+		"ITEM_LOCK_CHANGED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(changed).toHaveBeenCalledTimes(4);
+});
+
 it("preserves collection IDs for targeted cache refreshes", () => {
 	let dispatch: (
 		frame: WowEventFrame,

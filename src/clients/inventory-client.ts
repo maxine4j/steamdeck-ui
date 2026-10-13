@@ -34,9 +34,12 @@ export interface IInventoryClient extends IInventoryActions {
 	isOpen(): boolean;
 }
 export class InventoryClient implements IInventoryClient {
+	constructor(
+		private readonly bankTarget?: { getDepositBankType(): number | undefined },
+	) {}
 	// Retail backpack, four equipped bags, and reagent bag; excludes banks.
 	private readonly bagIds = [0, 1, 2, 3, 4, 5];
-	private readonly requestedItems = new Set<number>();
+	private readonly reader = new ContainerItemReader();
 	private isCurrentUnlockedSlot(item: InventorySlot): boolean {
 		if (!this.bagIds.includes(item.bagId) || item.slotId < 1) return false;
 		const current = C_Container.GetContainerItemInfo(item.bagId, item.slotId);
@@ -49,13 +52,18 @@ export class InventoryClient implements IInventoryClient {
 	}
 	useItem(item: InventorySlot): void {
 		if (!this.isCurrentUnlockedSlot(item)) return;
+		const bankType = this.bankTarget?.getDepositBankType();
+		if (bankType !== undefined && !C_Bank.CanUseBank(bankType)) return;
 		// The generated signature incorrectly requires optional trailing arguments.
 		const use = C_Container.UseContainerItem as unknown as (
 			this: void,
 			bag: number,
 			slot: number,
+			unit?: string,
+			bankType?: number,
 		) => void;
-		use(item.bagId, item.slotId);
+		if (bankType === undefined) use(item.bagId, item.slotId);
+		else use(item.bagId, item.slotId, undefined, bankType);
 	}
 	pickupItem(item: InventorySlot): void {
 		if (CursorHasItem() || !this.isCurrentUnlockedSlot(item)) return;
@@ -79,8 +87,16 @@ export class InventoryClient implements IInventoryClient {
 		return this.bagIds.some((bagId) => IsBagOpen(bagId));
 	}
 	getItems(): InventoryItem[] {
+		return this.reader.getItems(this.bagIds);
+	}
+}
+
+/** Shared Retail container classification for carried bags and bank tabs. */
+export class ContainerItemReader {
+	private readonly requestedItems = new Set<number>();
+	getItems(bagIds: readonly number[]): InventoryItem[] {
 		const items: InventoryItem[] = [];
-		for (const bagId of this.bagIds) {
+		for (const bagId of bagIds) {
 			const slots = C_Container.GetContainerNumSlots(bagId);
 			for (let slotId = 1; slotId <= slots; slotId++) {
 				const item = C_Container.GetContainerItemInfo(bagId, slotId);

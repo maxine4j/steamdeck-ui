@@ -1,6 +1,7 @@
 import type { IAchievementsClient } from "./clients/achievements-client";
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { IAddonConfigClient } from "./clients/addon-config-client";
+import type { IBankClient } from "./clients/bank-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
 import { CollectionsClient } from "./clients/collections-client";
@@ -30,6 +31,10 @@ import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
 import { ItemActionMenu } from "./modules/bags/item-action-menu";
+import { ItemGrouping } from "./modules/bags/item-grouping";
+import { BankModule } from "./modules/bank/bank-module";
+import { BankPanel } from "./modules/bank/bank-panel";
+import { BuiltInBank } from "./modules/bank/built-in-bank";
 import { ControllerInputModule } from "./modules/controller-input/controller-input-module";
 import { BuiltInCurrency } from "./modules/currency/built-in-currency";
 import { CurrencyModule } from "./modules/currency/currency-module";
@@ -80,6 +85,40 @@ import { PanelContainer } from "./ui/panel/panel-container";
 import { UIOrchestrator } from "./ui/ui-orchestrator";
 
 // Keep feature construction in small functions: WoW limits Lua closures to 60 upvalues.
+function registerBank(
+	pool: FramePoolManager,
+	navigation: NavigationManager,
+	events: IEventBus,
+	ui: UIOrchestrator,
+	modules: ModuleManager,
+	bank: IBankClient,
+	scheduler: ITaskScheduler,
+	grouping: ItemGrouping,
+) {
+	const modal = new Modal("bank-options", pool, navigation, events);
+	const panels = [
+		new BankPanel("standard", pool, bank, modal, scheduler, grouping),
+		new BankPanel("warband", pool, bank, modal, scheduler, grouping),
+	];
+	for (const panel of panels) ui.registerPanel(panel, "left", "bank");
+	modules.register(
+		new BankModule(
+			ui,
+			events,
+			bank,
+			panels,
+			new BuiltInBank(new FrameSuppression(pool)),
+			scheduler,
+		),
+	);
+	return {
+		destroy(): void {
+			for (const panel of panels) panel.destroy();
+			modal.destroy();
+		},
+	};
+}
+
 function registerMap(
 	pool: FramePoolManager,
 	navigation: NavigationManager,
@@ -161,6 +200,7 @@ export function startSteamDeckUI(
 	slashCommands: ISlashCommandsClient,
 	config: IAddonConfigClient,
 	map: IMapClient,
+	bank: IBankClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -214,6 +254,7 @@ export function startSteamDeckUI(
 						: {},
 			),
 	);
+	const grouping = new ItemGrouping();
 	const panel = new BagsPanel(
 		"bags",
 		"Bags",
@@ -222,6 +263,7 @@ export function startSteamDeckUI(
 		inventory,
 		itemMenu,
 		scheduler,
+		grouping,
 	);
 	ui.registerPanel(panel, "right");
 	const currencyOptions = new CurrencyOptions(
@@ -243,6 +285,16 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const bankFeature = registerBank(
+		pool,
+		navigation,
+		events,
+		ui,
+		modules,
+		bank,
+		scheduler,
+		grouping,
+	);
 	const mapFeature = registerMap(
 		pool,
 		navigation,
@@ -442,6 +494,7 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			bankFeature.destroy();
 			mapFeature.panel.destroy();
 			mapFeature.modal.destroy();
 			dialoguePanel.destroy();

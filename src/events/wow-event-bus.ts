@@ -36,6 +36,18 @@ const vendorEvents = [
 	"GUILDBANK_UPDATE_MONEY",
 	"GUILDBANK_UPDATE_WITHDRAWMONEY",
 ] as const;
+const bankEvents = [
+	"BANKFRAME_OPENED",
+	"BANKFRAME_CLOSED",
+	"BANK_TABS_CHANGED",
+	"ACCOUNT_MONEY",
+] as const;
+const bankContentEvents = [
+	"BAG_UPDATE",
+	"PLAYERBANKSLOTS_CHANGED",
+	"PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED",
+	"ITEM_LOCK_CHANGED",
+];
 export interface EventFrameFactory {
 	createEventFrame(): WowEventFrame;
 }
@@ -191,6 +203,8 @@ export class WowEventBus implements IEventBus {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
 		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
+		for (const event of bankEvents) this.frame.RegisterEvent(event);
+		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
@@ -224,6 +238,9 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			if (bankContentEvents.includes(event)) this.emit("BANK_CONTENTS_CHANGED");
+			if ((bankEvents as readonly string[]).includes(event))
+				this.emit(event as (typeof bankEvents)[number]);
 			if ((vendorEvents as readonly string[]).includes(event))
 				this.emit(event as (typeof vendorEvents)[number]);
 			const unit = args.at(0);

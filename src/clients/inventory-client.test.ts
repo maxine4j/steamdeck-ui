@@ -3,6 +3,30 @@ import { InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("deposits carried stacks into the selected bank type and returns to normal use when banking ends", () => {
+	let type: number | undefined = 2;
+	let usable = true;
+	vi.stubGlobal("C_Bank", { CanUseBank: () => usable });
+	const use = vi.fn();
+	vi.stubGlobal("C_Container", {
+		GetContainerItemInfo: () => ({ itemID: 42, isLocked: false }),
+		UseContainerItem: use,
+	});
+	const client = new InventoryClient({ getDepositBankType: () => type });
+	const item = { bagId: 0, slotId: 1, itemId: 42 };
+	client.useItem(item);
+	expect(use).toHaveBeenLastCalledWith(0, 1, undefined, 2);
+	type = 0;
+	client.useItem(item);
+	expect(use).toHaveBeenLastCalledWith(0, 1, undefined, 0);
+	usable = false;
+	client.useItem(item);
+	expect(use).toHaveBeenCalledTimes(2);
+	type = undefined;
+	client.useItem(item);
+	expect(use).toHaveBeenLastCalledWith(0, 1);
+});
+
 it("destroys only the selected current stack, rejecting occupied cursors, stale slots and combat", () => {
 	let combat = false;
 	let occupied = false;

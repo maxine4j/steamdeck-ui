@@ -1,6 +1,7 @@
 import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { AddonConfigClient } from "./clients/addon-config-client";
+import { BankClient } from "./clients/bank-client";
 import { CharacterClient } from "./clients/character-client";
 import { CollectionCache } from "./clients/collection-cache";
 import { ControllerInputClient } from "./clients/controller-input-client";
@@ -31,7 +32,8 @@ import { WowFrameFactory } from "./ui/wow-frame-factory";
 
 const frameFactory = new WowFrameFactory();
 const events = new WowEventBus(frameFactory);
-const inventory = new InventoryClient();
+const bank = new BankClient();
+const inventory = new InventoryClient(bank);
 const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
@@ -68,4 +70,5 @@ startSteamDeckUI(
 		new NativeCursor(new FramePoolManager(frameFactory)),
 		new NativeScrollIndicator(new FramePoolManager(frameFactory)),
 	),
+	bank,
 );

@@ -10,13 +10,16 @@ import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-import {
-	commaNumber,
-	formatMoney,
-	type GroupMode,
-	groupItems,
-} from "./bag-display";
+import { commaNumber, formatMoney, groupItems } from "./bag-display";
 import type { IItemActionMenu } from "./item-action-menu";
+import { ItemGrouping } from "./item-grouping";
+
+export interface BagsPanelPresentation {
+	readonly bottomInset?: number;
+	readonly hint?: string;
+	readonly emptyText?: string;
+	readonly showMoney?: boolean;
+}
 
 const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0.62, 0.62, 0.62],
@@ -41,7 +44,7 @@ export class BagsPanel implements IPanel {
 	private readonly viewport: Frame;
 	private readonly content: Frame;
 	private items: readonly InventoryItem[] = [];
-	private mode: GroupMode = "category";
+	private readonly unsubscribeGrouping: () => void;
 	private money = 0;
 	private mounted = false;
 	private dirty = true;
@@ -56,13 +59,23 @@ export class BagsPanel implements IPanel {
 		public readonly title: string,
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
-		private readonly actions: IInventoryActions,
+		private readonly actions: Pick<IInventoryActions, "useItem" | "pickupItem">,
 		private readonly menu: IItemActionMenu,
 		private readonly scheduler: ITaskScheduler,
+		private readonly grouping: ItemGrouping = new ItemGrouping(),
+		private readonly presentation: BagsPanelPresentation = {},
 	) {
 		this.toggle = new Frame(`${id}-group-toggle`, pool, "Button");
 		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
+		const unsubscribeGrouping = grouping.subscribe(() => {
+			this.dirty = true;
+			if (this.mounted) {
+				this.viewport.resetScroll();
+				this.render();
+			}
+		});
+		this.unsubscribeGrouping = () => unsubscribeGrouping();
 	}
 	setItems(items: readonly InventoryItem[]): void {
 		this.menu.close();
@@ -86,7 +99,8 @@ export class BagsPanel implements IPanel {
 		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
-			`${controllerIcon("X")} Use / Equip   ${controllerIcon("Y")} Actions`,
+			this.presentation.hint ??
+				`${controllerIcon("X")} Use / Equip   ${controllerIcon("Y")} Actions`,
 			"BOTTOMLEFT",
 			16,
 			16,
@@ -101,7 +115,13 @@ export class BagsPanel implements IPanel {
 			this.toggleGrouping();
 		});
 		this.toggle.show();
-		this.viewport.inset(this.frame, 16, 58, 16, 48);
+		this.viewport.inset(
+			this.frame,
+			16,
+			58,
+			16,
+			this.presentation.bottomInset ?? 48,
+		);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
@@ -115,6 +135,7 @@ export class BagsPanel implements IPanel {
 		this.renderMoney();
 	}
 	private renderMoney(): void {
+		if (this.presentation.showMoney === false) return;
 		this.frame.setLabel(
 			"money",
 			formatMoney(this.money),
@@ -140,9 +161,11 @@ export class BagsPanel implements IPanel {
 		let navRowHeight = 0;
 		this.toggle.setLabel(
 			"mode",
-			this.mode === "category" ? "Group: Category" : "Group: Expansion",
+			this.grouping.mode === "category"
+				? "Group: Category"
+				: "Group: Expansion",
 		);
-		const groups = groupItems(this.items, this.mode);
+		const groups = groupItems(this.items, this.grouping.mode);
 		let y = 0;
 		let rowHeight = 0;
 		let index = 0;
@@ -277,7 +300,9 @@ export class BagsPanel implements IPanel {
 		this.layoutContent();
 		this.content.setLabel(
 			"empty",
-			groups.length === 0 ? "Your bags are empty" : "",
+			groups.length === 0
+				? (this.presentation.emptyText ?? "Your bags are empty")
+				: "",
 			"TOPLEFT",
 			0,
 			-10,
@@ -319,9 +344,7 @@ export class BagsPanel implements IPanel {
 	}
 	private toggleGrouping(): void {
 		if (!this.mounted) return;
-		this.mode = this.mode === "category" ? "expansion" : "category";
-		this.viewport.resetScroll();
-		this.render();
+		this.grouping.toggle();
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;
@@ -339,6 +362,7 @@ export class BagsPanel implements IPanel {
 		return this.mounted ? this.navGrid : [];
 	}
 	destroy(): void {
+		this.unsubscribeGrouping();
 		this.onUnmount();
 		for (const cell of this.icons) {
 			cell.icon.destroy();

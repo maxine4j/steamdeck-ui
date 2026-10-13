@@ -474,8 +474,29 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		slashCommands,
 		{ getCurrencyFavourites: () => [], setCurrencyFavourite: vi.fn() },
 		map,
+		{
+			setOpen: vi.fn(),
+			select: vi.fn(),
+			getDepositBankType: () => undefined,
+			getItems: () => [],
+			getState: () => ({
+				available: true,
+				unlockedTabs: 2,
+				maxTabs: 5,
+				canBuyTab: false,
+				money: 0,
+				characterMoney: 0,
+				canDeposit: false,
+				canWithdraw: false,
+			}),
+			purchaseTab: vi.fn(),
+			transferMoney: vi.fn(),
+			close: vi.fn(),
+			useItem: vi.fn(),
+			pickupItem: vi.fn(),
+		},
 	);
-	expect(frames).toHaveLength(3);
+	expect(frames).toHaveLength(4);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -511,9 +532,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(4);
+	expect(frames).toHaveLength(5);
 	for (const frame of builtIns)
-		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(3));
+		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(4));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();
@@ -901,6 +922,22 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_CANCEL");
 	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
 	expect(map.close).toHaveBeenCalled();
+	app.ui.openPanel("paper-doll", "left");
+	events.emit("BANKFRAME_OPENED");
+	flush();
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("left", "bank").activePanelId).toBe("bank");
+	expect(app.ui.getContainer("right").activePanelId).toBe("bags");
+	events.emit("NAV_PANEL_NEXT");
+	flush();
+	expect(app.ui.getContainer("left", "bank").activePanelId).toBe(
+		"warband-bank",
+	);
+	events.emit("NAV_PANEL_NEXT");
+	flush();
+	expect(app.ui.getContainer("left", "bank").activePanelId).toBe("bank");
+	events.emit("BANKFRAME_CLOSED");
+	expect(app.ui.getContainer("left", "bank").activePanelId).toBeUndefined();
 	app.stop();
 	expect(map.disable).toHaveBeenCalledOnce();
 	expect(map.restore).toHaveBeenCalledOnce();
