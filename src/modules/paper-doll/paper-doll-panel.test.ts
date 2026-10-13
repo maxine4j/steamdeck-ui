@@ -229,6 +229,9 @@ it("fits equipment around a character model with stats below, reuses controls an
 	expect(content?.texts).toContain("Mings");
 	expect(content?.texts).toContain("|cff40ff40<Deck Crew>|r");
 	expect(content?.texts).toContain("Level 80 · Night Elf · Feral Druid");
+	expect(content?.labels.at(0)?.SetPoint.mock.lastCall?.at(4)).toBe(-8);
+	expect(content?.labels.at(1)?.SetPoint.mock.lastCall?.at(4)).toBe(-36);
+	expect(content?.labels.at(2)?.SetPoint.mock.lastCall?.at(4)).toBe(-58);
 	expect(content?.SetSize).toHaveBeenLastCalledWith(500, 650);
 	expect(content?.SetPoint.mock.lastCall?.at(4)).toBe(-175);
 	expect(
@@ -248,6 +251,8 @@ it("fits equipment around a character model with stats below, reuses controls an
 		className: "Druid",
 	});
 	expect(content?.texts).toContain("Level 80 · Night Elf · Druid");
+	expect(content?.labels.at(0)?.SetPoint.mock.lastCall?.at(4)).toBe(-8);
+	expect(content?.labels.at(2)?.SetPoint.mock.lastCall?.at(4)).toBe(-36);
 	expect(content?.labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
 	expect(content?.SetSize).toHaveBeenLastCalledWith(500, 628);
 	expect(content?.SetPoint.mock.lastCall?.at(4)).toBe(-186);

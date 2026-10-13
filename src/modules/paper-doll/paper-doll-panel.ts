@@ -88,13 +88,13 @@ export class PaperDollPanel implements IPanel {
 		this.identityDirty = false;
 		const identity = this.identity;
 		if (!identity) return;
-		this.content.setLabel("name", identity.name, "TOP", 0, 0, 22, 468);
+		this.content.setLabel("name", identity.name, "TOP", 0, -8, 22, 468);
 		this.content.setLabel(
 			"guild",
 			identity.guild ? `|cff40ff40<${identity.guild}>|r` : "",
 			"TOP",
 			0,
-			-28,
+			-36,
 			14,
 			468,
 		);
@@ -106,7 +106,7 @@ export class PaperDollPanel implements IPanel {
 			`Level ${identity.level} · ${identity.race} · ${classDescription}`,
 			"TOP",
 			0,
-			identity.guild ? -50 : -28,
+			identity.guild ? -58 : -36,
 			13,
 			468,
 		);
