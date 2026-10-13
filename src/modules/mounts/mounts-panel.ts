@@ -13,6 +13,7 @@ import { groupMounts } from "./mount-display";
 const columns = 10;
 const spacing = 46;
 interface MountCell {
+	navId?: string;
 	readonly border: Frame;
 	readonly favourite: Frame;
 	readonly icon: Frame;
@@ -55,6 +56,11 @@ export class MountsPanel implements IPanel {
 		{ previous: boolean; value: boolean; accepted: boolean }
 	>();
 	private navigationChanged?: () => void;
+	private readonly navigationScroll = {
+		scrollToEdge: (direction: "up" | "down") => {
+			if (!this.dirty) this.viewport.scrollToEdge(direction);
+		},
+	};
 
 	constructor(
 		private readonly pool: IFramePoolManager,
@@ -100,7 +106,6 @@ export class MountsPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		this.grid = [];
 		this.navigationChanged?.();
 		if (!this.mounted) return;
 		this.frame.setLabel(
@@ -273,11 +278,26 @@ export class MountsPanel implements IPanel {
 		this.cancelRender?.();
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
+		const retained = new Map(
+			this.grid.flat().map((node) => [node.navId, node]),
+		);
+		const cellsById = new Map<string, MountCell>();
+		for (const cell of this.cells)
+			if (cell.navId) cellsById.set(cell.navId, cell);
 		const jobs: (() => void)[] = [];
 		const groups = groupMounts(mounts);
+		const wanted = new Set(
+			groups.flatMap((group) =>
+				group.mounts.map((mount) =>
+					group.id === -1 ? `mount-favourite-${mount.id}` : `mount-${mount.id}`,
+				),
+			),
+		);
+		const available = this.cells.filter(
+			(cell) => !cell.navId || !wanted.has(cell.navId),
+		);
+		for (const cell of available) cell.navId = undefined;
 		let y = 0;
-		let cellIndex = 0;
-		let renderedRows = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
 			jobs.push(() => {
@@ -306,12 +326,17 @@ export class MountsPanel implements IPanel {
 			for (let i = 0; i < Math.ceil(group.mounts.length / columns); i++)
 				grid.push([]);
 			group.mounts.forEach((mount, index) => {
-				const slot = cellIndex++;
+				const navId =
+					group.id === -1 ? `mount-favourite-${mount.id}` : `mount-${mount.id}`;
+				let cell = cellsById.get(navId) ?? available.pop();
 				const row = firstRow + Math.floor(index / columns);
+				const previous = retained.get(navId);
+				if (previous)
+					grid.at(row)?.push({ ...previous, navColumn: index % columns });
 				const cellTop = top + 28 + Math.floor(index / columns) * spacing;
 				jobs.push(() => {
-					let cell = this.cells.at(slot);
 					if (!cell) {
+						const slot = this.cells.length;
 						cell = {
 							border: new Frame(`mounts-border-${slot}`, this.pool),
 							favourite: new Frame(`mounts-favourite-${slot}`, this.pool),
@@ -319,6 +344,7 @@ export class MountsPanel implements IPanel {
 						};
 						this.cells.push(cell);
 					}
+					cell.navId = navId;
 					cell.border.setParent(this.content);
 					cell.border.layout(
 						42,
@@ -350,7 +376,7 @@ export class MountsPanel implements IPanel {
 					const current = () =>
 						this.mounted &&
 						generation === this.loadGeneration &&
-						renderGeneration === this.renderGeneration;
+						cell?.navId === navId;
 					const summon = () => {
 						if (current() && mount.collected && this.client.canUse(mount.id))
 							this.client.summon(mount.id);
@@ -361,9 +387,7 @@ export class MountsPanel implements IPanel {
 					cell.border.show();
 					cell.icon.show();
 					const node = cell.icon.navigationNode(
-						group.id === -1
-							? `mount-favourite-${mount.id}`
-							: `mount-${mount.id}`,
+						navId,
 						() => {},
 						() =>
 							this.viewport.revealVerticalRange(
@@ -372,9 +396,13 @@ export class MountsPanel implements IPanel {
 								this.contentHeight,
 							),
 					);
-					grid.at(row)?.push({
+					const navRow = grid.at(row);
+					const oldIndex =
+						navRow?.findIndex((candidate) => candidate.navId === navId) ?? -1;
+					if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
+					navRow?.push({
 						...node,
-						navigationScroll: this.viewport,
+						navigationScroll: this.navigationScroll,
 						navColumn: index % columns,
 						onAlternate: summon,
 						tooltipItem: () =>
@@ -383,7 +411,7 @@ export class MountsPanel implements IPanel {
 							if (current()) this.menu.open(mount);
 						},
 					});
-					renderedRows = row + 1;
+					navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
 				});
 			});
 			y += 28 + Math.ceil(group.mounts.length / columns) * spacing + 14;
@@ -397,11 +425,12 @@ export class MountsPanel implements IPanel {
 			0,
 			-10,
 		);
-		for (let i = cellIndex; i < this.cells.length; i++) {
-			const cell = this.cells.at(i);
+		for (const cell of available) {
 			jobs.push(() => {
-				cell?.border.hide();
-				cell?.icon.hide();
+				cell.border.hide();
+				cell.icon.hide();
+				cell.favourite.hide();
+				cell.navId = undefined;
 			});
 		}
 		for (let i = groups.length; i < this.headers.length; i++) {
@@ -423,7 +452,7 @@ export class MountsPanel implements IPanel {
 				this.setLoadingProgress(
 					jobs.length > 0 ? 0.5 + (cursor / jobs.length) * 0.5 : 1,
 				);
-			this.grid = grid.slice(0, renderedRows);
+			this.grid = grid.filter((row) => row.length > 0);
 			this.navigationChanged?.();
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);

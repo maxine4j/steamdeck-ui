@@ -51,6 +51,7 @@ export class AchievementsPanel implements IPanel {
 	private readonly cells: AchievementCell[] = [];
 	private readonly headers: Frame[] = [];
 	private mounted = false;
+	private summaryMounted = false;
 	private categories: AchievementCategory[] = [];
 	private entries = new Map<number, readonly Achievement[]>();
 	private pages: AchievementPage[] = [];
@@ -63,6 +64,7 @@ export class AchievementsPanel implements IPanel {
 	private incomplete = false;
 	private loading = false;
 	private scanning = false;
+	private queuedRefresh = false;
 	private width = 468;
 	private contentHeight = 1;
 	private grid: NavGrid = [];
@@ -73,6 +75,12 @@ export class AchievementsPanel implements IPanel {
 	private cancelScan?: () => void;
 	private cancelRender?: () => void;
 	private navigationChanged?: (focusId?: string) => void;
+	private readonly navigationScroll = {
+		scrollToEdge: (direction: "up" | "down") => {
+			if (!this.scanning && !this.renderDirty)
+				this.viewport.scrollToEdge(direction);
+		},
+	};
 	constructor(
 		private readonly pool: IFramePoolManager,
 		private readonly client: IAchievementsClient,
@@ -101,11 +109,24 @@ export class AchievementsPanel implements IPanel {
 			onChanged: (complete) => {
 				if (complete) this.renderDirty = false;
 				this.navigationChanged?.();
+				if (complete) this.flushInvalidation();
 			},
 		});
 		this.update = new DeferredRefresh(scheduler, () => this.load());
 	}
+	invalidate(): void {
+		if (this.mounted && (this.scanning || this.cancelRender)) {
+			this.queuedRefresh = true;
+			return;
+		}
+		this.refresh();
+	}
+	private flushInvalidation(): void {
+		if (!this.queuedRefresh || this.scanning || this.cancelRender) return;
+		this.refresh();
+	}
 	refresh(): void {
+		this.queuedRefresh = false;
 		this.cancelScan?.();
 		this.cancelRender?.();
 		this.cancelScan = undefined;
@@ -285,6 +306,7 @@ export class AchievementsPanel implements IPanel {
 	private finishLoading(): void {
 		this.loadingTrack.hide();
 		this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
+		this.flushInvalidation();
 	}
 	selectCategory(id?: number): void {
 		this.pendingFocus = undefined;
@@ -457,10 +479,13 @@ export class AchievementsPanel implements IPanel {
 			this.viewport.hide();
 		}
 		this.renderedPage = this.page;
-		this.list.unmount();
 		this.back.hide();
 		this.filter.hide();
 		const page = this.pages.find((p) => p.id === this.page);
+		if (page || this.loading) {
+			this.list.unmount();
+			this.summaryMounted = false;
+		}
 		this.frame.setLabel(
 			"selected",
 			page?.name ?? "Summary",
@@ -512,9 +537,12 @@ export class AchievementsPanel implements IPanel {
 			this.list.setRows([]);
 		} else if (!page) {
 			this.page = undefined;
-			this.list.setColumns(2);
-			this.list.mount(this.body);
-			this.list.setRows(this.summaryRows());
+			if (!this.summaryMounted) {
+				this.list.setColumns(2);
+				this.list.mount(this.body);
+				this.summaryMounted = true;
+			}
+			this.list.updateRows(this.summaryRows());
 		} else {
 			this.back.show();
 			this.frame.setLabel(
@@ -733,7 +761,7 @@ export class AchievementsPanel implements IPanel {
 							if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
 							navRow?.push({
 								...node,
-								navigationScroll: this.viewport,
+								navigationScroll: this.navigationScroll,
 								navColumn: side * columns + (index % columns),
 								tooltipItem: tooltip,
 							});
@@ -859,6 +887,7 @@ export class AchievementsPanel implements IPanel {
 		this.render();
 	}
 	onUnmount(): void {
+		this.summaryMounted = false;
 		this.mounted = false;
 		this.update.setActive(false);
 		this.cancelScan?.();

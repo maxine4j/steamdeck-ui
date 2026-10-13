@@ -6,7 +6,8 @@ export interface INavigable {
 	navColumn?: number;
 	/** Resolve current item data when focus or the navigation graph refreshes. */
 	tooltipItem?(): TooltipContent | undefined;
-	onFocus(): void;
+	/** Refresh restores presentation without revealing an unchanged focus again. */
+	onFocus(refresh?: boolean): void;
 	/** Shared viewport identity and generic scrolling operations for this control. */
 	navigationScroll?: { scrollToEdge(direction: "up" | "down"): void };
 	onBlur(): void;

@@ -437,9 +437,9 @@ export class Frame implements IUIComponent {
 	): INavigable {
 		return {
 			navId,
-			onFocus: () => {
+			onFocus: (refresh) => {
 				this.setFocused(true);
-				focus?.();
+				if (!refresh) focus?.();
 			},
 			onBlur: () => this.setFocused(false),
 			onInteract: () => interact(),

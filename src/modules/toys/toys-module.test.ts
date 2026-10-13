@@ -5,7 +5,11 @@ import { ToysModule } from "./toys-module";
 it("opens toys on the right, refreshes data and cooldowns separately, and restores built-in UI", () => {
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
-	const view = { refresh: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() };
+	const view = {
+		invalidate: vi.fn(),
+		refreshCooldowns: vi.fn(),
+		resume: vi.fn(),
+	};
 	const native = {
 		disable: vi.fn(),
 		restore: vi.fn(),
@@ -25,7 +29,7 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	expect(ui.closePanel).toHaveBeenCalledWith("right", "toys");
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");
-	expect(view.refresh).toHaveBeenCalledTimes(2);
+	expect(view.invalidate).toHaveBeenCalledTimes(2);
 	events.emit("TOYS_COOLDOWN_CHANGED");
 	expect(view.refreshCooldowns).toHaveBeenCalledOnce();
 	events.emit("COMBAT_ENDED");
@@ -34,7 +38,7 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");
 	events.emit("TOYS_COOLDOWN_CHANGED");
-	expect(view.refresh).toHaveBeenCalledTimes(2);
+	expect(view.invalidate).toHaveBeenCalledTimes(2);
 	expect(view.refreshCooldowns).toHaveBeenCalledTimes(1);
 	expect(native.restore).toHaveBeenCalledOnce();
 });
@@ -45,7 +49,7 @@ it("warms the toy journal at initialization and invalidates item metadata before
 	const module = new ToysModule(
 		{ openPanel: vi.fn(), closePanel: vi.fn() },
 		events,
-		{ refresh: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() },
+		{ invalidate: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() },
 		{ disable: vi.fn(), restore: vi.fn(), isOpen: () => false },
 		journal,
 	);
@@ -68,7 +72,11 @@ it("ignores failed or unrelated item loads", () => {
 		stop: vi.fn(),
 		invalidateItem: vi.fn((id: number) => id === 42),
 	};
-	const view = { refresh: vi.fn(), refreshCooldowns: vi.fn(), resume: vi.fn() };
+	const view = {
+		invalidate: vi.fn(),
+		refreshCooldowns: vi.fn(),
+		resume: vi.fn(),
+	};
 	const module = new ToysModule(
 		{ openPanel: vi.fn(), closePanel: vi.fn() },
 		events,
@@ -79,7 +87,7 @@ it("ignores failed or unrelated item loads", () => {
 	module.initialize();
 	events.emit("ITEM_DATA_LOAD_RESULT", { id: 12, success: true });
 	events.emit("ITEM_DATA_LOAD_RESULT", { id: 42, success: false });
-	expect(view.refresh).not.toHaveBeenCalled();
+	expect(view.invalidate).not.toHaveBeenCalled();
 	events.emit("ITEM_DATA_LOAD_RESULT", { id: 42, success: true });
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.invalidate).toHaveBeenCalledOnce();
 });

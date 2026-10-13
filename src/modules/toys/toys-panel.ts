@@ -37,6 +37,8 @@ export class ToysPanel implements IPanel {
 	private parent?: Frame;
 	private mountPending = false;
 	private dirty = true;
+	private loading = false;
+	private queuedRefresh = false;
 	private generation = 0;
 	private renderGeneration = 0;
 	private renderLoadGeneration = 0;
@@ -45,6 +47,11 @@ export class ToysPanel implements IPanel {
 	private grid: NavGrid = [];
 	private contentHeight = 1;
 	private navigationChanged?: () => void;
+	private readonly navigationScroll = {
+		scrollToEdge: (direction: "up" | "down") => {
+			if (!this.dirty) this.viewport.scrollToEdge(direction);
+		},
+	};
 	constructor(
 		private readonly pool: IFramePoolManager,
 		private readonly client: IToysClient,
@@ -92,7 +99,16 @@ export class ToysPanel implements IPanel {
 			this.refreshCooldowns();
 		}
 	}
+	invalidate(): void {
+		if (this.mounted && (this.loading || this.cancelRender)) {
+			this.queuedRefresh = true;
+			return;
+		}
+		this.refresh();
+	}
 	refresh(): void {
+		this.loading = false;
+		this.queuedRefresh = false;
 		this.dirty = true;
 		const generation = ++this.generation;
 		this.cancelLoad?.();
@@ -119,10 +135,12 @@ export class ToysPanel implements IPanel {
 		this.loadingProgress.setColor(1, 0.82, 0);
 		this.loadingTrack.show();
 		this.setLoadingProgress(0);
+		this.loading = true;
 		this.cancelLoad = this.client.load(
 			(toys) => {
 				if (!this.mounted || generation !== this.generation) return;
 				this.cancelLoad = undefined;
+				this.loading = false;
 				this.toys = toys;
 				if (!this.client.isInCombat()) this.render(generation);
 			},
@@ -297,7 +315,7 @@ export class ToysPanel implements IPanel {
 					if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
 					navRow?.push({
 						...node,
-						navigationScroll: this.viewport,
+						navigationScroll: this.navigationScroll,
 						navColumn: index % columns,
 						tooltipItem: () => (current() ? { toy: toy.id } : undefined),
 						secureActions: () => ({
@@ -369,6 +387,8 @@ export class ToysPanel implements IPanel {
 				this.displayedCells = displayedCells.slice(0, renderedToys);
 				this.navigationChanged?.();
 			}
+			if (complete && cursor === jobs.length && this.queuedRefresh)
+				this.refresh();
 		};
 		this.cancelRender = this.scheduler.nextFrame(step);
 	}
@@ -401,6 +421,8 @@ export class ToysPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.loading = false;
+		if (this.queuedRefresh) this.dirty = true;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
 		this.cancelRender?.();

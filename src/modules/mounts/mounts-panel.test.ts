@@ -1,10 +1,52 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { Frame } from "../../ui/components/frame";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { MountsPanel } from "./mounts-panel";
 
 afterEach(() => vi.restoreAllMocks());
+
+it("retains a focused mount across refreshes and reordered loading snapshots", () => {
+	const { panel, parent, client, pending, flush, publish } = setup();
+	const nav = new NavigationManager(createTestEventBus());
+	panel.onMount(parent);
+	const mounts = Array.from({ length: 40 }, (_, index) => ({
+		...mount(index + 1),
+		name: `Mount ${String(index + 1).padStart(2, "0")}`,
+	}));
+	publish(mounts.slice(10, 30));
+	nav.registerGrid("mounts", () => panel.getNavGrid());
+	nav.setActiveGrid("mounts");
+	panel.setNavigationChanged(() => nav.refreshGrid("mounts"));
+	nav.refreshGrid("mounts", "mount-21");
+	panel.refresh();
+	expect(nav.focusedId).toBe("mount-21");
+	vi.mocked(client.load).mock.calls.at(-1)?.at(1)?.(mounts.slice(10, 30));
+	flush();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-21")
+		?.navigationScroll?.scrollToEdge("down");
+	expect(Frame.prototype.scrollToEdge).not.toHaveBeenCalled();
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(mounts, {
+		collected: 40,
+		total: 40,
+	});
+	while (pending.length) {
+		pending.shift()?.();
+		expect(nav.focusedId).toBe("mount-21");
+		const focused = panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "mount-21");
+		expect(focused?.tooltipItem?.()).toEqual({ mountSpell: 21 });
+	}
+	nav.destroy();
+	panel.destroy();
+});
 it("shows Blizzard's favourite star and clears it when a cell is reused", () => {
 	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
@@ -414,11 +456,11 @@ it("reuses pooled icons on refresh and hides surplus controls when favourites di
 	const reused = vi
 		.mocked(Frame.prototype.setIcon)
 		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
-	expect(reused).toEqual(icons.slice(0, 2));
+	expect(reused).toEqual(icons.slice(1, 3));
 	expect(
 		vi
 			.mocked(Frame.prototype.hide)
-			.mock.contexts.some((frame) => frame.id === "mounts-icon-2"),
+			.mock.contexts.some((frame) => frame.id === "mounts-icon-0"),
 	).toBe(true);
 	expect(
 		panel

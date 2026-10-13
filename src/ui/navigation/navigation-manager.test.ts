@@ -1,5 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { createTestEventBus } from "../../events/test-event-bus";
+import { Frame } from "../components/frame";
+import type { IFramePoolManager } from "../frame-pool-manager";
 import { NavigationManager } from "./navigation-manager";
 import type { INavigable, NavGrid } from "./types";
 
@@ -8,6 +10,48 @@ const node = (navId: string): INavigable => ({
 	onFocus: vi.fn(),
 	onBlur: vi.fn(),
 	onInteract: vi.fn(),
+});
+
+it("does not pull a held D-pad boundary scroll back to the focused row on batch refresh", () => {
+	const focused = vi
+		.spyOn(Frame.prototype, "setFocused")
+		.mockImplementation(() => {});
+	try {
+		let scroll = 0;
+		const viewport = {
+			scrollToEdge: () => {
+				scroll = 1000;
+			},
+		};
+		const frame = new Frame("last", {} as IFramePoolManager);
+		const makeLast = () => ({
+			...frame.navigationNode("last", vi.fn(), () => {
+				scroll = 100;
+			}),
+			navigationScroll: viewport,
+		});
+		let last = makeLast();
+		const manager = new NavigationManager(createTestEventBus());
+		manager.registerGrid("collection", () => [[node("first")], [last]]);
+		manager.setActiveGrid("collection");
+		manager.moveDown();
+		expect(scroll).toBe(100);
+		for (let batch = 0; batch < 3; batch++) {
+			manager.moveDown();
+			expect(scroll).toBe(1000);
+			last = makeLast();
+			manager.refreshGrid("collection");
+			expect(manager.focusedId).toBe("last");
+			expect(scroll).toBe(1000);
+			expect(focused).toHaveBeenLastCalledWith(true);
+		}
+		manager.moveUp();
+		manager.moveDown();
+		expect(scroll).toBe(100);
+		manager.destroy();
+	} finally {
+		focused.mockRestore();
+	}
 });
 
 it("routes D-pad input to a continuous control without changing focus", () => {

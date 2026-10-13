@@ -7,9 +7,9 @@ export class AchievementsModule implements IModule {
 	readonly id = "achievements";
 	private readonly refresh = (payload?: { id: number }) => {
 		this.journal?.invalidate?.(payload?.id);
-		this.view.refresh();
+		this.view.invalidate();
 	};
-	private readonly cacheUpdated = () => this.view.refresh();
+	private readonly cacheUpdated = () => this.view.invalidate();
 	private readonly sync = () => {
 		if (this.native.isOpen()) this.ui.openPanel(this.id, "left");
 		else this.ui.closePanel("left", this.id);
@@ -22,7 +22,7 @@ export class AchievementsModule implements IModule {
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
 		private readonly view: {
-			refresh(): void;
+			invalidate(): void;
 			selectAchievement(id: number): void;
 		},
 		private readonly native: IBuiltInAchievements,

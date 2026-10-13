@@ -10,7 +10,7 @@ import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { AchievementsPanel } from "./achievements-panel";
 
 afterEach(() => vi.restoreAllMocks());
-it("activates real deferred category controls before the scan completes and keeps them active across count updates", () => {
+function setup() {
 	for (const method of [
 		"fill",
 		"inset",
@@ -103,6 +103,11 @@ it("activates real deferred category controls before the scan completes and keep
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
 	};
+	return { panel, nav, client, completions, pending, flush };
+}
+
+it("activates real deferred category controls before the scan completes and keeps them active across count updates", () => {
+	const { panel, nav, client, completions, flush } = setup();
 	flush();
 	expect(completions.has(92)).toBe(true);
 	expect(completions.has(96)).toBe(false);
@@ -116,4 +121,24 @@ it("activates real deferred category controls before the scan completes and keep
 	nav.interact();
 	expect(nav.focusedId).toBe("achievements-back");
 	expect(completions.has(777)).toBe(false);
+	nav.destroy();
+	panel.destroy();
+});
+
+it("retains summary focus through the final cold-load publication with the real deferred list", () => {
+	const { panel, nav, client, completions, pending, flush } = setup();
+	flush();
+	completions.get(92)?.([client.achievement(6)]);
+	flush();
+	nav.moveRight();
+	expect(nav.focusedId).toBe("summary-category-Quests");
+	completions.get(96)?.([client.achievement(503)]);
+	flush();
+	completions.get(777)?.([]);
+	while (pending.length) {
+		pending.shift()?.();
+		expect(nav.focusedId).toBe("summary-category-Quests");
+	}
+	nav.destroy();
+	panel.destroy();
 });

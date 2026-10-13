@@ -8,7 +8,7 @@ export class ToysModule implements IModule {
 	readonly id = "toys";
 	private readonly refresh = (payload?: { id: number }) => {
 		this.journal.invalidate(payload?.id);
-		this.view.refresh();
+		this.view.invalidate();
 	};
 	private readonly cooldown = () => this.view.refreshCooldowns();
 	private readonly itemLoaded = (payload?: {
@@ -24,7 +24,7 @@ export class ToysModule implements IModule {
 			this.refresh(payload);
 			return;
 		}
-		if (this.journal.invalidateItem(payload.id)) this.view.refresh();
+		if (this.journal.invalidateItem(payload.id)) this.view.invalidate();
 	};
 	private readonly resume = () => this.view.resume();
 	private readonly sync = () => {
@@ -35,7 +35,7 @@ export class ToysModule implements IModule {
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
 		private readonly view: {
-			refresh(): void;
+			invalidate(): void;
 			refreshCooldowns(): void;
 			resume(): void;
 		},

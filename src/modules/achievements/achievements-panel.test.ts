@@ -483,6 +483,54 @@ it("keeps publishing category counts when an event restarts the initial scan", (
 			?.rows.find((row) => row.id === "summary-category-Quests")?.trailingLabel,
 	).toBe("Loading...");
 });
+
+it("keeps an early achievement usable through cache invalidations and follows up once", () => {
+	const { panel, client, step, flush } = setup(false);
+	let complete: ((rows: Achievement[]) => void) | undefined;
+	vi.mocked(client.loadCategory).mockImplementation((id, done, partial) => {
+		if (id === 92) {
+			complete = done;
+			partial?.(1, 2, [achievement(6)]);
+		} else done([]);
+		return vi.fn();
+	});
+	step();
+	step();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "summary-category-Characters")
+		?.onInteract();
+	flush();
+	edges.mockClear();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "achievement-6")
+		?.navigationScroll?.scrollToEdge("down");
+	expect(edges).not.toHaveBeenCalled();
+	for (let event = 0; event < 5; event++) panel.invalidate();
+	expect(client.loadCategory).toHaveBeenCalledOnce();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "achievement-6")
+			?.tooltipItem?.(),
+	).toBeDefined();
+	complete?.([achievement(6), achievement(7)]);
+	flush();
+	expect(
+		vi.mocked(client.loadCategory).mock.calls.filter(([id]) => id === 92),
+	).toHaveLength(2);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "achievement-7"),
+	).toBe(true);
+	panel.destroy();
+});
 it("reuses the complete category grid and its controls on an unchanged reopen", () => {
 	const { panel, parent, activate, flush } = setup();
 	activate("summary-category-Quests");

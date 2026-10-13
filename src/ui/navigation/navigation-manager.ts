@@ -117,7 +117,8 @@ export class NavigationManager implements INavManager {
 			typeof source === "function" ? source() : (source ?? []),
 		);
 		const id = focusId ?? this.focusedId ?? this.remembered.get(panelId);
-		this.setFocus((id ? this.graph.get(id) : undefined) ?? this.graph.first);
+		const control = (id ? this.graph.get(id) : undefined) ?? this.graph.first;
+		this.setFocus(control, control?.navId === this.focusedId);
 		this.onActiveChanged?.(true);
 	}
 	unregisterGrid(panelId: string): void {
@@ -135,17 +136,17 @@ export class NavigationManager implements INavManager {
 		if (previous) this.setActiveGrid(previous);
 		else this.onActiveChanged?.(false);
 	}
-	private setFocus(control?: INavigable): void {
+	private setFocus(control?: INavigable, refresh = false): void {
 		if (control === this.focused) {
 			// A render may reset styling even when it reuses the focused control.
-			control?.onFocus();
+			control?.onFocus(refresh);
 			this.onFocusChanged?.(control);
 			return;
 		}
 		this.focused?.onBlur();
 		this.focused = control;
 		if (control && this.active) this.remembered.set(this.active, control.navId);
-		control?.onFocus();
+		control?.onFocus(refresh);
 		this.onFocusChanged?.(control);
 	}
 	private move(direction: NavDirection): void {

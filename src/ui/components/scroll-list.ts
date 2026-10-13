@@ -126,9 +126,9 @@ export class ScrollList {
 	}
 	/** Update existing controls without withdrawing their navigation readiness. */
 	updateRows(rows: readonly ListRow[]): void {
-		const sameLayout =
-			rows.length === this.rows.length &&
-			this.rows.every((row, index) => {
+		const samePrefixLayout = this.rows
+			.slice(0, Math.min(rows.length, this.rows.length))
+			.every((row, index) => {
 				const next = rows.at(index);
 				return (
 					next?.id === row.id &&
@@ -140,7 +140,7 @@ export class ScrollList {
 					(next.secondary !== undefined) === (row.secondary !== undefined)
 				);
 			});
-		if (!sameLayout) {
+		if (!samePrefixLayout) {
 			this.setRows(rows);
 			return;
 		}
@@ -206,7 +206,9 @@ export class ScrollList {
 	private render(startRow = 0, retainReady = false): void {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		const readyRows = retainReady ? this.renderedRows : startRow;
+		const readyRows = retainReady
+			? Math.min(this.renderedRows, this.rows.length)
+			: startRow;
 		this.renderedRows = readyRows;
 		this.options.onChanged?.(false);
 		const width =
@@ -290,9 +292,9 @@ export class ScrollList {
 						secondaryNav: {
 							navId: `${row.id}-secondary`,
 							navigationScroll: this.scroll,
-							onFocus: () => {
+							onFocus: (refresh) => {
 								secondary.setFocused(true);
-								this.reveal(index);
+								if (!refresh) this.reveal(index);
 							},
 							onBlur: () => secondary.setFocused(false),
 							onInteract: () => {
@@ -303,14 +305,14 @@ export class ScrollList {
 						nav: {
 							navId: row.id,
 							navigationScroll: this.scroll,
-							onFocus: () => {
+							onFocus: (refresh) => {
 								if (this.rows.at(index)?.animatedIcon) {
 									this.style(index);
 									frame.setBorder([1, 0.82, 0, 1]);
 									const control = this.buttons.at(index);
 									if (control) control.animatedFocus = true;
 								} else frame.setFocused(true);
-								this.reveal(index);
+								if (!refresh) this.reveal(index);
 								const tooltip = this.rows.at(index)?.tooltipContent;
 								if (tooltip !== undefined) frame.showTooltip(tooltip);
 							},

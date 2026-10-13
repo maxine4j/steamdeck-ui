@@ -5,7 +5,7 @@ import { AchievementsModule } from "./achievements-module";
 it("routes bindings, specific achievements and updates through injected dependencies", () => {
 	const events = createTestEventBus();
 	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
-	const view = { refresh: vi.fn(), selectAchievement: vi.fn() };
+	const view = { invalidate: vi.fn(), selectAchievement: vi.fn() };
 	const native = {
 		disable: vi.fn(),
 		restore: vi.fn(),
@@ -20,10 +20,10 @@ it("routes bindings, specific achievements and updates through injected dependen
 	events.emit("ACHIEVEMENTS_SELECTED", { id: 123 });
 	expect(view.selectAchievement).toHaveBeenCalledWith(123);
 	events.emit("ACHIEVEMENTS_CHANGED");
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.invalidate).toHaveBeenCalledOnce();
 	module.shutdown();
 	events.emit("ACHIEVEMENTS_CHANGED");
-	expect(view.refresh).toHaveBeenCalledOnce();
+	expect(view.invalidate).toHaveBeenCalledOnce();
 	expect(native.restore).toHaveBeenCalledOnce();
 });
 
@@ -32,7 +32,7 @@ it("closes the left achievement pane when the native UI is hidden", () => {
 	const module = new AchievementsModule(
 		ui,
 		createTestEventBus(),
-		{ refresh: vi.fn(), selectAchievement: vi.fn() },
+		{ invalidate: vi.fn(), selectAchievement: vi.fn() },
 		{ disable: vi.fn(), restore: vi.fn(), close: vi.fn(), isOpen: () => false },
 	);
 	module.initialize();
@@ -42,7 +42,7 @@ it("closes the left achievement pane when the native UI is hidden", () => {
 it("starts and stops login backfill and routes targeted changes and cache updates", () => {
 	const events = createTestEventBus();
 	const journal = { prefetch: vi.fn(), stop: vi.fn(), invalidate: vi.fn() };
-	const view = { refresh: vi.fn(), selectAchievement: vi.fn() };
+	const view = { invalidate: vi.fn(), selectAchievement: vi.fn() };
 	const module = new AchievementsModule(
 		{ openPanel: vi.fn(), closePanel: vi.fn() },
 		events,
@@ -55,7 +55,7 @@ it("starts and stops login backfill and routes targeted changes and cache update
 	events.emit("ACHIEVEMENTS_CHANGED", { id: 42 });
 	expect(journal.invalidate).toHaveBeenCalledWith(42);
 	events.emit("ACHIEVEMENTS_CACHE_UPDATED");
-	expect(view.refresh).toHaveBeenCalledTimes(2);
+	expect(view.invalidate).toHaveBeenCalledTimes(2);
 	module.shutdown();
 	expect(journal.stop).toHaveBeenCalledOnce();
 });

@@ -7,6 +7,25 @@ import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
 
 afterEach(() => vi.restoreAllMocks());
+it("keeps early toys usable through item-data invalidations and refreshes once after loading", () => {
+	const { panel, parent, client, menu, flush } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(2)?.([toy(1)]);
+	flush();
+	panel.getNavGrid().at(0)?.at(0)?.navigationScroll?.scrollToEdge("down");
+	expect(Frame.prototype.scrollToEdge).not.toHaveBeenCalled();
+	for (let event = 0; event < 5; event++) panel.invalidate();
+	expect(client.load).toHaveBeenCalledOnce();
+	const first = panel.getNavGrid().at(0)?.at(0);
+	expect(first?.secureActions?.().alternate).toBeDefined();
+	first?.onContext?.();
+	expect(menu.open).toHaveBeenCalledExactlyOnceWith(toy(1));
+	load?.at(0)?.([toy(1), toy(2)]);
+	flush();
+	expect(client.load).toHaveBeenCalledTimes(2);
+	panel.destroy();
+});
 it("shows Blizzard's favourite star and clears it when a cell is reused", () => {
 	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
