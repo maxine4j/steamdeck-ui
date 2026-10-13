@@ -339,7 +339,7 @@ it("keeps the native area name above the fullscreen map artwork", () => {
 	);
 });
 
-it("left clicks quest pins and blobs before waypoints using virtual coordinates; right click navigates out", () => {
+it("left clicks pins, quests and zones before waypoints using virtual coordinates; right click navigates out", () => {
 	const { client, cursor, frame } = setup();
 	const pin = { questID: 7, IsShown: () => true, OnClick: vi.fn() };
 	const blob = {
@@ -370,7 +370,9 @@ it("left clicks quest pins and blobs before waypoints using virtual coordinates;
 		ShouldZoomInOnClick: () => false,
 		ZoomOut: vi.fn(),
 	});
-	const zone = vi.fn(() => ({ mapID: 202 }));
+	const zone = vi.fn<() => { mapID: number } | undefined>(() => ({
+		mapID: 202,
+	}));
 	Object.assign(C_Map, { GetMapInfoAtPosition: zone });
 	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(true);
 	client.clickMap("LeftButton");
@@ -395,12 +397,17 @@ it("left clicks quest pins and blobs before waypoints using virtual coordinates;
 	blob.UpdateMouseOverTooltip.mockReturnValue([0, 0]);
 	client.clickMap("LeftButton");
 	expect(normalize).toHaveBeenCalledWith(420, 300);
+	expect(zone).toHaveBeenCalledWith(101, 0.25, 0.75, false);
+	expect(frame.SetMapID).toHaveBeenCalledWith(202);
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
+	zone.mockReturnValue(undefined);
+	frame.SetMapID.mockClear();
+	client.clickMap("LeftButton");
 	expect(C_Map.SetUserWaypoint).toHaveBeenCalledWith({
 		uiMapID: 101,
 		x: 0.25,
 		y: 0.75,
 	});
-	expect(zone).not.toHaveBeenCalled();
 	expect(frame.SetMapID).not.toHaveBeenCalled();
 	client.clickMap("RightButton");
 	expect(frame.NavigateToParentMap).toHaveBeenCalledOnce();

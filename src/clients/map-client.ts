@@ -624,6 +624,21 @@ export class MapClient implements IMapClient {
 		}
 		// Tooltip-only markers still occupy this location; do not drop a pin on them.
 		if (this.hoveredPin) return;
+		if (scroll.ShouldNavigateOnClick()) {
+			const zone = (
+				C_Map.GetMapInfoAtPosition as unknown as (
+					this: void,
+					id: number,
+					x: number,
+					y: number,
+					ignore: boolean,
+				) => { mapID: number } | undefined
+			)(map.GetMapID(), x, y, scroll.ShouldNavigateIgnoreZoneMapPositionData());
+			if (zone) {
+				map.SetMapID(zone.mapID);
+				return;
+			}
+		}
 		if (C_Map.CanSetUserWaypointOnMap(map.GetMapID())) {
 			// The generated API declarations flatten UiMapPoint into a number.
 			(
@@ -632,19 +647,7 @@ export class MapClient implements IMapClient {
 					point: ReturnType<typeof UiMapPoint.CreateFromCoordinates>,
 				) => boolean
 			)(UiMapPoint.CreateFromCoordinates(map.GetMapID(), x, y));
-			return;
 		}
-		if (!scroll.ShouldNavigateOnClick()) return;
-		const zone = (
-			C_Map.GetMapInfoAtPosition as unknown as (
-				this: void,
-				id: number,
-				x: number,
-				y: number,
-				ignore: boolean,
-			) => { mapID: number } | undefined
-		)(map.GetMapID(), x, y, scroll.ShouldNavigateIgnoreZoneMapPositionData());
-		if (zone) map.SetMapID(zone.mapID);
 	}
 	navigation(): MapQuestNavigation[] {
 		if (!this.parent || this.details) return [];
