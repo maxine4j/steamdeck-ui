@@ -68,6 +68,7 @@ function setup() {
 		"setFocused",
 		"destroy",
 		"revealVerticalRange",
+		"scrollToEdge",
 		"configureInput",
 		"onClick",
 		"onDragStart",
@@ -174,6 +175,8 @@ it("shows favourites first without removing them from the ten-column collection 
 	);
 	rows.at(-1)?.at(-1)?.onFocus();
 	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
+	rows.at(-1)?.at(-1)?.navigationScroll?.scrollToEdge("down");
+	expect(Frame.prototype.scrollToEdge).toHaveBeenLastCalledWith("down");
 });
 
 it("dims missing mounts, prevents unavailable summons and opens options on controller context", () => {

@@ -7,6 +7,8 @@ export interface INavigable {
 	/** Resolve current item data when focus or the navigation graph refreshes. */
 	tooltipItem?(): TooltipContent | undefined;
 	onFocus(): void;
+	/** Shared viewport identity and generic scrolling operations for this control. */
+	navigationScroll?: { scrollToEdge(direction: "up" | "down"): void };
 	onBlur(): void;
 	onInteract(): void; // Maps to A button
 	onContext?(): void; // Maps to Y button

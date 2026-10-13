@@ -67,6 +67,7 @@ function setup() {
 		"setFocused",
 		"destroy",
 		"revealVerticalRange",
+		"scrollToEdge",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
@@ -149,6 +150,8 @@ it("renders favourite and expansion grids with X use, Y tooltip actions and scro
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(favourite);
 	node?.onFocus();
 	expect(Frame.prototype.revealVerticalRange).toHaveBeenCalled();
+	node?.navigationScroll?.scrollToEdge("up");
+	expect(Frame.prototype.scrollToEdge).toHaveBeenLastCalledWith("up");
 	const click = vi.spyOn(Frame.prototype, "click").mockImplementation(() => {});
 	node?.onAlternate?.();
 	expect(click).not.toHaveBeenCalled();

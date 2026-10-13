@@ -210,6 +210,12 @@ export class Frame implements IUIComponent {
 	resetScroll(): void {
 		this.native?.SetVerticalScroll(0);
 	}
+	scrollToEdge(direction: "up" | "down"): void {
+		const native = this.acquire();
+		native.SetVerticalScroll(
+			direction === "up" ? 0 : native.GetVerticalScrollRange(),
+		);
+	}
 	scrollBy(delta: number): { offset: number; range: number } {
 		const native = this.acquire();
 		const range = native.GetVerticalScrollRange();

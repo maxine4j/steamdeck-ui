@@ -373,6 +373,7 @@ export class MountsPanel implements IPanel {
 					);
 					grid.at(row)?.push({
 						...node,
+						navigationScroll: this.viewport,
 						navColumn: index % columns,
 						onAlternate: summon,
 						tooltipItem: () =>

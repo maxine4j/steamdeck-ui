@@ -300,6 +300,11 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(reagent?.tooltipItem?.()).toBe(42);
 	reagent?.onFocus();
 	expect(focus).toHaveBeenLastCalledWith(true);
+	const edge = vi
+		.spyOn(Frame.prototype, "scrollToEdge")
+		.mockImplementation(() => {});
+	reagent?.navigationScroll?.scrollToEdge("down");
+	expect(edge).toHaveBeenLastCalledWith("down");
 	reagent?.onInteract();
 	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
 	reagent?.onAlternate?.();

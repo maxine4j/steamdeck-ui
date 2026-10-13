@@ -542,6 +542,7 @@ export class AchievementsPanel implements IPanel {
 						);
 						grid.at(firstRow + row)?.push({
 							...node,
+							navigationScroll: this.viewport,
 							navColumn: index % columns,
 							tooltipItem: tooltip,
 						});

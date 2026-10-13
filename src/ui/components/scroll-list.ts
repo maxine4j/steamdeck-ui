@@ -243,6 +243,7 @@ export class ScrollList {
 						secondary,
 						secondaryNav: {
 							navId: `${row.id}-secondary`,
+							navigationScroll: this.scroll,
 							onFocus: () => {
 								secondary.setFocused(true);
 								this.reveal(index);
@@ -255,6 +256,7 @@ export class ScrollList {
 						},
 						nav: {
 							navId: row.id,
+							navigationScroll: this.scroll,
 							onFocus: () => {
 								if (this.rows.at(index)?.animatedIcon) {
 									this.style(index);

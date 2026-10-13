@@ -3,12 +3,15 @@ import type {
 	Achievement,
 	IAchievementsClient,
 } from "../../clients/achievements-client";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { Frame } from "../../ui/components/frame";
 import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { AchievementsPanel } from "./achievements-panel";
 
-const { lists, frames, reveal, resizeCallbacks } = vi.hoisted(() => ({
+const { lists, frames, reveal, edges, resizeCallbacks } = vi.hoisted(() => ({
+	edges: vi.fn(),
 	resizeCallbacks: new Map<string, () => void>(),
 	reveal: vi.fn(),
 	lists: new Map<string, { rows: readonly ListRow[]; mounted: boolean }>(),
@@ -66,6 +69,7 @@ vi.mock("../../ui/components/frame", () => ({
 			this.state.layouts.push([width, height, x, y]);
 		}
 		revealVerticalRange = reveal;
+		scrollToEdge = edges;
 		show() {
 			this.state.visible = true;
 		}
@@ -311,6 +315,14 @@ it("fits the left container, has spatial grid columns and reveals focused icons"
 		for (const [width, , x] of state.layouts)
 			expect((width ?? 0) + (x ?? 0)).toBeLessThanOrEqual(500);
 	grid.at(-1)?.at(-1)?.onFocus();
+	const manager = new NavigationManager(createTestEventBus());
+	manager.registerGrid("achievements", grid);
+	manager.setActiveGrid("achievements");
+	manager.moveUp();
+	expect(edges).toHaveBeenLastCalledWith("up");
+	manager.moveDown();
+	manager.moveDown();
+	expect(edges).toHaveBeenLastCalledWith("down");
 	expect(reveal).toHaveBeenCalledWith(
 		expect.any(Number),
 		expect.any(Number),

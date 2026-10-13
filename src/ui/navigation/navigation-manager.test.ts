@@ -10,6 +10,50 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("finishes scrolling on repeated vertical boundary presses without changing focus", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const boundary = vi.fn();
+	const navigationScroll = { scrollToEdge: boundary };
+	const first = { ...node("first"), navigationScroll };
+	const last = { ...node("last"), navigationScroll };
+	manager.registerGrid("scroll", [[first], [last]]);
+	manager.setActiveGrid("scroll");
+	events.emit("NAV_UP");
+	events.emit("NAV_UP");
+	expect(boundary.mock.calls).toEqual([["up"], ["up"]]);
+	expect(first.onFocus).toHaveBeenCalledOnce();
+	events.emit("NAV_DOWN");
+	expect(boundary).toHaveBeenCalledTimes(2);
+	events.emit("NAV_DOWN");
+	events.emit("NAV_DOWN");
+	expect(boundary.mock.calls.slice(2)).toEqual([["down"], ["down"]]);
+	expect(manager.focusedId).toBe("last");
+	events.emit("NAV_LEFT");
+	events.emit("NAV_RIGHT");
+	expect(boundary).toHaveBeenCalledTimes(4);
+});
+
+it("finishes scrolling when vertical focus leaves a viewport for a panel control", () => {
+	const manager = new NavigationManager(createTestEventBus());
+	const scrollToEdge = vi.fn();
+	manager.registerGrid("panel", [
+		[node("tab")],
+		[{ ...node("item"), navigationScroll: { scrollToEdge } }],
+		[node("footer")],
+	]);
+	manager.setActiveGrid("panel");
+	manager.moveDown();
+	expect(scrollToEdge).not.toHaveBeenCalled();
+	manager.moveUp();
+	expect(scrollToEdge).toHaveBeenLastCalledWith("up");
+	expect(manager.focusedId).toBe("tab");
+	manager.moveDown();
+	manager.moveDown();
+	expect(scrollToEdge).toHaveBeenLastCalledWith("down");
+	expect(manager.focusedId).toBe("footer");
+});
+
 it("routes B to the active panel and gives modal cancellation priority", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

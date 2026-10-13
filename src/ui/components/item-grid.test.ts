@@ -7,6 +7,7 @@ const { layouts } = vi.hoisted(() => ({
 	layouts: new Map<string, ReturnType<typeof vi.fn>>(),
 }));
 const { reveals } = vi.hoisted(() => ({ reveals: vi.fn() }));
+const { edges } = vi.hoisted(() => ({ edges: vi.fn() }));
 vi.mock("./frame", () => ({
 	Frame: class {
 		constructor(readonly id: string) {
@@ -30,6 +31,7 @@ vi.mock("./frame", () => ({
 		inset = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
+		scrollToEdge = edges;
 		revealVerticalRange = reveals;
 	},
 }));
@@ -73,6 +75,12 @@ it("lays out two columns under group headers, routes actions and reuses cells", 
 	expect(activate).toHaveBeenCalledOnce();
 	grid.getNavGrid().at(0)?.at(1)?.onInteract();
 	expect(favourite).toHaveBeenCalledOnce();
+	for (const node of grid.getNavGrid().flat()) {
+		node.navigationScroll?.scrollToEdge("up");
+		expect(edges).toHaveBeenLastCalledWith("up");
+		node.navigationScroll?.scrollToEdge("down");
+		expect(edges).toHaveBeenLastCalledWith("down");
+	}
 	const count = layouts.size;
 	grid.unmount();
 	expect(grid.getNavGrid()).toEqual([]);

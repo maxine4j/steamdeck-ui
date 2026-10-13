@@ -466,6 +466,29 @@ it("retains the tooltip owner when first attaching to a hidden modal window", ()
 	expect(native.SetHyperlink).not.toHaveBeenCalled();
 });
 
+it("finishes scrolling to either viewport edge", () => {
+	let scroll = 120;
+	const native = {
+		Hide: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+		GetVerticalScrollRange: () => 300,
+		SetVerticalScroll: (value: number) => {
+			scroll = value;
+		},
+	} as unknown as WowFrame;
+	const frame = new Frame(
+		"edge",
+		new FramePoolManager({ createFrame: () => native }),
+		"ScrollFrame",
+	);
+	frame.scrollToEdge("up");
+	expect(scroll).toBe(0);
+	frame.scrollToEdge("down");
+	expect(scroll).toBe(300);
+	frame.scrollToEdge("down");
+	expect(scroll).toBe(300);
+});
+
 it("scrolls focused ranges into view and clamps them to the scroll bounds", () => {
 	let scroll = 0;
 	const native = {

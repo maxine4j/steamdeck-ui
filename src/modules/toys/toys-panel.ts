@@ -243,6 +243,7 @@ export class ToysPanel implements IPanel {
 					);
 					grid.at(firstRow + row)?.push({
 						...node,
+						navigationScroll: this.viewport,
 						navColumn: index % columns,
 						tooltipItem: () => (current() ? { toy: toy.id } : undefined),
 						secureActions: () => ({

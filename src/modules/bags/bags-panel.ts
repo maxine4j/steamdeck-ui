@@ -205,6 +205,7 @@ export class BagsPanel implements IPanel {
 					);
 					cells.push({
 						...node,
+						navigationScroll: this.viewport,
 						tooltipItem: () =>
 							this.mounted && !this.rendering
 								? (source?.hyperlink ?? item.itemId)

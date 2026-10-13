@@ -143,6 +143,11 @@ export class NavigationManager implements INavManager {
 		const next = this.focusedId
 			? this.graph.neighbor(this.focusedId, direction)
 			: undefined;
+		if (
+			(direction === "up" || direction === "down") &&
+			(!next || next.navigationScroll !== this.focused?.navigationScroll)
+		)
+			this.focused?.navigationScroll?.scrollToEdge(direction);
 		if (next) this.setFocus(next);
 	}
 	private cyclePanel(direction: -1 | 1): void {

@@ -412,6 +412,7 @@ vi.mock("./frame", () => ({
 		setCloseButtonBackground = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
+		scrollToEdge = vi.fn();
 		revealVerticalRange = vi.fn();
 	},
 }));
@@ -520,6 +521,18 @@ it("scrolls focused rows into view, accounting for section headings and margins"
 	expect(
 		frames.get("focus-scroll-scroll")?.revealVerticalRange,
 	).toHaveBeenLastCalledWith(112, 160, 164);
+	const manager = new NavigationManager(createTestEventBus());
+	manager.registerGrid("list", list.getNavGrid());
+	manager.setActiveGrid("list");
+	manager.moveUp();
+	expect(
+		frames.get("focus-scroll-scroll")?.scrollToEdge,
+	).toHaveBeenLastCalledWith("up");
+	manager.moveDown();
+	manager.moveDown();
+	expect(
+		frames.get("focus-scroll-scroll")?.scrollToEdge,
+	).toHaveBeenLastCalledWith("down");
 });
 
 it("renders proportional bars, restores header tints on blur and reuses controls", () => {

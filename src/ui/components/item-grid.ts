@@ -101,6 +101,7 @@ export class ItemGrid {
 						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
 						nav: {
 							navId: item.id,
+							navigationScroll: this.viewport,
 							onFocus: () => {
 								frame.setFocused(true);
 								this.reveal(index);
@@ -113,6 +114,7 @@ export class ItemGrid {
 						},
 						secondaryNav: {
 							navId: `${item.id}-secondary`,
+							navigationScroll: this.viewport,
 							onFocus: () => {
 								secondary.setFocused(true);
 								this.reveal(index);
