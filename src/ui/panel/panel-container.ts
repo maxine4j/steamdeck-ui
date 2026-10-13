@@ -19,6 +19,7 @@ export class PanelContainer implements IPanelContainer {
 		private readonly onTabSelected?: (panel: IPanel) => void,
 		private readonly navigation?: INavManager,
 		private readonly navigationNeighbors?: GridNeighbors,
+		private readonly tabGroups: readonly (readonly string[])[] = [],
 	) {
 		this.frame.dock(position, 500, position === "fullscreen" ? 20 : 0);
 		this.frame.onClose(() => {
@@ -62,7 +63,32 @@ export class PanelContainer implements IPanelContainer {
 		const createTab = this.createTab;
 		if (!createTab || this.position === "fullscreen") return;
 		const edge = this.position === "left" ? "RIGHT" : "LEFT";
-		const x = this.position === "left" ? 44 : -44;
+		const mirrored = this.position === "right";
+		const x = mirrored ? -46 : 46;
+		const grouped = new Set<string>();
+		const groups: IPanel[][] = [];
+		for (const ids of this.tabGroups) {
+			const group: IPanel[] = [];
+			for (const id of ids) {
+				const panel = this.panels.find((candidate) => candidate.id === id);
+				if (panel && !grouped.has(id)) {
+					group.push(panel);
+					grouped.add(id);
+				}
+			}
+			if (group.length > 0) groups.push(group);
+		}
+		const ungrouped = this.panels.filter((panel) => !grouped.has(panel.id));
+		if (ungrouped.length > 0) groups.push(ungrouped);
+		const offsets = new Map<string, number>();
+		let offset = ((this.panels.length - 1) * 58 + (groups.length - 1) * 20) / 2;
+		for (const group of groups) {
+			for (const panel of group) {
+				offsets.set(panel.id, offset);
+				offset -= 58;
+			}
+			offset -= 20;
+		}
 		this.panels.forEach((panel, index) => {
 			let tab = this.tabs.at(index);
 			if (!tab) {
@@ -72,16 +98,19 @@ export class PanelContainer implements IPanelContainer {
 				};
 				this.tabs.push(tab);
 			}
-			const y = ((this.panels.length - 1) / 2 - index) * 48;
+			const y = offsets.get(panel.id) ?? 0;
 			tab.border.setParent(this.frame);
-			tab.border.layout(44, 44, edge, this.frame, x, y);
-			const color: readonly [number, number, number] =
-				this.stack.at(-1)?.id === panel.id ? [1, 0.82, 0] : [0.2, 0.2, 0.2];
-			tab.border.setColor(...color);
+			tab.border.layout(43, 55, edge, this.frame, x, y);
+			const selected = this.stack.at(-1)?.id === panel.id;
+			tab.border.setSideTabBackground(selected, mirrored);
 			tab.button.setParent(tab.border);
-			tab.button.layout(40, 40, "CENTER", tab.border);
+			tab.button.layout(43, 55, "CENTER", tab.border);
 			tab.button.setIcon(panel.icon ?? 134400);
-			tab.button.setTooltip(panel.title);
+			tab.button.setIconSize(32, 32, mirrored ? 2 : -2);
+			const border = tab.border;
+			tab.button.setTooltip(panel.title, undefined, false, (hovered) =>
+				border.setSideTabBackground(selected, mirrored, hovered),
+			);
 			tab.button.onClick((button) => {
 				if (button === "LeftButton" && this.stack.length > 0) {
 					this.onTabSelected?.(panel);

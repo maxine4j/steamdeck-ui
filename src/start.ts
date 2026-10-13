@@ -252,6 +252,20 @@ export function startSteamDeckUI(
 					: position === "right"
 						? { left: "left" }
 						: {},
+				containerId !== position
+					? []
+					: position === "left"
+						? [
+								["paper-doll", "reputation", "titles"],
+								["talents", "dungeon-finder"],
+								["achievements"],
+							]
+						: position === "right"
+							? [
+									["bags", "currency"],
+									["mounts", "toys"],
+								]
+							: [],
 			),
 	);
 	const grouping = new ItemGrouping();
@@ -368,12 +382,11 @@ export function startSteamDeckUI(
 		dungeonFinder,
 		() => {
 			builtInDungeonFinder.close();
-			ui.closePanel("right", "dungeon-finder");
+			ui.closePanel("left", "dungeon-finder");
 		},
 		scheduler,
 		dungeonQueueConfirmation,
 	);
-	ui.registerPanel(dungeonFinderPanel, "right");
 	modules.register(
 		new DungeonFinderModule(
 			ui,
@@ -465,6 +478,7 @@ export function startSteamDeckUI(
 		},
 	);
 	ui.registerPanel(talentsPanel, "left");
+	ui.registerPanel(dungeonFinderPanel, "left");
 	ui.registerPanel(achievementsPanel, "left");
 	modules.register(new TalentsModule(ui, events, talentsPanel, builtInTalents));
 	modules.register(

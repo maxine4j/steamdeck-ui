@@ -4,6 +4,81 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it.each(["left", "right"] as const)(
+	"centers distinct %s tab groups without changing bumper cycling or recreating tabs",
+	(position) => {
+		const events = createTestEventBus();
+		const navigation = new NavigationManager(events);
+		const frame = {
+			dock: vi.fn(),
+			onClose: vi.fn(),
+			show: vi.fn(),
+			setFocusBorder: vi.fn(),
+		} as unknown as Frame;
+		const borders = new Map<string, ReturnType<typeof vi.fn>>();
+		const createTab = vi.fn((id: string, button: boolean) => {
+			const layout = vi.fn();
+			if (!button) borders.set(id, layout);
+			return {
+				layout,
+				setParent: vi.fn(),
+				setColor: vi.fn(),
+				setSideTabBackground: vi.fn(),
+				setIcon: vi.fn(),
+				setIconSize: vi.fn(),
+				setTooltip: vi.fn(),
+				onClick: vi.fn(),
+				show: vi.fn(),
+			} as unknown as Frame;
+		});
+		const container = new PanelContainer(
+			position,
+			position,
+			frame,
+			createTab,
+			undefined,
+			navigation,
+			undefined,
+			[["first", "second"], ["absent"], ["third"]],
+		);
+		const panels = ["first", "third", "second", "fourth"].map((id) => ({
+			id,
+			title: id,
+			onMount: vi.fn(),
+			onUnmount: vi.fn(),
+			getNavGrid: () => [],
+		}));
+		for (const panel of panels) container.registerPanel(panel);
+		const first = panels.at(0);
+		if (!first) throw new Error("Missing panel");
+		container.swapPanel(first);
+		for (const [id, y] of [
+			["first", 107],
+			["second", 49],
+			["third", -29],
+			["fourth", -107],
+		] as const) {
+			expect(
+				borders.get(`${position}-tab-border-${id}`),
+			).toHaveBeenLastCalledWith(
+				43,
+				55,
+				position === "left" ? "RIGHT" : "LEFT",
+				frame,
+				position === "left" ? 46 : -46,
+				y,
+			);
+		}
+		for (const id of ["third", "second", "fourth", "first"]) {
+			events.emit("NAV_PANEL_NEXT");
+			expect(container.activePanelId).toBe(id);
+		}
+		events.emit("NAV_PANEL_PREVIOUS");
+		expect(container.activePanelId).toBe("fourth");
+		expect(createTab).toHaveBeenCalledTimes(8);
+	},
+);
+
 it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
 	const events = createTestEventBus();
 	const navigation = new NavigationManager(events);
@@ -176,7 +251,7 @@ it("notifies content when its container closes but not when tabs switch", () => 
 });
 
 it.each(["left", "right"] as const)(
-	"keeps %s tabs flush against the container while switching panels",
+	"keeps %s tabs aligned beside the container while switching panels",
 	(position) => {
 		const events = createTestEventBus();
 		const navigation = new NavigationManager(events);
@@ -190,6 +265,8 @@ it.each(["left", "right"] as const)(
 		} as unknown as Frame;
 		const buttons: {
 			onClick: ReturnType<typeof vi.fn>;
+			setTooltip: ReturnType<typeof vi.fn>;
+			setIconSize: ReturnType<typeof vi.fn>;
 			setParent: ReturnType<typeof vi.fn>;
 			layout: ReturnType<typeof vi.fn>;
 			hide: ReturnType<typeof vi.fn>;
@@ -204,8 +281,10 @@ it.each(["left", "right"] as const)(
 					setParent: vi.fn(),
 					layout: vi.fn(),
 					setIcon: vi.fn(),
+					setIconSize: vi.fn(),
 					setTooltip: vi.fn(),
 					setColor: vi.fn(),
+					setSideTabBackground: vi.fn(),
 					show: vi.fn(),
 					hide: vi.fn(),
 					destroy: vi.fn(),
@@ -242,28 +321,58 @@ it.each(["left", "right"] as const)(
 		container.registerPanel(second);
 		container.swapPanel(first);
 		expect(first.onMount).toHaveBeenCalledOnce();
+		expect(borders.at(0)?.setSideTabBackground).toHaveBeenLastCalledWith(
+			true,
+			position === "right",
+		);
+		const hover = buttons.at(0)?.setTooltip.mock.calls.at(-1)?.at(3);
+		hover(true);
+		expect(borders.at(0)?.setSideTabBackground).toHaveBeenLastCalledWith(
+			true,
+			position === "right",
+			true,
+		);
+		hover(false);
+		expect(borders.at(0)?.setSideTabBackground).toHaveBeenLastCalledWith(
+			true,
+			position === "right",
+			false,
+		);
+		expect(buttons.at(0)?.setIconSize).toHaveBeenLastCalledWith(
+			32,
+			32,
+			position === "left" ? -2 : 2,
+		);
 		expect(borders.at(0)?.layout).toHaveBeenCalledWith(
-			44,
-			44,
+			43,
+			55,
 			position === "left" ? "RIGHT" : "LEFT",
 			frame,
-			position === "left" ? 44 : -44,
-			24,
+			position === "left" ? 46 : -46,
+			29,
 		);
 		buttons.at(1)?.onClick.mock.calls.at(-1)?.at(0)("LeftButton");
 		expect(first.onUnmount).toHaveBeenCalledOnce();
 		expect(second.onMount).toHaveBeenCalledOnce();
+		expect(borders.at(0)?.setSideTabBackground).toHaveBeenLastCalledWith(
+			false,
+			position === "right",
+		);
+		expect(borders.at(1)?.setSideTabBackground).toHaveBeenLastCalledWith(
+			true,
+			position === "right",
+		);
 		container.swapPanel(second);
 		expect(second.onMount).toHaveBeenCalledOnce();
 		expect(buttons.at(0)?.layout).toHaveBeenCalledWith(
-			40,
-			40,
+			43,
+			55,
 			"CENTER",
 			borders.at(0),
 		);
 		expect(buttons.at(1)?.layout).toHaveBeenCalledWith(
-			40,
-			40,
+			43,
+			55,
 			"CENTER",
 			borders.at(1),
 		);

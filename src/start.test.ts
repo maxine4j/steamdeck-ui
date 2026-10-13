@@ -700,21 +700,37 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	).toHaveLength(1);
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
-	const achievementTabIndex = textures.findIndex(
-		(texture, index) =>
-			textureIcons.get(texture) === 133158 && frames.at(index)?.IsShown(),
-	);
-	const achievementTab = frames.at(achievementTabIndex);
-	const achievementTabBorder = achievementTab
-		? (vi.mocked(achievementTab.SetParent).mock.lastCall?.at(0) as
-				| WowFrame
-				| undefined)
-		: undefined;
-	expect(
-		achievementTabBorder
-			? vi.mocked(achievementTabBorder.SetPoint).mock.lastCall?.at(4)
-			: undefined,
-	).toBe(-96);
+	for (const [icon, dock, y] of [
+		[133127, 0, 165], // Equipment
+		[236683, 0, 107], // Reputation
+		[133759, 0, 49], // Titles
+		[136243, 0, -29], // Talents
+		[1100023, 0, -87], // Group finder
+		[133158, 0, -165], // Achievements
+		[133633, 1, 97], // Bags
+		[133784, 1, 39], // Currency
+		[132261, 1, -39], // Mounts
+		[454046, 1, -97], // Toys
+	] as const) {
+		const tabIndex = textures.findIndex((texture, index) => {
+			const tab = frames.at(index);
+			const border = tab
+				? (vi.mocked(tab.SetParent).mock.lastCall?.at(0) as
+						| WowFrame
+						| undefined)
+				: undefined;
+			return (
+				textureIcons.get(texture) === icon &&
+				tab?.IsShown() &&
+				border &&
+				vi.mocked(border.SetPoint).mock.lastCall?.at(1) === frames.at(dock)
+			);
+		});
+		const tab = frames.at(tabIndex);
+		if (!tab || tabIndex < 0) throw new Error(`Missing tab ${icon}`);
+		const border = vi.mocked(tab.SetParent).mock.lastCall?.at(0) as WowFrame;
+		expect(vi.mocked(border.SetPoint).mock.lastCall?.at(4)).toBe(y);
+	}
 	const clickTab = (icon: number) => {
 		const index = textures.findIndex((texture, index) => {
 			const frame = frames.at(index);
@@ -805,17 +821,18 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());
 	app.ui.openPanel("bags", "right");
+	app.ui.openPanel("paper-doll", "left");
 	flush();
 	clickTab(1100023);
 	expect(PVEFrame_ShowFrame).toHaveBeenCalledWith(
 		"GroupFinderFrame",
 		LFDParentFrame,
 	);
-	expect(app.ui.getContainer("right").activePanelId).toBe("dungeon-finder");
+	expect(app.ui.getContainer("left").activePanelId).toBe("dungeon-finder");
 	expect(labels.flat()).toContain("No random dungeons available");
 	const finderFrames = frames.length;
-	app.ui.closePanel("right", "dungeon-finder");
-	app.ui.openPanel("dungeon-finder", "right");
+	app.ui.closePanel("left", "dungeon-finder");
+	app.ui.openPanel("dungeon-finder", "left");
 	flush();
 	expect(frames).toHaveLength(finderFrames);
 	app.ui.closePanel("right");

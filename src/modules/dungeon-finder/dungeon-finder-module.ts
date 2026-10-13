@@ -7,8 +7,8 @@ export class DungeonFinderModule implements IModule {
 	readonly id = "dungeon-finder";
 	private readonly refresh = () => this.view.refresh();
 	private readonly sync = () => {
-		if (this.native.isOpen()) this.ui.openPanel(this.id, "right");
-		else this.ui.closePanel("right", this.id);
+		if (this.native.isOpen()) this.ui.openPanel(this.id, "left");
+		else this.ui.closePanel("left", this.id);
 	};
 	constructor(
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,

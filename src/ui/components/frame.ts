@@ -11,6 +11,7 @@ import {
 	type ClickBinding,
 	SecureClickBindings,
 } from "./secure-click-bindings";
+import { applySideTabSkin } from "./side-tab-skin";
 import {
 	applyAtlasNineSlice,
 	applyButtonSkin,
@@ -567,6 +568,13 @@ export class Frame implements IUIComponent {
 		if (crop) this.texture?.SetTexCoord(0.07, 0.93, 0.07, 0.93);
 		else this.texture?.SetTexCoord(0, 1, 0, 1);
 	}
+	setIconSize(width: number, height: number, x = 0, y = 0): void {
+		const native = this.acquire();
+		this.texture?.ClearAllPoints();
+		this.texture?.SetWidth(width);
+		this.texture?.SetHeight(height);
+		this.texture?.SetPoint("CENTER", native, "CENTER", x, y);
+	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")
 			throw new Error("Model requires a PlayerModel frame");
@@ -996,6 +1004,15 @@ export class Frame implements IUIComponent {
 			).SetVertexColor(red, green, blue);
 			this.textureTinted = true;
 		}
+	}
+	setSideTabBackground(
+		selected: boolean,
+		mirrored = false,
+		hovered = false,
+	): void {
+		this.clearAtlasSlices();
+		this.clearTextureTint();
+		applySideTabSkin(this.pool, this.acquire(), selected, mirrored, hovered);
 	}
 	setButtonBackground(selected = false): void {
 		this.clearAtlasSlices();
