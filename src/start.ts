@@ -277,6 +277,7 @@ export function startSteamDeckUI(
 									["mounts", "toys", "pets"],
 								]
 							: [],
+				events,
 			),
 	);
 	const grouping = new ItemGrouping();

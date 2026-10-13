@@ -14,7 +14,7 @@ export interface WowTexture {
 	SetHorizTile(tiling: boolean): void;
 	SetTexCoord(left: number, right: number, top: number, bottom: number): void;
 	SetTexture(fileId: number | string | undefined): void;
-	SetAllPoints(): void;
+	SetAllPoints(relativeTo?: WowFrame | WowTexture): void;
 	SetColorTexture(
 		red: number,
 		green: number,

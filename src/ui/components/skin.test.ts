@@ -212,6 +212,20 @@ it("clips action icons to the rounded mask and detaches it before pooled reuse",
 		false,
 	);
 	expect(mask.SetAllPoints).toHaveBeenCalled();
+	expect(mask.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		textures.at(0),
+		"TOPLEFT",
+		-8,
+		8,
+	);
+	expect(mask.SetPoint).toHaveBeenCalledWith(
+		"BOTTOMRIGHT",
+		textures.at(0),
+		"BOTTOMRIGHT",
+		8,
+		-8,
+	);
 	expect(textures.at(0)?.AddMaskTexture).toHaveBeenCalledExactlyOnceWith(mask);
 	expect(native.CreateMaskTexture).toHaveBeenCalledOnce();
 	frame.destroy();
@@ -256,3 +270,30 @@ it.each([
 		);
 	},
 );
+
+it("renders the live micro-menu portrait with its crop and mask", () => {
+	const { pool, textures, mask } = setup();
+	vi.stubGlobal("C_Texture", {
+		GetAtlasInfo: () => ({ width: 35, height: 65 }),
+	});
+	const portrait = vi.fn();
+	vi.stubGlobal("SetPortraitTexture", portrait);
+	const frame = new Frame("equipment-tab", pool);
+	frame.setPortraitIcon("player", 32, 32, -2);
+	expect(portrait).toHaveBeenCalledExactlyOnceWith(textures.at(0), "player");
+	expect(textures.at(0)?.SetTexCoord).toHaveBeenLastCalledWith(
+		0.2,
+		0.8,
+		0.0666,
+		0.9,
+	);
+	expect(textures.at(0)?.SetHeight).toHaveBeenLastCalledWith(32);
+	expect(textures.at(0)?.SetWidth.mock.lastCall?.at(0)).toBeCloseTo(
+		35 * (32 / 65),
+	);
+	expect(mask.SetAtlas).toHaveBeenLastCalledWith(
+		"UI-HUD-MicroMenu-Portrait-Mask",
+		false,
+	);
+	expect(mask.SetAllPoints).toHaveBeenLastCalledWith(textures.at(0));
+});

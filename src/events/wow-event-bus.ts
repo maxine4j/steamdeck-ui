@@ -223,6 +223,8 @@ export class WowEventBus implements IEventBus {
 		this.frame.RegisterEvent("ITEM_DATA_LOAD_RESULT");
 		this.frame.RegisterEvent("PLAYER_EQUIPMENT_CHANGED");
 		this.frame.RegisterEvent("UNIT_MODEL_CHANGED");
+		this.frame.RegisterEvent("UNIT_PORTRAIT_UPDATE");
+		this.frame.RegisterEvent("PORTRAITS_UPDATED");
 		for (const event of actionBarEvents) this.frame.RegisterEvent(event);
 		for (const event of actionRingEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("UNIT_PET");
@@ -374,7 +376,11 @@ export class WowEventBus implements IEventBus {
 				this.emit("TITLES_CHANGED");
 			if (event === "PLAYER_EQUIPMENT_CHANGED")
 				this.emit("PLAYER_EQUIPMENT_CHANGED");
-			else if (event === "UNIT_MODEL_CHANGED" && unit === "player")
+			else if (
+				event === "PORTRAITS_UPDATED" ||
+				((event === "UNIT_MODEL_CHANGED" || event === "UNIT_PORTRAIT_UPDATE") &&
+					unit === "player")
+			)
 				this.emit("CHARACTER_MODEL_CHANGED");
 			else if (
 				characterStatEvents.includes(event) ||

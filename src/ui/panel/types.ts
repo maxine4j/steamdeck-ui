@@ -8,6 +8,7 @@ export interface IPanel {
 	title: string;
 	readonly icon?: number;
 	readonly iconAtlas?: string;
+	readonly iconPortrait?: string;
 
 	// Lifecycle hooks
 	onMount(parentComponent: IUIComponent): void;

@@ -1,3 +1,4 @@
+import type { IEventBus } from "../../events/types";
 import type { Frame } from "../components/frame";
 import type {
 	GridNeighbors,
@@ -8,6 +9,20 @@ export class PanelContainer implements IPanelContainer {
 	private readonly panels: IPanel[] = [];
 	private readonly tabs: { border: Frame; button: Frame }[] = [];
 	private readonly stack: IPanel[] = [];
+	private readonly refreshPortraitTabs = () => {
+		if (this.stack.length === 0) return;
+		this.panels.forEach((panel, index) => {
+			if (panel.iconPortrait)
+				this.tabs
+					.at(index)
+					?.button.setPortraitIcon(
+						panel.iconPortrait,
+						32,
+						32,
+						this.position === "right" ? 2 : -2,
+					);
+		});
+	};
 	get activePanelId(): string | undefined {
 		return this.stack.at(-1)?.id;
 	}
@@ -20,7 +35,9 @@ export class PanelContainer implements IPanelContainer {
 		private readonly navigation?: INavManager,
 		private readonly navigationNeighbors?: GridNeighbors,
 		private readonly tabGroups: readonly (readonly string[])[] = [],
+		private readonly events?: IEventBus,
 	) {
+		this.events?.subscribe("CHARACTER_MODEL_CHANGED", this.refreshPortraitTabs);
 		this.frame.dock(position, 500, position === "fullscreen" ? 20 : 0);
 		this.frame.onClose(() => {
 			if (this.stack.length === 0) return;
@@ -105,7 +122,14 @@ export class PanelContainer implements IPanelContainer {
 			tab.border.setSideTabBackground(selected, mirrored);
 			tab.button.setParent(tab.border);
 			tab.button.layout(43, 55, "CENTER", tab.border);
-			if (panel.iconAtlas)
+			if (panel.iconPortrait)
+				tab.button.setPortraitIcon(
+					panel.iconPortrait,
+					32,
+					32,
+					mirrored ? 2 : -2,
+				);
+			else if (panel.iconAtlas)
 				tab.button.setAtlasIcon(panel.iconAtlas, 32, 32, mirrored ? 2 : -2);
 			else {
 				tab.button.setIcon(panel.icon ?? 134400);
@@ -194,6 +218,10 @@ export class PanelContainer implements IPanelContainer {
 		this.navigation?.unregisterGrid(this.id);
 	}
 	clear(): void {
+		this.events?.unsubscribe(
+			"CHARACTER_MODEL_CHANGED",
+			this.refreshPortraitTabs,
+		);
 		this.releaseNavigation();
 		this.stack.at(-1)?.onUnmount();
 		this.stack.length = 0;

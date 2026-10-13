@@ -26,7 +26,7 @@ export interface IFramePoolManager {
 	acquire(type: FrameType): WowFrame;
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
-	setBackgroundMask(frame: WowFrame, atlas: string): void;
+	setBackgroundMask(frame: WowFrame, atlas: string, outset?: number): void;
 	getDecoration(frame: WowFrame, key: string): WowTexture;
 	getLine(
 		frame: WowFrame,
@@ -75,7 +75,7 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
-	setBackgroundMask(frame: WowFrame, atlas: string): void {
+	setBackgroundMask(frame: WowFrame, atlas: string, outset = 0): void {
 		let mask = this.backgroundMasks.get(frame);
 		if (!mask) {
 			mask = (
@@ -86,7 +86,12 @@ export class FramePoolManager implements IFramePoolManager {
 			this.backgroundMasks.set(frame, mask);
 		}
 		mask.ClearAllPoints();
-		mask.SetAllPoints();
+		mask.SetAllPoints(this.getBackground(frame));
+		if (outset !== 0) {
+			const background = this.getBackground(frame);
+			mask.SetPoint("TOPLEFT", background, "TOPLEFT", -outset, outset);
+			mask.SetPoint("BOTTOMRIGHT", background, "BOTTOMRIGHT", outset, -outset);
+		}
 		mask.SetAtlas(atlas, false);
 		if (!this.maskedBackgrounds.has(frame)) {
 			(this.getBackground(frame) as MaskableTexture).AddMaskTexture(mask);

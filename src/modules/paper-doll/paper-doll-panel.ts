@@ -52,7 +52,7 @@ function trackText(slot: EquipmentSlot): string {
 export class PaperDollPanel implements IPanel {
 	readonly id = "paper-doll";
 	readonly title = "Equipment";
-	readonly icon = 133127;
+	readonly iconPortrait = "player";
 	private mounted = false;
 	private navigationChanged?: (focusId?: string) => void;
 	private parent?: IUIComponent;

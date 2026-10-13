@@ -19,6 +19,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const frames: WowFrame[] = [];
 	const textures: WowTexture[] = [];
 	const textureIcons = new Map<WowTexture, number | string>();
+	vi.stubGlobal("SetPortraitTexture", (texture: WowTexture, unit: string) =>
+		textureIcons.set(texture, unit),
+	);
 	const labels: string[][] = [];
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -136,6 +139,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				ClearModel: vi.fn(),
 				CreateTexture: () => texture,
 				CreateMaskTexture: () => ({
+					SetPoint: vi.fn(),
 					ClearAllPoints: vi.fn(),
 					SetAllPoints: vi.fn(),
 					SetAtlas: vi.fn(),
@@ -723,7 +727,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	for (const [icon, dock, y] of [
-		[133127, 0, 136], // Equipment
+		["player", 0, 136], // Equipment
 		[236683, 0, 78], // Reputation
 		["UI-HUD-MicroMenu-SpecTalents-Up", 0, 0], // Talents
 		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -58], // Group finder
@@ -803,7 +807,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(reputation.activate).toHaveBeenCalledWith(
 		reputation.getReputations().at(0),
 	);
-	clickTab(133127);
+	clickTab("player");
 	clickRow("Select Title")();
 	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
 	expect(titles.getTitles).toHaveBeenCalledOnce();
@@ -822,7 +826,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.navigation.focusedId).toBe("paper-doll-select-title");
 	const withTabs = frames.length;
 	clickTab(236683);
-	clickTab(133127);
+	clickTab("player");
 	clickRow("Select Title")();
 	clickRow("‹ Back")();
 	expect(frames).toHaveLength(withTabs);
@@ -956,7 +960,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	character.open.mockImplementation(openCharacterPanel);
 	vi.stubGlobal("ToggleCharacter", openCharacterPanel);
 	app.ui.openPanel("paper-doll", "left");
-	for (const icon of [133127, 236683]) {
+	for (const icon of ["player", 236683]) {
 		clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
 		expect(spellsShown).toBe(true);
 		expect(app.ui.getContainer("left").activePanelId).toBe("talents");

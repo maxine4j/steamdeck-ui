@@ -4,6 +4,67 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it("refreshes visible portrait tabs on appearance updates and releases the subscription", () => {
+	const events = createTestEventBus();
+	const tab = {
+		setParent: vi.fn(),
+		layout: vi.fn(),
+		setSideTabBackground: vi.fn(),
+		setPortraitIcon: vi.fn(),
+		setTooltip: vi.fn(),
+		onClick: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		destroy: vi.fn(),
+		setIcon: vi.fn(),
+		setIconSize: vi.fn(),
+	} as unknown as Frame;
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		destroy: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"left",
+		"left",
+		frame,
+		() => tab,
+		undefined,
+		undefined,
+		undefined,
+		[],
+		events,
+	);
+	container.swapPanel({
+		id: "equipment",
+		title: "Equipment",
+		iconPortrait: "player",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+	});
+	expect(tab.setPortraitIcon).toHaveBeenLastCalledWith("player", 32, 32, -2);
+	vi.mocked(tab.setPortraitIcon).mockClear();
+	events.emit("CHARACTER_MODEL_CHANGED");
+	expect(tab.setPortraitIcon).toHaveBeenCalledExactlyOnceWith(
+		"player",
+		32,
+		32,
+		-2,
+	);
+	container.popPanel();
+	events.emit("CHARACTER_MODEL_CHANGED");
+	expect(tab.setPortraitIcon).toHaveBeenCalledTimes(1);
+	const unsubscribe = vi.spyOn(events, "unsubscribe");
+	container.clear();
+	expect(unsubscribe).toHaveBeenCalledWith(
+		"CHARACTER_MODEL_CHANGED",
+		expect.any(Function),
+	);
+});
+
 it.each(["left", "right"] as const)(
 	"centers distinct %s tab groups without changing bumper cycling or recreating tabs",
 	(position) => {

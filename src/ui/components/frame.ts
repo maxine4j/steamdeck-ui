@@ -603,6 +603,20 @@ export class Frame implements IUIComponent {
 		this.setAtlasBackground(atlas);
 		this.setIconSize(info.width * scale, info.height * scale, x, y);
 	}
+	setPortraitIcon(unit: string, width: number, height: number, x = 0): void {
+		const mask = "UI-HUD-MicroMenu-Portrait-Mask";
+		this.setAtlasIcon(mask, width, height, x);
+		const setPortrait = SetPortraitTexture as unknown as (
+			this: void,
+			texture: WowTexture,
+			unit: string,
+		) => void;
+		if (this.texture) {
+			setPortrait(this.texture, unit);
+			this.texture.SetTexCoord(0.2, 0.8, 0.0666, 0.9);
+		}
+		this.pool.setBackgroundMask(this.acquire(), mask);
+	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")
 			throw new Error("Model requires a PlayerModel frame");

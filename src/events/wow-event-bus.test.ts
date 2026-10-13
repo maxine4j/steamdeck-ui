@@ -279,6 +279,13 @@ it("forwards native login events through the hidden event frame", () => {
 	expect(model).not.toHaveBeenCalled();
 	dispatch(frame, "UNIT_MODEL_CHANGED", "player");
 	expect(model).toHaveBeenCalledOnce();
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("UNIT_PORTRAIT_UPDATE");
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("PORTRAITS_UPDATED");
+	dispatch(frame, "UNIT_PORTRAIT_UPDATE", "target");
+	expect(model).toHaveBeenCalledOnce();
+	dispatch(frame, "UNIT_PORTRAIT_UPDATE", "player");
+	dispatch(frame, "PORTRAITS_UPDATED");
+	expect(model).toHaveBeenCalledTimes(3);
 	dispatch(frame, "PLAYER_EQUIPMENT_CHANGED", 1, true);
 	expect(equipment).toHaveBeenCalledOnce();
 	const reputation = vi.fn(),

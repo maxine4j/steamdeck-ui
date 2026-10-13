@@ -8,7 +8,8 @@ export function applyIconOutline(
 	const artwork = pool.getDecoration(frame, "action-slot-artwork");
 	artwork.SetAllPoints();
 	artwork.SetAtlas("UI-HUD-ActionBar-IconFrame", false);
-	pool.setBackgroundMask(frame, "UI-HUD-ActionBar-IconFrame-Mask");
+	// The mask includes transparent padding; a 48px icon needs a 64px mask.
+	pool.setBackgroundMask(frame, "UI-HUD-ActionBar-IconFrame-Mask", 8);
 }
 
 // CharacterFrame.xml and ButtonFrameTemplateNoPortrait in Blizzard_SharedXML.
