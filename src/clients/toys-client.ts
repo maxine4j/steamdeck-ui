@@ -37,6 +37,7 @@ export interface IToysClient extends IJournalPrefetch {
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
 		onFirstPage?: (toys: Toy[]) => void,
+		retainCachedView?: boolean,
 	): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
@@ -91,8 +92,14 @@ export class ToysClient implements IToysClient {
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
 		onFirstPage?: (toys: Toy[]) => void,
+		retainCachedView = false,
 	): () => void {
-		return this.journal.load(callback, onFirstPage, onProgress);
+		return this.journal.load(
+			callback,
+			onFirstPage,
+			onProgress,
+			retainCachedView,
+		);
 	}
 	private scan(
 		callback: (toys: Toy[]) => void,

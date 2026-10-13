@@ -46,8 +46,16 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		done: (value: T) => void,
 		preview?: (value: P) => void,
 		progress?: (completed: number, total: number) => void,
+		retainCachedView = false,
 	): () => void {
 		this.active = true;
+		const cached = this.persisted?.peek("snapshot") ?? this.value;
+		if (retainCachedView && cached !== undefined) {
+			// Refresh the cache without publishing replacements into this opening.
+			done(cached);
+			this.start();
+			return () => {};
+		}
 		if (this.persisted) {
 			const value = this.persisted.peek("snapshot");
 			if (!this.dirty && value !== undefined) {

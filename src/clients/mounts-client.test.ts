@@ -2,66 +2,75 @@ import { afterEach, expect, it, vi } from "vitest";
 import { CollectionCache } from "./collection-cache";
 import { MountsClient } from "./mounts-client";
 
-it("shows saved mounts instantly and refreshes only the changed mount without recounting the collection", () => {
-	vi.stubGlobal("SteamDeckUIConfig", {});
-	const pending: (() => void)[] = [];
-	const scheduler = {
-		nextFrame: (callback: () => void) => {
-			pending.push(callback);
-			return () => {};
-		},
-	};
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
-	const mount = {
-		id: 42,
-		index: 1,
-		name: "Old",
-		spell: 1,
-		icon: 2,
-		collected: false,
-		usable: false,
-		favourite: false,
-	};
-	cache
-		.create("mounts.snapshot")
-		.put("snapshot", { mounts: [mount], count: { collected: 0, total: 1 } });
-	cache.create("mounts.items").put("42", mount);
-	const info = vi.fn(() => [
-		"New",
-		1,
-		2,
-		false,
-		true,
-		0,
-		false,
-		false,
-		0,
-		false,
-		true,
-	]);
-	const ids = vi.fn(() => [42]);
-	vi.stubGlobal("C_MountJournal", {
-		GetMountInfoByID: info,
-		GetMountIDs: ids,
-		GetNumDisplayedMounts: () => 1,
-		GetDisplayedMountID: () => 42,
-	});
-	const client = new MountsClient(scheduler, cache);
-	client.invalidate(42);
-	const done = vi.fn();
-	client.load(done);
-	expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe("Old");
-	expect(info).not.toHaveBeenCalled();
-	while (pending.length) pending.shift()?.();
-	expect(ids).not.toHaveBeenCalled();
-	expect(info).toHaveBeenCalledExactlyOnceWith(42);
-	expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe("New");
-	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 1, total: 1 });
-});
+it.each([false, true])(
+	"shows saved mounts instantly and refreshes only the changed mount (fixed view: %s)",
+	(retainCachedView) => {
+		vi.stubGlobal("SteamDeckUIConfig", {});
+		const pending: (() => void)[] = [];
+		const scheduler = {
+			nextFrame: (callback: () => void) => {
+				pending.push(callback);
+				return () => {};
+			},
+		};
+		const cache = new CollectionCache(
+			scheduler,
+			() => 100,
+			() => "player",
+		);
+		const mount = {
+			id: 42,
+			index: 1,
+			name: "Old",
+			spell: 1,
+			icon: 2,
+			collected: false,
+			usable: false,
+			favourite: false,
+		};
+		cache
+			.create("mounts.snapshot")
+			.put("snapshot", { mounts: [mount], count: { collected: 0, total: 1 } });
+		cache.create("mounts.items").put("42", mount);
+		const info = vi.fn(() => [
+			"New",
+			1,
+			2,
+			false,
+			true,
+			0,
+			false,
+			false,
+			0,
+			false,
+			true,
+		]);
+		const ids = vi.fn(() => [42]);
+		vi.stubGlobal("C_MountJournal", {
+			GetMountInfoByID: info,
+			GetMountIDs: ids,
+			GetNumDisplayedMounts: () => 1,
+			GetDisplayedMountID: () => 42,
+		});
+		const client = new MountsClient(scheduler, cache);
+		client.invalidate(42);
+		const done = vi.fn();
+		client.load(done, undefined, undefined, retainCachedView);
+		expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe("Old");
+		expect(info).not.toHaveBeenCalled();
+		while (pending.length) pending.shift()?.();
+		expect(ids).not.toHaveBeenCalled();
+		expect(info).toHaveBeenCalledExactlyOnceWith(42);
+		expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe(
+			retainCachedView ? "Old" : "New",
+		);
+		if (retainCachedView) expect(done).toHaveBeenCalledOnce();
+		const reopened = vi.fn();
+		client.load(reopened, undefined, undefined, true);
+		expect(reopened.mock.lastCall?.at(0)?.at(0)?.name).toBe("New");
+		expect(reopened.mock.lastCall?.at(1)).toEqual({ collected: 1, total: 1 });
+	},
+);
 
 it("refreshes a changed mount outside the current filter and updates the account count", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});

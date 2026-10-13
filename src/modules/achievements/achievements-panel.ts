@@ -115,6 +115,12 @@ export class AchievementsPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.load());
 	}
 	invalidate(): void {
+		if (this.catalogLoaded) {
+			// Apply background cache changes on the next opening, keeping this view fixed.
+			this.update.setActive(false);
+			this.update.invalidate();
+			return;
+		}
 		if (this.mounted && (this.scanning || this.cancelRender)) {
 			this.queuedRefresh = true;
 			return;
@@ -123,7 +129,7 @@ export class AchievementsPanel implements IPanel {
 	}
 	private flushInvalidation(): void {
 		if (!this.queuedRefresh || this.scanning || this.cancelRender) return;
-		this.refresh();
+		this.invalidate();
 	}
 	refresh(): void {
 		this.queuedRefresh = false;
@@ -135,6 +141,21 @@ export class AchievementsPanel implements IPanel {
 		this.update.invalidate();
 	}
 	private load(): void {
+		const cached = this.client.cachedCatalog?.();
+		if (cached) {
+			this.loading = false;
+			this.scanning = false;
+			this.catalogLoaded = true;
+			this.categories = cached.categories;
+			this.entries = cached.entries;
+			this.summary = this.client.summary(false);
+			this.pages = buildAchievementPages(this.categories, this.entries);
+			this.resolveSelection();
+			this.render();
+			this.refreshPageRecords();
+			if (this.page === undefined) this.finishLoading();
+			return;
+		}
 		const categories = this.client.categories();
 		const summary = this.client.summary(false);
 		const entries = new Map<number, readonly Achievement[]>();

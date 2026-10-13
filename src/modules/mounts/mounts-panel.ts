@@ -58,7 +58,8 @@ export class MountsPanel implements IPanel {
 	private navigationChanged?: () => void;
 	private readonly navigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
-			if (!this.dirty) this.viewport.scrollToEdge(direction);
+			if (this.snapshotComplete && !this.cancelRender)
+				this.viewport.scrollToEdge(direction);
 		},
 	};
 
@@ -93,7 +94,7 @@ export class MountsPanel implements IPanel {
 		this.loadingProgress = new Frame("mounts-loading-progress", pool);
 	}
 
-	refresh(): void {
+	refresh(retainCachedView = false): void {
 		const generation = ++this.loadGeneration;
 		this.renderGeneration++;
 		this.cancelRefresh?.();
@@ -151,6 +152,7 @@ export class MountsPanel implements IPanel {
 						total === 0 ? 0.5 : (completed / total) * 0.5,
 					);
 			},
+			retainCachedView,
 		);
 		this.filters.setOptions(
 			this.client.getFilters().map((filter) => ({
@@ -177,6 +179,10 @@ export class MountsPanel implements IPanel {
 	invalidate(): void {
 		this.dirty = true;
 		if (!this.mounted) return;
+		if (this.snapshotComplete) {
+			this.queuedRefresh = true;
+			return;
+		}
 		if (this.cancelLoad || this.cancelRender) {
 			this.queuedRefresh = true;
 			return;
@@ -557,7 +563,7 @@ export class MountsPanel implements IPanel {
 		this.filters.mount(this.frame);
 		this.frame.show();
 		this.mounted = true;
-		if (this.dirty) this.refresh();
+		if (this.dirty) this.refresh(true);
 		else this.layoutContent();
 	}
 	onContainerClosed(): void {

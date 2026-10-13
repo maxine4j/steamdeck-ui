@@ -36,7 +36,12 @@ export interface AchievementSummary {
 	recent: Achievement[];
 	categories: (AchievementCategory & AchievementTotals)[];
 }
+export interface CachedAchievementCatalog {
+	categories: AchievementCategory[];
+	entries: Map<number, readonly Achievement[]>;
+}
 export interface IAchievementsClient {
+	cachedCatalog?(): CachedAchievementCatalog | undefined;
 	prefetch?(): void;
 	stop?(): void;
 	invalidate?(id?: number): void;
@@ -134,6 +139,20 @@ export class AchievementsClient implements IAchievementsClient {
 			this.cancelNotification = undefined;
 			this.events?.emit("ACHIEVEMENTS_CACHE_UPDATED");
 		});
+	}
+	cachedCatalog(): CachedAchievementCatalog | undefined {
+		const categories = this.categoryList?.peek("list");
+		if (!categories) return undefined;
+		const entries = new Map<number, readonly Achievement[]>();
+		for (const category of categories) {
+			const rows = this.categoryRows?.peek(String(category.id));
+			if (rows === undefined) return undefined;
+			entries.set(
+				category.id,
+				rows.map((row) => this.items?.peek(String(row.id)) ?? row),
+			);
+		}
+		return { categories: categories.slice(), entries };
 	}
 	loadCategory(
 		category: number,

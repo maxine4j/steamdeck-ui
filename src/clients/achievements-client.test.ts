@@ -5,6 +5,43 @@ import { CollectionCache } from "./collection-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("returns a complete warm catalog without native lookups and rejects partial caches", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const scheduler = { nextFrame: vi.fn(() => () => {}) };
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	const categories = [
+		{ id: 92, name: "General", parent: -1 },
+		{ id: 96, name: "Quests", parent: -1 },
+	];
+	const row = {
+		id: 6,
+		name: "Saved",
+		points: 10,
+		completed: false,
+		date: "",
+		description: "",
+		icon: 1,
+		reward: "",
+	};
+	cache.create("achievements.category-list", false).put("list", categories);
+	cache.create("achievements.categories", true).put("92", [row]);
+	const client = new AchievementsClient(scheduler, cache);
+	expect(client.cachedCatalog()).toBeUndefined();
+	cache.create("achievements.categories", true).put("96", []);
+	expect(client.cachedCatalog()).toEqual({
+		categories,
+		entries: new Map([
+			[92, [row]],
+			[96, []],
+		]),
+	});
+	expect(scheduler.nextFrame).not.toHaveBeenCalled();
+});
 const setup = (scheduler: ITaskScheduler = { nextFrame: vi.fn() }) => {
 	vi.stubGlobal("GetCategoryList", () => [92, 12, 96, 15234]);
 	vi.stubGlobal("GetCategoryInfo", (id: number) => [

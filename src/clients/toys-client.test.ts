@@ -4,6 +4,22 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps a warm toy snapshot fixed while refreshing cached metadata for reopening", () => {
+	const { client, api, pending } = setup(1);
+	client.load(vi.fn());
+	while (pending.length) pending.shift()?.();
+	api.GetToyInfo = (id) => [id, "Updated", 123, false];
+	client.invalidate();
+	const opened = vi.fn();
+	client.load(opened, undefined, undefined, true);
+	while (pending.length) pending.shift()?.();
+	expect(opened).toHaveBeenCalledOnce();
+	expect(opened.mock.lastCall?.at(0).at(0).name).toBe("Toy 1");
+	const reopened = vi.fn();
+	client.load(reopened, undefined, undefined, true);
+	expect(reopened.mock.lastCall?.at(0).at(0).name).toBe("Updated");
+});
+
 it("does not rescan persisted toys when reopening an unchanged journal", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});
 	const { client, api, pending } = setup(45, true);

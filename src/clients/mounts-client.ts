@@ -33,6 +33,7 @@ export interface IMountsClient extends IJournalPrefetch {
 		) => void,
 		onFirstPage?: (mounts: Mount[]) => void,
 		onProgress?: (completed: number, total: number) => void,
+		retainCachedView?: boolean,
 	): () => void;
 	summon(id: number): void;
 	canUse(id: number): boolean;
@@ -104,11 +105,13 @@ export class MountsClient implements IMountsClient {
 		) => void,
 		onFirstPage?: (mounts: Mount[]) => void,
 		onProgress?: (completed: number, total: number) => void,
+		retainCachedView = false,
 	): () => void {
 		return this.journal.load(
 			({ mounts, count }) => callback(mounts, count),
 			onFirstPage,
 			onProgress,
+			retainCachedView,
 		);
 	}
 	private scan(

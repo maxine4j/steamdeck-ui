@@ -8,6 +8,40 @@ import { MountsPanel } from "./mounts-panel";
 
 afterEach(() => vi.restoreAllMocks());
 
+it("keeps a warm mount view and summon actions unchanged until reopening after invalidation", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([mount(1)]);
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-1");
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	for (let event = 0; event < 5; event++) panel.invalidate();
+	flush();
+	expect(client.load).toHaveBeenCalledOnce();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "mount-1"),
+	).toBe(first);
+	first?.onAlternate?.();
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith(1);
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([mount(1), mount(2)]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => node.navId.startsWith("mount-")),
+	).toHaveLength(2);
+	panel.destroy();
+});
+
 it("retains a focused mount across refreshes and reordered loading snapshots", () => {
 	const { panel, parent, client, pending, flush, publish } = setup();
 	const nav = new NavigationManager(createTestEventBus());
@@ -331,17 +365,17 @@ it("rolls back rejected favourite requests and reconciles server disagreement us
 	expect(client.load).toHaveBeenCalledOnce();
 });
 
-it("coalesces event bursts and completes an active scan before performing one queued refresh", () => {
+it("completes an active scan without visually replacing it for queued invalidations", () => {
 	const { panel, parent, client, publish, flush } = setup();
 	panel.onMount(parent);
 	for (let i = 0; i < 10; i++) panel.invalidate();
 	expect(client.load).toHaveBeenCalledOnce();
 	publish([mount(1)]);
-	expect(client.load).toHaveBeenCalledTimes(2);
+	expect(client.load).toHaveBeenCalledOnce();
 	publish([mount(1)]);
 	for (let i = 0; i < 10; i++) panel.invalidate();
 	flush();
-	expect(client.load).toHaveBeenCalledTimes(3);
+	expect(client.load).toHaveBeenCalledOnce();
 });
 
 it("keeps a first page usable, displays bottom progress, rejects stale loads and reuses completed controls", () => {

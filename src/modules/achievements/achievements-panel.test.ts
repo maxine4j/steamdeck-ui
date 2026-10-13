@@ -153,6 +153,84 @@ beforeEach(() => {
 	reveal.mockClear();
 	resizeCallbacks.clear();
 });
+
+it("keeps a warm achievement page unchanged until reopening after cache updates", () => {
+	const { panel, parent, client, activate, flush } = setup();
+	activate("summary-category-Characters");
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "achievement-6");
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	const loads = vi.mocked(client.loadCategory).mock.calls.length;
+	for (let event = 0; event < 5; event++) panel.invalidate();
+	flush();
+	expect(client.loadCategory).toHaveBeenCalledTimes(loads);
+	expect(changed).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "achievement-6"),
+	).toBe(first);
+	expect(first?.tooltipItem?.()).toBeDefined();
+	panel.onUnmount();
+	panel.onMount(parent);
+	flush();
+	expect(vi.mocked(client.loadCategory).mock.calls.length).toBeGreaterThan(
+		loads,
+	);
+	panel.destroy();
+});
+
+it("opens a complete cached achievement catalog without progressive scans or later visual updates", () => {
+	const { panel, parent, client, step, flush } = setup(false);
+	client.cachedCatalog = () => ({
+		categories: [{ id: 92, name: "General", parent: -1 }],
+		entries: new Map([[92, [achievement(6)]]]),
+	});
+	step();
+	flush();
+	expect(client.loadCategory).not.toHaveBeenCalled();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "summary-category-Characters")
+		?.onInteract();
+	flush();
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "achievement-6");
+	expect(first).toBeDefined();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	client.cachedCatalog = () => ({
+		categories: [{ id: 92, name: "General", parent: -1 }],
+		entries: new Map([[92, [achievement(6, true), achievement(7)]]]),
+	});
+	panel.invalidate();
+	flush();
+	expect(changed).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "achievement-6"),
+	).toBe(first);
+	panel.onUnmount();
+	panel.onMount(parent);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "achievement-7"),
+	).toBe(true);
+	expect(client.loadCategory).not.toHaveBeenCalled();
+	panel.destroy();
+});
 const achievement = (id: number, completed = false): Achievement => ({
 	id,
 	name: `Achievement ${id}`,
@@ -484,7 +562,7 @@ it("keeps publishing category counts when an event restarts the initial scan", (
 	).toBe("Loading...");
 });
 
-it("keeps an early achievement usable through cache invalidations and follows up once", () => {
+it("keeps an early achievement usable through cache invalidations and defers replacement until reopening", () => {
 	const { panel, client, step, flush } = setup(false);
 	let complete: ((rows: Achievement[]) => void) | undefined;
 	vi.mocked(client.loadCategory).mockImplementation((id, done, partial) => {
@@ -522,7 +600,7 @@ it("keeps an early achievement usable through cache invalidations and follows up
 	flush();
 	expect(
 		vi.mocked(client.loadCategory).mock.calls.filter(([id]) => id === 92),
-	).toHaveLength(2);
+	).toHaveLength(1);
 	expect(
 		panel
 			.getNavGrid()

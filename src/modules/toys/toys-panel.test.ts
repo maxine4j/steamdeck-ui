@@ -7,7 +7,29 @@ import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
 
 afterEach(() => vi.restoreAllMocks());
-it("keeps early toys usable through item-data invalidations and refreshes once after loading", () => {
+it("keeps a warm toy view and its actions unchanged until reopening after invalidation", () => {
+	const { panel, parent, client, menu, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([toy(1)]);
+	const first = panel.getNavGrid().at(0)?.at(0);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	for (let event = 0; event < 5; event++) panel.invalidate();
+	panel.resume();
+	flush();
+	expect(client.load).toHaveBeenCalledOnce();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+	expect(panel.getNavGrid().at(0)?.at(0)).toBe(first);
+	expect(first?.secureActions?.().alternate).toBeDefined();
+	first?.onContext?.();
+	expect(menu.open).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([toy(1), toy(2)]);
+	expect(panel.getNavGrid().flat()).toHaveLength(2);
+	panel.destroy();
+});
+it("keeps early toys usable through item-data invalidations and defers replacement until reopening", () => {
 	const { panel, parent, client, menu, flush } = setup();
 	panel.onMount(parent);
 	const load = vi.mocked(client.load).mock.calls.at(-1);
@@ -23,7 +45,7 @@ it("keeps early toys usable through item-data invalidations and refreshes once a
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(toy(1));
 	load?.at(0)?.([toy(1), toy(2)]);
 	flush();
-	expect(client.load).toHaveBeenCalledTimes(2);
+	expect(client.load).toHaveBeenCalledOnce();
 	panel.destroy();
 });
 it("shows Blizzard's favourite star and clears it when a cell is reused", () => {

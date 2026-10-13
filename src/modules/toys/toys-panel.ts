@@ -38,6 +38,8 @@ export class ToysPanel implements IPanel {
 	private mountPending = false;
 	private dirty = true;
 	private loading = false;
+	private snapshotComplete = false;
+	private viewComplete = false;
 	private queuedRefresh = false;
 	private generation = 0;
 	private renderGeneration = 0;
@@ -49,7 +51,8 @@ export class ToysPanel implements IPanel {
 	private navigationChanged?: () => void;
 	private readonly navigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
-			if (!this.dirty) this.viewport.scrollToEdge(direction);
+			if (this.viewComplete && !this.cancelRender)
+				this.viewport.scrollToEdge(direction);
 		},
 	};
 	constructor(
@@ -93,20 +96,27 @@ export class ToysPanel implements IPanel {
 		this.viewport.show();
 		this.content.show();
 		this.mounted = true;
-		if (this.dirty) this.refresh();
+		if (this.dirty) this.refresh(true);
 		else {
 			this.layoutContent();
 			this.refreshCooldowns();
 		}
 	}
 	invalidate(): void {
+		if (this.mounted && this.snapshotComplete) {
+			this.queuedRefresh = true;
+			this.dirty = true;
+			return;
+		}
 		if (this.mounted && (this.loading || this.cancelRender)) {
 			this.queuedRefresh = true;
 			return;
 		}
 		this.refresh();
 	}
-	refresh(): void {
+	refresh(retainCachedView = false): void {
+		this.snapshotComplete = false;
+		this.viewComplete = false;
 		this.loading = false;
 		this.queuedRefresh = false;
 		this.dirty = true;
@@ -141,6 +151,7 @@ export class ToysPanel implements IPanel {
 				if (!this.mounted || generation !== this.generation) return;
 				this.cancelLoad = undefined;
 				this.loading = false;
+				this.snapshotComplete = true;
 				this.toys = toys;
 				if (!this.client.isInCombat()) this.render(generation);
 			},
@@ -155,6 +166,7 @@ export class ToysPanel implements IPanel {
 				this.toys = toys;
 				if (!this.client.isInCombat()) this.render(generation, false);
 			},
+			retainCachedView,
 		);
 	}
 	private setLoadingProgress(progress: number): void {
@@ -376,6 +388,7 @@ export class ToysPanel implements IPanel {
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else if (complete) {
+				this.viewComplete = true;
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 				this.loadingTrack.hide();
@@ -388,7 +401,7 @@ export class ToysPanel implements IPanel {
 				this.navigationChanged?.();
 			}
 			if (complete && cursor === jobs.length && this.queuedRefresh)
-				this.refresh();
+				this.invalidate();
 		};
 		this.cancelRender = this.scheduler.nextFrame(step);
 	}
@@ -408,7 +421,7 @@ export class ToysPanel implements IPanel {
 	resume(): void {
 		if (!this.mounted || this.client.isInCombat()) return;
 		if (this.mountPending && this.parent) this.onMount(this.parent);
-		else if (this.dirty) this.refresh();
+		else if (this.dirty && !this.viewComplete) this.refresh(true);
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;
