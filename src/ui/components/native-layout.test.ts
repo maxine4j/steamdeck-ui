@@ -3,6 +3,90 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { type LayoutFrame, NativeLayout } from "./native-layout";
 
+function scheduling() {
+	const pending = new Set<() => void>();
+	return {
+		scheduler: {
+			nextFrame: (callback: () => void) => {
+				pending.add(callback);
+				return () => {
+					pending.delete(callback);
+				};
+			},
+		},
+		flush: () => {
+			for (const callback of [...pending]) {
+				pending.delete(callback);
+				callback();
+			}
+		},
+	};
+}
+
+it("lets native clear/set anchor sequences finish before restoring hosted geometry, and releases render-buffer ownership", () => {
+	const hooks = new Map<string, () => void>();
+	vi.stubGlobal(
+		"hooksecurefunc",
+		(_frame: unknown, method: string, callback: () => void) =>
+			hooks.set(method, callback),
+	);
+	const { scheduler, flush } = scheduling();
+	const host = {} as LayoutFrame;
+	let anchors: unknown[] = [];
+	let buffer = true;
+	const frame = {
+		GetParent: () => undefined,
+		GetNumPoints: () => 0,
+		GetSize: () => [700, 500],
+		GetScale: () => 1,
+		GetFrameStrata: () => "HIGH",
+		GetAlpha: () => 1,
+		IsShown: () => true,
+		IsFrameBuffer: () => buffer,
+		SetIsFrameBuffer: vi.fn((value: boolean) => {
+			buffer = value;
+		}),
+		ClearAllPoints: vi.fn(() => {
+			anchors = [];
+		}),
+		SetPoint: vi.fn((_point: string, relative: unknown) => {
+			if (anchors.some((anchor) => anchor !== relative))
+				throw new Error("SetPoint would result in anchor family connection");
+			anchors.push(relative);
+		}),
+		SetParent: vi.fn(),
+		SetSize: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetAlpha: vi.fn(),
+	} as unknown as LayoutFrame;
+	const layout = new NativeLayout(scheduler);
+	layout.bind(frame, { parent: host, frameBuffer: false });
+	expect(buffer).toBe(false);
+	frame.ClearAllPoints();
+	hooks.get("ClearAllPoints")?.();
+	expect(anchors).toEqual([]);
+	const nativeParent = {} as LayoutFrame;
+	frame.SetPoint("TOPLEFT", nativeParent, "TOPLEFT", 16, -116);
+	hooks.get("SetPoint")?.();
+	expect(anchors).toEqual([nativeParent]);
+	// The native panel manager raises the map before completing its positioning pass.
+	hooks.get("Raise")?.();
+	expect(anchors).toEqual([nativeParent]);
+	frame.SetPoint("BOTTOMRIGHT", nativeParent, "BOTTOMRIGHT", 0, 0);
+	hooks.get("SetPoint")?.();
+	expect(anchors).toEqual([nativeParent, nativeParent]);
+	flush();
+	expect(anchors).toEqual([host, host]);
+	frame.ClearAllPoints();
+	hooks.get("ClearAllPoints")?.();
+	layout.release();
+	expect(buffer).toBe(true);
+	vi.mocked(frame.SetPoint).mockClear();
+	flush();
+	expect(frame.SetPoint).not.toHaveBeenCalled();
+});
+
 afterEach(() => vi.unstubAllGlobals());
 
 it("keeps an anchored native child above its host background without changing its script parent, then restores its level", () => {
@@ -37,7 +121,7 @@ it("keeps an anchored native child above its host background without changing it
 		SetFrameStrata: vi.fn(),
 		SetAlpha: vi.fn(),
 	} as unknown as LayoutFrame;
-	const layout = new NativeLayout();
+	const layout = new NativeLayout(scheduling().scheduler);
 	layout.bind(native, { parent: host, levelOffset: 1 });
 	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(21);
 	expect(native.SetParent).not.toHaveBeenCalled();
@@ -85,7 +169,8 @@ it("owns anchors across native rewrites, keeps hooks inert after release, and re
 		Hide: vi.fn(),
 	} as unknown as LayoutFrame;
 	const parent = {} as LayoutFrame;
-	const layout = new NativeLayout();
+	const { scheduler, flush } = scheduling();
+	const layout = new NativeLayout(scheduler);
 	layout.bind(frame, {
 		parent,
 		insets: [0, 48, 420, 0],
@@ -102,6 +187,8 @@ it("owns anchors across native rewrites, keeps hooks inert after release, and re
 	);
 	vi.mocked(frame.SetPoint).mockClear();
 	hooks.get("SetPoint")?.();
+	expect(frame.SetPoint).not.toHaveBeenCalled();
+	flush();
 	expect(frame.SetPoint).toHaveBeenCalledTimes(2);
 	layout.release();
 	// Geometry ownership must not reopen a frame which Blizzard just closed.
@@ -160,7 +247,7 @@ it("owns anchors across native rewrites, keeps hooks inert after release, and re
 
 it("routes reading actions through the native scroll control", () => {
 	const bar = { ScrollStepInDirection: vi.fn() };
-	const layout = new NativeLayout();
+	const layout = new NativeLayout(scheduling().scheduler);
 	layout.scroll(bar, 1);
 	layout.scroll(bar, -1);
 	expect(bar.ScrollStepInDirection.mock.calls).toEqual([[1], [-1]]);

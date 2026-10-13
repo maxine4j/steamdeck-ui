@@ -196,6 +196,8 @@ export class MapClient implements IMapClient {
 		const height = width / aspect;
 		this.layout.bind(map, {
 			parent,
+			// Quest children extend beyond the fitted map root's render-buffer bounds.
+			frameBuffer: false,
 			// Limit the native background as well as the scroll viewport to the fitted map.
 			insets: [
 				0,

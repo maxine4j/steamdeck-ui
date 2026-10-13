@@ -1,7 +1,10 @@
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { WowFrame } from "../../types";
 import { Frame } from "./frame";
 
 export interface LayoutFrame extends WowFrame {
+	IsFrameBuffer(): boolean;
+	SetIsFrameBuffer(enabled: boolean): void;
 	GetFrameLevel(): number;
 	SetFrameLevel(level: number): void;
 	IsMouseEnabled(): boolean;
@@ -23,6 +26,7 @@ export interface LayoutFrame extends WowFrame {
 	SetAlpha(alpha: number): void;
 }
 export interface NativeLayoutRule {
+	readonly frameBuffer?: boolean;
 	/** Render above/below the anchoring host while preserving the script parent. */
 	readonly levelOffset?: number;
 	readonly size?: readonly [number, number];
@@ -38,6 +42,8 @@ export interface NativeLayoutRule {
 	readonly anchors?: readonly (readonly [string, string, number, number])[];
 }
 export class NativeLayout {
+	private readonly pending = new Map<LayoutFrame, () => void>();
+	constructor(private readonly scheduler: ITaskScheduler) {}
 	private readonly rules = new Map<LayoutFrame, NativeLayoutRule>();
 	private readonly originals = new Map<
 		LayoutFrame,
@@ -54,6 +60,7 @@ export class NativeLayout {
 			mouse?: boolean;
 			clip?: boolean;
 			level?: number;
+			frameBuffer?: boolean;
 		}
 	>();
 	private readonly hooked = new Set<LayoutFrame>();
@@ -97,6 +104,12 @@ export class NativeLayout {
 			original.level === undefined
 		)
 			original.level = frame.GetFrameLevel();
+		if (
+			original &&
+			rule.frameBuffer !== undefined &&
+			original.frameBuffer === undefined
+		)
+			original.frameBuffer = frame.IsFrameBuffer();
 		if (!this.hooked.has(frame)) {
 			this.hooked.add(frame);
 			for (const method of [
@@ -110,6 +123,7 @@ export class NativeLayout {
 				"SetScale",
 				"SetFrameStrata",
 				"SetFrameLevel",
+				"SetIsFrameBuffer",
 				"Raise",
 				"SetAlpha",
 				"Show",
@@ -118,9 +132,31 @@ export class NativeLayout {
 				"EnableMouse",
 				"SetClipsChildren",
 			])
-				hooksecurefunc(frame, method, () => this.apply(frame));
+				hooksecurefunc(frame, method, () => {
+					if (this.applying || !this.rules.has(frame)) return;
+					// Do not insert our anchors between a native ClearAllPoints/SetPoint batch.
+					if (
+						method === "ClearAllPoints" ||
+						method === "SetPoint" ||
+						method === "SetAllPoints" ||
+						this.pending.has(frame)
+					)
+						this.defer(frame);
+					else this.apply(frame);
+				});
 		}
-		this.apply(frame);
+		if (this.pending.has(frame)) this.defer(frame);
+		else this.apply(frame);
+	}
+	private defer(frame: LayoutFrame): void {
+		if (this.pending.has(frame)) return;
+		this.pending.set(
+			frame,
+			this.scheduler.nextFrame(() => {
+				this.pending.delete(frame);
+				this.apply(frame);
+			}),
+		);
 	}
 	private apply(frame: LayoutFrame): void {
 		const rule = this.rules.get(frame);
@@ -168,6 +204,8 @@ export class NativeLayout {
 			frame.SetFrameLevel(hostLevel + rule.levelOffset);
 		}
 		if (rule.alpha !== undefined) frame.SetAlpha(rule.alpha);
+		if (rule.frameBuffer !== undefined)
+			frame.SetIsFrameBuffer(rule.frameBuffer);
 		if (rule.visible !== undefined) {
 			if (rule.visible) frame.Show();
 			else frame.Hide();
@@ -181,6 +219,8 @@ export class NativeLayout {
 		control.ScrollStepInDirection(direction);
 	}
 	release(): void {
+		for (const cancel of this.pending.values()) cancel();
+		this.pending.clear();
 		this.rules.clear();
 		this.applying = true;
 		for (const [frame, original] of this.originals) {
@@ -192,6 +232,8 @@ export class NativeLayout {
 			frame.SetScale(original.scale);
 			frame.SetFrameStrata(original.strata);
 			if (original.level !== undefined) frame.SetFrameLevel(original.level);
+			if (original.frameBuffer !== undefined)
+				frame.SetIsFrameBuffer(original.frameBuffer);
 			frame.SetAlpha(original.alpha);
 			if (original.mouse !== undefined) frame.EnableMouse(original.mouse);
 			if (original.clip !== undefined) frame.SetClipsChildren(original.clip);

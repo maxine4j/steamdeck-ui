@@ -104,6 +104,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 			reparent: true,
 			scale: 1,
 			strata: "DIALOG",
+			frameBuffer: false,
 		}),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(

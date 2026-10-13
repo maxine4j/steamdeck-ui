@@ -61,7 +61,7 @@ startSteamDeckUI(
 	new AddonConfigClient(),
 	new MapClient(
 		events,
-		new NativeLayout(),
+		new NativeLayout(scheduler),
 		new NativeNavigation(new FramePoolManager(frameFactory)),
 	),
 );
