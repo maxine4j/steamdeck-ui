@@ -150,7 +150,7 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 		"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t",
 	);
 	for (const indicator of indicators)
-		expect(indicator.setBorder).toHaveBeenCalledWith([0.32, 0.6, 0.85, 1]);
+		expect(indicator.setBorder).not.toHaveBeenCalled();
 	expect(indicators.at(0)?.layout).toHaveBeenCalledExactlyOnceWith(
 		48,
 		48,

@@ -107,7 +107,6 @@ export class CrossBar {
 			const indicator = new Frame(`cross-bar-${modifier.key}`, this.pool);
 			indicator.layout(48, 48, "BOTTOM", undefined, modifier.x, modifier.y);
 			indicator.setColor(0.12, 0.18, 0.25, 0.9);
-			indicator.setBorder([0.32, 0.6, 0.85, 1]);
 			indicator.setIcon(modifier.icon, false);
 			if (modifier.label !== "") indicator.setLabel("modifier", modifier.label);
 			indicator.show();
