@@ -141,10 +141,15 @@ export class MapClient implements IMapClient {
 		if (this.enabled) return;
 		this.enabled = true;
 		this.originalToggleSelf = WorldMapFrame.HandleUserActionToggleSelf;
+		const client = this;
 		// The combined pane has one open state; native M otherwise toggles flyout/maximize states.
 		this.toggleSelf = function (this: NativeWorldMap): void {
 			if (this.IsShown()) HideUIPanel(this);
-			else ShowUIPanel(this);
+			else {
+				ShowUIPanel(this);
+				// Native panel positioning raises the map after our OnShow mount finishes.
+				client.applyQuestLayout();
+			}
 		};
 		WorldMapFrame.HandleUserActionToggleSelf = this.toggleSelf;
 		if (this.hooked) return;
@@ -260,6 +265,7 @@ export class MapClient implements IMapClient {
 		// Keep QuestMapFrame parented to the map: its scripts call the owner's map methods.
 		this.layout.bind(quests, {
 			parent: this.questPane,
+			raised: true,
 			// Anchoring alone retains the map's old level beneath our opaque pane.
 			levelOffset: 1,
 			insets: [8, 8, 8, 48],

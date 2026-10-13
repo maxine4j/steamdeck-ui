@@ -113,6 +113,7 @@ it("keeps an anchored native child above its host background without changing it
 		IsShown: () => true,
 		GetFrameLevel: () => 3,
 		SetFrameLevel: vi.fn(),
+		Raise: vi.fn(),
 		SetParent: vi.fn(),
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
@@ -122,7 +123,8 @@ it("keeps an anchored native child above its host background without changing it
 		SetAlpha: vi.fn(),
 	} as unknown as LayoutFrame;
 	const layout = new NativeLayout(scheduling().scheduler);
-	layout.bind(native, { parent: host, levelOffset: 1 });
+	layout.bind(native, { parent: host, levelOffset: 1, raised: true });
+	expect(native.Raise).toHaveBeenCalledOnce();
 	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(21);
 	expect(native.SetParent).not.toHaveBeenCalled();
 	hooks.get("SetFrameLevel")?.();

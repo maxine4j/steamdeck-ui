@@ -3,6 +3,7 @@ import type { WowFrame } from "../../types";
 import { Frame } from "./frame";
 
 export interface LayoutFrame extends WowFrame {
+	Raise(): void;
 	IsFrameBuffer(): boolean;
 	SetIsFrameBuffer(enabled: boolean): void;
 	GetFrameLevel(): number;
@@ -26,6 +27,7 @@ export interface LayoutFrame extends WowFrame {
 	SetAlpha(alpha: number): void;
 }
 export interface NativeLayoutRule {
+	readonly raised?: boolean;
 	readonly frameBuffer?: boolean;
 	/** Render above/below the anchoring host while preserving the script parent. */
 	readonly levelOffset?: number;
@@ -210,6 +212,7 @@ export class NativeLayout {
 			if (rule.visible) frame.Show();
 			else frame.Hide();
 		}
+		if (rule.raised) frame.Raise();
 		this.applying = false;
 	}
 	scroll(

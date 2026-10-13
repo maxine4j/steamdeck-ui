@@ -123,6 +123,31 @@ it("makes M close and reopen the combined pane without native flyout transitions
 	frame.HandleUserActionToggleSelf();
 	expect(nativeToggle).toHaveBeenCalledOnce();
 });
+it("raises the quest pane after M's native show and positioning pass completes", () => {
+	const { client, frame, quests, events, scripts, layout } = setup();
+	let positioned = false;
+	const raisedAfterPositioning: boolean[] = [];
+	layout.bind.mockImplementation((target, rule) => {
+		if (target === quests && rule.raised)
+			raisedAfterPositioning.push(positioned);
+	});
+	events.subscribe("MAP_VISIBILITY_CHANGED", () => {
+		if (client.isOpen())
+			client.mount(
+				{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+				{} as Frame,
+			);
+	});
+	vi.stubGlobal("ShowUIPanel", () => {
+		frame.IsShown.mockReturnValue(true);
+		scripts.get("OnShow")?.();
+		positioned = true;
+	});
+	frame.IsShown.mockReturnValue(false);
+	client.disable();
+	frame.HandleUserActionToggleSelf();
+	expect(raisedAfterPositioning.at(-1)).toBe(true);
+});
 it("retains the native canvas, breadcrumbs and filters while owning a fullscreen layout and restoring it on close", () => {
 	const { client, frame, quests, layout, events, scripts } = setup();
 	const changed = vi.fn();
@@ -161,6 +186,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		expect.objectContaining({
 			parent: pane,
 			levelOffset: 1,
+			raised: true,
 			visible: true,
 			alpha: 1,
 			mouse: true,
