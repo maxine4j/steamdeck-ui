@@ -76,7 +76,7 @@ export class AchievementsClient implements IAchievementsClient {
 		const step = () => {
 			if (cancelled) return;
 			cancelNext = undefined;
-			for (let operation = 0; operation < 20; operation++) {
+			for (let operation = 0; operation < 60; operation++) {
 				if (phase === "count") {
 					[count] = GetCategoryNumAchievements(category);
 					phase = "row";

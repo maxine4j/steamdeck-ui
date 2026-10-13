@@ -76,7 +76,13 @@ it("bounds category and chain API work per frame and cancels the latest continua
 			count.mock.calls.length +
 			previous.mock.calls.length +
 			next.mock.calls.length,
-	).toBeLessThanOrEqual(20);
+	).toBeGreaterThan(40);
+	expect(
+		read.mock.calls.length +
+			count.mock.calls.length +
+			previous.mock.calls.length +
+			next.mock.calls.length,
+	).toBeLessThanOrEqual(60);
 	expect(complete).not.toHaveBeenCalled();
 	expect(progress).toHaveBeenCalled();
 	const calls = read.mock.calls.length;

@@ -5,6 +5,81 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("supports larger scheduled batches and wrapped labels in narrow two-column tiles", () => {
+	const pending: (() => void)[] = [];
+	const list = new ScrollList(
+		"larger-batch",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+		{
+			columns: 2,
+			batchSize: 30,
+			scheduler: {
+				nextFrame: (callback) => {
+					pending.push(callback);
+					return vi.fn();
+				},
+			},
+		},
+	);
+	list.setRows(
+		Array.from({ length: 25 }, (_, i) => ({
+			id: `${i}`,
+			label: "Expansion Features",
+			wrapLabel: true,
+			activate: vi.fn(),
+		})),
+	);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	pending.shift()?.();
+	expect(list.getNavGrid().flat()).toHaveLength(25);
+	expect(
+		frames.get("larger-batch-row-0")?.setLabelWordWrap,
+	).toHaveBeenCalledWith("label", true);
+});
+
+it("switches between two-column summary navigation and single-column detail navigation", () => {
+	const list = new ScrollList(
+		"switch-columns",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+	);
+	list.setRows(
+		[1, 2, 3].map((id) => ({ id: `${id}`, label: `${id}`, activate: vi.fn() })),
+	);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	list.setColumns(2);
+	expect(list.getNavGrid().map((row) => row.map((n) => n.navId))).toEqual([
+		["1", "2"],
+		["3"],
+	]);
+	list.setColumns(1);
+	expect(list.getNavGrid().map((row) => row.map((n) => n.navId))).toEqual([
+		["1"],
+		["2"],
+		["3"],
+	]);
+	expect(
+		list
+			.getNavGrid()
+			.flat()
+			.map((n) => n.navColumn ?? 0),
+	).toEqual([0, 0, 0]);
+	list.setRows([
+		{
+			id: "details",
+			label: "Achievement",
+			detail: "Long achievement description",
+			activate: vi.fn(),
+		},
+	]);
+	expect(
+		frames.get("switch-columns-row-0")?.setLabelWordWrap,
+	).toHaveBeenLastCalledWith("detail", true);
+});
+
 it("keeps first-line labels and counts equally inset from a progress button's edges", () => {
 	const list = new ScrollList(
 		"padded-category",

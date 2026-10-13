@@ -95,6 +95,10 @@ vi.mock("../../ui/components/scroll-list", () => ({
 			this.state.rows = rows;
 		}
 		setWidth() {}
+		columns = 1;
+		setColumns(columns: number) {
+			this.columns = columns;
+		}
 		resetScroll() {}
 		revealRow() {}
 		destroy() {}
@@ -105,6 +109,22 @@ vi.mock("../../ui/components/scroll-list", () => ({
 			this.state.mounted = false;
 		}
 		getNavGrid() {
+			if (this.state.mounted && this.columns > 1) {
+				const nodes = this.state.rows
+					.filter((r) => !r.heading)
+					.map((r, index) => ({
+						navId: r.id,
+						navColumn: index % this.columns,
+						onFocus() {},
+						onBlur() {},
+						onInteract: r.activate,
+					}));
+				return Array.from(
+					{ length: Math.ceil(nodes.length / this.columns) },
+					(_, index) =>
+						nodes.slice(index * this.columns, (index + 1) * this.columns),
+				);
+			}
 			return this.state.mounted
 				? this.state.rows
 						.filter((r) => !r.heading)
@@ -256,7 +276,7 @@ it("fills summary button counts as categories arrive while later scans remain pe
 		lists
 			.get("achievements-list")
 			?.rows.find((r) => r.id === "summary-category-Characters")?.trailingLabel,
-	).toBe("1 / 2 • 50%");
+	).toBe("1/2 50%");
 	expect(client.achievements).toHaveBeenCalledOnce();
 	expect(
 		panel
@@ -301,7 +321,7 @@ it("budgets retained control cleanup instead of hiding the entire grid during an
 	expect(hide.mock.calls.length).toBeLessThan(20);
 	hide.mockClear();
 	step();
-	expect(hide.mock.calls.length).toBeLessThanOrEqual(24);
+	expect(hide.mock.calls.length).toBeLessThanOrEqual(72);
 	hide.mockRestore();
 	flush();
 });
@@ -379,13 +399,24 @@ it("loads a requested category ahead of unrelated categories and renders it befo
 			.some((n) => n.navId === "achievement-503"),
 	).toBe(true);
 });
-it("opens a single-column summary with progress buttons and drills into category grids", () => {
+it("opens a two-column reputation-style summary with progress buttons and drills into category grids", () => {
 	const { panel, activate } = setup();
 	expect(
 		lists
 			.get("achievements-list")
 			?.rows.find((r) => r.id === "summary-category-Characters"),
 	).toMatchObject({ label: "Characters", progress: { value: 0.5 } });
+	expect(
+		panel
+			.getNavGrid()
+			.at(0)
+			?.map((n) => n.navId),
+	).toEqual(["summary-category-Characters", "summary-category-Quests"]);
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((r) => r.id === "summary-category-Quests")?.backgroundAtlas,
+	).toBe("ui-journeys-renown-button");
 	expect(
 		panel
 			.getNavGrid()
@@ -723,9 +754,9 @@ it("formats section percentages and large numbers and keeps padded category coun
 		.get("achievements-list")
 		?.rows.find((r) => r.id === "summary-category-Characters");
 	expect(category).toMatchObject({
-		trailingLabel: "2 / 3 • 67%",
+		trailingLabel: "2/3 67%",
 		trailingOnFirstLine: true,
-		height: 67,
+		height: 80,
 	});
 	expect(category?.detail).toBeUndefined();
 	activate("summary-category-Characters");

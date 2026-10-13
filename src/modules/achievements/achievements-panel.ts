@@ -87,6 +87,8 @@ export class AchievementsPanel implements IPanel {
 			padding: 0,
 			top: 0,
 			bottom: 0,
+			gap: 12,
+			batchSize: 30,
 			contentPadding: { horizontal: 18, vertical: 16 },
 			progressInset: { horizontal: 0, bottom: 12 },
 			scheduler,
@@ -456,6 +458,7 @@ export class AchievementsPanel implements IPanel {
 			this.list.setRows([]);
 		} else if (!page) {
 			this.page = undefined;
+			this.list.setColumns(2);
 			this.list.mount(this.body);
 			this.list.setRows([
 				{
@@ -479,11 +482,16 @@ export class AchievementsPanel implements IPanel {
 				...this.pages.map((p) => ({
 					id: `summary-category-${p.id}`,
 					label: p.name,
+					backgroundAtlas: "ui-journeys-renown-button",
+					fontSize: 12,
+					wrapLabel: true,
 					trailingLabel: p.pending
 						? "Loading..."
-						: formatAchievementProgress(p.completed, p.total),
+						: formatAchievementProgress(p.completed, p.total)
+								.replace(" / ", "/")
+								.replace(" • ", " "),
 					trailingOnFirstLine: true,
-					height: 67,
+					height: 80,
 					progress: {
 						value: p.total > 0 ? p.completed / p.total : 0,
 						color: gold,
@@ -513,6 +521,7 @@ export class AchievementsPanel implements IPanel {
 				this.width - 150,
 			);
 			if (this.expanded !== undefined) {
+				this.list.setColumns(1);
 				this.list.mount(this.body);
 				this.list.resetScroll();
 				this.list.setRows(this.details());
@@ -710,7 +719,7 @@ export class AchievementsPanel implements IPanel {
 			)
 				return;
 			this.cancelRender = undefined;
-			const end = Math.min(jobs.length, cursor + 12);
+			const end = Math.min(jobs.length, cursor + 36);
 			while (cursor < end) jobs.at(cursor++)?.();
 			if (!this.scanning)
 				this.setLoadingProgress(

@@ -21,6 +21,7 @@ export interface ListRow {
 	readonly checked?: boolean;
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
+	readonly wrapLabel?: boolean;
 	readonly indent?: number;
 	/** Extra space above a full-width heading. */
 	readonly marginTop?: number;
@@ -62,6 +63,7 @@ export class ScrollList {
 	private renderedRows = 0;
 	private contentHeight = 1;
 	private width?: number;
+	private columns?: number;
 	constructor(
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
@@ -80,6 +82,7 @@ export class ScrollList {
 			readonly onChanged?: (complete: boolean) => void;
 			readonly columns?: number;
 			readonly gap?: number;
+			readonly batchSize?: number;
 			readonly edgeProgress?: boolean;
 			readonly progressInset?: { horizontal: number; bottom: number };
 			readonly contentPadding?: { horizontal: number; vertical: number };
@@ -89,6 +92,12 @@ export class ScrollList {
 		this.frame = new Frame(id, pool);
 		this.scroll = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
+	}
+	setColumns(columns: number): void {
+		if (columns === (this.columns ?? this.options.columns ?? 1)) return;
+		this.columns = Math.max(1, columns);
+		this.dirty = true;
+		if (this.mounted) this.render();
 	}
 	setTitle(title: string): void {
 		this.title = title;
@@ -167,7 +176,7 @@ export class ScrollList {
 		const width =
 			(this.width ?? this.options.width ?? 480) -
 			2 * (this.options.padding ?? 12);
-		const columns = this.options.columns ?? 1;
+		const columns = this.columns ?? this.options.columns ?? 1;
 		const gap = this.options.gap ?? 4;
 		let top = 0;
 		let column = 0;
@@ -210,7 +219,8 @@ export class ScrollList {
 			this.cancelRender = undefined;
 			const end = Math.min(
 				total,
-				cursor + (this.options.scheduler ? 10 : total),
+				cursor +
+					(this.options.scheduler ? (this.options.batchSize ?? 10) : total),
 			);
 			const start = cursor;
 			this.rows.slice(start, end).forEach((row, batchIndex) => {
@@ -463,9 +473,9 @@ export class ScrollList {
 					12,
 					textWidth,
 				);
+				button.frame.setLabelWordWrap("detail", columns === 1);
 				if (columns > 1) {
-					button.frame.setLabelWordWrap("label", false);
-					button.frame.setLabelWordWrap("detail", false);
+					button.frame.setLabelWordWrap("label", row.wrapLabel ?? false);
 				}
 				if (this.options.autoHeight && columns === 1 && !row.heading) {
 					button.frame.setLabelWordWrap("label", true);
@@ -567,7 +577,9 @@ export class ScrollList {
 		this.frame.hide();
 	}
 	getNavGrid(): INavigable[][] {
-		if (this.mounted && (this.options.columns ?? 1) > 1) {
+		if (!this.mounted) return [];
+		const columns = this.columns ?? this.options.columns ?? 1;
+		if (this.mounted && columns > 1) {
 			const grid: INavigable[][] = [];
 			let line: INavigable[] = [];
 			let column = 0;
@@ -585,7 +597,7 @@ export class ScrollList {
 					line.push(button.nav);
 				}
 				column++;
-				if (column === this.options.columns) {
+				if (column === columns) {
 					if (line.length > 0) grid.push(line);
 					line = [];
 					column = 0;
@@ -593,6 +605,10 @@ export class ScrollList {
 			}
 			if (line.length > 0) grid.push(line);
 			return grid;
+		}
+		for (const button of this.buttons.slice(0, this.renderedRows)) {
+			button.nav.navColumn = 0;
+			button.secondaryNav.navColumn = 1;
 		}
 		return this.mounted
 			? this.buttons
