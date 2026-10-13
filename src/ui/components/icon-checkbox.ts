@@ -52,8 +52,8 @@ export class IconCheckbox implements INavigable {
 		if (checked) this.check.show();
 		else this.check.hide();
 	}
-	onFocus(): void {
-		this.nav.onFocus();
+	onFocus(refresh?: boolean): void {
+		this.nav.onFocus(refresh);
 	}
 	onBlur(): void {
 		this.nav.onBlur();

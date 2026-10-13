@@ -102,9 +102,10 @@ export class ItemGrid {
 						nav: {
 							navId: item.id,
 							navigationScroll: this.viewport,
-							onFocus: () => {
-								frame.setFocused(true);
-								this.reveal(index);
+							onFocus: (refresh) => {
+								if (refresh) frame.setFocused(true, false, true);
+								else frame.setFocused(true);
+								if (!refresh) this.reveal(index);
 							},
 							tooltipItem: () => this.items.at(index)?.hyperlink,
 							onBlur: () => this.style(index),
@@ -115,9 +116,10 @@ export class ItemGrid {
 						secondaryNav: {
 							navId: `${item.id}-secondary`,
 							navigationScroll: this.viewport,
-							onFocus: () => {
-								secondary.setFocused(true);
-								this.reveal(index);
+							onFocus: (refresh) => {
+								if (refresh) secondary.setFocused(true, false, true);
+								else secondary.setFocused(true);
+								if (!refresh) this.reveal(index);
 							},
 							onBlur: () => secondary.setFocused(false),
 							onInteract: () => {

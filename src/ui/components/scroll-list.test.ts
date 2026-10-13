@@ -5,6 +5,155 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("uses animated navigation outlines for rows with animated artwork and skips arrival on refresh", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("arrival-row", pool, "", vi.fn());
+	list.setRows([
+		{
+			id: "queued",
+			label: "Queued",
+			activate: vi.fn(),
+			animatedIcon: {
+				atlas: "eye",
+				rows: 1,
+				columns: 2,
+				frames: 2,
+				duration: 1,
+			},
+		},
+	]);
+	list.mount(new Frame("arrival-parent", pool));
+	const node = list.getNavGrid().at(0)?.at(0);
+	node?.onFocus();
+	expect(frames.get("arrival-row-row-0")?.setFocused).toHaveBeenLastCalledWith(
+		true,
+	);
+	node?.onFocus(true);
+	expect(frames.get("arrival-row-row-0")?.setFocused).toHaveBeenLastCalledWith(
+		true,
+		false,
+		true,
+	);
+});
+
+it("preserves the existing secondary button click behavior for favourite controls", () => {
+	const pool = {} as IFramePoolManager;
+	const favourite = vi.fn();
+	const list = new ScrollList("favourite-click", pool, "", vi.fn());
+	list.setRows([
+		{
+			id: "mount",
+			label: "Mount",
+			secondary: { label: "☆", activate: favourite },
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	frames.get("favourite-click-secondary-0")?.onClick.mock.lastCall?.at(0)(
+		"RightButton",
+	);
+	expect(favourite).toHaveBeenCalledOnce();
+});
+
+it("makes the inset action button the only interactive part of a wide tile", () => {
+	const pool = {} as IFramePoolManager;
+	const queue = vi.fn();
+	const body = vi.fn();
+	const list = new ScrollList("inset-action", pool, "", vi.fn(), {
+		buttonWidth: 420,
+		centerText: true,
+		contentPadding: { horizontal: 16, vertical: 10 },
+	});
+	const tile = {
+		id: "wing",
+		label: "Wing",
+		detail: "",
+		height: 60,
+		backgroundAtlas: "ui-journeys-renown-button",
+		backgroundSlice: 16,
+		secondary: {
+			label: "Queue",
+			width: 110,
+			height: 32,
+			onlyAction: true,
+			tooltip: "Enter Queue?",
+			activate: queue,
+		},
+		activate: body,
+	};
+	list.setRows([tile]);
+	list.mount(new Frame("parent", pool));
+	const button = frames.get("inset-action-secondary-0");
+	expect(button?.layout).toHaveBeenLastCalledWith(
+		110,
+		32,
+		"RIGHT",
+		expect.anything(),
+		-16,
+		0,
+	);
+	expect(button?.setButtonBackground).toHaveBeenCalled();
+	expect(
+		frames.get("inset-action-row-0")?.setAtlasBackground,
+	).toHaveBeenLastCalledWith("ui-journeys-renown-button", undefined, 16);
+	expect(button?.setLabel).toHaveBeenLastCalledWith("label", "Queue");
+	expect(frames.get("inset-action-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Wing",
+		"TOP",
+		-63,
+		-10,
+		14,
+		262,
+	);
+	frames.get("inset-action-row-0")?.onClick.mock.lastCall?.at(0)("LeftButton");
+	expect(body).not.toHaveBeenCalled();
+	expect(
+		list
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["wing"]);
+	list.getNavGrid().flat().at(0)?.onInteract();
+	expect(queue).toHaveBeenCalledOnce();
+	list.setRows([
+		{
+			...tile,
+			detail: "In Queue",
+			animatedIconOnDetail: true,
+			animatedIcon: {
+				atlas: "eye",
+				rows: 8,
+				columns: 11,
+				frames: 80,
+				duration: 2,
+			},
+			backgroundTint: [0.2, 0.8, 0.3],
+			secondary: { ...tile.secondary, label: "Leave Queue" },
+		},
+	]);
+	expect(button?.setLabel).toHaveBeenLastCalledWith("label", "Leave Queue");
+	expect(
+		frames.get("inset-action-animation-0")?.layout,
+	).toHaveBeenLastCalledWith(20, 20, "BOTTOMRIGHT", expect.anything(), -134, 8);
+	const nav = list.getNavGrid().flat().at(0);
+	nav?.onFocus();
+	expect(button?.setFocused).toHaveBeenLastCalledWith(true);
+	expect(button?.showTooltip).toHaveBeenLastCalledWith({
+		text: "Enter Queue?",
+	});
+	nav?.onBlur();
+	expect(button?.hideTooltip).toHaveBeenCalled();
+	list.setRows([{ ...tile, enabled: false }]);
+	nav?.onInteract();
+	expect(queue).toHaveBeenCalledOnce();
+	expect(list.getNavGrid()).toEqual([]);
+	list.setRows([{ id: "plain", label: "Plain", activate: body }]);
+	expect(button?.hide).toHaveBeenCalled();
+	list.getNavGrid().flat().at(0)?.onInteract();
+	expect(body).toHaveBeenCalledOnce();
+});
+
 it("shows a second-line prompt on mouse hover or controller focus and retains queued status on line two", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("queue-tile", pool, "", vi.fn(), {
@@ -837,6 +986,9 @@ const { frames } = vi.hoisted(() => ({
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
 			setTooltip: ReturnType<typeof vi.fn>;
+			setFocused: ReturnType<typeof vi.fn>;
+			showTooltip: ReturnType<typeof vi.fn>;
+			hideTooltip: ReturnType<typeof vi.fn>;
 			setLabelWordWrap: ReturnType<typeof vi.fn>;
 		}
 	>(),

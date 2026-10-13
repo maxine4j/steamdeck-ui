@@ -84,7 +84,14 @@ vi.mock("../../ui/components/scroll-list", () => ({
 			const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 			return rows
 				.filter((row) => !row.heading && row.enabled !== false)
-				.map((row) => [{ navId: row.id, onInteract: row.activate }]);
+				.map((row) => [
+					{
+						navId: row.id,
+						onInteract: row.secondary?.onlyAction
+							? row.secondary.activate
+							: row.activate,
+					},
+				]);
 		};
 	},
 }));
@@ -171,6 +178,45 @@ function setup(queued = false, canTank = true, canHeal = true) {
 	return { panel, client, rows, callbacks, modal, confirm, cancel };
 }
 
+function activate(row?: ListRow): void {
+	if (row?.secondary?.onlyAction) row.secondary.activate();
+	else row?.activate();
+}
+
+it("widens queue tiles and limits queue actions to the inset red button", () => {
+	const { rows, client } = setup();
+	const tile = rows.find((row) => row.id === "dungeon-3");
+	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({ buttonWidth: 420 });
+	expect(tile?.secondary).toMatchObject({
+		label: "Queue",
+		width: 110,
+		height: 32,
+		onlyAction: true,
+	});
+	expect(tile?.backgroundSlice).toBe(16);
+	expect(
+		rows.find((row) => row.id === "heading-specific-dungeons"),
+	).toMatchObject({ label: "Specific dungeons", heading: true, indent: 24 });
+	expect(rows.find((row) => row.id === "list-follower")?.marginBottom).toBe(0);
+	expect(rows.find((row) => row.id === "list-specific")?.marginBottom).toBe(0);
+	tile?.activate();
+	expect(client.join).not.toHaveBeenCalled();
+	tile?.secondary?.activate();
+	expect(client.join).toHaveBeenCalledOnce();
+	const queued = setup(true);
+	const active = queued.rows.find((row) => row.id === "dungeon-3");
+	expect(active?.secondary).toMatchObject({
+		label: "Leave Queue",
+		tooltip: "In queue - leave?",
+	});
+	active?.activate();
+	expect(queued.modal.open).not.toHaveBeenCalled();
+	active?.secondary?.activate();
+	expect(queued.modal.open).toHaveBeenCalled();
+	queued.confirm();
+	expect(queued.client.leave).toHaveBeenCalledOnce();
+});
+
 it.each(["follower", "specific"] as const)(
 	"opens %s checkboxes with pinned roles and returns via controller B",
 	(list) => {
@@ -222,7 +268,7 @@ it.each(["follower", "specific"] as const)(
 it("returns from an empty secondary page with the pinned Back button", () => {
 	const { rows, client, panel, callbacks } = setup();
 	client.getDungeonChoices = () => [];
-	rows.find((row) => row.id === "list-follower")?.activate();
+	activate(rows.find((row) => row.id === "list-follower"));
 	callbacks.shift()?.();
 	const choices = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(choices).toMatchObject([
@@ -247,7 +293,7 @@ it("returns from an empty secondary page with the pinned Back button", () => {
 
 it("greys competing queues and lets A leave the active random queue", () => {
 	const { rows, client, panel, callbacks, modal, confirm } = setup(true);
-	rows.find((row) => row.id === "list-specific")?.activate();
+	activate(rows.find((row) => row.id === "list-specific"));
 	callbacks.shift()?.();
 	expect(client.selectList).not.toHaveBeenCalled();
 	expect(rows.find((row) => row.id === "dungeon-1")?.enabled).toBe(false);
@@ -255,12 +301,12 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		backgroundTint: [0.2, 0.8, 0.3],
 		detail: "In Queue",
-		hoverDetail: "In queue - leave?",
+		secondary: { label: "Leave Queue", tooltip: "In queue - leave?" },
 		animatedIconOnDetail: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		enabled: true,
 	});
-	rows.find((row) => row.id === "dungeon-3")?.activate();
+	activate(rows.find((row) => row.id === "dungeon-3"));
 	expect(client.leave).not.toHaveBeenCalled();
 	expect(modal.open).toHaveBeenCalledWith("Leave Queue?", expect.any(Array));
 	confirm();
@@ -281,6 +327,7 @@ it("renders ordered sections and immediately joins available random dungeons", (
 		"heading-special",
 		"heading-heroic",
 		"heading-normal",
+		"heading-specific-dungeons",
 		"heading-raids",
 		"empty-raids",
 	]);
@@ -294,16 +341,16 @@ it("renders ordered sections and immediately joins available random dungeons", (
 		"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:20:20|t Normal random",
 	);
 	expect(rows.find((row) => row.id === "dungeon-3")?.marginBottom).toBe(20);
-	rows.find((row) => row.id === "dungeon-3")?.activate();
+	activate(rows.find((row) => row.id === "dungeon-3"));
 	expect(client.select).toHaveBeenCalledWith(3);
 	expect(client.join).toHaveBeenCalledOnce();
-	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBeUndefined();
+	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBe("");
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		backgroundAtlas: "ui-journeys-renown-button",
 		height: 60,
-		hoverDetail: "Enter Queue?",
+		secondary: { label: "Queue", tooltip: "Enter Queue?" },
 	});
-	rows.find((row) => row.id === "dungeon-2")?.activate();
+	activate(rows.find((row) => row.id === "dungeon-2"));
 	expect(client.select).toHaveBeenCalledTimes(1);
 });
 
@@ -370,7 +417,7 @@ it("removes the overview queue footer and compacts the role area", () => {
 	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
 		top: 180,
-		buttonWidth: 280,
+		buttonWidth: 420,
 		centerText: true,
 		contentPadding: { horizontal: 16, vertical: 10 },
 		centerSingleLine: true,
@@ -413,7 +460,7 @@ it.each(["specific", "follower"] as const)(
 	"keeps %s queue action last, compacts choices and supports B",
 	(list) => {
 		const { panel, rows, client, callbacks } = setup();
-		rows.find((row) => row.id === `list-${list}`)?.activate();
+		activate(rows.find((row) => row.id === `list-${list}`));
 		callbacks.shift()?.();
 		const choices = setRows.mock.lastCall?.at(0) as ListRow[];
 		expect(
@@ -422,7 +469,7 @@ it.each(["specific", "follower"] as const)(
 				.every((row) => row.height === 24),
 		).toBe(true);
 		expect(choices.at(-1)?.id).toBe("queue-action");
-		choices.at(-1)?.activate();
+		activate(choices.at(-1));
 		expect(client.join).toHaveBeenCalledOnce();
 		if (list === "specific")
 			expect(
@@ -452,9 +499,30 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 			id: 60,
 			name: "New raid",
 			wings: [
-				{ id: 102, name: "Wing one", available: true, queued: true },
-				{ id: 103, name: "Wing two", available: true, queued: false },
-				{ id: 104, name: "Locked wing", available: false, queued: false },
+				{
+					id: 102,
+					name: "Wing one",
+					available: true,
+					queued: true,
+					bosses: [
+						{ name: "First Boss", killed: true },
+						{ name: "Second Boss", killed: false },
+					],
+				},
+				{
+					id: 103,
+					name: "Wing two",
+					available: true,
+					queued: false,
+					bosses: [{ name: "Third Boss", killed: false }],
+				},
+				{
+					id: 104,
+					name: "Locked wing",
+					available: false,
+					queued: false,
+					bosses: [],
+				},
 			],
 		},
 	];
@@ -477,14 +545,19 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	expect(rows.findIndex((row) => row.id === "heading-raids")).toBeGreaterThan(
 		rows.findIndex((row) => row.id === "list-specific"),
 	);
-	rows.find((row) => row.id === "wing-103")?.activate();
+	activate(rows.find((row) => row.id === "wing-103"));
 	expect(rows.find((row) => row.id === "wing-103")).toMatchObject({
 		backgroundAtlas: "ui-journeys-renown-button",
 		height: 60,
-		hoverDetail: "Enter Queue?",
+		secondary: {
+			label: "Queue",
+			tooltip: expect.stringContaining("Third Boss"),
+		},
+		detail: "0/1 bosses killed",
+		marginBottom: 0,
 	});
 	expect(client.joinRaid).toHaveBeenCalledWith(103);
-	rows.find((row) => row.id === "wing-104")?.activate();
+	activate(rows.find((row) => row.id === "wing-104"));
 	expect(client.joinRaid).toHaveBeenCalledOnce();
 	capacity = false;
 	callbacks.shift()?.();
@@ -492,20 +565,24 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	expect(rows.find((row) => row.id === "wing-103")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "wing-102")).toMatchObject({
 		backgroundTint: [0.2, 0.8, 0.3],
-		detail: "In Queue",
+		detail: "1/2 bosses killed • In Queue",
 		animatedIconOnDetail: true,
 		enabled: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
+		marginBottom: 0,
+		secondary: {
+			tooltip: expect.stringContaining("First Boss (killed)\nSecond Boss"),
+		},
 	});
-	rows.find((row) => row.id === "wing-103")?.activate();
+	activate(rows.find((row) => row.id === "wing-103"));
 	expect(client.joinRaid).toHaveBeenCalledOnce();
-	rows.find((row) => row.id === "wing-102")?.activate();
+	activate(rows.find((row) => row.id === "wing-102"));
 	expect(client.leaveRaid).not.toHaveBeenCalled();
 	confirm();
 	expect(client.leaveRaid).toHaveBeenCalledWith(102);
 	expect(client.leave).not.toHaveBeenCalled();
 	panel.onUnmount();
-	rows.find((row) => row.id === "wing-102")?.activate();
+	activate(rows.find((row) => row.id === "wing-102"));
 	expect(client.leaveRaid).toHaveBeenCalledOnce();
 });
 
@@ -524,7 +601,7 @@ it.each(["specific", "follower"] as const)(
 	"shows the active %s queue in green and leaves it from its bottom action",
 	(list) => {
 		const { panel, client, rows, callbacks, confirm } = setup();
-		rows.find((row) => row.id === `list-${list}`)?.activate();
+		activate(rows.find((row) => row.id === `list-${list}`));
 		callbacks.shift()?.();
 		client.getSelected = () => list;
 		client.isQueued = () => true;
@@ -540,7 +617,7 @@ it.each(["specific", "follower"] as const)(
 			animatedIconOnDetail: true,
 			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		});
-		choices.at(-1)?.activate();
+		activate(choices.at(-1));
 		expect(client.leave).not.toHaveBeenCalled();
 		confirm();
 		expect(client.leave).toHaveBeenCalledOnce();
@@ -559,16 +636,16 @@ it.each(["specific", "follower"] as const)(
 it("cancels leaving without dequeuing and rejects stale confirmation after queue changes or unmount", () => {
 	const { rows, client, panel, confirm, cancel, modal } = setup(true);
 	const action = rows.find((row) => row.id === "dungeon-3");
-	action?.activate();
+	activate(action);
 	cancel();
 	confirm();
 	expect(client.leave).not.toHaveBeenCalled();
-	action?.activate();
+	activate(action);
 	client.getSelected = () => 1;
 	confirm();
 	expect(client.leave).not.toHaveBeenCalled();
 	client.getSelected = () => 3;
-	action?.activate();
+	activate(action);
 	panel.onUnmount();
 	expect(modal.close).toHaveBeenCalled();
 	confirm();
@@ -580,7 +657,7 @@ it.each(["follower", "specific"] as const)(
 	(list) => {
 		const { rows, client, confirm, modal } = setup(true);
 		client.getSelected = () => list;
-		rows.find((row) => row.id === `list-${list}`)?.activate();
+		activate(rows.find((row) => row.id === `list-${list}`));
 		expect(modal.open).toHaveBeenCalled();
 		expect(client.leave).not.toHaveBeenCalled();
 		confirm();

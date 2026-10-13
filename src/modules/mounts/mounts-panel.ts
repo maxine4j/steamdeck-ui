@@ -75,7 +75,10 @@ export class MountsPanel implements IPanel {
 		this.search = new Frame("mounts-search", pool, "EditBox");
 		this.searchNavigation = {
 			navId: this.search.id,
-			onFocus: () => this.search.setFocused(true),
+			onFocus: (refresh) => {
+				if (refresh) this.search.setFocused(true, false, true);
+				else this.search.setFocused(true);
+			},
 			onBlur: () => {
 				this.search.setFocused(false);
 				this.search.blurInput();

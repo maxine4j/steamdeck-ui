@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import { setBorder } from "./border";
 import {
 	NativeNavigation,
 	type NativeNavigationFrame,
@@ -17,6 +18,14 @@ it("reuses a pooled focus outline and scrolls the focused native row into view",
 		EnableMouse: vi.fn(),
 		Show: vi.fn(),
 		Hide: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript:
+			vi.fn<
+				(
+					script: string,
+					callback?: (frame: unknown, elapsed: number) => void,
+				) => void
+			>(),
 	};
 	const pool = { acquire: vi.fn(() => outline), release: vi.fn() };
 	const control = new NativeNavigation(pool as unknown as IFramePoolManager);
@@ -35,6 +44,23 @@ it("reuses a pooled focus outline and scrolls the focused native row into view",
 	const activate = vi.fn();
 	const node = control.navigation(frame, scroll, "row", activate);
 	node.onFocus();
+	expect(setBorder).toHaveBeenLastCalledWith(
+		pool,
+		outline,
+		[1, 0.82, 0, 1],
+		2,
+		"native-navigation",
+		6,
+	);
+	outline.SetScript.mock.lastCall?.at(1)?.(outline, 0.18);
+	expect(setBorder).toHaveBeenLastCalledWith(
+		pool,
+		outline,
+		[1, 0.82, 0, 1],
+		2,
+		"native-navigation",
+		0,
+	);
 	expect(scroll.SetVerticalScroll).toHaveBeenCalledWith(70);
 	expect(outline.SetParent).toHaveBeenCalledWith(frame);
 	expect(outline.EnableMouse).toHaveBeenCalledWith(false);
@@ -43,7 +69,9 @@ it("reuses a pooled focus outline and scrolls the focused native row into view",
 	node.onBlur();
 	expect(outline.Hide).toHaveBeenCalled();
 	node.onFocus();
-	expect(pool.acquire).toHaveBeenCalledOnce();
+	expect(
+		pool.acquire.mock.calls.filter((call) => call.at(0) === "Frame"),
+	).toHaveLength(1);
 	control.release();
 	expect(outline.SetFrameLevel).toHaveBeenLastCalledWith(0);
 	expect(pool.release).toHaveBeenCalledWith("Frame", outline);

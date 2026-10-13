@@ -17,6 +17,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setFocused = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
+		hideTooltip = vi.fn();
 		onClick = vi.fn();
 		inset = vi.fn();
 		fill = vi.fn();

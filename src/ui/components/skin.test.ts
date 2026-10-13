@@ -39,6 +39,9 @@ function setup() {
 		};
 	}
 	const native = {
+		SetPoint: vi.fn(),
+		SetScript: vi.fn(),
+		Show: vi.fn(),
 		GetHeight: () => 40,
 		Hide: vi.fn(),
 		ClearAllPoints: vi.fn(),

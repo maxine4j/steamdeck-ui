@@ -49,7 +49,10 @@ export class Dropdown {
 			[
 				{
 					navId: this.button.id,
-					onFocus: () => this.button.setFocused(true),
+					onFocus: (refresh) => {
+						if (refresh) this.button.setFocused(true, false, true);
+						else this.button.setFocused(true);
+					},
 					onBlur: () => this.button.setFocused(false),
 					onInteract: () => this.toggle(),
 				},

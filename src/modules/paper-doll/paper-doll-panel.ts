@@ -181,8 +181,12 @@ export class PaperDollPanel implements IPanel {
 							const item = current?.hyperlink ?? current?.itemId;
 							return this.mounted && item !== undefined ? { item } : undefined;
 						},
-						onFocus: () => border.setColor(1, 0.82, 0),
+						onFocus: (refresh) => {
+							if (refresh) border.setFocused(true, false, true);
+							else border.setFocused(true);
+						},
 						onBlur: () => {
+							border.setFocused(false);
 							const current = this.equipment.at(index);
 							border.setColor(
 								...(qualityColors.at(current?.quality ?? 1) ??

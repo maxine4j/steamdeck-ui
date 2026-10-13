@@ -68,7 +68,7 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 	const pool = new FramePoolManager({ createFrame: factory });
 	const icon = new Frame("icon", pool, "Button");
 	icon.setFocused(true, true);
-	expect(natives).toHaveLength(2);
+	expect(natives).toHaveLength(3);
 	const outline = natives.at(1);
 	expect(outline?.SetFrameLevel).toHaveBeenLastCalledWith(15);
 	expect(outline?.SetPoint).toHaveBeenCalledWith(
@@ -93,7 +93,7 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 	expect(animation.Play).toHaveBeenCalledOnce();
 	icon.setFocused(true, true);
 	expect(animation.Play).toHaveBeenCalledOnce();
-	expect(factory).toHaveBeenCalledTimes(2);
+	expect(factory).toHaveBeenCalledTimes(3);
 	icon.setFocused(false, true);
 	expect(animation.Stop).toHaveBeenCalledOnce();
 	expect(outline?.Hide).toHaveBeenCalled();

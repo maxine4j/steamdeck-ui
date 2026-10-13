@@ -2,6 +2,7 @@ import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { setBorder } from "./border";
+import { FocusArrival } from "./focus-arrival";
 
 export interface NativeNavigationFrame extends WowFrame {
 	GetTop(): number;
@@ -21,6 +22,7 @@ type FocusOutline = WowFrame & {
 };
 export class NativeNavigation {
 	private outline?: FocusOutline;
+	private arrival?: FocusArrival;
 	constructor(private readonly pool: IFramePoolManager) {}
 	navigation(
 		frame: NativeNavigationFrame,
@@ -31,7 +33,7 @@ export class NativeNavigation {
 		return {
 			navId,
 			onInteract: () => onInteract(),
-			onFocus: () => {
+			onFocus: (refresh) => {
 				const delta =
 					frame.GetTop() > scroll.GetTop()
 						? scroll.GetTop() - frame.GetTop()
@@ -45,8 +47,20 @@ export class NativeNavigation {
 						),
 					),
 				);
-				if (!this.outline)
+				if (!this.outline) {
 					this.outline = this.pool.acquire("Frame") as FocusOutline;
+					const outline = this.outline;
+					this.arrival = new FocusArrival(this.pool, outline, (outset) =>
+						setBorder(
+							this.pool,
+							outline,
+							[1, 0.82, 0, 1],
+							2,
+							"native-navigation",
+							outset,
+						),
+					);
+				}
 				const outline = this.outline;
 				if (!outline) return;
 				outline.SetParent(frame);
@@ -56,13 +70,18 @@ export class NativeNavigation {
 				outline.SetFrameStrata("DIALOG");
 				outline.SetFrameLevel(frame.GetFrameLevel() + 10);
 				outline.EnableMouse(false);
-				setBorder(this.pool, outline, [1, 0.82, 0, 1], 2, "native-navigation");
 				outline.Show();
+				this.arrival?.focus(refresh);
 			},
-			onBlur: () => this.outline?.Hide(),
+			onBlur: () => {
+				this.arrival?.stop();
+				this.outline?.Hide();
+			},
 		};
 	}
 	release(): void {
+		this.arrival?.destroy();
+		this.arrival = undefined;
 		if (this.outline) {
 			this.outline.SetFrameLevel(0);
 			this.pool.release("Frame", this.outline);

@@ -4,6 +4,7 @@ export class WowFrameFactory implements FrameFactory {
 	private nextSecureId = 0;
 	private nextTooltipId = 0;
 	createFrame(type: FrameType): WowFrame {
+		if (type === "FocusTimer") return CreateFrame("Frame");
 		if (type === "SecureFrame")
 			return CreateFrame(
 				"Frame",

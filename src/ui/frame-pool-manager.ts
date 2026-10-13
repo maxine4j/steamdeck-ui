@@ -1,5 +1,6 @@
 import type { WowFrame, WowLine, WowTexture } from "../types";
 export type FrameType =
+	| "FocusTimer"
 	| "GameTooltip"
 	| "ShoppingTooltip"
 	| "Frame"

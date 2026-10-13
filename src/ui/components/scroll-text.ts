@@ -26,7 +26,10 @@ export class ScrollText {
 		this.node = {
 			navId: id,
 			navColumn: 0,
-			onFocus: () => this.scroll.setFocused(true),
+			onFocus: (refresh) => {
+				if (refresh) this.scroll.setFocused(true, false, true);
+				else this.scroll.setFocused(true);
+			},
 			onBlur: () => this.scroll.setFocused(false),
 			onInteract: () => this.move(1),
 			onContext: () => this.move(-1),

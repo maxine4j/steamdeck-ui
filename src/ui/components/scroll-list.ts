@@ -13,7 +13,15 @@ export interface ListRow {
 	readonly icon?: number | string;
 	readonly iconSize?: number;
 	readonly spell?: number;
-	readonly secondary?: { label: string; activate(): void };
+	readonly secondary?: {
+		label: string;
+		width?: number;
+		height?: number;
+		/** Use this button as the row's sole mouse and controller action. */
+		onlyAction?: boolean;
+		tooltip?: string;
+		activate(): void;
+	};
 	readonly detail?: string;
 	readonly hoverDetail?: string;
 	readonly height?: number;
@@ -35,6 +43,7 @@ export interface ListRow {
 	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number] | false;
 	readonly backgroundAtlas?: string;
+	readonly backgroundSlice?: number;
 	readonly backgroundTint?: readonly [number, number, number];
 	readonly progress?: {
 		readonly value: number;
@@ -146,7 +155,8 @@ export class ScrollList {
 					(next.progress !== undefined) === (row.progress !== undefined) &&
 					next.indent === row.indent &&
 					next.enabled === row.enabled &&
-					(next.secondary !== undefined) === (row.secondary !== undefined)
+					(next.secondary !== undefined) === (row.secondary !== undefined) &&
+					next.secondary?.onlyAction === row.secondary?.onlyAction
 				);
 			});
 		if (!samePrefixLayout) {
@@ -313,10 +323,17 @@ export class ScrollList {
 							navId: `${row.id}-secondary`,
 							navigationScroll: this.scroll,
 							onFocus: (refresh) => {
-								secondary.setFocused(true);
+								if (refresh) secondary.setFocused(true, false, true);
+								else secondary.setFocused(true);
 								if (!refresh) this.reveal(index);
+								const tooltip = this.rows.at(index)?.secondary?.tooltip;
+								if (tooltip !== undefined)
+									secondary.showTooltip({ text: tooltip });
 							},
-							onBlur: () => secondary.setFocused(false),
+							onBlur: () => {
+								secondary.setFocused(false);
+								secondary.hideTooltip();
+							},
 							onInteract: () => {
 								if (this.isReady(index))
 									this.rows.at(index)?.secondary?.activate();
@@ -333,7 +350,9 @@ export class ScrollList {
 									frame.setBorder([1, 0.82, 0, 1]);
 									const control = this.buttons.at(index);
 									if (control) control.animatedFocus = true;
-								} else frame.setFocused(true);
+								}
+								if (refresh) frame.setFocused(true, false, true);
+								else frame.setFocused(true);
 								if (!refresh) this.reveal(index);
 								const tooltip = this.rows.at(index)?.tooltipContent;
 								if (tooltip !== undefined) frame.showTooltip(tooltip);
@@ -355,7 +374,10 @@ export class ScrollList {
 								if (this.isReady(index)) this.rows.at(index)?.context?.();
 							},
 							onInteract: () => {
-								if (this.isReady(index)) {
+								if (
+									this.isReady(index) &&
+									!this.rows.at(index)?.secondary?.onlyAction
+								) {
 									if (this.options.secure) frame.click();
 									else this.rows.at(index)?.activate();
 								}
@@ -378,6 +400,12 @@ export class ScrollList {
 				button.frame.setParent(this.content);
 				const rowHeight =
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
+				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
+				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
+				const actionOnly = row.secondary?.onlyAction === true;
+				const secondarySpace = row.secondary
+					? (row.secondary.width ?? 44) + (actionOnly ? horizontalPadding : 4)
+					: 0;
 				if (row.animatedIcon) {
 					button.animation ??= new Frame(
 						`${this.id}-animation-${index}`,
@@ -393,7 +421,7 @@ export class ScrollList {
 						size,
 						row.animatedIconOnDetail ? "BOTTOMRIGHT" : "RIGHT",
 						button.frame,
-						-8,
+						-8 - (actionOnly ? secondarySpace : 0),
 						row.animatedIconOnDetail
 							? (this.options.contentPadding?.vertical ?? 6) - 2
 							: 0,
@@ -408,8 +436,6 @@ export class ScrollList {
 					}
 				}
 				const iconSize = Math.min(row.iconSize ?? 36, rowHeight - 12);
-				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
-				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
 				button.icon.setParent(button.frame);
 				if (row.icon !== undefined) {
 					button.icon.layout(
@@ -423,17 +449,36 @@ export class ScrollList {
 					button.icon.setIcon(row.icon);
 					button.icon.show();
 				} else button.icon.hide();
-				button.secondaryNav.navId = `${row.id}-favourite`;
+				button.secondaryNav.navId = actionOnly ? row.id : `${row.id}-favourite`;
 				if (row.secondary) {
 					button.secondary.setParent(button.frame);
-					button.secondary.layout(44, 40, "TOPRIGHT", button.frame, -4, -4);
+					button.secondary.layout(
+						row.secondary.width ?? 44,
+						row.secondary.height ?? 40,
+						actionOnly ? "RIGHT" : "TOPRIGHT",
+						button.frame,
+						actionOnly ? -horizontalPadding : -4,
+						actionOnly ? 0 : -4,
+					);
 					button.secondary.setButtonBackground();
 					button.secondary.setLabel("label", row.secondary.label);
-					button.secondary.onClick(() => {
-						if (this.isReady(index)) this.rows.at(index)?.secondary?.activate();
+					button.secondary.setTooltip(
+						row.secondary.tooltip ?? row.secondary.label,
+					);
+					button.secondary.onClick((mouse) => {
+						if (
+							this.isReady(index) &&
+							(!this.rows.at(index)?.secondary?.onlyAction ||
+								mouse === "LeftButton")
+						)
+							this.rows.at(index)?.secondary?.activate();
 					});
 					button.secondary.show();
-				} else button.secondary.hide();
+				} else {
+					button.secondary.setFocused(false);
+					button.secondary.hideTooltip();
+					button.secondary.hide();
+				}
 				const indent = row.indent ?? 0;
 				const checkboxLeft =
 					row.icon === undefined
@@ -474,7 +519,7 @@ export class ScrollList {
 					indent -
 					textLeft -
 					horizontalPadding -
-					(row.secondary ? 48 : 0) -
+					secondarySpace -
 					(row.animatedIcon && !row.animatedIconOnDetail ? 40 : 0);
 				const trailingWidth = row.trailingLabel
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
@@ -559,7 +604,11 @@ export class ScrollList {
 						: centeredLabel
 							? "LEFT"
 							: "TOPLEFT",
-					centerText ? 0 : textLeft,
+					centerText
+						? secondarySpace > 0
+							? -secondarySpace / 2
+							: 0
+						: textLeft,
 					centerText
 						? twoLines
 							? -verticalPadding
@@ -590,7 +639,9 @@ export class ScrollList {
 				);
 				button.detailLayout = {
 					point: centerText ? "BOTTOM" : "BOTTOMLEFT",
-					x: centerText ? (row.animatedIconOnDetail ? -14 : 0) : textLeft,
+					x: centerText
+						? -secondarySpace / 2 + (row.animatedIconOnDetail ? -14 : 0)
+						: textLeft,
 					y: row.progress ? 18 : verticalPadding,
 					width: textWidth - (row.animatedIconOnDetail ? 28 : 0),
 				};
@@ -644,7 +695,11 @@ export class ScrollList {
 				if (this.options.secure) button.frame.setSpell(row.spell);
 				else
 					button.frame.onClick((mouseButton) => {
-						if (this.isReady(index) && mouseButton === "LeftButton")
+						if (
+							this.isReady(index) &&
+							mouseButton === "LeftButton" &&
+							!this.rows.at(index)?.secondary?.onlyAction
+						)
 							this.rows.at(index)?.activate();
 					});
 				this.style(index);
@@ -690,7 +745,13 @@ export class ScrollList {
 			return;
 		}
 		if (row?.backgroundAtlas) {
-			if (row.backgroundTint)
+			if (row.backgroundSlice !== undefined)
+				frame?.setAtlasBackground(
+					row.backgroundAtlas,
+					row.backgroundTint,
+					row.backgroundSlice,
+				);
+			else if (row.backgroundTint)
 				frame?.setAtlasBackground(row.backgroundAtlas, row.backgroundTint);
 			else frame?.setAtlasBackground(row.backgroundAtlas);
 		} else if (row?.background) frame?.setColor(...row.background);
@@ -740,6 +801,7 @@ export class ScrollList {
 	}
 	unmount(): void {
 		for (const [index, button] of this.buttons.entries()) {
+			button.secondary.hideTooltip();
 			button.focused = false;
 			button.hovered = false;
 			this.updateDetail(index);
@@ -770,8 +832,11 @@ export class ScrollList {
 				}
 				const button = this.buttons.at(index);
 				if (button && row?.enabled !== false) {
-					button.nav.navColumn = column;
-					line.push(button.nav);
+					const nav = row?.secondary?.onlyAction
+						? button.secondaryNav
+						: button.nav;
+					nav.navColumn = column;
+					line.push(nav);
 				}
 				column++;
 				if (column === columns) {
@@ -783,9 +848,13 @@ export class ScrollList {
 			if (line.length > 0) grid.push(line);
 			return grid;
 		}
-		for (const button of this.buttons.slice(0, this.renderedRows)) {
+		for (const [index, button] of this.buttons
+			.slice(0, this.renderedRows)
+			.entries()) {
 			button.nav.navColumn = 0;
-			button.secondaryNav.navColumn = 1;
+			button.secondaryNav.navColumn = this.rows.at(index)?.secondary?.onlyAction
+				? 0
+				: 1;
 		}
 		return this.mounted
 			? this.buttons
@@ -795,9 +864,11 @@ export class ScrollList {
 						this.rows.at(index)?.enabled === false
 							? []
 							: [
-									this.rows.at(index)?.secondary
-										? [button.nav, button.secondaryNav]
-										: [button.nav],
+									this.rows.at(index)?.secondary?.onlyAction
+										? [button.secondaryNav]
+										: this.rows.at(index)?.secondary
+											? [button.nav, button.secondaryNav]
+											: [button.nav],
 								],
 					)
 			: [];

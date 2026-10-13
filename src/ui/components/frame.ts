@@ -2,6 +2,7 @@ import type { WowFontString, WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
+import { FocusArrival } from "./focus-arrival";
 import type { GamePadRepeatOptions } from "./gamepad-input";
 import { IconFocus } from "./icon-focus";
 import { drawScrollIndicator } from "./scroll-indicator";
@@ -10,7 +11,12 @@ import {
 	type ClickBinding,
 	SecureClickBindings,
 } from "./secure-click-bindings";
-import { applyButtonSkin, applyWindowSkin } from "./skin";
+import {
+	applyAtlasNineSlice,
+	applyButtonSkin,
+	applyWindowSkin,
+	clearAtlasNineSlice,
+} from "./skin";
 import {
 	setTooltipContent,
 	type TooltipContent,
@@ -53,6 +59,8 @@ interface AtlasAnimationGroup {
 }
 
 export class Frame implements IUIComponent {
+	private focusArrival?: FocusArrival;
+	private atlasSliced = false;
 	private iconFocus?: IconFocus;
 	private animation?: AtlasAnimationGroup;
 	private flipbook?: FlipbookAnimation;
@@ -402,6 +410,24 @@ export class Frame implements IUIComponent {
 			this.iconFocus?.setFocused(focused);
 			return;
 		}
+		if (focused) {
+			if (!this.focusArrival) {
+				const native = this.acquire();
+				this.focusArrival = new FocusArrival(this.pool, native, (outset) =>
+					setBorder(
+						this.pool,
+						native,
+						[1, 0.82, 0, 1],
+						2,
+						"navigation-focus",
+						outset,
+					),
+				);
+			}
+			this.focusArrival.focus(refresh);
+			return;
+		}
+		this.focusArrival?.stop();
 		setBorder(
 			this.pool,
 			this.acquire(),
@@ -447,7 +473,8 @@ export class Frame implements IUIComponent {
 		return {
 			navId,
 			onFocus: (refresh) => {
-				if (animatedIcon) this.setFocused(true, true);
+				if (refresh) this.setFocused(true, animatedIcon, true);
+				else if (animatedIcon) this.setFocused(true, true);
 				else this.setFocused(true);
 				if (!refresh) focus?.();
 			},
@@ -533,6 +560,7 @@ export class Frame implements IUIComponent {
 		} else this.hide();
 	}
 	setIcon(iconFileId: number | string, crop = true): void {
+		this.clearAtlasSlices();
 		this.clearTextureTint();
 		this.acquire();
 		this.texture?.SetTexture(iconFileId);
@@ -557,6 +585,7 @@ export class Frame implements IUIComponent {
 		setBorder(this.pool, this.acquire(), color, width);
 	}
 	setColor(red: number, green: number, blue: number, alpha = 1): void {
+		this.clearAtlasSlices();
 		this.clearTextureTint();
 		this.acquire();
 		if (this.buttonSkinned && this.native) {
@@ -930,6 +959,7 @@ export class Frame implements IUIComponent {
 		native.SetScript("OnReceiveDrag", callback);
 	}
 	setWindowBackground(): void {
+		this.clearAtlasSlices();
 		applyWindowSkin(this.pool, this.acquire());
 	}
 	private clearTextureTint(): void {
@@ -944,8 +974,16 @@ export class Frame implements IUIComponent {
 	setAtlasBackground(
 		atlas: string,
 		tint?: readonly [number, number, number],
+		slice?: number,
 	): void {
 		this.setColor(0, 0, 0, 0);
+		if (
+			slice !== undefined &&
+			applyAtlasNineSlice(this.pool, this.acquire(), atlas, slice, tint)
+		) {
+			this.atlasSliced = true;
+			return;
+		}
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
 		this.texture?.SetAtlas(atlas, false);
@@ -960,17 +998,25 @@ export class Frame implements IUIComponent {
 		}
 	}
 	setButtonBackground(selected = false): void {
+		this.clearAtlasSlices();
 		applyButtonSkin(this.pool, this.acquire(), selected);
 		this.buttonSkinned = true;
 	}
 	setInsetBackground(): void {
+		this.clearAtlasSlices();
 		this.acquire();
 		this.texture?.SetAtlas("character-panel-background", false);
 		this.setBorder([0.45, 0.4, 0.3, 1], 1);
 	}
 	setCloseButtonBackground(): void {
+		this.clearAtlasSlices();
 		this.acquire();
 		this.texture?.SetAtlas("RedButton-Exit", false);
+	}
+	private clearAtlasSlices(): void {
+		if (!this.atlasSliced || !this.native) return;
+		clearAtlasNineSlice(this.pool, this.native);
+		this.atlasSliced = false;
 	}
 	setAnimatedAtlas(atlas: AnimatedAtlas): void {
 		this.acquire();
@@ -998,6 +1044,7 @@ export class Frame implements IUIComponent {
 		if (this.animation && !this.animation.IsPlaying()) this.animation.Play();
 	}
 	hide(): void {
+		if (this.focusArrival) this.setFocused(false);
 		this.iconFocus?.setFocused(false);
 		this.scrollPan?.reset();
 		this.animation?.Stop();
@@ -1010,6 +1057,8 @@ export class Frame implements IUIComponent {
 		this.parent = parent;
 	}
 	destroy(): void {
+		this.focusArrival?.destroy();
+		this.focusArrival = undefined;
 		this.iconFocus?.destroy();
 		this.iconFocus = undefined;
 		this.lastRevealTop = undefined;
@@ -1021,6 +1070,7 @@ export class Frame implements IUIComponent {
 		this.flipbook = undefined;
 		this.animatedAtlas = undefined;
 		this.buttonSkinned = false;
+		this.atlasSliced = false;
 		this.hoverTooltip?.destroy();
 		this.hoverTooltip = undefined;
 		this.clickBindings?.destroy();

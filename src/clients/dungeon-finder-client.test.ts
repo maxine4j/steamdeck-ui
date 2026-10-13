@@ -7,6 +7,12 @@ function setupRaids(queuedCount = 0) {
 	setup();
 	vi.stubGlobal("GetServerExpansionLevel", () => 10);
 	vi.stubGlobal("GetNumRFDungeons", () => 4);
+	vi.stubGlobal("GetLFGDungeonNumEncounters", () => 2);
+	vi.stubGlobal("GetLFGDungeonEncounterInfo", (id: number, index: number) => [
+		`Boss ${id}.${index}`,
+		0,
+		index === 1,
+	]);
 	vi.stubGlobal("GetRFDungeonInfo", (index: number) => {
 		const info: (string | number)[] = [];
 		info[0] = 100 + index;
@@ -39,7 +45,7 @@ function setupRaids(queuedCount = 0) {
 
 it("groups visible raid wings by raid, newest first, preserving wing order", () => {
 	setupRaids();
-	expect(new DungeonFinderClient().getRaids()).toEqual([
+	expect(new DungeonFinderClient().getRaids()).toMatchObject([
 		{
 			id: 60,
 			name: "New raid",
@@ -53,6 +59,16 @@ it("groups visible raid wings by raid, newest first, preserving wing order", () 
 			name: "Old raid",
 			wings: [{ id: 101, name: "Wing 1", available: true, queued: false }],
 		},
+	]);
+});
+
+it("reads each raid wing's boss names and weekly killed status", () => {
+	setupRaids();
+	expect(
+		new DungeonFinderClient().getRaids().at(0)?.wings.at(0)?.bosses,
+	).toEqual([
+		{ name: "Boss 102.1", killed: true },
+		{ name: "Boss 102.2", killed: false },
 	]);
 });
 

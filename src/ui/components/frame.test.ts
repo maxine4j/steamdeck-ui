@@ -5,6 +5,86 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("nine-slices atlas borders without stretching corners and clears slices when reused as an icon", () => {
+	const texture = () => ({
+		SetAtlas: vi.fn(),
+		SetTexture: vi.fn(),
+		SetTexCoord: vi.fn(),
+		SetVertexColor: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetWidth: vi.fn(),
+		SetHeight: vi.fn(),
+		SetColorTexture: vi.fn(),
+	});
+	const textures: ReturnType<typeof texture>[] = [];
+	const native = {
+		Hide: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetSize: vi.fn(),
+		SetParent: vi.fn(),
+		SetScript: vi.fn(),
+		CreateTexture: () => {
+			const next = texture();
+			textures.push(next);
+			return next;
+		},
+	} as unknown as WowFrame;
+	vi.stubGlobal("C_Texture", {
+		GetAtlasInfo: () => ({
+			width: 374,
+			height: 112,
+			leftTexCoord: 0,
+			rightTexCoord: 1,
+			topTexCoord: 0,
+			bottomTexCoord: 1,
+		}),
+	});
+	const frame = new Frame(
+		"sliced-tile",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	frame.layout(420, 60);
+	frame.setAtlasBackground("tile", [0.2, 0.8, 0.3], 16);
+	expect(textures).toHaveLength(10);
+	const corner = textures.at(1);
+	expect(corner?.SetWidth).toHaveBeenLastCalledWith(16);
+	expect(corner?.SetHeight).toHaveBeenLastCalledWith(16);
+	expect(corner?.SetTexCoord).toHaveBeenLastCalledWith(
+		0,
+		16 / 374,
+		0,
+		16 / 112,
+	);
+	expect(corner?.SetVertexColor).toHaveBeenLastCalledWith(0.2, 0.8, 0.3);
+	const center = textures.at(5);
+	expect(center?.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		native,
+		"TOPLEFT",
+		16,
+		-16,
+	);
+	expect(center?.SetPoint).toHaveBeenCalledWith(
+		"BOTTOMRIGHT",
+		native,
+		"BOTTOMRIGHT",
+		-16,
+		16,
+	);
+	frame.layout(500, 80);
+	frame.setAtlasBackground("tile", undefined, 16);
+	expect(textures).toHaveLength(10);
+	expect(corner?.SetWidth).toHaveBeenLastCalledWith(16);
+	expect(corner?.SetVertexColor).toHaveBeenLastCalledWith(1, 1, 1);
+	frame.setIcon(133633);
+	expect(corner?.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+	frame.destroy();
+	expect(corner?.SetTexture).toHaveBeenLastCalledWith(undefined);
+});
+
 it("reports hover changes alongside tooltips and replaces old hover callbacks", () => {
 	const scripts = new Map<string, (() => void) | undefined>();
 	const native = {

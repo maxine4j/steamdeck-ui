@@ -233,9 +233,9 @@ export class MapPanel implements IPanel {
 		return this.rows.map(({ node, questID }) => [
 			{
 				...node,
-				onFocus: () => {
+				onFocus: (refresh) => {
 					this.focus = node.navId;
-					node.onFocus();
+					node.onFocus(refresh);
 				},
 				onInteract: () => {
 					if (questID !== undefined) {

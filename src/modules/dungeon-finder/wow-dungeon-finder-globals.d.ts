@@ -31,6 +31,12 @@ declare global {
 	): void;
 	function GetNumRandomDungeons(this: void): number;
 	function GetNumRFDungeons(this: void): number;
+	function GetLFGDungeonNumEncounters(this: void, id: number): number;
+	function GetLFGDungeonEncounterInfo(
+		this: void,
+		id: number,
+		encounter: number,
+	): LuaMultiReturn<[string, number, boolean]>;
 	function GetRFDungeonInfo(
 		this: void,
 		index: number,

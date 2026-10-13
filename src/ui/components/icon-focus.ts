@@ -1,6 +1,7 @@
 import type { WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
+import { FocusArrival } from "./focus-arrival";
 
 interface AlphaAnimation {
 	SetFromAlpha(alpha: number): void;
@@ -28,6 +29,7 @@ export class IconFocus {
 	private readonly outline: OutlineFrame;
 	private readonly glow: GlowTexture;
 	private readonly animation: GlowAnimation;
+	private readonly arrival: FocusArrival;
 	constructor(
 		private readonly pool: IFramePoolManager,
 		private readonly owner: WowFrame,
@@ -36,6 +38,22 @@ export class IconFocus {
 		this.outline.SetParent(owner);
 		this.outline.SetPoint("TOPLEFT", owner, "TOPLEFT", -2, 2);
 		this.outline.SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 2, -2);
+		this.arrival = new FocusArrival(pool, this.outline, (outset) => {
+			this.outline.SetPoint(
+				"TOPLEFT",
+				owner,
+				"TOPLEFT",
+				-2 - outset,
+				2 + outset,
+			);
+			this.outline.SetPoint(
+				"BOTTOMRIGHT",
+				owner,
+				"BOTTOMRIGHT",
+				2 + outset,
+				-2 - outset,
+			);
+		});
 		setBorder(pool, this.outline, [1, 0.82, 0, 1], 2, "icon-focus");
 		this.glow = pool.getDecoration(
 			this.outline,
@@ -56,8 +74,9 @@ export class IconFocus {
 		pulse.SetSmoothing("IN_OUT");
 		this.animation.SetLooping("BOUNCE");
 	}
-	setFocused(focused: boolean): void {
+	setFocused(focused: boolean, refresh = false): void {
 		if (!focused) {
+			this.arrival.stop();
 			this.animation.Stop();
 			this.outline.Hide();
 			return;
@@ -67,10 +86,12 @@ export class IconFocus {
 				10,
 		);
 		this.outline.Show();
+		this.arrival.focus(refresh);
 		if (!this.animation.IsPlaying()) this.animation.Play();
 	}
 	destroy(): void {
 		this.setFocused(false);
+		this.arrival.destroy();
 		this.glow.SetAlpha(1);
 		this.glow.SetVertexColor(1, 1, 1);
 		this.glow.SetBlendMode("BLEND");

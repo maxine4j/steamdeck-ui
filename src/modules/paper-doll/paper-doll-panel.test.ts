@@ -115,6 +115,14 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(equipment);
 	panel.setStats([{ label: "Haste", value: "25%" }]);
 	panel.onMount(new Frame("parent", pool));
+	const focus = vi
+		.spyOn(Frame.prototype, "setFocused")
+		.mockImplementation(() => {});
+	panel.getNavGrid().at(0)?.at(0)?.onFocus();
+	expect(focus).toHaveBeenLastCalledWith(true);
+	panel.getNavGrid().at(0)?.at(0)?.onBlur();
+	expect(focus).toHaveBeenLastCalledWith(false);
+	focus.mockRestore();
 	expect(closeSkin).not.toHaveBeenCalled();
 	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
 	expect(menu.open).toHaveBeenLastCalledWith(equipment.at(0));

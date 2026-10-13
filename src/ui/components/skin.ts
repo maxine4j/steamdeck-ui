@@ -117,3 +117,103 @@ export function applyButtonSkin(
 	middle.SetPoint("TOPLEFT", left, "TOPRIGHT", 0, 0);
 	middle.SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", 0, 0);
 }
+
+type AtlasTexture = WowTexture & {
+	SetVertexColor(red: number, green: number, blue: number): void;
+};
+
+/** Slice a single atlas into fixed corners/borders and a stretchable interior. */
+export function applyAtlasNineSlice(
+	pool: IFramePoolManager,
+	frame: WowFrame,
+	atlas: string,
+	slice: number,
+	tint: readonly [number, number, number] = [1, 1, 1],
+): boolean {
+	const atlasClient = C_Texture as unknown as {
+		GetAtlasInfo(
+			this: void,
+			name: string,
+		):
+			| {
+					width: number;
+					height: number;
+					leftTexCoord: number;
+					rightTexCoord: number;
+					topTexCoord: number;
+					bottomTexCoord: number;
+			  }
+			| undefined;
+	};
+	const info = atlasClient.GetAtlasInfo(atlas);
+	if (!info || info.width <= 0 || info.height <= 0) return false;
+	const border = Math.max(0, Math.min(slice, info.width / 2, info.height / 2));
+	const horizontal =
+		((info.rightTexCoord - info.leftTexCoord) * border) / info.width;
+	const vertical =
+		((info.bottomTexCoord - info.topTexCoord) * border) / info.height;
+	const u = [
+		info.leftTexCoord,
+		info.leftTexCoord + horizontal,
+		info.rightTexCoord - horizontal,
+		info.rightTexCoord,
+	];
+	const v = [
+		info.topTexCoord,
+		info.topTexCoord + vertical,
+		info.bottomTexCoord - vertical,
+		info.bottomTexCoord,
+	];
+	for (let row = 0; row < 3; row++) {
+		for (let column = 0; column < 3; column++) {
+			const texture = pool.getDecoration(
+				frame,
+				`button-slice-${row}-${column}`,
+			) as AtlasTexture;
+			texture.ClearAllPoints();
+			texture.SetAtlas(atlas, false);
+			texture.SetTexCoord(
+				u.at(column) ?? 0,
+				u.at(column + 1) ?? 1,
+				v.at(row) ?? 0,
+				v.at(row + 1) ?? 1,
+			);
+			texture.SetVertexColor(...tint);
+			if (column !== 1) texture.SetWidth(border);
+			if (row !== 1) texture.SetHeight(border);
+			const start = `${row === 2 ? "BOTTOM" : "TOP"}${column === 2 ? "RIGHT" : "LEFT"}`;
+			const end = `${row === 0 ? "TOP" : "BOTTOM"}${column === 0 ? "LEFT" : "RIGHT"}`;
+			texture.SetPoint(
+				start,
+				frame,
+				start,
+				column === 1 ? border : 0,
+				row === 1 ? -border : 0,
+			);
+			texture.SetPoint(
+				end,
+				frame,
+				end,
+				column === 1 ? -border : 0,
+				row === 1 ? border : 0,
+			);
+		}
+	}
+	return true;
+}
+
+export function clearAtlasNineSlice(
+	pool: IFramePoolManager,
+	frame: WowFrame,
+): void {
+	for (let row = 0; row < 3; row++) {
+		for (let column = 0; column < 3; column++) {
+			const texture = pool.getDecoration(
+				frame,
+				`button-slice-${row}-${column}`,
+			) as AtlasTexture;
+			texture.SetVertexColor(1, 1, 1);
+			texture.SetColorTexture(0, 0, 0, 0);
+		}
+	}
+}

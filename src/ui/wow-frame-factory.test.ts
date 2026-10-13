@@ -1,6 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { WowFrameFactory } from "./wow-frame-factory";
 
+it("creates focus animation timers as plain native frames", () => {
+	vi.stubGlobal("UIParent", {});
+	const create = vi.fn();
+	vi.stubGlobal("CreateFrame", create);
+	new WowFrameFactory().createFrame("FocusTimer");
+	expect(create).toHaveBeenCalledWith("Frame");
+});
+
 afterEach(() => vi.unstubAllGlobals());
 
 it("gives pooled secure action buttons unique names for hardware click bindings", () => {

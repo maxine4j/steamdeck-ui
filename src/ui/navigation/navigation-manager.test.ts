@@ -43,7 +43,7 @@ it("does not pull a held D-pad boundary scroll back to the focused row on batch 
 			manager.refreshGrid("collection");
 			expect(manager.focusedId).toBe("last");
 			expect(scroll).toBe(1000);
-			expect(focused).toHaveBeenLastCalledWith(true);
+			expect(focused).toHaveBeenLastCalledWith(true, false, true);
 		}
 		manager.moveUp();
 		manager.moveDown();

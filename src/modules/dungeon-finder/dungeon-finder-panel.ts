@@ -60,15 +60,44 @@ const searchingEye = {
 	duration: 2,
 };
 
-function queueTile(queued: boolean, hoverDetail = "Enter Queue?") {
+function queueTile(queued: boolean) {
 	return {
 		height: 60,
 		backgroundAtlas: "ui-journeys-renown-button",
+		backgroundSlice: 16,
 		backgroundTint: queued ? ([0.2, 0.8, 0.3] as const) : undefined,
-		detail: queued ? "In Queue" : undefined,
-		hoverDetail: queued ? "In queue - leave?" : hoverDetail,
+		detail: queued ? "In Queue" : "",
 		animatedIcon: queued ? searchingEye : undefined,
 		animatedIconOnDetail: queued ? true : undefined,
+	};
+}
+
+function actionTile(
+	row: ListRow,
+	queued: boolean,
+	label = "Queue",
+	actionTooltip?: string,
+): ListRow {
+	return {
+		...row,
+		...queueTile(queued),
+		detail: row.detail ?? (queued ? "In Queue" : ""),
+		tooltip: row.enabled === false ? row.tooltip : row.label,
+		activate: () => {},
+		secondary: {
+			label: queued ? "Leave Queue" : label,
+			width: 110,
+			height: 32,
+			onlyAction: true,
+			tooltip:
+				actionTooltip ??
+				(queued
+					? "In queue - leave?"
+					: label === "Queue"
+						? "Enter Queue?"
+						: "Choose Dungeons"),
+			activate: row.activate,
+		},
 	};
 }
 
@@ -109,7 +138,7 @@ export class DungeonFinderPanel implements IPanel {
 			centerSingleLine: true,
 			centerText: true,
 			centerContent: true,
-			buttonWidth: 280,
+			buttonWidth: 420,
 			top: 180,
 			bottom: 30,
 			background: false,
@@ -179,32 +208,38 @@ export class DungeonFinderPanel implements IPanel {
 				activate: () => {},
 			});
 			entries.forEach((dungeon, index) => {
-				rows.push({
-					id: `dungeon-${dungeon.id}`,
-					label: dungeon.name,
-					enabled: queued ? selected === dungeon.id : dungeon.available,
-					...queueTile(queued && selected === dungeon.id),
-					tooltip:
-						queued && selected === dungeon.id ? "Leave Queue" : dungeon.name,
-					marginBottom: index === entries.length - 1 ? 20 : 4,
-					activate: () => {
-						if (
-							!this.mounted ||
-							this.page ||
-							(!this.client.isQueued() && !dungeon.available)
-						)
-							return;
-						if (this.client.isQueued()) {
-							if (this.client.getSelected() !== dungeon.id) return;
-							this.confirmDungeonLeave(dungeon.id);
-							return;
-						} else {
-							this.client.select(dungeon.id);
-							this.client.join();
-						}
-						this.refresh();
-					},
-				});
+				rows.push(
+					actionTile(
+						{
+							id: `dungeon-${dungeon.id}`,
+							label: dungeon.name,
+							enabled: queued ? selected === dungeon.id : dungeon.available,
+							tooltip:
+								queued && selected === dungeon.id
+									? "Leave Queue"
+									: dungeon.name,
+							marginBottom: index === entries.length - 1 ? 20 : 4,
+							activate: () => {
+								if (
+									!this.mounted ||
+									this.page ||
+									(!this.client.isQueued() && !dungeon.available)
+								)
+									return;
+								if (this.client.isQueued()) {
+									if (this.client.getSelected() !== dungeon.id) return;
+									this.confirmDungeonLeave(dungeon.id);
+									return;
+								} else {
+									this.client.select(dungeon.id);
+									this.client.join();
+								}
+								this.refresh();
+							},
+						},
+						queued && selected === dungeon.id,
+					),
+				);
 			});
 		}
 		if (dungeons.length === 0)
@@ -215,30 +250,45 @@ export class DungeonFinderPanel implements IPanel {
 				marginBottom: 20,
 				activate: () => {},
 			});
+		rows.push({
+			id: "heading-specific-dungeons",
+			label: "Specific dungeons",
+			heading: true,
+			indent: 24,
+			fontSize: 18,
+			marginBottom: 8,
+			activate: () => {},
+		});
 		for (const list of this.client.getDungeonLists()) {
-			rows.push({
-				id: `list-${list.id}`,
-				label: list.label,
-				...queueTile(queued && selected === list.id, "Choose Dungeons"),
-				enabled: !queued || selected === list.id,
-				marginBottom: 20,
-				activate: () => {
-					if (
-						!this.mounted ||
-						this.page ||
-						(this.client.isQueued() && this.client.getSelected() !== list.id)
-					)
-						return;
-					if (this.client.isQueued()) {
-						this.confirmDungeonLeave(list.id);
-						return;
-					}
-					this.client.selectList(list.id);
-					this.page = list.id;
-					this.list.resetScroll();
-					this.refresh();
-				},
-			});
+			rows.push(
+				actionTile(
+					{
+						id: `list-${list.id}`,
+						label: list.label,
+						enabled: !queued || selected === list.id,
+						marginBottom: 0,
+						activate: () => {
+							if (
+								!this.mounted ||
+								this.page ||
+								(this.client.isQueued() &&
+									this.client.getSelected() !== list.id)
+							)
+								return;
+							if (this.client.isQueued()) {
+								this.confirmDungeonLeave(list.id);
+								return;
+							}
+							this.client.selectList(list.id);
+							this.page = list.id;
+							this.list.resetScroll();
+							this.refresh();
+						},
+					},
+					queued && selected === list.id,
+					"Choose",
+				),
+			);
 		}
 		rows.push({
 			id: "heading-raids",
@@ -263,43 +313,52 @@ export class DungeonFinderPanel implements IPanel {
 				activate: () => {},
 			});
 			raid.wings.forEach((wing, index) => {
-				rows.push({
-					id: `wing-${wing.id}`,
-					label: wing.name,
-					...queueTile(wing.queued),
-					enabled: wing.queued || (wing.available && capacity),
-					tooltip: wing.queued
-						? "Leave Queue"
-						: !capacity
-							? "Raid Finder queue limit reached"
-							: wing.name,
-					marginBottom: index === raid.wings.length - 1 ? 20 : 4,
-					activate: () => {
-						if (!this.mounted || this.page) return;
-						const current = this.client
-							.getRaids()
-							.find((entry) => entry.id === raid.id)
-							?.wings.find((entry) => entry.id === wing.id);
-						if (!current) return;
-						if (current.queued) {
-							this.confirmLeave(
-								() => this.client.leaveRaid(wing.id),
-								() =>
-									this.client
-										.getRaids()
-										.some((entry) =>
-											entry.wings.some(
-												(candidate) =>
-													candidate.id === wing.id && candidate.queued,
-											),
-										),
-							);
-							return;
-						} else if (current.available && this.client.canQueueRaid())
-							this.client.joinRaid(wing.id);
-						this.refresh();
-					},
-				});
+				const progress = `${wing.bosses.filter((boss) => boss.killed).length}/${wing.bosses.length} bosses killed`;
+				const bossTooltip = `${wing.name}\n\n${wing.bosses.map((boss) => `${boss.name}${boss.killed ? " (killed)" : ""}`).join("\n")}\n\n${wing.queued ? "In queue - leave?" : "Enter Queue?"}`;
+				rows.push(
+					actionTile(
+						{
+							id: `wing-${wing.id}`,
+							label: wing.name,
+							detail: `${progress}${wing.queued ? " • In Queue" : ""}`,
+							enabled: wing.queued || (wing.available && capacity),
+							tooltip: wing.queued
+								? "Leave Queue"
+								: !capacity
+									? "Raid Finder queue limit reached"
+									: wing.name,
+							marginBottom: index === raid.wings.length - 1 ? 20 : 0,
+							activate: () => {
+								if (!this.mounted || this.page) return;
+								const current = this.client
+									.getRaids()
+									.find((entry) => entry.id === raid.id)
+									?.wings.find((entry) => entry.id === wing.id);
+								if (!current) return;
+								if (current.queued) {
+									this.confirmLeave(
+										() => this.client.leaveRaid(wing.id),
+										() =>
+											this.client
+												.getRaids()
+												.some((entry) =>
+													entry.wings.some(
+														(candidate) =>
+															candidate.id === wing.id && candidate.queued,
+													),
+												),
+									);
+									return;
+								} else if (current.available && this.client.canQueueRaid())
+									this.client.joinRaid(wing.id);
+								this.refresh();
+							},
+						},
+						wing.queued,
+						"Queue",
+						bossTooltip,
+					),
+				);
 			});
 		}
 		if (raids.length === 0)
@@ -371,31 +430,35 @@ export class DungeonFinderPanel implements IPanel {
 				activate: () => {},
 			});
 		const queued = this.client.isQueued();
-		rows.push({
-			id: "queue-action",
-			label:
-				this.client.getDungeonLists().find((list) => list.id === page)?.label ??
-				"Find Dungeon",
-			enabled: queued
-				? this.client.getSelected() === page
-				: choices.some((dungeon) => dungeon.checked && dungeon.available),
-			...queueTile(queued),
-			tooltip: queued ? "Leave Queue" : "Enter Queue?",
-			activate: () => {
-				if (!this.mounted || this.page !== page) return;
-				if (this.client.isQueued()) {
-					if (this.client.getSelected() !== page) return;
-					this.confirmDungeonLeave(page);
-					return;
-				} else if (
-					this.client
-						.getDungeonChoices(page)
-						.some((dungeon) => dungeon.checked && dungeon.available)
-				)
-					this.client.join();
-				this.refresh();
-			},
-		});
+		rows.push(
+			actionTile(
+				{
+					id: "queue-action",
+					label:
+						this.client.getDungeonLists().find((list) => list.id === page)
+							?.label ?? "Find Dungeon",
+					enabled: queued
+						? this.client.getSelected() === page
+						: choices.some((dungeon) => dungeon.checked && dungeon.available),
+					tooltip: queued ? "Leave Queue" : "Enter Queue?",
+					activate: () => {
+						if (!this.mounted || this.page !== page) return;
+						if (this.client.isQueued()) {
+							if (this.client.getSelected() !== page) return;
+							this.confirmDungeonLeave(page);
+							return;
+						} else if (
+							this.client
+								.getDungeonChoices(page)
+								.some((dungeon) => dungeon.checked && dungeon.available)
+						)
+							this.client.join();
+						this.refresh();
+					},
+				},
+				queued && this.client.getSelected() === page,
+			),
+		);
 		return rows;
 	}
 	private render(): void {

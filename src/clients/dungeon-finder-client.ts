@@ -23,6 +23,7 @@ export interface RaidWing {
 	readonly name: string;
 	readonly available: boolean;
 	readonly queued: boolean;
+	readonly bosses: readonly { name: string; killed: boolean }[];
 }
 export interface FinderRaid {
 	readonly id: number;
@@ -114,7 +115,13 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 				raids.push(raid);
 			}
 			raid.newestWing = Math.max(raid.newestWing, id);
-			raid.wings.push({ id, name, available, queued });
+			const bosses: { name: string; killed: boolean }[] = [];
+			const encounters = GetLFGDungeonNumEncounters(id);
+			for (let encounter = 1; encounter <= encounters; encounter++) {
+				const [bossName, , killed] = GetLFGDungeonEncounterInfo(id, encounter);
+				bosses.push({ name: bossName, killed });
+			}
+			raid.wings.push({ id, name, available, queued, bosses });
 		}
 		raids.sort(
 			(a, b) => b.expansion - a.expansion || b.newestWing - a.newestWing,
