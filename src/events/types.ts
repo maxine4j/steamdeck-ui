@@ -20,6 +20,7 @@ export interface DialogueEventPayloads {
 	DIALOGUE_ERROR: { message: string };
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
+	MAP_DETAILS_CHANGED: { id?: number };
 	ACHIEVEMENTS_SELECTED: { id: number };
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
 	MOUNTS_CHANGED: { id: number } | undefined;
@@ -77,6 +78,7 @@ export type ApplicationEvent =
 	| "DUNGEON_FINDER_VISIBILITY_CHANGED"
 	| "TALENTS_CHANGED"
 	| "TALENTS_VISIBILITY_CHANGED"
+	| "MAP_VISIBILITY_CHANGED"
 	| "MOUNTS_CHANGED"
 	| "MOUNTS_SEARCH_CHANGED"
 	| "MOUNTS_EQUIPMENT_CHANGED"

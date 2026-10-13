@@ -10,6 +10,7 @@ import type { IDialogueCamera } from "./clients/dialogue-camera";
 import type { IDialogueClient } from "./clients/dialogue-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
+import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ISlashCommandsClient } from "./clients/slash-commands-client";
@@ -37,6 +38,8 @@ import { CurrencyPanel } from "./modules/currency/currency-panel";
 import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
 import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
+import { MapModule } from "./modules/map/map-module";
+import { MapPanel } from "./modules/map/map-panel";
 import { ModuleManager } from "./modules/module-manager";
 import { BuiltInMounts } from "./modules/mounts/built-in-mounts";
 import { MountActionMenu } from "./modules/mounts/mount-action-menu";
@@ -96,6 +99,7 @@ export function startSteamDeckUI(
 	toys: IToysClient,
 	slashCommands: ISlashCommandsClient,
 	config: IAddonConfigClient,
+	map: IMapClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -178,6 +182,13 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const mapModal = new Modal("quest-options", pool, navigation, events);
+	const mapPanel = new MapPanel(pool, map, mapModal, () => {
+		map.close();
+		ui.closePanel("fullscreen", "map");
+	});
+	ui.registerPanel(mapPanel);
+	modules.register(new MapModule(ui, events, map, mapPanel, scheduler));
 	modules.register(new SlashCommandsModule(slashCommands));
 	const builtInAchievements = new BuiltInAchievements(
 		new FrameSuppression(pool),
@@ -378,6 +389,8 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			mapPanel.destroy();
+			mapModal.destroy();
 			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();

@@ -270,6 +270,23 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		getCooldown: () => ({ start: 0, duration: 0 }),
 	};
 	const slashCommands = { initialize: vi.fn(), shutdown: vi.fn() };
+	const map = {
+		disable: vi.fn(),
+		restore: vi.fn(),
+		isOpen: vi.fn(() => false),
+		close: vi.fn(),
+		mount: vi.fn(),
+		unmount: vi.fn(),
+		read: () => [],
+		focus: vi.fn(),
+		showDetails: vi.fn(),
+		hideDetails: vi.fn(),
+		scrollDetails: vi.fn(),
+		track: vi.fn(),
+		superTrack: vi.fn(),
+		abandon: vi.fn(),
+		share: vi.fn(),
+	};
 	const app = startSteamDeckUI(
 		factory,
 		events,
@@ -428,6 +445,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		toys,
 		slashCommands,
 		{ getCurrencyFavourites: () => [], setCurrencyFavourite: vi.fn() },
+		map,
 	);
 	expect(frames).toHaveLength(3);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -845,7 +863,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("left").activePanelId).toBe("titles");
 	expect(spellbookOpened).not.toHaveBeenCalled();
 	expect(spellsShown).toBe(false);
+	map.isOpen.mockReturnValue(true);
+	events.emit("MAP_VISIBILITY_CHANGED");
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("map");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
+	expect(map.mount).toHaveBeenCalledOnce();
+	events.emit("NAV_PANEL_NEXT");
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
+	expect(map.close).toHaveBeenCalled();
 	app.stop();
+	expect(map.disable).toHaveBeenCalledOnce();
+	expect(map.restore).toHaveBeenCalledOnce();
 	expect(controller.shutdown).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);

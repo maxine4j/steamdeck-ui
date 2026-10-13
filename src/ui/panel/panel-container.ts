@@ -20,7 +20,7 @@ export class PanelContainer implements IPanelContainer {
 		private readonly navigation?: INavManager,
 		private readonly navigationNeighbors?: GridNeighbors,
 	) {
-		this.frame.dock(position, 500);
+		this.frame.dock(position, 500, position === "fullscreen" ? 20 : 0);
 		this.frame.onClose(() => {
 			if (this.stack.length === 0) return;
 			this.releaseNavigation();
@@ -121,6 +121,10 @@ export class PanelContainer implements IPanelContainer {
 	}
 	private cyclePanel(direction: -1 | 1): void {
 		const active = this.stack.at(-1);
+		if (active?.onPanelCycle) {
+			active.onPanelCycle(direction);
+			return;
+		}
 		if (!active || this.panels.length < 2) return;
 		const index = this.panels.indexOf(active);
 		const panel = this.panels.at(

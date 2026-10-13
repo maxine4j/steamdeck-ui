@@ -733,3 +733,21 @@ it.each(["left", "right", "fullscreen"] as const)(
 		expect(pool.acquire("Frame")).toBe(native);
 	},
 );
+
+it("insets fullscreen docks without changing side docks or modal shields", () => {
+	const native = {
+		SetFrameStrata: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetPoint: vi.fn(),
+	};
+	const frame = new Frame("fullscreen", {
+		acquire: () => native,
+		getBackground: vi.fn(),
+	} as unknown as import("../frame-pool-manager").IFramePoolManager);
+	frame.dock("fullscreen", 500, 20);
+	expect(native.SetPoint.mock.calls).toEqual([
+		["TOPLEFT", undefined, "TOPLEFT", 20, -20],
+		["BOTTOMRIGHT", undefined, "BOTTOMRIGHT", -20, 20],
+	]);
+});

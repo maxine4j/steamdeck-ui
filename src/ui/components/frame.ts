@@ -152,20 +152,30 @@ export class Frame implements IUIComponent {
 		}
 		native.SetScript("OnHide", callback);
 	}
-	dock(position: "left" | "right" | "fullscreen", width: number): void {
+	dock(
+		position: "left" | "right" | "fullscreen",
+		width: number,
+		inset = 0,
+	): void {
 		const native = this.acquire();
 		native.SetFrameStrata("DIALOG");
 		this.docked = true;
 		native.ClearAllPoints();
 		native.SetSize(position === "fullscreen" ? 0 : width, 0);
 		const edge = position === "right" ? "RIGHT" : "LEFT";
-		native.SetPoint(`TOP${edge}`, undefined, `TOP${edge}`, 0, 0);
+		native.SetPoint(
+			`TOP${edge}`,
+			undefined,
+			`TOP${edge}`,
+			inset,
+			inset !== 0 ? -inset : 0,
+		);
 		native.SetPoint(
 			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
 			undefined,
 			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
-			0,
-			0,
+			position === "fullscreen" && inset !== 0 ? -inset : inset,
+			inset,
 		);
 	}
 	/** Screen-sized mouse shield, above the docked containers. */
@@ -188,6 +198,25 @@ export class Frame implements IUIComponent {
 		native.ClearAllPoints();
 		native.SetPoint("TOPLEFT", parent.acquire(), "TOPLEFT", 0, 0);
 		native.SetPoint("BOTTOMRIGHT", parent.acquire(), "BOTTOMRIGHT", 0, 0);
+	}
+	/** Generic existing-frame hosting; domain code never receives our native frame. */
+	anchorExisting(
+		native: WowFrame,
+		insets: readonly [number, number, number, number],
+		reparent = false,
+	): void {
+		const parent = this.acquire();
+		if (reparent) native.SetParent(parent);
+		const [left, top, right, bottom] = insets;
+		native.ClearAllPoints();
+		native.SetPoint("TOPLEFT", parent, "TOPLEFT", left, top !== 0 ? -top : 0);
+		native.SetPoint(
+			"BOTTOMRIGHT",
+			parent,
+			"BOTTOMRIGHT",
+			right !== 0 ? -right : 0,
+			bottom,
+		);
 	}
 	inset(
 		parent: Frame,

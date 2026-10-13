@@ -4,6 +4,38 @@ import type { Frame } from "../components/frame";
 import { NavigationManager } from "../navigation/navigation-manager";
 import { PanelContainer } from "./panel-container";
 
+it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"fullscreen",
+		"fullscreen",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+	);
+	const onPanelCycle = vi.fn();
+	container.swapPanel({
+		id: "map",
+		title: "Map",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+		onPanelCycle,
+	});
+	events.emit("NAV_PANEL_NEXT");
+	events.emit("NAV_PANEL_PREVIOUS");
+	expect(onPanelCycle.mock.calls).toEqual([[1], [-1]]);
+	expect(frame.dock).toHaveBeenCalledWith("fullscreen", 500, 20);
+});
+
 it("closes the active panel on controller cancel when it has no back handler", () => {
 	const events = createTestEventBus();
 	const navigation = new NavigationManager(events);

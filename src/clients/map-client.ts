@@ -1,0 +1,291 @@
+import type { IEventBus } from "../events/types";
+import type { Frame } from "../ui/components/frame";
+import type { LayoutFrame, NativeLayout } from "../ui/components/native-layout";
+
+export interface MapQuest {
+	readonly id: number;
+	readonly title: string;
+	readonly campaign: boolean;
+	readonly zone: string;
+	readonly objectives: string[];
+	readonly tracked: boolean;
+	readonly superTracked: boolean;
+	readonly canAbandon: boolean;
+	readonly canShare: boolean;
+}
+export interface IMapClient {
+	disable(): void;
+	restore(): void;
+	isOpen(): boolean;
+	close(): void;
+	mount(parent: Frame, questPane: Frame): void;
+	unmount(): void;
+	read(): MapQuest[];
+	focus(id: number): void;
+	showDetails(id: number): void;
+	hideDetails(): void;
+	scrollDetails(direction: -1 | 1): void;
+	track(id: number): void;
+	superTrack(id: number): void;
+	abandon(id: number): void;
+	share(id: number): void;
+}
+interface QuestLogInfo {
+	questID: number;
+	title: string;
+	isHeader: boolean;
+	isHidden: boolean;
+	isTask: boolean;
+}
+export interface NativeWorldMap extends LayoutFrame {
+	TitleCanvasSpacerFrame: LayoutFrame;
+	ScrollContainer: LayoutFrame;
+	NavBar: LayoutFrame;
+	BorderFrame: LayoutFrame;
+	BlackoutFrame: LayoutFrame;
+	SidePanelToggle?: LayoutFrame;
+	HookScript(script: string, callback: (this: void) => void): void;
+	OnFrameSizeChanged(): void;
+	SetMapID(id: number): void;
+	SetFocusedQuestID(id: number): void;
+}
+export interface NativeQuestMap extends LayoutFrame {
+	ContentsAnchor: LayoutFrame;
+	QuestsFrame: LayoutFrame & { ScrollFrame: LayoutFrame };
+	DetailsFrame: LayoutFrame & {
+		questID?: number;
+		ScrollFrame: {
+			ScrollBar: { ScrollStepInDirection(direction: number): void };
+		};
+	};
+	QuestsTab: LayoutFrame;
+	EventsTab: LayoutFrame;
+	MapLegendTab: LayoutFrame;
+	EventsFrame: LayoutFrame;
+	MapLegend: LayoutFrame;
+	QuestSessionManagement: LayoutFrame;
+}
+declare global {
+	function IsInGroup(this: void): boolean;
+	const EventRegistry: {
+		TriggerEvent(this: unknown, name: string, id: number): void;
+	};
+	function hooksecurefunc(
+		this: void,
+		name: "QuestMapFrame_ShowQuestDetails",
+		callback: (this: void, id: number) => void,
+	): void;
+	const WorldMapFrame: NativeWorldMap;
+	const QuestMapFrame: NativeQuestMap;
+	function QuestMapFrame_ShowQuestDetails(this: void, id: number): void;
+	function QuestMapFrame_ReturnFromQuestDetails(this: void): void;
+	function QuestMapFrame_CloseQuestDetails(this: void): void;
+	function QuestMapQuestOptions_TrackQuest(this: void, id: number): void;
+	function QuestMapQuestOptions_ShareQuest(this: void, id: number): void;
+	function GetQuestUiMapID(this: void, id: number): number;
+	function QuestUtils_IsQuestWatched(this: void, id: number): boolean;
+}
+export class MapClient implements IMapClient {
+	private enabled = false;
+	private hooked = false;
+	private parent?: Frame;
+	private questPane?: Frame;
+	private details = false;
+	constructor(
+		private readonly events: IEventBus,
+		private readonly layout: Pick<NativeLayout, "bind" | "release" | "scroll">,
+	) {}
+	private readonly visibility = () => {
+		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
+	};
+	disable(): void {
+		this.enabled = true;
+		if (this.hooked) return;
+		this.hooked = true;
+		WorldMapFrame.HookScript("OnShow", this.visibility);
+		WorldMapFrame.HookScript("OnHide", this.visibility);
+		// ShowUIPanel continues positioning after OnShow; generic frame leases enforce those writes.
+		hooksecurefunc("QuestMapFrame_ShowQuestDetails", (id: number) => {
+			if (!this.enabled || !this.parent) return;
+			this.details = true;
+			this.applyQuestLayout();
+			this.events.emit("MAP_DETAILS_CHANGED", { id });
+		});
+		hooksecurefunc("QuestMapFrame_CloseQuestDetails", () => {
+			if (!this.enabled || !this.parent || !this.details) return;
+			this.details = false;
+			this.applyQuestLayout();
+			this.events.emit("MAP_DETAILS_CHANGED", {});
+		});
+	}
+	restore(): void {
+		this.enabled = false;
+		this.unmount();
+	}
+	isOpen(): boolean {
+		return this.enabled && WorldMapFrame.IsShown();
+	}
+	close(): void {
+		HideUIPanel(WorldMapFrame);
+	}
+	mount(parent: Frame, questPane: Frame): void {
+		this.parent = parent;
+		this.questPane = questPane;
+		const map = WorldMapFrame;
+		this.layout.bind(map, {
+			parent,
+			reparent: true,
+			scale: 1,
+			strata: "DIALOG",
+			alpha: 1,
+		});
+		this.layout.bind(map.TitleCanvasSpacerFrame, {
+			parent: map,
+			anchors: [
+				["TOPLEFT", "TOPLEFT", 0, 0],
+				["BOTTOMRIGHT", "TOPRIGHT", -420, -48],
+			],
+		});
+		this.layout.bind(map.ScrollContainer, {
+			parent: map,
+			insets: [0, 48, 420, 0],
+		});
+		this.layout.bind(map.NavBar, {
+			parent: map.TitleCanvasSpacerFrame,
+			insets: [8, 8, 8, 8],
+		});
+		for (const frame of [
+			map.BorderFrame,
+			map.BlackoutFrame,
+			map.SidePanelToggle,
+		])
+			if (frame) this.layout.bind(frame, { visible: false });
+		this.applyQuestLayout();
+		map.OnFrameSizeChanged();
+	}
+	private applyQuestLayout(): void {
+		if (!this.questPane) return;
+		const quests = QuestMapFrame;
+		// Keep QuestMapFrame parented to the map: its scripts call the owner's map methods.
+		this.layout.bind(quests, {
+			parent: this.questPane,
+			insets: [8, 52, 8, 48],
+			visible: this.details,
+			strata: "DIALOG",
+		});
+		this.layout.bind(quests.ContentsAnchor, { parent: quests });
+		this.layout.bind(quests.QuestsFrame, {
+			parent: quests.ContentsAnchor,
+			visible: true,
+		});
+		this.layout.bind(quests.DetailsFrame, {
+			parent: quests.QuestsFrame,
+			visible: this.details,
+		});
+		for (const frame of [
+			quests.QuestsFrame.ScrollFrame,
+			quests.QuestsTab,
+			quests.EventsTab,
+			quests.MapLegendTab,
+			quests.EventsFrame,
+			quests.MapLegend,
+			quests.QuestSessionManagement,
+		])
+			this.layout.bind(frame, { visible: false });
+	}
+	unmount(): void {
+		this.parent = undefined;
+		this.questPane = undefined;
+		this.details = false;
+		this.layout.release();
+	}
+	read(): MapQuest[] {
+		const [count] = C_QuestLog.GetNumQuestLogEntries();
+		const quests: MapQuest[] = [];
+		let zone = "";
+		for (let index = 1; index <= count; index++) {
+			// Generated declarations flatten table returns; correct them at the API seam.
+			const info = (
+				C_QuestLog.GetInfo as unknown as (
+					this: void,
+					index: number,
+				) => QuestLogInfo | undefined
+			)(index);
+			if (!info) continue;
+			if (info.isHeader) {
+				zone = info.title;
+				continue;
+			}
+			if (!info.questID || info.isHidden) continue;
+			const objectives =
+				(
+					C_QuestLog.GetQuestObjectives as unknown as (
+						this: void,
+						id: number,
+					) => { text?: string }[] | undefined
+				)(info.questID) ?? [];
+			quests.push({
+				id: info.questID,
+				title: info.title,
+				zone,
+				campaign: C_CampaignInfo.IsCampaignQuest(info.questID),
+				objectives: objectives.map((objective) => objective.text ?? ""),
+				tracked: QuestUtils_IsQuestWatched(info.questID),
+				superTracked: C_SuperTrack.GetSuperTrackedQuestID() === info.questID,
+				canAbandon: C_QuestLog.CanAbandonQuest(info.questID),
+				canShare: C_QuestLog.IsPushableQuest(info.questID) && IsInGroup(),
+			});
+		}
+		return quests;
+	}
+	private exists(id: number): boolean {
+		const index = C_QuestLog.GetLogIndexForQuestID(id);
+		return typeof index === "number" && index > 0;
+	}
+	focus(id: number): void {
+		if (!this.exists(id)) return;
+		const mapID = GetQuestUiMapID(id);
+		if (mapID > 0) WorldMapFrame.SetMapID(mapID);
+		WorldMapFrame.SetFocusedQuestID(id);
+		EventRegistry.TriggerEvent("MapCanvas.PingQuestID", id);
+	}
+	showDetails(id: number): void {
+		if (!this.exists(id)) return;
+		this.details = true;
+		this.applyQuestLayout();
+		QuestMapFrame_ShowQuestDetails(id);
+	}
+	hideDetails(): void {
+		QuestMapFrame_ReturnFromQuestDetails();
+		this.details = false;
+		this.applyQuestLayout();
+	}
+	scrollDetails(direction: -1 | 1): void {
+		this.layout.scroll(
+			QuestMapFrame.DetailsFrame.ScrollFrame.ScrollBar,
+			direction,
+		);
+	}
+	track(id: number): void {
+		if (this.exists(id)) QuestMapQuestOptions_TrackQuest(id);
+	}
+	superTrack(id: number): void {
+		if (this.exists(id))
+			C_SuperTrack.SetSuperTrackedQuestID(
+				C_SuperTrack.GetSuperTrackedQuestID() === id ? 0 : id,
+			);
+	}
+	abandon(id: number): void {
+		if (!this.exists(id) || !C_QuestLog.CanAbandonQuest(id)) return;
+		// Called only after the module's controller-accessible confirmation.
+		const selected = C_QuestLog.GetSelectedQuest();
+		C_QuestLog.SetSelectedQuest(id);
+		C_QuestLog.SetAbandonQuest();
+		C_QuestLog.AbandonQuest();
+		C_QuestLog.SetSelectedQuest(selected);
+	}
+	share(id: number): void {
+		if (this.exists(id) && C_QuestLog.IsPushableQuest(id) && IsInGroup())
+			QuestMapQuestOptions_ShareQuest(id);
+	}
+}
