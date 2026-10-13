@@ -90,7 +90,7 @@ it("outlines only the active map or quest side and removes it while inactive", (
 	);
 	expect(state.frames.get("map-side")?.layout).toHaveBeenCalledWith(
 		880,
-		880 / 1.5 + 80,
+		880 / 1.5 + 52,
 		"TOPLEFT",
 		expect.anything(),
 	);
@@ -132,7 +132,7 @@ it("centers a fitted window, uses the native title copy and fits quests on resiz
 	).not.toHaveBeenCalled();
 	expect(state.frames.get("map-frame")?.layout).toHaveBeenCalledWith(
 		1200,
-		880 / 1.5 + 80,
+		880 / 1.5 + 52,
 		"CENTER",
 		expect.anything(),
 	);
@@ -237,7 +237,7 @@ function setup() {
 	const client = {
 		presentation: vi.fn((available: { width: number; height: number }) => ({
 			title: "Map & Quest Log",
-			height: Math.min(available.height, (available.width - 320) / 1.5 + 80),
+			height: Math.min(available.height, (available.width - 320) / 1.5 + 52),
 		})),
 		disable: vi.fn(),
 		restore: vi.fn(),
@@ -328,7 +328,7 @@ it("puts Blizzard's unified quest hierarchy on the right without custom tabs or 
 	expect(client.mount).toHaveBeenCalled();
 	expect(state.frames.get("map-quests")?.layout).toHaveBeenCalledWith(
 		320,
-		880 / 1.5 + 80,
+		880 / 1.5 + 52,
 		"TOPRIGHT",
 		expect.anything(),
 	);

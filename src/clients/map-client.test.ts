@@ -53,7 +53,13 @@ function setup() {
 	);
 	const quests = {
 		ContentsAnchor: {},
-		QuestsFrame: { ScrollFrame: { ScrollBar: {} } },
+		QuestsFrame: {
+			ScrollFrame: {
+				ScrollBar: {},
+				SearchBox: { Clear: vi.fn() },
+				SettingsDropdown: {},
+			},
+		},
 		DetailsFrame: { ScrollFrame: { ScrollBar: {} } },
 		QuestsTab: {},
 		EventsTab: {},
@@ -134,7 +140,7 @@ it("sizes the combined panel to map art, breadcrumbs and title bar and uses Bliz
 	const { client } = setup();
 	expect(client.presentation({ width: 1200, height: 720 })).toEqual({
 		title: "Map & Quest Log",
-		height: 880 / 1.5 + 80,
+		height: 880 / 1.5 + 52,
 	});
 	expect(client.presentation({ width: 1200, height: 500 })).toEqual({
 		title: "Map & Quest Log",
@@ -161,6 +167,23 @@ it("uses the minimal indicator for native quests and restores Blizzard's scrollb
 	client.unmount();
 	expect(indicator.release).toHaveBeenCalledOnce();
 	expect(layout.release).toHaveBeenCalled();
+});
+
+it("removes the unused native search header without leaving a hidden quest filter", () => {
+	const { client, quests, layout, hooks } = setup();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	const scroll = quests.QuestsFrame.ScrollFrame;
+	const rule = (target: object) =>
+		layout.bind.mock.calls.find((call) => call.at(0) === target)?.at(1);
+	expect(rule(scroll)).toMatchObject({ insets: [0, 0, 0, 0] });
+	expect(rule(scroll.SearchBox)).toEqual({ visible: false });
+	expect(rule(scroll.SettingsDropdown)).toEqual({ visible: false });
+	hooks.get("QuestMapFrame_ShowQuestDetails")?.(7);
+	expect(scroll.SearchBox.Clear).toHaveBeenCalledOnce();
 });
 
 it("invalidates panel sizing after a map change but stops emitting after unmount", () => {
@@ -559,7 +582,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		frame.ScrollContainer,
 		expect.objectContaining({
 			parent: frame,
-			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
+			anchors: [["TOPLEFT", "TOPLEFT", 0, -32]],
 			size: [880, 880 / 1.5],
 			clip: true,
 		}),
@@ -587,7 +610,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		quests.QuestsFrame.ScrollFrame,
 		expect.objectContaining({
 			visible: true,
-			insets: [0, 29, 0, 0],
+			insets: [0, 0, 0, 0],
 			clip: true,
 		}),
 	);
@@ -691,11 +714,27 @@ it("leaves the metal header exposed above breadcrumbs, quests and details", () =
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 320, 720 - 880 / 1.5 - 80] }),
+		expect.objectContaining({ insets: [0, 20, 320, 720 - 880 / 1.5 - 52] }),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests,
-		expect.objectContaining({ insets: [8, 32, 8, 48] }),
+		expect.objectContaining({ insets: [8, 20, 8, 48] }),
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		frame.NavBar,
+		expect.objectContaining({ insets: [8, 4, 8, 4] }),
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame.ScrollFrame,
+		expect.objectContaining({ insets: [0, 0, 0, 0] }),
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame.ScrollFrame.SearchBox,
+		{ visible: false },
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame.ScrollFrame.SettingsDropdown,
+		{ visible: false },
 	);
 	hooks.get("QuestMapFrame_ShowQuestDetails")?.(7);
 	expect(layout.bind).toHaveBeenCalledWith(
@@ -753,7 +792,7 @@ it("fits map art below the title and breadcrumbs across map changes and resizing
 	client.mount({ getSize: () => size } as Frame, {} as Frame);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 320, 720 - 880 / 1.5 - 80] }),
+		expect.objectContaining({ insets: [0, 20, 320, 720 - 880 / 1.5 - 52] }),
 	);
 	const viewport = () =>
 		layout.bind.mock.calls
@@ -761,18 +800,18 @@ it("fits map art below the title and breadcrumbs across map changes and resizing
 			.at(-1)
 			?.at(1);
 	expect(viewport()).toMatchObject({
-		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
+		anchors: [["TOPLEFT", "TOPLEFT", 0, -32]],
 		size: [880, 880 / 1.5],
 	});
 	frame.GetMapID.mockReturnValue(102);
 	hooks.get("OnMapChanged")?.();
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 560, 0] }),
+		expect.objectContaining({ insets: [0, 20, 532, 0] }),
 	);
 	expect(viewport()).toMatchObject({
-		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [640, 640],
+		anchors: [["TOPLEFT", "TOPLEFT", 0, -32]],
+		size: [668, 668],
 	});
 	frame.GetMapID.mockReturnValue(103);
 	hooks.get("OnMapChanged")?.();
@@ -784,7 +823,7 @@ it("fits map art below the title and breadcrumbs across map changes and resizing
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
 		expect.objectContaining({
-			insets: [0, 32, 320, 100],
+			insets: [0, 20, 320, 128],
 		}),
 	);
 	const calls = layout.bind.mock.calls.length;

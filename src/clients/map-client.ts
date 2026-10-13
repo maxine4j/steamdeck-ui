@@ -19,8 +19,8 @@ import type { INavigable, NavDirection } from "../ui/navigation/types";
 
 // QuestScrollFrame.Contents is 304px wide; the minimal indicator overlays it.
 export const MAP_QUEST_PANE_WIDTH = 304 + 16;
-const CONTENT_TOP = 32;
-const BREADCRUMB_HEIGHT = 48;
+const CONTENT_TOP = 20;
+const BREADCRUMB_HEIGHT = 32;
 
 export interface MapQuestNavigation {
 	readonly questID?: number;
@@ -87,6 +87,8 @@ interface NativeQuestScroll
 		NativeNavigationScroll,
 		IndicatorScroll {
 	ScrollBar: LayoutFrame;
+	SearchBox: LayoutFrame & { Clear(): void };
+	SettingsDropdown: LayoutFrame;
 	titleFramePool: NativeQuestPool;
 	headerFramePool: NativeQuestPool;
 	campaignHeaderFramePool: NativeQuestPool;
@@ -314,6 +316,8 @@ export class MapClient implements IMapClient {
 	mount(parent: Frame, questPane: Frame): void {
 		this.parent = parent;
 		this.questPane = questPane;
+		// The controller list omits the native search row; do not retain its filter.
+		QuestMapFrame.QuestsFrame.ScrollFrame.SearchBox.Clear();
 		this.resize();
 		this.applyQuestLayout();
 		QuestLogQuests_Update();
@@ -367,18 +371,18 @@ export class MapClient implements IMapClient {
 			parent: map,
 			anchors: [
 				["TOPLEFT", "TOPLEFT", 0, 0],
-				["BOTTOMRIGHT", "TOPRIGHT", 0, -48],
+				["BOTTOMRIGHT", "TOPRIGHT", 0, -BREADCRUMB_HEIGHT],
 			],
 		});
 		this.layout.bind(map.ScrollContainer, {
 			parent: map,
-			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
+			anchors: [["TOPLEFT", "TOPLEFT", 0, -BREADCRUMB_HEIGHT]],
 			size: [width, height],
 			clip: true,
 		});
 		this.layout.bind(map.NavBar, {
 			parent: map.TitleCanvasSpacerFrame,
-			insets: [8, 8, 8, 8],
+			insets: [8, 4, 8, 4],
 		});
 		for (const frame of [
 			map.BorderFrame,
@@ -430,7 +434,7 @@ export class MapClient implements IMapClient {
 		});
 		this.layout.bind(quests.QuestsFrame.ScrollFrame, {
 			parent: quests.QuestsFrame,
-			insets: [0, 29, 0, 0],
+			insets: [0, 0, 0, 0],
 			visible: !this.details,
 			clip: true,
 		});
@@ -439,6 +443,8 @@ export class MapClient implements IMapClient {
 		});
 		this.indicator.bind(quests.QuestsFrame.ScrollFrame);
 		for (const frame of [
+			quests.QuestsFrame.ScrollFrame.SearchBox,
+			quests.QuestsFrame.ScrollFrame.SettingsDropdown,
 			quests.QuestsTab,
 			quests.EventsTab,
 			quests.MapLegendTab,

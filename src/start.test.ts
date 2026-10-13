@@ -273,7 +273,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	const map = {
 		presentation: ({ width, height }: { width: number; height: number }) => ({
 			title: "Map & Quest Log",
-			height: Math.min(height, (width - 320) / 1.5 + 80),
+			height: Math.min(height, (width - 320) / 1.5 + 52),
 		}),
 		disable: vi.fn(),
 		restore: vi.fn(),
