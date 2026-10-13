@@ -173,8 +173,7 @@ export class BagsPanel implements IPanel {
 			const groupTop =
 				previousBottom === 0
 					? 0
-					: Math.ceil((previousBottom + itemSpacing) / itemSpacing) *
-						itemSpacing;
+					: Math.ceil(previousBottom / itemSpacing) * itemSpacing;
 			jobs.push(() => {
 				let header = this.headers.at(groupIndex);
 				if (!header) {

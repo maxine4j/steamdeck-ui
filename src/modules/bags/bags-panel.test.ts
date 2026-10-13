@@ -390,10 +390,10 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		groupedGrid.flat().find((node) => node.navId.includes("item-200"))?.navColumn,
 	).toBe(5);
 	expect(positions("bags-header-2")).toEqual([
-		[226, 24, "TOPLEFT", expect.any(Frame), 234, -138],
+		[226, 24, "TOPLEFT", expect.any(Frame), 234, -92],
 	]);
 	expect(positions("bags-border-41")).toEqual([
-		[42, 42, "TOPLEFT", expect.any(Frame), 234, -166],
+		[42, 42, "TOPLEFT", expect.any(Frame), 234, -120],
 	]);
 	expect(positions("bags-content")).toEqual([
 		[460, 410, "TOPLEFT", expect.any(Frame), 0, -95],
