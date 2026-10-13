@@ -10,6 +10,7 @@ import {
 	ItemGrid,
 } from "../../ui/components/item-grid";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -180,7 +181,7 @@ export class VendorPanel implements IPanel {
 			throw new Error("Vendor requires a frame parent");
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
-		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
+		setWindowTitle(this.frame, this.title);
 		this.mounted = true;
 		if (this.id === "vendor") {
 			this.footer.setParent(this.frame);

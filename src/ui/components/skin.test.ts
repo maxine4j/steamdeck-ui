@@ -4,6 +4,22 @@ import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { applyButtonSkin, applyWindowSkin } from "./skin";
 
+it("outlines focused controls without covering their contents and reuses the outline", () => {
+	const { pool, textures, native } = setup();
+	const frame = new Frame("search", pool, "EditBox");
+	frame.setFocused(true);
+	expect(textures).toHaveLength(5);
+	for (const edge of textures.slice(1)) {
+		expect(edge.SetColorTexture).toHaveBeenLastCalledWith(1, 0.82, 0, 1);
+		expect(edge.SetAllPoints).not.toHaveBeenCalled();
+	}
+	frame.setFocused(false);
+	for (const edge of textures.slice(1))
+		expect(edge.SetColorTexture).toHaveBeenLastCalledWith(1, 0.82, 0, 0);
+	frame.setFocused(true);
+	expect(native.CreateTexture).toHaveBeenCalledTimes(5);
+});
+
 function setup() {
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 32, height: 128 }),

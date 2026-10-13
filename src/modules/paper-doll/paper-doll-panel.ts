@@ -6,6 +6,7 @@ import type {
 } from "../../clients/character-client";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -141,6 +142,7 @@ export class PaperDollPanel implements IPanel {
 			throw new Error("Paper Doll requires a frame parent");
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
+		setWindowTitle(this.frame, this.title);
 		this.frame.show();
 		this.content.setParent(this.frame);
 		this.content.show();

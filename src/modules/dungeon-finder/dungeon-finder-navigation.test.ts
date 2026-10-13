@@ -128,7 +128,7 @@ it.each(["random", "specific", "follower"] as const)(
 				.getNavGrid()
 				.flat()
 				.map((node) => node.navId),
-		).toEqual(queue === "random" ? [action] : ["dungeon-back", action]);
+		).toEqual([action]);
 		nav.interact();
 		flush();
 		expect(queued).toBe(false);

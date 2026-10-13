@@ -2,7 +2,7 @@
 
 Controller-first UI for Retail World of Warcraft, written in TypeScript and compiled to Lua.
 
-Run `yarn build`, then copy the contents of `dist/` into an `Interface/AddOns/SteamDeckUI/` directory. Log in or reload the UI.
+Run `yarn build`, then copy the contents of `dist/` into an `Interface/AddOns/SteamDeckUI-dev/` directory. Log in or reload the UI. Use `yarn build:release` to build the published addon for `Interface/AddOns/SteamDeckUI/`.
 
 GitHub Actions runs tests, typecheck, lint, and builds on pull requests, pushes to `main`, and new tags. Successful `main` builds publish `main-<short-sha>` prereleases; tags publish stable releases. Each release includes `SteamDeckUI.zip`, containing a `SteamDeckUI/` folder ready to extract into `Interface/AddOns/`. The packaged TOC version matches the release name. Workflow reruns replace the existing ZIP rather than creating another release.
 

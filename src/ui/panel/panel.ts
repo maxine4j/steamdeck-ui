@@ -1,5 +1,6 @@
 import type { Frame } from "../components/frame";
 import type { IUIComponent } from "../components/types";
+import { setWindowTitle } from "../components/window-title";
 import type { IPanel } from "./types";
 export class Panel implements IPanel {
 	constructor(
@@ -11,6 +12,7 @@ export class Panel implements IPanel {
 		this.frame.setParent(parent);
 		this.frame.layout(420, 560, "CENTER");
 		this.frame.setWindowBackground();
+		setWindowTitle(this.frame, this.title);
 		this.frame.show();
 	}
 	onUnmount(): void {

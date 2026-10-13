@@ -155,7 +155,7 @@ function setup(queued = false, canTank = true, canHeal = true) {
 }
 
 it.each(["follower", "specific"] as const)(
-	"opens %s checkboxes with pinned roles and a spaced Back button",
+	"opens %s checkboxes with pinned roles and returns via controller B",
 	(list) => {
 		const { callbacks, client, panel } = setup();
 		panel
@@ -186,7 +186,8 @@ it.each(["follower", "specific"] as const)(
 				.getNavGrid()
 				.flat()
 				.map((node) => node.navId),
-		).toContain("dungeon-back");
+		).not.toContain("dungeon-back");
+		expect(choices.some((row) => row.id === "dungeon-back")).toBe(false);
 		expect(
 			panel
 				.getNavGrid()
@@ -194,17 +195,14 @@ it.each(["follower", "specific"] as const)(
 				.map((node) => node.navId),
 		).not.toContain("choice-12");
 		callbacks.shift()?.();
-		const updated = setRows.mock.lastCall?.at(0) as ListRow[];
-		const back = updated.find((row) => row.id === "dungeon-back");
-		expect(back).toMatchObject({ id: "dungeon-back", label: "Back" });
-		back?.activate();
+		panel.onBack();
 		callbacks.shift()?.();
 		const overview = setRows.mock.lastCall?.at(0) as ListRow[];
 		expect(overview.some((row) => row.id === "list-specific")).toBe(true);
 	},
 );
 
-it("keeps Back accessible on an empty secondary page", () => {
+it("returns from an empty secondary page via B without a Back button", () => {
 	const { rows, client, panel, callbacks } = setup();
 	client.getDungeonChoices = () => [];
 	rows.find((row) => row.id === "list-follower")?.activate();
@@ -212,7 +210,6 @@ it("keeps Back accessible on an empty secondary page", () => {
 	const choices = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(choices).toMatchObject([
 		{ id: "empty-choices", marginBottom: 28 },
-		{ id: "dungeon-back", label: "Back" },
 		{ id: "queue-action", enabled: false },
 	]);
 	expect(
@@ -220,7 +217,11 @@ it("keeps Back accessible on an empty secondary page", () => {
 			.getNavGrid()
 			.flat()
 			.some((node) => node.navId === "dungeon-back"),
-	).toBe(true);
+	).toBe(false);
+	panel.onBack();
+	callbacks.shift()?.();
+	const overview = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(overview.some((row) => row.id === "list-follower")).toBe(true);
 });
 
 it("greys competing queues and lets A leave the active random queue", () => {

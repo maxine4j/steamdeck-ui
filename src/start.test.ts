@@ -269,6 +269,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		canUse: () => true,
 		getCooldown: () => ({ start: 0, duration: 0 }),
 	};
+	const slashCommands = { initialize: vi.fn(), shutdown: vi.fn() };
 	const app = startSteamDeckUI(
 		factory,
 		events,
@@ -425,6 +426,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			}),
 		},
 		toys,
+		slashCommands,
 		{ getCurrencyFavourites: () => [], setCurrencyFavourite: vi.fn() },
 	);
 	expect(frames).toHaveLength(3);
@@ -458,6 +460,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 	);
 	events.emit("PLAYER_LOGIN");
+	expect(slashCommands.initialize).toHaveBeenCalledOnce();
 	expect(toys.prefetch).toHaveBeenCalledOnce();
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();

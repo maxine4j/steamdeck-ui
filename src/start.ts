@@ -12,6 +12,7 @@ import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IReputationClient } from "./clients/reputation-client";
+import type { ISlashCommandsClient } from "./clients/slash-commands-client";
 import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
@@ -51,6 +52,7 @@ import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
 import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
+import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-module";
 import { BuiltInTalents } from "./modules/talents/built-in-talents";
 import { TalentsModule } from "./modules/talents/talents-module";
 import { TalentsPanel } from "./modules/talents/talents-panel";
@@ -92,6 +94,7 @@ export function startSteamDeckUI(
 	vendor: IVendorClient,
 	achievements: IAchievementsClient,
 	toys: IToysClient,
+	slashCommands: ISlashCommandsClient,
 	config: IAddonConfigClient,
 ) {
 	const pool = new FramePoolManager(factory);
@@ -175,6 +178,7 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	modules.register(new SlashCommandsModule(slashCommands));
 	const builtInAchievements = new BuiltInAchievements(
 		new FrameSuppression(pool),
 		events,

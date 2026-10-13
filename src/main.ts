@@ -10,6 +10,7 @@ import { DungeonFinderClient } from "./clients/dungeon-finder-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MountsClient } from "./clients/mounts-client";
 import { ReputationClient } from "./clients/reputation-client";
+import { SlashCommandsClient } from "./clients/slash-commands-client";
 import { TalentsClient } from "./clients/talents-client";
 import { TaskScheduler } from "./clients/task-scheduler";
 import { TitlesClient } from "./clients/titles-client";
@@ -51,5 +52,6 @@ startSteamDeckUI(
 	new VendorClient(),
 	new AchievementsClient(scheduler),
 	new ToysClient(scheduler),
+	new SlashCommandsClient(),
 	new AddonConfigClient(),
 );

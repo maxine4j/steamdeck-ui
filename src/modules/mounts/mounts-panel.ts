@@ -3,6 +3,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -451,7 +452,7 @@ export class MountsPanel implements IPanel {
 			throw new Error("Mounts requires a frame parent");
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
-		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -12, 20);
+		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
 			"X: Summon   Y: Actions",

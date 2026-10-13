@@ -3,6 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type AnimatedAtlas, Frame } from "./frame";
 import type { IUIComponent } from "./types";
+import { setWindowTitle } from "./window-title";
 
 export interface ListRow {
 	readonly id: string;
@@ -103,8 +104,7 @@ export class ScrollList {
 	}
 	setTitle(title: string): void {
 		this.title = title;
-		if (this.mounted)
-			this.frame.setLabel("title", title, "TOPLEFT", 16, -16, 20);
+		if (this.mounted) setWindowTitle(this.frame, title);
 	}
 	resetScroll(): void {
 		this.scroll.resetScroll();
@@ -155,7 +155,7 @@ export class ScrollList {
 			throw new Error("List requires a frame parent");
 		this.frame.fill(parent);
 		if (this.options.background !== false) this.frame.setWindowBackground();
-		this.frame.setLabel("title", this.title, "TOPLEFT", 16, -16, 20);
+		setWindowTitle(this.frame, this.title);
 		const padding = this.options.padding;
 		this.scroll.inset(
 			this.frame,

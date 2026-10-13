@@ -23,6 +23,8 @@ clone_reference https://github.com/Cidan/BetterBags .libraries/BetterBags
 # Clone DialogueUI for refernece.
 clone_reference https://github.com/Peterodox/YUI-Dialogue .libraries/DialogueUI
 
+clone_reference https://github.com/kevinclement/SimpleArmory.git .libraries/SimpleArmory
+
 # Clone wow-ui-source for Blizzard UI source code.
 if [[ -d .libraries/wow-ui-source ]]; then
   echo "Skipping .libraries/wow-ui-source: directory already exists"

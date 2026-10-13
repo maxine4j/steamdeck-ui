@@ -1,7 +1,7 @@
 ## Interface: 120100
-## Title: SteamDeck
+## Title: SteamDeckUI
 ## Notes: All in one SteamDeck support
-## Author: Maxine
+## Author: maxine4j
 ## Version: 0.0.1
 ## SavedVariables: SteamDeckUIConfig
 

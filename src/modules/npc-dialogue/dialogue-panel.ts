@@ -4,6 +4,7 @@ import type { IModalNavigation } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -86,6 +87,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.window.setParent(parent);
 		this.window.layout(width, height, "CENTER", parent);
 		this.window.setWindowBackground();
+		setWindowTitle(this.window, this.title);
 		this.window.setFocusBorder(true);
 		this.readingWidth = width - 444;
 		this.readingHeight = height - 162;

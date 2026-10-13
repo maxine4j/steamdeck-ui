@@ -364,9 +364,13 @@ export class Frame implements IUIComponent {
 		);
 	}
 	setFocused(focused: boolean): void {
-		const overlay = this.pool.getDecoration(this.acquire(), "navigation-focus");
-		overlay.SetAllPoints();
-		overlay.SetColorTexture(1, 0.82, 0, focused ? 0.45 : 0);
+		setBorder(
+			this.pool,
+			this.acquire(),
+			[1, 0.82, 0, focused ? 1 : 0],
+			2,
+			"navigation-focus",
+		);
 	}
 	setFocusBorder(focused: boolean): void {
 		if (!focused && !this.focusBorder) return;

@@ -5,6 +5,7 @@ import type {
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -81,6 +82,7 @@ export class BagsPanel implements IPanel {
 		this.visibilityChanged?.(true);
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
+		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
 			"X: Use / Equip   Y: Actions",

@@ -2,6 +2,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IToysClient, Toy } from "../../clients/toys-client";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -62,6 +63,7 @@ export class ToysPanel implements IPanel {
 		if (this.mountPending) return;
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
+		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
 			"X: Use   Y: Actions",

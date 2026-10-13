@@ -248,14 +248,6 @@ export class DungeonFinderPanel implements IPanel {
 				marginBottom: 28,
 				activate: () => {},
 			});
-		rows.push({
-			id: "dungeon-back",
-			label: "Back",
-			background: [0.18, 0.14, 0.04],
-			activate: () => {
-				if (this.page === page) this.onBack();
-			},
-		});
 		const queued = this.client.isQueued();
 		rows.push({
 			id: "queue-action",
