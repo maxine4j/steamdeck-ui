@@ -398,7 +398,8 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(groupedGrid.at(2)?.at(0)?.navId).toContain("item-105");
 	expect(groupedGrid.at(2)?.at(5)).toBeUndefined();
 	expect(
-		groupedGrid.flat().find((node) => node.navId.includes("item-200"))?.navColumn,
+		groupedGrid.flat().find((node) => node.navId.includes("item-200"))
+			?.navColumn,
 	).toBe(5);
 	expect(positions("bags-header-2")).toEqual([
 		[226, 24, "TOPLEFT", expect.any(Frame), 234, -92],

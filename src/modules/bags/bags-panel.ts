@@ -248,8 +248,7 @@ export class BagsPanel implements IPanel {
 							if (this.mounted && !this.rendering && source)
 								this.menu.open(source);
 						},
-						navColumn:
-							column * itemsPerRow + (itemIndex % itemsPerRow),
+						navColumn: column * itemsPerRow + (itemIndex % itemsPerRow),
 					});
 					cell.icon.onClick((button) => {
 						if (

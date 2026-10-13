@@ -12,14 +12,35 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "vitest";
 
-test("selects the TOC filename and removes the previous build mode's TOC", () => {
+test("packages textures and TOC for the selected addon directory across build modes", () => {
 	const root = mkdtempSync(join(tmpdir(), "addon-build-test-"));
 	try {
 		mkdirSync(join(root, "bin"));
 		mkdirSync(join(root, "assets"));
-		writeFileSync(join(root, "bin", "yarn"), "#!/usr/bin/env bash\nexit 0\n", {
-			mode: 0o755,
-		});
+		mkdirSync(join(root, "assets", "controller"));
+		const texturePaths = [
+			"controller\\\\xbox_r_a.blp",
+			"Jump.png",
+			"Target_Wide_Enemy.png",
+			"xbox_s_lt.blp",
+		];
+		const assetLua = texturePaths
+			.map(
+				(path) =>
+					`print("Interface\\\\AddOns\\\\SteamDeckUI\\\\assets\\\\${path}")`,
+			)
+			.join("\n");
+		const unrelatedLua = '\nprint("SteamDeckUI")';
+		const lua = assetLua + unrelatedLua;
+		writeFileSync(join(root, "compiled.lua"), lua);
+		writeFileSync(join(root, "assets", "controller", "xbox_r_a.blp"), "icon");
+		writeFileSync(
+			join(root, "bin", "yarn"),
+			"#!/usr/bin/env bash\ncp compiled.lua dist/main.lua\n",
+			{
+				mode: 0o755,
+			},
+		);
 		writeFileSync(
 			join(root, "SteamDeckUI.toc"),
 			"## Title: SteamDeckUI\n## Version: 0.0.1\nmain.lua\n",
@@ -48,6 +69,17 @@ test("selects the TOC filename and removes the previous build mode's TOC", () =>
 				"## Title: SteamDeckUI\n## Version: 0.0.1\nmain.lua\n",
 			);
 			assert.equal(existsSync(join(root, "dist", `${other}.toc`)), false);
+			assert.equal(
+				readFileSync(join(root, "dist", "main.lua"), "utf8"),
+				assetLua.replaceAll("SteamDeckUI", name) + unrelatedLua,
+			);
+			assert.equal(
+				readFileSync(
+					join(root, "dist", "assets", "controller", "xbox_r_a.blp"),
+					"utf8",
+				),
+				"icon",
+			);
 		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });
