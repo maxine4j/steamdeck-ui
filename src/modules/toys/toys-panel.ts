@@ -36,6 +36,8 @@ export class ToysPanel implements IPanel {
 	private mountPending = false;
 	private dirty = true;
 	private generation = 0;
+	private renderGeneration = 0;
+	private renderLoadGeneration = 0;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private grid: NavGrid = [];
@@ -96,8 +98,8 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.menu.close();
-		this.grid = [];
-		this.displayed = [];
+		// Retain logical navigation while waiting for a replacement snapshot.
+		// Existing action callbacks are invalidated by the load generation.
 		this.navigationChanged?.();
 		if (!this.mounted || this.client.isInCombat()) return;
 		this.frame.setLabel(
@@ -143,6 +145,14 @@ export class ToysPanel implements IPanel {
 		}
 	}
 	private render(generation: number): void {
+		this.cancelRender?.();
+		this.cancelRender = undefined;
+		const renderGeneration = ++this.renderGeneration;
+		// Refresh already cleared secure targets for older loads. A second
+		// snapshot from the same load must clear its targets before frame reuse.
+		if (this.grid.length > 0 && this.renderLoadGeneration === generation)
+			this.navigationChanged?.();
+		this.renderLoadGeneration = generation;
 		const grid: NavGrid = [];
 		const displayed: Toy[] = [];
 		const jobs: (() => void)[] = [];
@@ -229,7 +239,10 @@ export class ToysPanel implements IPanel {
 					const control = cell.icon;
 					// This control is ready once its render job finishes. Dirty tracks
 					// unfinished work for reopening, not readiness of rendered controls.
-					const current = () => this.mounted && generation === this.generation;
+					const current = () =>
+						this.mounted &&
+						generation === this.generation &&
+						renderGeneration === this.renderGeneration;
 					control.setHoverTooltip(() =>
 						current() ? { toy: toy.id } : undefined,
 					);
@@ -290,6 +303,7 @@ export class ToysPanel implements IPanel {
 			if (
 				!this.mounted ||
 				generation !== this.generation ||
+				renderGeneration !== this.renderGeneration ||
 				this.client.isInCombat()
 			)
 				return;

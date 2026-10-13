@@ -1,7 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { IToysClient, Toy } from "../../clients/toys-client";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { Frame } from "../../ui/components/frame";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
 
 afterEach(() => vi.restoreAllMocks());
@@ -286,7 +288,7 @@ it("makes the first rendered batch interactive while remaining toys render", () 
 	expect(first?.secureActions?.().alternate).toBeDefined();
 });
 
-it("invalidates a partial grid before replacing its controls", () => {
+it("retains partial navigation while waiting for replacement data and disables stale actions", () => {
 	const { panel, parent, client, menu, pending, publish } = setup();
 	panel.onMount(parent);
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
@@ -296,7 +298,7 @@ it("invalidates a partial grid before replacing its controls", () => {
 	const first = panel.getNavGrid().at(0)?.at(0);
 	expect(first?.secureActions?.().alternate).toBeDefined();
 	panel.refresh();
-	expect(panel.getNavGrid()).toEqual([]);
+	expect(panel.getNavGrid().flat()).toHaveLength(9);
 	expect(first?.secureActions?.().alternate).toBeUndefined();
 	expect(first?.tooltipItem?.()).toBeUndefined();
 	first?.onContext?.();
@@ -308,6 +310,57 @@ it("invalidates a partial grid before replacing its controls", () => {
 			.flat()
 			.map((node) => node.navId),
 	).toEqual(["toy-99"]);
+});
+
+it("routes D-pad input through cached toys while a background load is pending", () => {
+	const { panel, parent, publish, client, pending, flush } = setup();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	const toys = Array.from({ length: 25 }, (_, index) => ({
+		...toy(index + 1),
+		name: `Toy ${String(index + 1).padStart(2, "0")}`,
+	}));
+	panel.onMount(parent);
+	publish(toys);
+	nav.registerGrid("toys", () => panel.getNavGrid());
+	nav.setActiveGrid("toys");
+	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
+	events.emit("NAV_RIGHT");
+	expect(nav.focusedId).toBe("toy-2");
+	panel.refresh();
+	events.emit("NAV_DOWN");
+	expect(nav.focusedId).toBe("toy-12");
+	events.emit("NAV_RIGHT");
+	expect(nav.focusedId).toBe("toy-13");
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(toys);
+	pending.shift()?.();
+	events.emit("NAV_RIGHT");
+	expect(nav.focusedId).toBe("toy-2");
+	flush();
+	events.emit("NAV_DOWN");
+	expect(nav.focusedId).toBe("toy-12");
+	nav.destroy();
+	panel.destroy();
+});
+
+it("cancels cached render continuations when fresher data arrives in the same load", () => {
+	const { panel, parent, client, pending, flush } = setup();
+	panel.onMount(parent);
+	const publish = vi.mocked(client.load).mock.calls.at(-1)?.at(0);
+	publish?.(Array.from({ length: 25 }, (_, index) => toy(index + 1)));
+	pending.shift()?.();
+	const stale = panel.getNavGrid().at(0)?.at(0);
+	publish?.([toy(99)]);
+	expect(stale?.secureActions?.().alternate).toBeUndefined();
+	vi.mocked(Frame.prototype.setToy).mockClear();
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["toy-99"]);
+	expect(Frame.prototype.setToy).toHaveBeenCalledExactlyOnceWith(99);
 });
 
 it("shows loading progress through scanning and rendering, then hides the bar", () => {
