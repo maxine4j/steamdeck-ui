@@ -3,6 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { GamePadRepeatOptions } from "./gamepad-input";
+import { ScrollPan } from "./scroll-pan";
 import {
 	type ClickBinding,
 	SecureClickBindings,
@@ -55,6 +56,11 @@ export class Frame implements IUIComponent {
 	private animatedAtlas?: AnimatedAtlas;
 	private native?: WowFrame;
 	private scrollIndicator?: WowTexture;
+	private scrollPan?: ScrollPan;
+	private parent?: Frame;
+	private cancelledSecureType?: string;
+	private cancelledSecureClick = false;
+	private sizeChanged?: (this: void) => void;
 	private clickBindings?: SecureClickBindings;
 	private hoverTooltipConfigured = false;
 	private hoverTooltip?: Frame;
@@ -119,6 +125,7 @@ export class Frame implements IUIComponent {
 		this.layout(width, height, "TOPLEFT", parent, 0, -offset);
 	}
 	onSizeChanged(callback?: (this: void) => void): void {
+		this.sizeChanged = callback;
 		const native = this.acquire() as WowFrame & {
 			SetScript(script: "OnSizeChanged", handler?: (this: void) => void): void;
 		};
@@ -215,8 +222,60 @@ export class Frame implements IUIComponent {
 		scroll.SetScript("OnScrollRangeChanged", () =>
 			this.updateScrollIndicator(),
 		);
-		this.onSizeChanged();
+		this.onSizeChanged(this.sizeChanged);
 		this.updateScrollIndicator();
+		const viewport = native as WowFrame & {
+			GetEffectiveScale(): number;
+			IsMouseOver(): boolean;
+			EnableMouse(enabled: boolean): void;
+			SetPropagateMouseClicks(propagate: boolean): void;
+			SetScript(
+				script: "OnUpdate" | "OnHide" | "OnMouseDown" | "OnMouseUp",
+				handler?: (this: void, frame: WowFrame, elapsed: number) => void,
+			): void;
+		};
+		viewport.EnableMouse(true);
+		viewport.SetPropagateMouseClicks(false);
+		this.mouseShield = true;
+		this.scrollPan = new ScrollPan(
+			() => {
+				const down = (
+					IsMouseButtonDown as unknown as (
+						this: void,
+						button: string,
+					) => boolean
+				)("LeftButton");
+				if (!down) return { down, y: 0, over: false, scale: 1 };
+				const [, y] = (
+					GetCursorPosition as (this: void) => LuaMultiReturn<[number, number]>
+				)();
+				let focus = (
+					GetMouseFoci as unknown as (this: void) => WowFrame[]
+				)().at(0);
+				while (focus && focus !== native)
+					focus = (
+						focus as WowFrame & { GetParent(): WowFrame | undefined }
+					).GetParent();
+				return {
+					down,
+					y,
+					over: focus === native && viewport.IsMouseOver(),
+					scale: down ? viewport.GetEffectiveScale() : 1,
+				};
+			},
+			() => ({
+				offset: native.GetVerticalScroll(),
+				range: native.GetVerticalScrollRange(),
+			}),
+			(offset) => native.SetVerticalScroll(offset),
+		);
+		viewport.SetScript("OnUpdate", (_frame, elapsed) =>
+			this.scrollPan?.update(elapsed),
+		);
+		viewport.SetScript("OnHide", () => this.scrollPan?.reset());
+		// Mouse-enabled frames need press/release scripts to consume world clicks.
+		viewport.SetScript("OnMouseDown", () => this.scrollPan?.update(0));
+		viewport.SetScript("OnMouseUp", () => this.scrollPan?.update(0));
 		native.EnableMouseWheel(true);
 		native.SetScript("OnMouseWheel", (_frame, delta) => {
 			native.SetVerticalScroll(
@@ -587,7 +646,35 @@ export class Frame implements IUIComponent {
 			throw new Error("Click handlers require a button");
 		const native = this.acquire();
 		native.RegisterForClicks("LeftButtonUp", "RightButtonUp");
-		native.SetScript("OnClick", (_frame, button) => callback(button));
+		native.SetScript("OnClick", (_frame, button) => {
+			if (button !== "LeftButton" || !this.findScrollPan()?.suppressClick())
+				callback(button);
+		});
+	}
+	private findScrollPan(): ScrollPan | undefined {
+		return this.scrollPan ?? this.parent?.findScrollPan();
+	}
+	private configurePanAction(): void {
+		if (!this.findScrollPan()) return;
+		const native = this.acquire() as WowFrame & {
+			GetAttribute(name: string): string | undefined;
+			SetAttribute(name: string, value?: string | boolean): void;
+			SetScript(
+				script: "PreClick",
+				handler?: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		native.SetAttribute("useOnKeyDown", false);
+		native.SetScript("PreClick", (_frame, button) => {
+			this.cancelledSecureClick =
+				button === "LeftButton" &&
+				(this.findScrollPan()?.suppressClick() ?? false);
+			if (this.cancelledSecureClick && !InCombatLockdown()) {
+				this.cancelledSecureType = native.GetAttribute("type");
+				native.SetAttribute("type", undefined);
+			}
+		});
+		this.onPostClick();
 	}
 	setSpell(spell?: number): void {
 		if (this.frameType !== "SecureButton")
@@ -596,9 +683,11 @@ export class Frame implements IUIComponent {
 		const native = this.acquire() as WowFrame & {
 			SetAttribute(name: string, value?: string | number): void;
 		};
-		native.RegisterForClicks("AnyUp", "AnyDown");
+		if (this.findScrollPan()) native.RegisterForClicks("AnyUp");
+		else native.RegisterForClicks("AnyUp", "AnyDown");
 		native.SetAttribute("type", spell ? "spell" : undefined);
 		native.SetAttribute("spell", spell);
+		if (spell) this.configurePanAction();
 	}
 	setToy(toy?: number): void {
 		if (this.frameType !== "SecureButton")
@@ -612,12 +701,14 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("useOnKeyDown", toy ? false : undefined);
 		native.SetAttribute("type", toy ? "toy" : undefined);
 		native.SetAttribute("toy", toy);
+		if (toy) this.configurePanAction();
 	}
 	/** Observe a secure action without replacing the template's OnClick handler. */
 	onPostClick(callback?: (this: void, button: string) => void): void {
 		if (this.frameType !== "SecureButton")
 			throw new Error("Post-click handlers require a secure button");
 		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string): void;
 			SetScript(
 				script: "PostClick",
 				handler?: (this: void, frame: WowFrame, button: string) => void,
@@ -625,7 +716,15 @@ export class Frame implements IUIComponent {
 		};
 		native.SetScript(
 			"PostClick",
-			callback ? (_frame, button) => callback(button) : undefined,
+			callback || this.findScrollPan()
+				? (_frame, button) => {
+						if (this.cancelledSecureType && !InCombatLockdown())
+							native.SetAttribute("type", this.cancelledSecureType);
+						this.cancelledSecureType = undefined;
+						if (!this.cancelledSecureClick) callback?.(button);
+						this.cancelledSecureClick = false;
+					}
+				: undefined,
 		);
 	}
 	click(): void {
@@ -744,7 +843,9 @@ export class Frame implements IUIComponent {
 			throw new Error("Drag handlers require a button");
 		const native = this.acquire();
 		native.RegisterForDrag("LeftButton");
-		native.SetScript("OnDragStart", () => callback());
+		native.SetScript("OnDragStart", () => {
+			if (!this.findScrollPan()) callback();
+		});
 	}
 	onReceiveDrag(callback: (this: void) => void): void {
 		const native = this.acquire() as WowFrame & {
@@ -821,6 +922,7 @@ export class Frame implements IUIComponent {
 		if (this.animation && !this.animation.IsPlaying()) this.animation.Play();
 	}
 	hide(): void {
+		this.scrollPan?.reset();
 		this.animation?.Stop();
 		this.native?.Hide();
 	}
@@ -828,8 +930,11 @@ export class Frame implements IUIComponent {
 		if (!(parent instanceof Frame))
 			throw new Error("Frame requires a frame component parent");
 		this.acquire().SetParent(parent.acquire());
+		this.parent = parent;
 	}
 	destroy(): void {
+		this.parent = undefined;
+		this.scrollPan = undefined;
 		this.animation?.Stop();
 		this.animation = undefined;
 		this.flipbook = undefined;
@@ -905,6 +1010,11 @@ export class Frame implements IUIComponent {
 			input.SetScript("OnEnterPressed", undefined);
 		}
 		if (this.frameType === "SecureButton") {
+			(
+				this.native as WowFrame & {
+					SetScript(script: "PreClick", handler?: (this: void) => void): void;
+				}
+			).SetScript("PreClick", undefined);
 			this.setSpell();
 			this.setToy();
 			this.onPostClick();
@@ -936,6 +1046,24 @@ export class Frame implements IUIComponent {
 			this.native.RegisterForDrag();
 		}
 		if (this.frameType === "ScrollFrame") {
+			const pointer = this.native as WowFrame & {
+				SetScript(
+					script: "OnMouseDown" | "OnMouseUp",
+					handler?: (this: void) => void,
+				): void;
+			};
+			pointer.SetScript("OnMouseDown", undefined);
+			pointer.SetScript("OnMouseUp", undefined);
+			(
+				this.native as WowFrame & {
+					SetScript(script: "OnHide", handler?: (this: void) => void): void;
+				}
+			).SetScript("OnHide", undefined);
+			(
+				this.native as WowFrame & {
+					SetScript(script: "OnUpdate", handler?: (this: void) => void): void;
+				}
+			).SetScript("OnUpdate", undefined);
 			const scroll = this.native as WowFrame & {
 				SetScript(
 					script: "OnVerticalScroll" | "OnScrollRangeChanged",

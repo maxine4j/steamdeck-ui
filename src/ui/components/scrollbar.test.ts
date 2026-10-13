@@ -18,6 +18,8 @@ it("shows a thin proportional indicator and follows scroll, range and viewport c
 		SetScript: (name: string, callback?: () => void) =>
 			scripts.set(name, callback),
 		EnableMouseWheel: vi.fn(),
+		EnableMouse: vi.fn(),
+		SetPropagateMouseClicks: vi.fn(),
 		SetScrollChild: vi.fn(),
 		GetHeight: () => height,
 		GetVerticalScrollRange: () => range,

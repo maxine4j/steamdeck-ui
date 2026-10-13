@@ -80,6 +80,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
 				EnableMouse: vi.fn(),
+				SetPropagateMouseClicks: vi.fn(),
 				SetScrollChild: vi.fn(),
 				GetVerticalScroll: () => 0,
 				GetVerticalScrollRange: () => 0,

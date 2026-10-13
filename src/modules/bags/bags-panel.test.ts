@@ -191,6 +191,8 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 				RegisterForClicks: vi.fn(),
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
+				EnableMouse: vi.fn(),
+				SetPropagateMouseClicks: vi.fn(),
 				SetScrollChild: vi.fn(),
 				GetVerticalScroll: () => 0,
 				GetVerticalScrollRange: () => 100,
@@ -268,7 +270,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	reagentScripts?.get("OnClick")?.(undefined, "RightButton");
 	reagentScripts?.get("OnDragStart")?.(undefined, "LeftButton");
 	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
-	expect(actions.pickupItem).toHaveBeenCalledExactlyOnceWith(cloth);
+	expect(actions.pickupItem).not.toHaveBeenCalled();
 	const texts = () => labels.map((label) => label.text).filter(Boolean);
 	expect(texts()).toEqual(
 		expect.arrayContaining([
