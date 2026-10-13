@@ -294,16 +294,23 @@ it("preserves a row's atlas artwork across focus and clears it when reused as a 
 			id: "tile",
 			label: "Tile",
 			backgroundAtlas: "tile-art",
+			backgroundTint: [0.85, 0.95, 1],
 			activate: vi.fn(),
 		},
 	]);
 	list.mount(new Frame("atlas-parent", pool));
 	const row = frames.get("atlas-row-0");
-	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith("tile-art");
+	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"tile-art",
+		[0.85, 0.95, 1],
+	);
 	const nav = list.getNavGrid().at(0)?.at(0);
 	nav?.onFocus();
 	nav?.onBlur();
-	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith("tile-art");
+	expect(row?.setAtlasBackground).toHaveBeenLastCalledWith(
+		"tile-art",
+		[0.85, 0.95, 1],
+	);
 	expect(row?.setButtonBackground).not.toHaveBeenCalled();
 	list.setRows([
 		{ id: "heading", label: "Heading", heading: true, activate: vi.fn() },

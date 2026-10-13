@@ -28,6 +28,7 @@ export interface ListRow {
 	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number] | false;
 	readonly backgroundAtlas?: string;
+	readonly backgroundTint?: readonly [number, number, number];
 	readonly progress?: {
 		readonly value: number;
 		readonly color: readonly [number, number, number];
@@ -543,8 +544,11 @@ export class ScrollList {
 			frame?.setColor(0, 0, 0, 0);
 			return;
 		}
-		if (row?.backgroundAtlas) frame?.setAtlasBackground(row.backgroundAtlas);
-		else if (row?.background) frame?.setColor(...row.background);
+		if (row?.backgroundAtlas) {
+			if (row.backgroundTint)
+				frame?.setAtlasBackground(row.backgroundAtlas, row.backgroundTint);
+			else frame?.setAtlasBackground(row.backgroundAtlas);
+		} else if (row?.background) frame?.setColor(...row.background);
 		else frame?.setButtonBackground(row?.selected ?? false);
 	}
 	private reveal(index: number): void {

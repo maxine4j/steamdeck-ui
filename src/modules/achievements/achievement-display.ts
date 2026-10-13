@@ -21,6 +21,35 @@ export interface AchievementPage extends AchievementTotals {
 const membership = new Map<number, (typeof achievementGroups)[number]>();
 const memberRanks = new Map<number, number>();
 const pageRanks = new Map<string, number>();
+const categoryTints: readonly (readonly [number, number, number])[] = [
+	[1, 0.94, 0.85],
+	[0.87, 1, 0.89],
+	[0.84, 0.96, 1],
+	[1, 0.9, 0.83],
+	[0.89, 0.87, 1],
+	[1, 0.84, 0.85],
+	[0.86, 0.91, 1],
+	[1, 0.95, 0.82],
+	[0.86, 1, 0.96],
+	[1, 0.86, 0.96],
+	[0.95, 1, 0.83],
+	[0.88, 0.95, 1],
+	[0.96, 0.86, 1],
+	[1, 0.92, 0.91],
+	[0.91, 0.94, 1],
+];
+export function achievementCategoryTint(
+	id: string,
+): readonly [number, number, number] {
+	let hash = 0;
+	for (let i = 0; i < id.length; i++)
+		hash = (hash * 31 + id.charCodeAt(i)) % categoryTints.length;
+	return (
+		categoryTints.at((pageRanks.get(id) ?? hash) % categoryTints.length) ?? [
+			1, 1, 1,
+		]
+	);
+}
 const sectionRanks = new Map<string, number>();
 const groupRanks = new Map<string, number>();
 for (const group of achievementGroups) {

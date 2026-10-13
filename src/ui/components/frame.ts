@@ -64,6 +64,7 @@ export class Frame implements IUIComponent {
 	private readonly heldGamePadButtons = new Map<string, number>();
 	private opacityChanged = false;
 	private texture?: WowTexture;
+	private textureTinted = false;
 	private buttonSkinned = false;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
@@ -377,6 +378,7 @@ export class Frame implements IUIComponent {
 		} else this.hide();
 	}
 	setIcon(iconFileId: number | string, crop = true): void {
+		this.clearTextureTint();
 		this.acquire();
 		this.texture?.SetTexture(iconFileId);
 		if (crop) this.texture?.SetTexCoord(0.07, 0.93, 0.07, 0.93);
@@ -400,6 +402,7 @@ export class Frame implements IUIComponent {
 		setBorder(this.pool, this.acquire(), color, width);
 	}
 	setColor(red: number, green: number, blue: number, alpha = 1): void {
+		this.clearTextureTint();
 		this.acquire();
 		if (this.buttonSkinned && this.native) {
 			for (const key of ["button-left", "button-right"])
@@ -703,11 +706,32 @@ export class Frame implements IUIComponent {
 	setWindowBackground(): void {
 		applyWindowSkin(this.pool, this.acquire());
 	}
-	setAtlasBackground(atlas: string): void {
+	private clearTextureTint(): void {
+		if (!this.textureTinted) return;
+		(
+			this.texture as WowTexture & {
+				SetVertexColor(red: number, green: number, blue: number): void;
+			}
+		).SetVertexColor(1, 1, 1);
+		this.textureTinted = false;
+	}
+	setAtlasBackground(
+		atlas: string,
+		tint?: readonly [number, number, number],
+	): void {
 		this.setColor(0, 0, 0, 0);
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
 		this.texture?.SetAtlas(atlas, false);
+		if (tint) {
+			const [red, green, blue] = tint;
+			(
+				this.texture as WowTexture & {
+					SetVertexColor(red: number, green: number, blue: number): void;
+				}
+			).SetVertexColor(red, green, blue);
+			this.textureTinted = true;
+		}
 	}
 	setButtonBackground(selected = false): void {
 		applyButtonSkin(this.pool, this.acquire(), selected);
@@ -841,6 +865,7 @@ export class Frame implements IUIComponent {
 		this.onSizeChanged();
 		if (this.frameType === "PlayerModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
+		this.clearTextureTint();
 		this.texture?.SetColorTexture(0, 0, 0, 0);
 		for (const label of this.labels.values()) label.SetText("");
 		this.labels.clear();

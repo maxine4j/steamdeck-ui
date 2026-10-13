@@ -659,6 +659,7 @@ it("configures secure spells through the global combat guard and leaves attribut
 
 it("crops the baked icon rim and restores full texture coordinates for pooled reuse", () => {
 	const texture = {
+		SetVertexColor: vi.fn(),
 		SetAllPoints: vi.fn(),
 		SetTexture: vi.fn(),
 		SetAtlas: vi.fn(),
@@ -679,7 +680,13 @@ it("crops the baked icon rim and restores full texture coordinates for pooled re
 	} as unknown as WowFrame;
 	const pool = new FramePoolManager({ createFrame: () => native });
 	const frame = new Frame("icon", pool);
+	frame.setAtlasBackground("tile", [0.85, 0.95, 1]);
+	expect(texture.SetVertexColor).toHaveBeenLastCalledWith(0.85, 0.95, 1);
+	frame.setAtlasBackground("tile");
+	expect(texture.SetVertexColor).toHaveBeenLastCalledWith(1, 1, 1);
+	frame.setAtlasBackground("tile", [0.9, 1, 0.9]);
 	frame.setIcon(133633);
+	expect(texture.SetVertexColor).toHaveBeenLastCalledWith(1, 1, 1);
 	expect(texture.SetTexture).toHaveBeenCalledWith(133633);
 	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0.07, 0.93, 0.07, 0.93);
 	frame.setIcon(

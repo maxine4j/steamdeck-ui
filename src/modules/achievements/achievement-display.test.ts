@@ -3,7 +3,19 @@ import type {
 	Achievement,
 	AchievementCategory,
 } from "../../clients/achievements-client";
-import { buildAchievementPages } from "./achievement-display";
+import {
+	achievementCategoryTint,
+	buildAchievementPages,
+} from "./achievement-display";
+
+it("gives categories distinct subtle tints, including stable colours for future categories", () => {
+	const quests = achievementCategoryTint("Quests");
+	expect(quests).not.toEqual(achievementCategoryTint("Exploration"));
+	expect(quests.every((channel) => channel >= 0.8 && channel <= 1)).toBe(true);
+	expect(achievementCategoryTint("Future category")).toEqual(
+		achievementCategoryTint("Future category"),
+	);
+});
 
 const achievement = (id: number, completed = false): Achievement => ({
 	id,
