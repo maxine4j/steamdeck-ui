@@ -403,11 +403,11 @@ export class Frame implements IUIComponent {
 			Math.max(0, Math.min(native.GetVerticalScrollRange(), target)),
 		);
 	}
-	setFocused(focused: boolean, animatedIcon = false): void {
+	setFocused(focused: boolean, animatedIcon = false, refresh = false): void {
 		if (animatedIcon) {
 			if (focused && !this.iconFocus)
 				this.iconFocus = new IconFocus(this.pool, this.acquire());
-			this.iconFocus?.setFocused(focused);
+			this.iconFocus?.setFocused(focused, refresh);
 			return;
 		}
 		if (focused) {
