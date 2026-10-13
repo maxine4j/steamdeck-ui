@@ -625,6 +625,21 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	).toHaveLength(1);
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
+	const achievementTabIndex = textures.findIndex(
+		(texture, index) =>
+			textureIcons.get(texture) === 133158 && frames.at(index)?.IsShown(),
+	);
+	const achievementTab = frames.at(achievementTabIndex);
+	const achievementTabBorder = achievementTab
+		? (vi.mocked(achievementTab.SetParent).mock.lastCall?.at(0) as
+				| WowFrame
+				| undefined)
+		: undefined;
+	expect(
+		achievementTabBorder
+			? vi.mocked(achievementTabBorder.SetPoint).mock.lastCall?.at(4)
+			: undefined,
+	).toBe(-96);
 	const clickTab = (icon: number) => {
 		const index = textures.findIndex((texture, index) => {
 			const frame = frames.at(index);
@@ -762,7 +777,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	);
 	expect(app.ui.getContainer("left").activePanelId).toBe("achievements");
 	expect(labels.flat()).toContain("123 points");
-	expect(labels.flat()).toContain("2 / 10 achievements");
+	expect(labels.flat()).toContain("2 / 10 achievements • 20%");
 	const achievementFrames = frames.length;
 	events.emit("NAV_CANCEL");
 	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();

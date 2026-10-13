@@ -14,6 +14,7 @@ export interface ListRow {
 	readonly detail?: string;
 	readonly height?: number;
 	readonly trailingLabel?: string;
+	readonly trailingOnFirstLine?: boolean;
 	readonly tooltip?: string;
 	readonly selected?: boolean;
 	readonly animatedIcon?: AnimatedAtlas;
@@ -379,11 +380,12 @@ export class ScrollList {
 					? row.trailingLabel.length * (row.fontSize ?? 14) * 0.65 + 8
 					: 0;
 				const centeredLabel =
-					row.trailingLabel ||
-					(this.options.centerSingleLine &&
-						!row.heading &&
-						!row.detail &&
-						!row.progress);
+					!row.trailingOnFirstLine &&
+					(row.trailingLabel ||
+						(this.options.centerSingleLine &&
+							!row.heading &&
+							!row.detail &&
+							!row.progress));
 				if (row.progress) {
 					const horizontal = this.options.progressInset?.horizontal ?? 0;
 					const progressWidth = Math.max(
@@ -444,9 +446,9 @@ export class ScrollList {
 				button.frame.setLabel(
 					"trailing",
 					row.trailingLabel ?? "",
-					"RIGHT",
+					row.trailingOnFirstLine ? "TOPRIGHT" : "RIGHT",
 					row.secondary ? -56 : -8,
-					0,
+					row.trailingOnFirstLine ? -verticalPadding : 0,
 					row.fontSize ?? 14,
 					trailingWidth,
 				);

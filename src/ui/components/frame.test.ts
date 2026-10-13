@@ -154,6 +154,9 @@ it("shows toy hover details and clears handlers on pooled icon release", () => {
 	const scripts = new Map<string, (() => void) | undefined>();
 	const tooltip = {
 		SetOwner: vi.fn(),
+		SetText: vi.fn(),
+		SetPoint: vi.fn(),
+		ClearAllPoints: vi.fn(),
 		SetFrameStrata: vi.fn(),
 		ClearLines: vi.fn(),
 		SetScale: vi.fn(),
@@ -208,6 +211,16 @@ it("shows toy hover details and clears handlers on pooled icon release", () => {
 	frame.setHoverTooltip(() => item);
 	scripts.get("OnEnter")?.();
 	expect(tooltip.Show).toHaveBeenCalledTimes(2);
+	frame.setHoverTooltip(() => ({ text: "Achievement", anchor: frame }));
+	scripts.get("OnEnter")?.();
+	expect(tooltip.SetOwner).toHaveBeenLastCalledWith(native, "ANCHOR_NONE");
+	expect(tooltip.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		native,
+		"TOPRIGHT",
+		0,
+		0,
+	);
 	frame.destroy();
 	expect(scripts.get("OnEnter")).toBeUndefined();
 	expect(scripts.get("OnLeave")).toBeUndefined();

@@ -1,8 +1,9 @@
+import type { Frame } from "./frame";
 /** Plain links/IDs include equipped comparisons; wrapped items show details only. */
 export type TooltipContent =
 	| string
 	| number
-	| { readonly text: string }
+	| { readonly text: string; readonly anchor?: Frame }
 	| { readonly toy: number }
 	| { readonly mountSpell: number }
 	| { readonly item: string | number };

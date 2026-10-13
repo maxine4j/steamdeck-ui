@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../../events/test-event-bus";
 import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
+import { Frame } from "./frame";
 import { ItemTooltip } from "./item-tooltip";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -20,6 +21,7 @@ function setup() {
 			IsShown: () => shown,
 			SetOwner: vi.fn(),
 			SetHyperlink: vi.fn(),
+			SetText: vi.fn(),
 			SetToyByItemID: vi.fn(),
 			SetMountBySpellID: vi.fn(),
 			ClearLines: vi.fn(),
@@ -64,6 +66,25 @@ function setup() {
 	const tooltip = new ItemTooltip(pool, events);
 	return { tooltip, frames, factory, screen, compare, pool, events };
 }
+
+it("anchors plain text focus tooltips outside their supplied panel", () => {
+	const { tooltip, frames, pool } = setup();
+	const anchor = new Frame("achievement-panel", pool);
+	anchor.show();
+	const nativeAnchor = frames.at(0);
+	tooltip.setItem({ text: "Achievement", anchor });
+	expect(frames.at(1)?.SetOwner).toHaveBeenLastCalledWith(
+		nativeAnchor,
+		"ANCHOR_NONE",
+	);
+	expect(frames.at(1)?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		nativeAnchor,
+		"TOPRIGHT",
+		0,
+		0,
+	);
+});
 
 it("renders mount collection details without equipment comparisons", () => {
 	const { tooltip, frames, compare } = setup();

@@ -188,7 +188,6 @@ export function startSteamDeckUI(
 		},
 		scheduler,
 	);
-	ui.registerPanel(achievementsPanel, "left");
 	modules.register(
 		new AchievementsModule(ui, events, achievementsPanel, builtInAchievements),
 	);
@@ -340,6 +339,7 @@ export function startSteamDeckUI(
 		},
 	);
 	ui.registerPanel(talentsPanel, "left");
+	ui.registerPanel(achievementsPanel, "left");
 	modules.register(new TalentsModule(ui, events, talentsPanel, builtInTalents));
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),

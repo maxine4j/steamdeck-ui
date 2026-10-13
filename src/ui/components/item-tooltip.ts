@@ -87,10 +87,15 @@ export class ItemTooltip {
 			}
 			this.layout();
 		});
-		main.SetOwner(UIParent, "ANCHOR_NONE");
+		const anchor =
+			typeof item === "object" && "text" in item ? item.anchor : undefined;
+		if (anchor) anchor.anchorTooltip(main);
+		else main.SetOwner(UIParent, "ANCHOR_NONE");
 		main.suppressAutomaticCompareItem = true;
-		main.ClearAllPoints();
-		main.SetPoint("TOP", UIParent, "TOP", 0, -32);
+		if (!anchor) {
+			main.ClearAllPoints();
+			main.SetPoint("TOP", UIParent, "TOP", 0, -32);
+		}
 		setTooltipContent(main, item);
 		main.Show();
 		// Blizzard supplies equipped headers, paired-weapon rules and colored stat deltas.
@@ -98,6 +103,18 @@ export class ItemTooltip {
 		this.layout();
 	}
 	private layout(): void {
+		if (
+			typeof this.item === "object" &&
+			"text" in this.item &&
+			this.item.anchor
+		) {
+			const main = this.tooltips.at(0);
+			if (main) {
+				main.SetScale(1);
+				this.item.anchor.anchorTooltip(main);
+			}
+			return;
+		}
 		const screen = UIParent as WowFrame & {
 			GetWidth(): number;
 			GetHeight(): number;

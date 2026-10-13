@@ -5,6 +5,34 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("aligns optional trailing counts with the first text line", () => {
+	const list = new ScrollList(
+		"top-count",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+	);
+	list.setRows([
+		{
+			id: "category",
+			label: "Quests",
+			trailingLabel: "1 / 2 • 50%",
+			trailingOnFirstLine: true,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	expect(frames.get("top-count-row-0")?.setLabel).toHaveBeenCalledWith(
+		"trailing",
+		"1 / 2 • 50%",
+		"TOPRIGHT",
+		-8,
+		-6,
+		14,
+		expect.any(Number),
+	);
+});
+
 it("renders plain rows with transparent backgrounds and no checkboxes", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("plain", pool, "", vi.fn());

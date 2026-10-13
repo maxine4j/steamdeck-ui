@@ -18,6 +18,10 @@ import {
 	achievementRoot,
 	buildAchievementPages,
 } from "./achievement-display";
+import {
+	formatAchievementNumber,
+	formatAchievementProgress,
+} from "./achievement-format";
 
 const gold = [0.7, 0.55, 0.15] as const;
 const spacing = 46;
@@ -76,6 +80,7 @@ export class AchievementsPanel implements IPanel {
 			padding: 0,
 			top: 0,
 			bottom: 0,
+			contentPadding: { horizontal: 9.2, vertical: 6.9 },
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
@@ -217,7 +222,7 @@ export class AchievementsPanel implements IPanel {
 			},
 			...this.client.chain(achievement.id).map((step) => ({
 				id: `chain-${step.id}`,
-				label: `${step.name} • ${step.points} points`,
+				label: `${step.name} • ${formatAchievementNumber(step.points)} points`,
 				icon: step.icon,
 				detail: step.completed ? step.date : "Incomplete",
 				activate: () => {
@@ -228,11 +233,15 @@ export class AchievementsPanel implements IPanel {
 			...this.client.criteria(achievement.id).map((criterion, index) => ({
 				id: `criterion-${achievement.id}-${index}`,
 				label: `${criterion.completed ? "✓" : "−"} ${criterion.name}`,
-				detail:
-					criterion.text ||
-					(criterion.required > 1
-						? `${criterion.quantity} / ${criterion.required}`
-						: ""),
+				detail: criterion.progress
+					? formatAchievementProgress(criterion.quantity, criterion.required)
+					: criterion.text ||
+						(criterion.required > 1
+							? formatAchievementProgress(
+									criterion.quantity,
+									criterion.required,
+								)
+							: ""),
 				progress: criterion.progress
 					? {
 							value:
@@ -250,7 +259,7 @@ export class AchievementsPanel implements IPanel {
 		];
 	}
 	private tooltip(achievement: Achievement): string {
-		return `${achievement.name}\n${achievement.points} points • ${achievement.completed ? `Completed ${achievement.date}` : "Incomplete"}\n${achievement.description}${achievement.reward !== "" ? `\nReward: ${achievement.reward}` : ""}`;
+		return `${achievement.name}\n${formatAchievementNumber(achievement.points)} points • ${achievement.completed ? `Completed ${achievement.date}` : "Incomplete"}\n${achievement.description}${achievement.reward !== "" ? `\nReward: ${achievement.reward}` : ""}`;
 	}
 	private render(): void {
 		if (!this.mounted || !this.summary) return;
@@ -279,7 +288,7 @@ export class AchievementsPanel implements IPanel {
 		);
 		this.frame.setLabel(
 			"overall",
-			`${this.summary.points} points`,
+			`${formatAchievementNumber(this.summary.points)} points`,
 			"TOPRIGHT",
 			-16,
 			-56,
@@ -287,12 +296,16 @@ export class AchievementsPanel implements IPanel {
 		);
 		this.frame.setLabel(
 			"overall-count",
-			`${this.summary.totals.completed} / ${this.summary.totals.total} achievements`,
+			formatAchievementProgress(
+				this.summary.totals.completed,
+				this.summary.totals.total,
+				"achievements",
+			),
 			"TOPLEFT",
 			16,
 			-56,
 			13,
-			this.width - 100,
+			this.width - 150,
 		);
 		this.frame.setLabel(
 			"actions",
@@ -327,7 +340,10 @@ export class AchievementsPanel implements IPanel {
 				{
 					id: "summary-progress",
 					label: "Overall progress",
-					detail: `${this.summary.totals.completed} / ${this.summary.totals.total}`,
+					detail: formatAchievementProgress(
+						this.summary.totals.completed,
+						this.summary.totals.total,
+					),
 					heading: true,
 					height: 64,
 					progress: {
@@ -342,8 +358,9 @@ export class AchievementsPanel implements IPanel {
 				...this.pages.map((p) => ({
 					id: `summary-category-${p.id}`,
 					label: p.name,
-					detail: `${p.completed} / ${p.total} • ${p.total > 0 ? Math.floor((p.completed / p.total) * 100) : 0}%`,
-					height: 58,
+					trailingLabel: formatAchievementProgress(p.completed, p.total),
+					trailingOnFirstLine: true,
+					height: 67,
 					progress: {
 						value: p.total > 0 ? p.completed / p.total : 0,
 						color: gold,
@@ -365,12 +382,12 @@ export class AchievementsPanel implements IPanel {
 			this.back.show();
 			this.frame.setLabel(
 				"overall-count",
-				`${page.completed} / ${page.total} achievements`,
+				formatAchievementProgress(page.completed, page.total, "achievements"),
 				"TOPLEFT",
 				16,
 				-56,
 				13,
-				this.width - 100,
+				this.width - 150,
 			);
 			if (this.expanded !== undefined) {
 				this.list.mount(this.body);
@@ -429,18 +446,28 @@ export class AchievementsPanel implements IPanel {
 					0,
 					-2,
 					size,
-					this.width - 90,
+					this.width - 190,
 				);
-				header.setLabel("count", count, "TOPRIGHT", 0, -4, 12, 80);
+				header.setLabel("count", count, "TOPRIGHT", 0, -4, 12, 180);
 				header.show();
 			});
 			y += height;
 		};
 		for (const section of page.sections) {
 			if (!section.groups.length) continue;
-			heading(section.name, `${section.completed} / ${section.total}`, 18, 32);
+			heading(
+				section.name,
+				formatAchievementProgress(section.completed, section.total),
+				18,
+				32,
+			);
 			for (const group of section.groups) {
-				heading(group.name, `${group.completed} / ${group.total}`, 13, 24);
+				heading(
+					group.name,
+					formatAchievementProgress(group.completed, group.total),
+					13,
+					24,
+				);
 				const top = y;
 				const firstRow = grid.length;
 				for (
@@ -499,7 +526,9 @@ export class AchievementsPanel implements IPanel {
 						};
 						cell.icon.onClick(activate);
 						const tooltip = () =>
-							current() ? { text: this.tooltip(achievement) } : undefined;
+							current()
+								? { text: this.tooltip(achievement), anchor: this.frame }
+								: undefined;
 						cell.icon.setHoverTooltip(tooltip);
 						const node = cell.icon.navigationNode(
 							`achievement-${achievement.id}`,

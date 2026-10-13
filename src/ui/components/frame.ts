@@ -583,6 +583,15 @@ export class Frame implements IUIComponent {
 		this.clickBindings ??= new SecureClickBindings(this.pool);
 		this.clickBindings.set(bindings);
 	}
+	/** Place an overlay outside this component without exposing native frames. */
+	anchorTooltip(tooltip: WowFrame): void {
+		const native = tooltip as WowFrame & {
+			SetOwner(owner: WowFrame, anchor: string): void;
+		};
+		native.SetOwner(this.acquire(), "ANCHOR_NONE");
+		native.ClearAllPoints();
+		native.SetPoint("TOPLEFT", this.acquire(), "TOPRIGHT", 0, 0);
+	}
 	setHoverTooltip(content: () => TooltipContent | undefined): void {
 		const native = this.acquire() as WowFrame & {
 			SetScript(
@@ -604,7 +613,10 @@ export class Frame implements IUIComponent {
 			);
 			const tooltip = this.hoverTooltip.acquire() as ItemTooltipFrame;
 			tooltip.SetFrameStrata("TOOLTIP");
-			tooltip.SetOwner(native, "ANCHOR_RIGHT");
+			const anchor =
+				typeof item === "object" && "text" in item ? item.anchor : undefined;
+			if (anchor) anchor.anchorTooltip(tooltip);
+			else tooltip.SetOwner(native, "ANCHOR_RIGHT");
 			tooltip.ClearLines();
 			setTooltipContent(tooltip, item);
 			tooltip.Show();

@@ -242,7 +242,7 @@ it("opens lazy achievement details, criteria and rewards; Back walks to grid, su
 		.flat()
 		.find((n) => n.navId === "achievement-503")
 		?.tooltipItem?.();
-	expect(tooltip).toEqual({
+	expect(tooltip).toMatchObject({
 		text: expect.stringContaining("Explore the world"),
 	});
 	activate("achievement-503");
@@ -484,7 +484,7 @@ it("keeps the current page usable while refreshing completion data in the backgr
 		.flat()
 		.find((n) => n.navId === "achievement-503");
 	expect(icon).toBeDefined();
-	expect(icon?.tooltipItem?.()).toEqual({
+	expect(icon?.tooltipItem?.()).toMatchObject({
 		text: expect.stringContaining("Explore the world"),
 	});
 	icon?.onInteract();
@@ -514,4 +514,45 @@ it("restarts an interrupted scan when reopened instead of retaining a partial ca
 			.flat()
 			.some((n) => n.navId === "summary-category-Quests"),
 	).toBe(true);
+});
+it("formats section percentages and large numbers and keeps padded category counts on line one", () => {
+	const { panel, client, flush, activate } = setup();
+	vi.mocked(client.summary).mockReturnValue({
+		points: 1234567,
+		totals: { completed: 1000, total: 3000 },
+		recent: [],
+		categories: [],
+	});
+	vi.mocked(client.achievements).mockImplementation((id) =>
+		id === 92
+			? [achievement(6, true), achievement(7, true), achievement(8)]
+			: [],
+	);
+	panel.refresh();
+	flush();
+	expect(frames.get("achievements")?.labels.get("overall")).toBe(
+		"1,234,567 points",
+	);
+	const category = lists
+		.get("achievements-list")
+		?.rows.find((r) => r.id === "summary-category-Characters");
+	expect(category).toMatchObject({
+		trailingLabel: "2 / 3 • 67%",
+		trailingOnFirstLine: true,
+		height: 67,
+	});
+	expect(category?.detail).toBeUndefined();
+	activate("summary-category-Characters");
+	expect(frames.get("achievements-header-0")?.labels.get("count")).toBe(
+		"2 / 3 • 67%",
+	);
+	expect(frames.get("achievements-header-1")?.labels.get("count")).toBe(
+		"2 / 3 • 67%",
+	);
+	const tooltip = panel
+		.getNavGrid()
+		.flat()
+		.find((n) => n.navId === "achievement-6")
+		?.tooltipItem?.();
+	expect(tooltip).toMatchObject({ anchor: { id: "achievements" } });
 });
