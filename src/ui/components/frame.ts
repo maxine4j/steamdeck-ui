@@ -604,6 +604,7 @@ export class Frame implements IUIComponent {
 		this.clearTextureTint();
 		this.acquire();
 		if (this.buttonSkinned && this.native) {
+			this.texture?.SetHorizTile(false);
 			for (const key of ["button-left", "button-right"])
 				this.pool.getDecoration(this.native, key).SetColorTexture(0, 0, 0, 0);
 			this.texture?.ClearAllPoints();
@@ -1102,6 +1103,7 @@ export class Frame implements IUIComponent {
 		this.animation = undefined;
 		this.flipbook = undefined;
 		this.animatedAtlas = undefined;
+		if (this.buttonSkinned) this.texture?.SetHorizTile(false);
 		this.buttonSkinned = false;
 		this.atlasSliced = false;
 		this.hoverTooltip?.destroy();

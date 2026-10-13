@@ -114,6 +114,7 @@ export function applyButtonSkin(
 	const middle = pool.getBackground(frame);
 	middle.ClearAllPoints();
 	middle.SetAtlas(`_128-RedButton-Center${suffix}`, false);
+	middle.SetHorizTile(true);
 	middle.SetPoint("TOPLEFT", left, "TOPRIGHT", 0, 0);
 	middle.SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", 0, 0);
 }

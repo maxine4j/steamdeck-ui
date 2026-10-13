@@ -176,6 +176,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 					SetAllPoints: vi.fn(),
 					SetTexture: vi.fn(),
 					SetTexCoord: vi.fn(),
+					SetHorizTile: vi.fn(),
 					SetAtlas: vi.fn(),
 					ClearAllPoints: vi.fn(),
 					SetPoint: vi.fn(),

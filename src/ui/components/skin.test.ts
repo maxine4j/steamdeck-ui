@@ -30,6 +30,7 @@ function setup() {
 			SetAtlas: vi.fn(),
 			SetTexture: vi.fn(),
 			SetTexCoord: vi.fn(),
+			SetHorizTile: vi.fn(),
 			SetColorTexture: vi.fn(),
 			SetAllPoints: vi.fn(),
 			ClearAllPoints: vi.fn(),
@@ -41,6 +42,8 @@ function setup() {
 	const native = {
 		SetPoint: vi.fn(),
 		SetScript: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		RegisterForDrag: vi.fn(),
 		Show: vi.fn(),
 		GetHeight: () => 40,
 		Hide: vi.fn(),
@@ -163,4 +166,18 @@ it("clears button caps when a reused list row becomes a heading", () => {
 		"128-RedButton-Left",
 		false,
 	);
+});
+
+it("tiles the button center across its width and clears tiling when replacing its skin", () => {
+	const { pool, textures } = setup();
+	const frame = new Frame("titles-back", pool, "Button");
+	frame.layout(96, 26);
+	frame.setButtonBackground();
+	const center = textures.at(0);
+	expect(center?.SetHorizTile).toHaveBeenLastCalledWith(true);
+	frame.setColor(0, 0, 0, 0);
+	expect(center?.SetHorizTile).toHaveBeenLastCalledWith(false);
+	frame.setButtonBackground();
+	frame.destroy();
+	expect(center?.SetHorizTile).toHaveBeenLastCalledWith(false);
 });

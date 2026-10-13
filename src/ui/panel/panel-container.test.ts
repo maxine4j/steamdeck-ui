@@ -65,7 +65,7 @@ it.each(["left", "right"] as const)(
 				55,
 				position === "left" ? "RIGHT" : "LEFT",
 				frame,
-				position === "left" ? 46 : -46,
+				position === "left" ? 43 : -43,
 				y,
 			);
 		}
@@ -251,7 +251,7 @@ it("notifies content when its container closes but not when tabs switch", () => 
 });
 
 it.each(["left", "right"] as const)(
-	"keeps %s tabs aligned beside the container while switching panels",
+	"keeps %s tabs flush against the container while switching panels",
 	(position) => {
 		const events = createTestEventBus();
 		const navigation = new NavigationManager(events);
@@ -348,7 +348,7 @@ it.each(["left", "right"] as const)(
 			55,
 			position === "left" ? "RIGHT" : "LEFT",
 			frame,
-			position === "left" ? 46 : -46,
+			position === "left" ? 43 : -43,
 			29,
 		);
 		buttons.at(1)?.onClick.mock.calls.at(-1)?.at(0)("LeftButton");

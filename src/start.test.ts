@@ -46,6 +46,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
 				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
 				SetTexCoord: vi.fn(),
+				SetHorizTile: vi.fn(),
 				SetPoint: vi.fn(),
 				SetHeight: vi.fn(),
 				SetWidth: vi.fn(),
