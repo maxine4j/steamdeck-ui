@@ -7,6 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("fits equipment around a character model with stats below, reuses controls and routes slot actions", () => {
 	const closeSkin = vi.spyOn(Frame.prototype, "setCloseButtonBackground");
+	vi.spyOn(Frame.prototype, "setButtonBackground").mockImplementation(() => {});
 	const natives: ReturnType<typeof createNative>[] = [];
 	let panelHeight = 800;
 	function createNative() {
@@ -93,6 +94,8 @@ it("fits equipment around a character model with stats below, reuses controls an
 		pool,
 		actions,
 		menu,
+		{ getTitles: () => [], select: vi.fn() },
+		{ nextFrame: vi.fn(() => vi.fn()) },
 	);
 	const equipment = Array.from({ length: 18 }, (_, index) => ({
 		slotId: index + 1,
@@ -118,15 +121,15 @@ it("fits equipment around a character model with stats below, reuses controls an
 	const focus = vi
 		.spyOn(Frame.prototype, "setFocused")
 		.mockImplementation(() => {});
-	panel.getNavGrid().at(0)?.at(0)?.onFocus();
+	panel.getNavGrid().at(1)?.at(0)?.onFocus();
 	expect(focus).toHaveBeenLastCalledWith(true);
-	panel.getNavGrid().at(0)?.at(0)?.onBlur();
+	panel.getNavGrid().at(1)?.at(0)?.onBlur();
 	expect(focus).toHaveBeenLastCalledWith(false);
 	focus.mockRestore();
 	expect(closeSkin).not.toHaveBeenCalled();
-	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	panel.getNavGrid().at(1)?.at(0)?.onContext?.();
 	expect(menu.open).toHaveBeenLastCalledWith(equipment.at(0));
-	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
+	expect(panel.getNavGrid().at(1)?.at(0)?.tooltipItem?.()).toEqual({
 		item: "item:42",
 	});
 	const navigationChanged = vi.fn();
@@ -137,7 +140,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 		),
 	);
 	expect(navigationChanged).toHaveBeenCalledOnce();
-	expect(panel.getNavGrid().at(0)?.at(0)?.tooltipItem?.()).toEqual({
+	expect(panel.getNavGrid().at(1)?.at(0)?.tooltipItem?.()).toEqual({
 		item: "item:43:bonus",
 	});
 	panel.setEquipment(equipment);
@@ -291,7 +294,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	equipmentButtons.at(1)?.handlers.get("OnClick")?.(undefined, "LeftButton");
 	expect(actions.use).toHaveBeenCalledWith(equipment.at(0));
 	expect(actions.pickup).toHaveBeenCalledWith(equipment.at(1));
-	expect(panel.getNavGrid()).toHaveLength(9);
+	expect(panel.getNavGrid()).toHaveLength(10);
 	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
 	expect(actions.pickup).toHaveBeenLastCalledWith(equipment.at(16));
 	const count = factory.createFrame.mock.calls.length;
@@ -299,7 +302,7 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.onUnmount();
 	expect(menu.close).toHaveBeenCalled();
 	menu.open.mockClear();
-	panel.getNavGrid().at(0)?.at(0)?.onContext?.();
+	panel.getNavGrid().at(1)?.at(0)?.onContext?.();
 	expect(menu.open).not.toHaveBeenCalled();
 	equipmentButtons.at(0)?.handlers.get("OnClick")?.(undefined, "RightButton");
 	expect(actions.use).toHaveBeenCalledOnce();

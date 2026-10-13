@@ -1,5 +1,6 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { ITitlesClient } from "../../clients/titles-client";
+import { Frame } from "../../ui/components/frame";
 import { ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
@@ -11,6 +12,7 @@ export class TitlesPanel implements IPanel {
 	readonly title = "Titles";
 	readonly icon = 133759;
 	private readonly list: ScrollList;
+	private readonly back: Frame;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: (focusId?: string) => void;
 	private selectedId?: string;
@@ -18,12 +20,14 @@ export class TitlesPanel implements IPanel {
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: ITitlesClient,
-		close: () => void,
+		private readonly close: () => void,
 		private readonly scheduler: ITaskScheduler,
 	) {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
+		this.back = new Frame("titles-back", pool, "Button");
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
+			top: 112,
 			columns: 2,
 			gap: 12,
 			centerSingleLine: true,
@@ -51,12 +55,21 @@ export class TitlesPanel implements IPanel {
 				activate: () => {
 					this.client.select(title.id);
 					this.refresh();
+					this.close();
 				},
 			})),
 		);
 	}
 	onMount(parent: IUIComponent): void {
+		if (!(parent instanceof Frame))
+			throw new Error("Titles requires a frame parent");
 		this.list.mount(parent);
+		this.back.setParent(parent);
+		this.back.layout(96, 26, "TOPLEFT", parent, 16, -82);
+		this.back.setButtonBackground();
+		this.back.setLabel("label", "‹ Back", "CENTER", 0, 0, 13);
+		this.back.onClick(() => this.onBack());
+		this.back.show();
 		this.update.setActive(true);
 		if (this.selectedId) {
 			this.cancelInitialFocus = this.scheduler.nextFrame(() => {
@@ -70,9 +83,16 @@ export class TitlesPanel implements IPanel {
 		this.cancelInitialFocus = undefined;
 		this.update.setActive(false);
 		this.list.unmount();
+		this.back.hide();
+	}
+	onBack(): void {
+		this.close();
 	}
 	getNavGrid() {
-		return this.list.getNavGrid();
+		return [
+			[this.back.navigationNode("titles-back", () => this.onBack())],
+			...this.list.getNavGrid(),
+		];
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
@@ -81,5 +101,6 @@ export class TitlesPanel implements IPanel {
 		this.cancelInitialFocus?.();
 		this.update.setActive(false);
 		this.list.destroy();
+		this.back.destroy();
 	}
 }

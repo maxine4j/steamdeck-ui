@@ -10,12 +10,15 @@ import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 import type { IBuiltInPaperDoll } from "./built-in-paper-doll";
+import type { IBuiltInTitles } from "./built-in-titles";
 
 export interface PaperDollView {
 	setIdentity(identity: CharacterIdentity): void;
 	setEquipment(equipment: readonly EquipmentSlot[]): void;
 	setStats(stats: readonly CharacterStat[]): void;
 	refreshPreview(): void;
+	refreshTitles(): void;
+	showTitles(): void;
 }
 export class PaperDollModule implements IModule {
 	readonly id = "paper-doll";
@@ -25,6 +28,11 @@ export class PaperDollModule implements IModule {
 	private statsDirty = true;
 	private previewDirty = true;
 	private readonly task: DeferredRefresh;
+	private readonly refreshTitles = () => this.view.refreshTitles();
+	private readonly openTitles = () => {
+		this.ui.openPanel(this.id, "left");
+		this.view.showTitles();
+	};
 	private updateStats(): void {
 		if (!this.open || !this.statsDirty) return;
 		this.view.setStats(this.character.getStats());
@@ -84,13 +92,17 @@ export class PaperDollModule implements IModule {
 		private readonly view: PaperDollView,
 		private readonly builtIn: IBuiltInPaperDoll,
 		scheduler: ITaskScheduler,
+		private readonly nativeTitles: IBuiltInTitles,
 	) {
 		this.task = new DeferredRefresh(scheduler, () => this.update());
 	}
 	disableBuiltIn(): void {
 		this.builtIn.disable();
+		this.nativeTitles.disable();
 	}
 	initialize(): void {
+		this.events.subscribe("TITLES_CHANGED", this.refreshTitles);
+		this.events.subscribe("TITLES_OPEN", this.openTitles);
 		this.events.subscribe("CHARACTER_IDENTITY_CHANGED", this.refreshIdentity);
 		this.events.subscribe("CHARACTER_VISIBILITY_CHANGED", this.syncVisibility);
 		this.events.subscribe("PLAYER_EQUIPMENT_CHANGED", this.refresh);
@@ -100,6 +112,9 @@ export class PaperDollModule implements IModule {
 		this.syncVisibility();
 	}
 	shutdown(): void {
+		this.events.unsubscribe("TITLES_CHANGED", this.refreshTitles);
+		this.events.unsubscribe("TITLES_OPEN", this.openTitles);
+		this.nativeTitles.restore();
 		this.events.unsubscribe("CHARACTER_IDENTITY_CHANGED", this.refreshIdentity);
 		this.task.setActive(false);
 		this.events.unsubscribe(

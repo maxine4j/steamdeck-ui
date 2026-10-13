@@ -22,12 +22,15 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 		setEquipment: vi.fn(),
 		setStats: vi.fn(),
 		refreshPreview: vi.fn(),
+		refreshTitles: vi.fn(),
+		showTitles: vi.fn(),
 	};
 	const builtIn = {
 		disable: vi.fn(),
 		restore: vi.fn(),
 		isOpen: () => character.isOpen(),
 	};
+	const nativeTitles = { disable: vi.fn(), restore: vi.fn() };
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -50,10 +53,18 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 		view,
 		builtIn,
 		scheduler,
+		nativeTitles,
 	);
 	module.disableBuiltIn();
 	module.initialize();
 	expect(builtIn.disable).toHaveBeenCalledOnce();
+	expect(nativeTitles.disable).toHaveBeenCalledOnce();
+	events.emit("TITLES_OPEN");
+	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("paper-doll", "left");
+	expect(view.showTitles).toHaveBeenCalledOnce();
+	ui.openPanel.mockClear();
+	events.emit("TITLES_CHANGED");
+	expect(view.refreshTitles).toHaveBeenCalledOnce();
 	character.isOpen.mockReturnValue(true);
 	events.emit("CHARACTER_VISIBILITY_CHANGED");
 	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("paper-doll", "left");
@@ -99,4 +110,9 @@ it("refreshes equipment and stats, mirrors native visibility on the left and res
 	events.emit("PLAYER_EQUIPMENT_CHANGED");
 	expect(character.getEquipment).toHaveBeenCalledTimes(3);
 	expect(builtIn.restore).toHaveBeenCalledOnce();
+	expect(nativeTitles.restore).toHaveBeenCalledOnce();
+	events.emit("TITLES_CHANGED");
+	events.emit("TITLES_OPEN");
+	expect(view.refreshTitles).toHaveBeenCalledOnce();
+	expect(view.showTitles).toHaveBeenCalledOnce();
 });

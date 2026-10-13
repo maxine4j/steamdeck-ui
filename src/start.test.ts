@@ -701,12 +701,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	for (const [icon, dock, y] of [
-		[133127, 0, 165], // Equipment
-		[236683, 0, 107], // Reputation
-		[133759, 0, 49], // Titles
-		[136243, 0, -29], // Talents
-		[1100023, 0, -87], // Group finder
-		[133158, 0, -165], // Achievements
+		[133127, 0, 136], // Equipment
+		[236683, 0, 78], // Reputation
+		[136243, 0, 0], // Talents
+		[1100023, 0, -58], // Group finder
+		[133158, 0, -136], // Achievements
 		[133633, 1, 97], // Bags
 		[133784, 1, 39], // Currency
 		[132261, 1, -39], // Mounts
@@ -775,16 +774,28 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(reputation.activate).toHaveBeenCalledWith(
 		reputation.getReputations().at(0),
 	);
-	clickTab(133759);
+	clickTab(133127);
+	clickRow("Select Title")();
+	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
 	expect(titles.getTitles).toHaveBeenCalledOnce();
 	clickFaction();
 	expect(reputation.activate).toHaveBeenCalledOnce();
 	clickRow("|TInterface\\RaidFrame\\ReadyCheck-Ready:16:16|t None")();
 	expect(titles.select).toHaveBeenCalledExactlyOnceWith(-1);
+	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
+	expect(app.navigation.focusedId).toBe("paper-doll-select-title");
+	clickRow("Select Title")();
+	clickRow("‹ Back")();
+	expect(app.navigation.focusedId).toBe("paper-doll-select-title");
+	clickRow("Select Title")();
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
+	expect(app.navigation.focusedId).toBe("paper-doll-select-title");
 	const withTabs = frames.length;
 	clickTab(236683);
-	clickTab(133759);
 	clickTab(133127);
+	clickRow("Select Title")();
+	clickRow("‹ Back")();
 	expect(frames).toHaveLength(withTabs);
 	character.isOpen.mockReturnValue(false);
 	characterShown = false;
@@ -916,7 +927,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	character.open.mockImplementation(openCharacterPanel);
 	vi.stubGlobal("ToggleCharacter", openCharacterPanel);
 	app.ui.openPanel("paper-doll", "left");
-	for (const icon of [133127, 236683, 133759]) {
+	for (const icon of [133127, 236683]) {
 		clickTab(136243);
 		expect(spellsShown).toBe(true);
 		expect(app.ui.getContainer("left").activePanelId).toBe("talents");
@@ -926,7 +937,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	}
 	clickTab(136243);
 	events.emit("NAV_PANEL_PREVIOUS");
-	expect(app.ui.getContainer("left").activePanelId).toBe("titles");
+	expect(app.ui.getContainer("left").activePanelId).toBe("reputation");
 	expect(spellbookOpened).not.toHaveBeenCalled();
 	expect(spellsShown).toBe(false);
 	map.isOpen.mockReturnValue(true);

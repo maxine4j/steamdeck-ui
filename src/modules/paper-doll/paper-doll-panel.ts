@@ -4,6 +4,8 @@ import type {
 	EquipmentSlot,
 	ICharacterActions,
 } from "../../clients/character-client";
+import type { ITaskScheduler } from "../../clients/task-scheduler";
+import type { ITitlesClient } from "../../clients/titles-client";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -11,6 +13,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IEquipmentActionMenu } from "./equipment-action-menu";
+import { TitlesPanel } from "./titles-panel";
 
 const qualityColors: readonly (readonly [number, number, number])[] = [
 	[0.62, 0.62, 0.62],
@@ -51,7 +54,11 @@ export class PaperDollPanel implements IPanel {
 	readonly title = "Equipment";
 	readonly icon = 133127;
 	private mounted = false;
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
+	private parent?: IUIComponent;
+	private titlesOpen = false;
+	private readonly titles: TitlesPanel;
+	private readonly selectTitle: Frame;
 	private equipmentDirty = true;
 	private statsDirty = true;
 	private previewDirty = true;
@@ -74,10 +81,37 @@ export class PaperDollPanel implements IPanel {
 		private readonly pool: IFramePoolManager,
 		private readonly actions: ICharacterActions,
 		private readonly menu: IEquipmentActionMenu,
+		titles: ITitlesClient,
+		scheduler: ITaskScheduler,
 	) {
 		this.preview = new Frame("character-model", pool, "PlayerModel");
 		this.content = new Frame("character-content", pool);
 		this.body = new Frame("character-body", pool);
+		this.selectTitle = new Frame("paper-doll-select-title", pool, "Button");
+		this.titles = new TitlesPanel(pool, titles, () => this.onBack(), scheduler);
+		this.titles.setNavigationChanged((focusId) => {
+			if (this.titlesOpen) this.navigationChanged?.(focusId);
+		});
+	}
+	refreshTitles(): void {
+		this.titles.refresh();
+	}
+	showTitles(): void {
+		if (!this.parent || this.titlesOpen) return;
+		this.menu.close();
+		this.titlesOpen = true;
+		this.mounted = false;
+		this.frame.hide();
+		this.titles.onMount(this.parent);
+		this.navigationChanged?.();
+	}
+	onBack(): void {
+		if (this.titlesOpen && this.parent) {
+			this.titles.onUnmount();
+			this.titlesOpen = false;
+			this.onMount(this.parent);
+			this.navigationChanged?.("paper-doll-select-title");
+		} else this.actions.close();
 	}
 	setIdentity(identity: CharacterIdentity): void {
 		this.identity = identity;
@@ -123,7 +157,7 @@ export class PaperDollPanel implements IPanel {
 			this.navigationChanged?.();
 		}
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
 	}
 	setStats(stats: readonly CharacterStat[]): void {
@@ -141,10 +175,17 @@ export class PaperDollPanel implements IPanel {
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
 			throw new Error("Paper Doll requires a frame parent");
+		this.parent = parent;
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
 		setWindowTitle(this.frame, this.title);
 		this.frame.show();
+		this.selectTitle.setParent(this.frame);
+		this.selectTitle.layout(112, 26, "TOPRIGHT", this.frame, -16, -40);
+		this.selectTitle.setButtonBackground();
+		this.selectTitle.setLabel("label", "Select Title", "CENTER", 0, 0, 13);
+		this.selectTitle.onClick(() => this.showTitles());
+		this.selectTitle.show();
 		this.content.setParent(this.frame);
 		this.content.show();
 		this.body.setParent(this.content);
@@ -319,10 +360,14 @@ export class PaperDollPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.menu.close();
+		if (this.titlesOpen) this.titles.onUnmount();
+		this.titlesOpen = false;
+		this.parent = undefined;
 		this.mounted = false;
 		this.frame.hide();
 	}
 	getNavGrid(): INavigable[][] {
+		if (this.titlesOpen) return this.titles.getNavGrid();
 		const rows: INavigable[][] = [];
 		for (let i = 0; i < 8; i++) {
 			const left = this.slots.at(i)?.nav;
@@ -332,10 +377,19 @@ export class PaperDollPanel implements IPanel {
 		const mainHand = this.slots.at(16)?.nav;
 		const offHand = this.slots.at(17)?.nav;
 		if (mainHand && offHand) rows.push([mainHand, offHand]);
-		return rows;
+		return [
+			[
+				this.selectTitle.navigationNode("paper-doll-select-title", () =>
+					this.showTitles(),
+				),
+			],
+			...rows,
+		];
 	}
 	destroy(): void {
 		this.onUnmount();
+		this.titles.destroy();
+		this.selectTitle.destroy();
 		for (const cell of this.slots) {
 			cell.details.destroy();
 			cell.button.destroy();

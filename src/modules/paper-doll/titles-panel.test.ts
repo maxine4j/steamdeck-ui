@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
+import { Frame } from "../../ui/components/frame";
 import type { ListRow } from "../../ui/components/scroll-list";
-import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { TitlesPanel } from "./titles-panel";
 
@@ -19,6 +19,17 @@ vi.mock("../../ui/components/scroll-list", () => ({
 		}
 	},
 }));
+vi.mock("../../ui/components/frame", () => ({
+	Frame: class {
+		setParent = vi.fn();
+		layout = vi.fn();
+		setButtonBackground = vi.fn();
+		setLabel = vi.fn();
+		onClick = vi.fn();
+		show = vi.fn();
+		hide = vi.fn();
+	},
+}));
 
 it("gives the titles list 30px padding", () => {
 	const pool = {} as IFramePoolManager;
@@ -32,6 +43,7 @@ it("gives the titles list 30px padding", () => {
 	);
 	expect(construct).toHaveBeenCalledWith("titles", pool, "Titles", close, {
 		padding: 30,
+		top: 112,
 		columns: 2,
 		gap: 12,
 		centerSingleLine: true,
@@ -49,13 +61,14 @@ it("uses neutral title tiles, highlights selection and applies a clicked title",
 		],
 		select: vi.fn(),
 	};
-	const panel = new TitlesPanel({} as IFramePoolManager, client, vi.fn(), {
+	const back = vi.fn();
+	const panel = new TitlesPanel({} as IFramePoolManager, client, back, {
 		nextFrame: (callback) => {
 			pending.push(callback);
 			return vi.fn();
 		},
 	});
-	panel.onMount({} as IUIComponent);
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	pending.shift()?.();
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(rows.at(0)).toMatchObject({
@@ -68,7 +81,7 @@ it("uses neutral title tiles, highlights selection and applies a clicked title",
 	expect(rows.every((row) => row.backgroundAtlas === undefined)).toBe(true);
 	rows.at(1)?.activate();
 	expect(client.select).toHaveBeenCalledWith(42);
-	expect(pending).toHaveLength(1);
+	expect(back).toHaveBeenCalledOnce();
 });
 
 it("loads on first mount, reuses on reopen and defers hidden changes", () => {
@@ -88,18 +101,18 @@ it("loads on first mount, reuses on reopen and defers hidden changes", () => {
 	);
 	panel.refresh();
 	expect(client.getTitles).not.toHaveBeenCalled();
-	panel.onMount({} as IUIComponent);
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	panel.refresh();
 	panel.refresh();
 	expect(pending).toHaveLength(1);
 	pending.shift()?.();
 	expect(client.getTitles).toHaveBeenCalledOnce();
 	panel.onUnmount();
-	panel.onMount({} as IUIComponent);
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	expect(pending).toHaveLength(0);
 	panel.onUnmount();
 	panel.refresh();
-	panel.onMount({} as IUIComponent);
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	pending.shift()?.();
 	expect(client.getTitles).toHaveBeenCalledTimes(2);
 });

@@ -59,9 +59,12 @@ it("routes native tab input into simultaneous module panels on opposite docks", 
 			setEquipment: vi.fn(),
 			setStats: vi.fn(),
 			refreshPreview: vi.fn(),
+			refreshTitles: vi.fn(),
+			showTitles: vi.fn(),
 		},
 		new BuiltInPaperDoll(client),
 		{ nextFrame: () => vi.fn() },
+		{ disable: vi.fn(), restore: vi.fn() },
 	);
 	const currency = new CurrencyModule(
 		ui,

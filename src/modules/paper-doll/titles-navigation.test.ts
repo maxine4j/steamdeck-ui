@@ -22,6 +22,10 @@ vi.mock("../../ui/components/frame", () => ({
 		inset = vi.fn();
 		fill = vi.fn();
 		setWindowBackground = vi.fn();
+		setButtonBackground = vi.fn();
+		navigationNode(navId: string, onInteract: () => void) {
+			return { navId, onInteract, onFocus: vi.fn(), onBlur: vi.fn() };
+		}
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
 		revealVerticalRange = vi.fn();
@@ -66,13 +70,13 @@ it("defaults to the selected title on opening, selection and external updates", 
 	flush();
 	expect(nav.focusedId).toBe("title-18");
 	nav.moveDown();
-	const focused = panel.getNavGrid().at(9)?.at(1);
+	const focused = panel.getNavGrid().at(10)?.at(1);
 	focused?.onInteract();
 	expect(selected).toBe(20);
 	while (pending.length) {
 		pending.shift()?.();
 		expect(nav.focusedId).toBe("title-20");
-		expect(panel.getNavGrid().at(9)?.at(1)).toBe(focused);
+		expect(panel.getNavGrid().at(10)?.at(1)).toBe(focused);
 	}
 	nav.moveDown();
 	expect(nav.focusedId).toBe("title-22");

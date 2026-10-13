@@ -54,6 +54,7 @@ import { BuiltInDialogue } from "./modules/npc-dialogue/built-in-dialogue";
 import { DialogueModule } from "./modules/npc-dialogue/dialogue-module";
 import { DialoguePanel } from "./modules/npc-dialogue/dialogue-panel";
 import { BuiltInPaperDoll } from "./modules/paper-doll/built-in-paper-doll";
+import { BuiltInTitles } from "./modules/paper-doll/built-in-titles";
 import { EquipmentActionMenu } from "./modules/paper-doll/equipment-action-menu";
 import { PaperDollModule } from "./modules/paper-doll/paper-doll-module";
 import { PaperDollPanel } from "./modules/paper-doll/paper-doll-panel";
@@ -64,9 +65,6 @@ import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-mod
 import { BuiltInTalents } from "./modules/talents/built-in-talents";
 import { TalentsModule } from "./modules/talents/talents-module";
 import { TalentsPanel } from "./modules/talents/talents-panel";
-import { BuiltInTitles } from "./modules/titles/built-in-titles";
-import { TitlesModule } from "./modules/titles/titles-module";
-import { TitlesPanel } from "./modules/titles/titles-panel";
 import { BuiltInToys } from "./modules/toys/built-in-toys";
 import { ToyActionMenu } from "./modules/toys/toy-action-menu";
 import { ToysModule } from "./modules/toys/toys-module";
@@ -243,8 +241,7 @@ export function startSteamDeckUI(
 					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
 					else if (selected.id === "currency") builtInCurrency.open();
-					else if (selected.id === "paper-doll" || selected.id === "titles")
-						character.open();
+					else if (selected.id === "paper-doll") character.open();
 				},
 				navigation,
 				position === "left"
@@ -256,7 +253,7 @@ export function startSteamDeckUI(
 					? []
 					: position === "left"
 						? [
-								["paper-doll", "reputation", "titles"],
+								["paper-doll", "reputation"],
 								["talents", "dungeon-finder"],
 								["achievements"],
 							]
@@ -439,6 +436,8 @@ export function startSteamDeckUI(
 			new Modal("equipment-options", pool, navigation, events),
 			character,
 		),
+		titles,
+		scheduler,
 	);
 	ui.registerPanel(paperDoll, "left");
 	modules.register(
@@ -449,6 +448,7 @@ export function startSteamDeckUI(
 			paperDoll,
 			new BuiltInPaperDoll(characterFrame),
 			scheduler,
+			new BuiltInTitles(events),
 		),
 	);
 	const closeCharacter = () => {
@@ -461,9 +461,7 @@ export function startSteamDeckUI(
 		closeCharacter,
 		scheduler,
 	);
-	const titlesPanel = new TitlesPanel(pool, titles, closeCharacter, scheduler);
 	ui.registerPanel(reputationPanel, "left");
-	ui.registerPanel(titlesPanel, "left");
 	ui.registerPanel(collectionsFeature.mountsPanel, "right");
 	const talentsPanel = new TalentsPanel(
 		pool,
@@ -483,9 +481,6 @@ export function startSteamDeckUI(
 	modules.register(new TalentsModule(ui, events, talentsPanel, builtInTalents));
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
-	);
-	modules.register(
-		new TitlesModule(ui, events, titlesPanel, new BuiltInTitles(events)),
 	);
 	modules.register(
 		new CurrencyModule(ui, events, currencyPanel, builtInCurrency),
@@ -524,7 +519,6 @@ export function startSteamDeckUI(
 			paperDoll.destroy();
 			reputationPanel.destroy();
 			currencyPanel.destroy();
-			titlesPanel.destroy();
 			collectionsFeature.mountsPanel.destroy();
 			collectionsFeature.toysPanel.destroy();
 			talentsPanel.destroy();
