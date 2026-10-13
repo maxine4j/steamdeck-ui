@@ -7,6 +7,7 @@ import {
 import { Frame } from "../../ui/components/frame";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -25,6 +26,8 @@ export class MapPanel implements IPanel {
 	private details?: number;
 	private mounted = false;
 	private active = false;
+	private parent?: Frame;
+	private fitted?: { width: number; height: number };
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly cursorNode: INavigable = {
 		navId: "map-cursor",
@@ -52,18 +55,18 @@ export class MapPanel implements IPanel {
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
 			throw new Error("Map requires a frame parent");
-		this.frame.fill(parent);
+		this.parent = parent;
+		this.frame.setParent(parent);
+		this.frame.setWindowBackground();
 		this.frame.show();
 		this.mapSide.setParent(this.frame);
-		this.mapSide.setWindowBackground();
 		this.mapSide.show();
 		this.pane.setParent(this.frame);
 		this.layout();
-		this.frame.onSizeChanged(() => {
+		parent.onSizeChanged(() => {
 			this.layout();
 			this.client.resize();
 		});
-		this.pane.setWindowBackground();
 		this.pane.show();
 		this.reading.forEach((button, index) => {
 			button.setParent(this.pane);
@@ -90,8 +93,19 @@ export class MapPanel implements IPanel {
 		this.client.mount(this.frame, this.pane);
 		this.refresh();
 	}
-	private layout(): void {
-		const size = this.frame.getSize();
+	private layout(): boolean {
+		if (!this.parent) return false;
+		const available = this.parent.getSize();
+		const presentation = this.client.presentation(available);
+		setWindowTitle(this.frame, presentation.title);
+		const size = { width: available.width, height: presentation.height };
+		if (
+			size.width === this.fitted?.width &&
+			size.height === this.fitted?.height
+		)
+			return false;
+		this.fitted = size;
+		this.frame.layout(size.width, size.height, "CENTER", this.parent);
 		this.mapSide.layout(
 			Math.max(1, size.width - MAP_QUEST_PANE_WIDTH),
 			size.height,
@@ -99,6 +113,7 @@ export class MapPanel implements IPanel {
 			this.frame,
 		);
 		this.pane.layout(MAP_QUEST_PANE_WIDTH, size.height, "TOPRIGHT", this.frame);
+		return true;
 	}
 	onActiveChanged(active: boolean): void {
 		this.active = active;
@@ -122,7 +137,9 @@ export class MapPanel implements IPanel {
 		this.client.unmount();
 		this.details = undefined;
 		this.rows = [];
-		this.frame.onSizeChanged();
+		this.parent?.onSizeChanged();
+		this.parent = undefined;
+		this.fitted = undefined;
 		this.frame.hide();
 	}
 	onContainerClosed(): void {
@@ -130,6 +147,7 @@ export class MapPanel implements IPanel {
 	}
 	refresh(): void {
 		if (!this.mounted) return;
+		if (this.layout()) this.client.resize();
 		this.quests = this.client.read();
 		if (
 			this.details !== undefined &&

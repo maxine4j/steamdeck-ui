@@ -3,6 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type BorderColor, setBorder } from "./border";
 import type { GamePadRepeatOptions } from "./gamepad-input";
+import { drawScrollIndicator } from "./scroll-indicator";
 import { ScrollPan } from "./scroll-pan";
 import {
 	type ClickBinding,
@@ -325,30 +326,10 @@ export class Frame implements IUIComponent {
 	}
 	private updateScrollIndicator(): void {
 		if (!this.native || !this.scrollIndicator) return;
-		const native = this.native as WowFrame & { GetHeight(): number };
-		const range = native.GetVerticalScrollRange();
-		const viewport = native.GetHeight();
-		const track = Math.max(0, viewport - 8);
-		const height = Math.min(
-			track,
-			Math.max(24, (track * viewport) / Math.max(1, viewport + range)),
+		drawScrollIndicator(
+			this.scrollIndicator,
+			this.native as WowFrame & { GetHeight(): number },
 		);
-		const progress =
-			range > 0
-				? Math.max(0, Math.min(1, native.GetVerticalScroll() / range))
-				: 0;
-		const thumb = this.scrollIndicator;
-		thumb.ClearAllPoints();
-		thumb.SetPoint(
-			"TOPRIGHT",
-			native,
-			"TOPRIGHT",
-			-3,
-			-4 - progress * (track - height),
-		);
-		thumb.SetWidth(3);
-		thumb.SetHeight(height);
-		thumb.SetColorTexture(1, 1, 1, range > 0 && track > 0 ? 0.35 : 0);
 	}
 	resetScroll(): void {
 		this.native?.SetVerticalScroll(0);

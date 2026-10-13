@@ -25,6 +25,7 @@ import { FrameSuppression } from "./ui/components/frame-suppression";
 import { NativeCursor } from "./ui/components/native-cursor";
 import { NativeLayout } from "./ui/components/native-layout";
 import { NativeNavigation } from "./ui/components/native-navigation";
+import { NativeScrollIndicator } from "./ui/components/scroll-indicator";
 import { FramePoolManager } from "./ui/frame-pool-manager";
 import { WowFrameFactory } from "./ui/wow-frame-factory";
 
@@ -65,5 +66,6 @@ startSteamDeckUI(
 		new NativeLayout(scheduler),
 		new NativeNavigation(new FramePoolManager(frameFactory)),
 		new NativeCursor(new FramePoolManager(frameFactory)),
+		new NativeScrollIndicator(new FramePoolManager(frameFactory)),
 	),
 );

@@ -53,7 +53,7 @@ function setup() {
 	);
 	const quests = {
 		ContentsAnchor: {},
-		QuestsFrame: { ScrollFrame: {} },
+		QuestsFrame: { ScrollFrame: { ScrollBar: {} } },
 		DetailsFrame: { ScrollFrame: { ScrollBar: {} } },
 		QuestsTab: {},
 		EventsTab: {},
@@ -63,6 +63,7 @@ function setup() {
 		QuestSessionManagement: {},
 	};
 	vi.stubGlobal("WorldMapFrame", frame);
+	vi.stubGlobal("MAP_AND_QUEST_LOG", "Map & Quest Log");
 	vi.stubGlobal("C_Map", {
 		CanSetUserWaypointOnMap: vi.fn(() => false),
 		SetUserWaypoint: vi.fn(() => true),
@@ -111,6 +112,7 @@ function setup() {
 		trackMouseOver: vi.fn(),
 		hover: vi.fn(),
 	};
+	const indicator = { bind: vi.fn(), release: vi.fn() };
 	Object.assign(frame.ScrollContainer, {
 		NormalizeUIPosition: vi.fn(() => [0.25, 0.75]),
 		ShouldNavigateOnClick: () => false,
@@ -124,9 +126,59 @@ function setup() {
 		quests,
 		layout,
 		cursor,
-		client: new MapClient(events, layout, layout, cursor),
+		indicator,
+		client: new MapClient(events, layout, layout, cursor, indicator),
 	};
 }
+it("sizes the combined panel to map art, breadcrumbs and title bar and uses Blizzard's localized title", () => {
+	const { client } = setup();
+	expect(client.presentation({ width: 1200, height: 720 })).toEqual({
+		title: "Map & Quest Log",
+		height: 880 / 1.5 + 80,
+	});
+	expect(client.presentation({ width: 1200, height: 500 })).toEqual({
+		title: "Map & Quest Log",
+		height: 500,
+	});
+});
+
+it("uses the minimal indicator for native quests and restores Blizzard's scrollbar on close", () => {
+	const { client, quests, indicator, layout } = setup();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame,
+		expect.objectContaining({ insets: [0, 0, 0, 0] }),
+	);
+	expect(indicator.bind).toHaveBeenCalledWith(quests.QuestsFrame.ScrollFrame);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.QuestsFrame.ScrollFrame.ScrollBar,
+		{ visible: false },
+	);
+	client.unmount();
+	expect(indicator.release).toHaveBeenCalledOnce();
+	expect(layout.release).toHaveBeenCalled();
+});
+
+it("invalidates panel sizing after a map change but stops emitting after unmount", () => {
+	const { client, hooks, events } = setup();
+	const refresh = vi.fn();
+	events.subscribe("QUEST_LOG_UPDATE", refresh);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	hooks.get("OnMapChanged")?.();
+	expect(refresh).toHaveBeenCalledOnce();
+	client.unmount();
+	hooks.get("OnMapChanged")?.();
+	expect(refresh).toHaveBeenCalledOnce();
+});
+
 it("shows and moves the map cursor only while mounted and releases it on close", () => {
 	const { client, cursor, frame, hooks } = setup();
 	client.setCursorActive(true);
@@ -508,7 +560,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		expect.objectContaining({
 			parent: frame,
 			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-			size: [840, 560],
+			size: [880, 880 / 1.5],
 			clip: true,
 		}),
 	);
@@ -529,7 +581,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests.QuestsFrame,
-		expect.objectContaining({ visible: true, insets: [0, 0, 22, 0] }),
+		expect.objectContaining({ visible: true, insets: [0, 0, 0, 0] }),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests.QuestsFrame.ScrollFrame,
@@ -639,7 +691,7 @@ it("leaves the metal header exposed above breadcrumbs, quests and details", () =
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 360, 80] }),
+		expect.objectContaining({ insets: [0, 32, 320, 720 - 880 / 1.5 - 80] }),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests,
@@ -688,7 +740,7 @@ it("converts quest log headers and campaign membership without dropping dailies 
 	);
 });
 
-it("centers map art alone, reserving breadcrumbs above it, across map changes and resizing", () => {
+it("fits map art below the title and breadcrumbs across map changes and resizing", () => {
 	const { client, frame, layout, hooks } = setup();
 	vi.mocked(C_Map.GetMapArtLayers).mockImplementation(
 		(id: number) =>
@@ -701,7 +753,7 @@ it("centers map art alone, reserving breadcrumbs above it, across map changes an
 	client.mount({ getSize: () => size } as Frame, {} as Frame);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 360, 80] }),
+		expect.objectContaining({ insets: [0, 32, 320, 720 - 880 / 1.5 - 80] }),
 	);
 	const viewport = () =>
 		layout.bind.mock.calls
@@ -710,29 +762,29 @@ it("centers map art alone, reserving breadcrumbs above it, across map changes an
 			?.at(1);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [840, 560],
+		size: [880, 880 / 1.5],
 	});
 	frame.GetMapID.mockReturnValue(102);
 	hooks.get("OnMapChanged")?.();
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 640, 80] }),
+		expect.objectContaining({ insets: [0, 32, 560, 0] }),
 	);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [560, 560],
+		size: [640, 640],
 	});
 	frame.GetMapID.mockReturnValue(103);
 	hooks.get("OnMapChanged")?.();
-	expect(viewport()).toMatchObject({ size: [840, 560] });
+	expect(viewport()).toMatchObject({ size: [880, 880 / 1.5] });
 	size.width = 1400;
 	size.height = 900;
 	client.resize();
-	expect(viewport()).toMatchObject({ size: [1058, 1058 / 1.5] });
+	expect(viewport()).toMatchObject({ size: [1080, 720] });
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
 		expect.objectContaining({
-			insets: [0, (900 - 1058 / 1.5) / 2 - 48, 342, (900 - 1058 / 1.5) / 2],
+			insets: [0, 32, 320, 100],
 		}),
 	);
 	const calls = layout.bind.mock.calls.length;

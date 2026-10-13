@@ -17,15 +17,20 @@ const state = vi.hoisted(() => ({
 			onSizeChanged: ReturnType<typeof vi.fn>;
 			setLabel: ReturnType<typeof vi.fn>;
 			setFocusBorder: ReturnType<typeof vi.fn>;
+			setWindowBackground: ReturnType<typeof vi.fn>;
+			getSize: () => { width: number; height: number };
 		}
 	>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
+		private size = { width: 1200, height: 720 };
 		constructor(readonly id: string) {
 			state.frames.set(id, this);
 		}
-		layout = vi.fn();
+		layout = vi.fn((width: number, height: number) => {
+			this.size = { width, height };
+		});
 		hide = vi.fn();
 		show = vi.fn();
 		fill = vi.fn();
@@ -38,7 +43,7 @@ vi.mock("../../ui/components/frame", () => ({
 		onClick = vi.fn();
 		onSizeChanged = vi.fn();
 		destroy = vi.fn();
-		getSize = () => ({ width: 1200, height: 720 });
+		getSize = () => this.size;
 		navigationNode = (navId: string, onInteract: () => void) => ({
 			navId,
 			onInteract,
@@ -84,8 +89,8 @@ it("outlines only the active map or quest side and removes it while inactive", (
 		false,
 	);
 	expect(state.frames.get("map-side")?.layout).toHaveBeenCalledWith(
-		858,
-		720,
+		880,
+		880 / 1.5 + 80,
 		"TOPLEFT",
 		expect.anything(),
 	);
@@ -112,6 +117,45 @@ it("outlines only the active map or quest side and removes it while inactive", (
 	expect(
 		state.frames.get("map-quests")?.setFocusBorder,
 	).toHaveBeenLastCalledWith(false);
+});
+
+it("centers a fitted window, uses the native title copy and fits quests on resize", () => {
+	const { panel, client } = setup();
+	expect(
+		state.frames.get("map-frame")?.setWindowBackground,
+	).toHaveBeenCalledOnce();
+	expect(
+		state.frames.get("map-side")?.setWindowBackground,
+	).not.toHaveBeenCalled();
+	expect(
+		state.frames.get("map-quests")?.setWindowBackground,
+	).not.toHaveBeenCalled();
+	expect(state.frames.get("map-frame")?.layout).toHaveBeenCalledWith(
+		1200,
+		880 / 1.5 + 80,
+		"CENTER",
+		expect.anything(),
+	);
+	expect(state.frames.get("map-frame")?.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Map & Quest Log",
+		"TOP",
+		0,
+		-6,
+		12,
+	);
+	client.presentation.mockReturnValue({
+		title: "Map & Quest Log",
+		height: 500,
+	});
+	panel.refresh();
+	expect(state.frames.get("map-quests")?.layout).toHaveBeenLastCalledWith(
+		320,
+		500,
+		"TOPRIGHT",
+		expect.anything(),
+	);
+	expect(client.resize).toHaveBeenCalledOnce();
 });
 
 it("waits for the native category rebuild before refreshing controller focus", () => {
@@ -149,7 +193,7 @@ it("waits for the native category rebuild before refreshing controller focus", (
 it("updates the native viewport when the fullscreen container changes size", () => {
 	const { client } = setup();
 	const resize = state.frames
-		.get("map-frame")
+		.get("parent")
 		?.onSizeChanged.mock.lastCall?.at(0) as (() => void) | undefined;
 	resize?.();
 	expect(client.resize).toHaveBeenCalledOnce();
@@ -191,6 +235,10 @@ function setup() {
 		},
 	];
 	const client = {
+		presentation: vi.fn((available: { width: number; height: number }) => ({
+			title: "Map & Quest Log",
+			height: Math.min(available.height, (available.width - 320) / 1.5 + 80),
+		})),
 		disable: vi.fn(),
 		restore: vi.fn(),
 		isOpen: () => true,
@@ -279,8 +327,8 @@ it("puts Blizzard's unified quest hierarchy on the right without custom tabs or 
 	const { panel, client, changed } = setup();
 	expect(client.mount).toHaveBeenCalled();
 	expect(state.frames.get("map-quests")?.layout).toHaveBeenCalledWith(
-		342,
-		720,
+		320,
+		880 / 1.5 + 80,
 		"TOPRIGHT",
 		expect.anything(),
 	);

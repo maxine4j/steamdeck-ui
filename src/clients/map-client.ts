@@ -11,10 +11,14 @@ import type {
 	NativeNavigationFrame,
 	NativeNavigationScroll,
 } from "../ui/components/native-navigation";
+import type {
+	IndicatorScroll,
+	NativeScrollIndicator,
+} from "../ui/components/scroll-indicator";
 import type { INavigable, NavDirection } from "../ui/navigation/types";
 
-// QuestScrollFrame.Contents is 304px wide; reserve 22px for its scrollbar.
-export const MAP_QUEST_PANE_WIDTH = 304 + 22 + 16;
+// QuestScrollFrame.Contents is 304px wide; the minimal indicator overlays it.
+export const MAP_QUEST_PANE_WIDTH = 304 + 16;
 const CONTENT_TOP = 32;
 const BREADCRUMB_HEIGHT = 48;
 
@@ -35,6 +39,10 @@ export interface MapQuest {
 	readonly canShare: boolean;
 }
 export interface IMapClient {
+	presentation(available: { width: number; height: number }): {
+		title: string;
+		height: number;
+	};
 	disable(): void;
 	restore(): void;
 	isOpen(): boolean;
@@ -74,7 +82,11 @@ interface NativeQuestRow extends NativeNavigationFrame {
 interface NativeQuestPool {
 	EnumerateActive(): LuaIterable<NativeQuestRow>;
 }
-interface NativeQuestScroll extends LayoutFrame, NativeNavigationScroll {
+interface NativeQuestScroll
+	extends LayoutFrame,
+		NativeNavigationScroll,
+		IndicatorScroll {
+	ScrollBar: LayoutFrame;
 	titleFramePool: NativeQuestPool;
 	headerFramePool: NativeQuestPool;
 	campaignHeaderFramePool: NativeQuestPool;
@@ -152,6 +164,7 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	const MAP_AND_QUEST_LOG: string;
 	const UiMapPoint: {
 		CreateFromCoordinates(
 			this: void,
@@ -192,6 +205,16 @@ declare global {
 	function QuestUtils_IsQuestWatched(this: void, id: number): boolean;
 }
 export class MapClient implements IMapClient {
+	presentation(available: { width: number; height: number }): {
+		title: string;
+		height: number;
+	} {
+		return {
+			title: MAP_AND_QUEST_LOG,
+			height:
+				this.mapDimensions(available).height + CONTENT_TOP + BREADCRUMB_HEIGHT,
+		};
+	}
 	private enabled = false;
 	private originalToggleSelf?: NativeWorldMap["HandleUserActionToggleSelf"];
 	private toggleSelf?: NativeWorldMap["HandleUserActionToggleSelf"];
@@ -226,6 +249,7 @@ export class MapClient implements IMapClient {
 			| "trackMouseOver"
 			| "hover"
 		>,
+		private readonly indicator: Pick<NativeScrollIndicator, "bind" | "release">,
 	) {}
 	private readonly visibility = () => {
 		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
@@ -249,7 +273,10 @@ export class MapClient implements IMapClient {
 		this.hooked = true;
 		WorldMapFrame.HookScript("OnShow", this.visibility);
 		WorldMapFrame.HookScript("OnHide", this.visibility);
-		hooksecurefunc(WorldMapFrame, "OnMapChanged", () => this.resize());
+		hooksecurefunc(WorldMapFrame, "OnMapChanged", () => {
+			this.resize();
+			if (this.enabled && this.parent) this.events.emit("QUEST_LOG_UPDATE");
+		});
 		hooksecurefunc("QuestLogQuests_Update", () => {
 			if (this.enabled && this.parent) this.events.emit("QUEST_LOG_UPDATE");
 		});
@@ -291,29 +318,32 @@ export class MapClient implements IMapClient {
 		this.applyQuestLayout();
 		QuestLogQuests_Update();
 	}
-	resize(): void {
-		const parent = this.parent;
-		if (!parent || !this.enabled) return;
-		const map = WorldMapFrame;
-		const available = parent.getSize();
+	private mapDimensions(available: { width: number; height: number }): {
+		width: number;
+		height: number;
+	} {
 		const layer = (
 			C_Map.GetMapArtLayers as unknown as (
 				this: void,
 				id: number,
 			) => { layerWidth: number; layerHeight: number }[] | undefined
-		)(map.GetMapID())?.at(0);
+		)(WorldMapFrame.GetMapID())?.at(0);
 		const aspect =
 			layer && layer.layerWidth > 0 && layer.layerHeight > 0
 				? layer.layerWidth / layer.layerHeight
 				: 1.5;
 		const width = Math.min(
 			Math.max(1, available.width - MAP_QUEST_PANE_WIDTH),
-			// Center the artwork itself while leaving room for breadcrumbs above it.
-			Math.max(1, available.height - 2 * (CONTENT_TOP + BREADCRUMB_HEIGHT)) *
-				aspect,
+			Math.max(1, available.height - CONTENT_TOP - BREADCRUMB_HEIGHT) * aspect,
 		);
-		const height = width / aspect;
-		const artTop = (available.height - height) / 2;
+		return { width, height: width / aspect };
+	}
+	resize(): void {
+		const parent = this.parent;
+		if (!parent || !this.enabled) return;
+		const map = WorldMapFrame;
+		const available = parent.getSize();
+		const { width, height } = this.mapDimensions(available);
 		this.layout.bind(map, {
 			parent,
 			// Quest children extend beyond the fitted map root's render-buffer bounds.
@@ -321,9 +351,12 @@ export class MapClient implements IMapClient {
 			// Limit the native background as well as the scroll viewport to the fitted map.
 			insets: [
 				0,
-				artTop - BREADCRUMB_HEIGHT,
+				CONTENT_TOP,
 				Math.max(0, available.width - width),
-				artTop,
+				Math.max(
+					0,
+					available.height - height - CONTENT_TOP - BREADCRUMB_HEIGHT,
+				),
 			],
 			reparent: true,
 			scale: 1,
@@ -387,7 +420,7 @@ export class MapClient implements IMapClient {
 		this.layout.bind(quests.ContentsAnchor, { parent: quests });
 		this.layout.bind(quests.QuestsFrame, {
 			parent: quests.ContentsAnchor,
-			insets: [0, 0, 22, 0],
+			insets: [0, 0, 0, 0],
 			visible: true,
 		});
 		this.layout.bind(quests.DetailsFrame, {
@@ -401,6 +434,10 @@ export class MapClient implements IMapClient {
 			visible: !this.details,
 			clip: true,
 		});
+		this.layout.bind(quests.QuestsFrame.ScrollFrame.ScrollBar, {
+			visible: false,
+		});
+		this.indicator.bind(quests.QuestsFrame.ScrollFrame);
 		for (const frame of [
 			quests.QuestsTab,
 			quests.EventsTab,
@@ -417,6 +454,7 @@ export class MapClient implements IMapClient {
 		this.parent = undefined;
 		this.questPane = undefined;
 		this.details = false;
+		this.indicator.release();
 		this.layout.release();
 		this.controls.release();
 	}

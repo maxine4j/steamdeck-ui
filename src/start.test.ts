@@ -271,6 +271,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	};
 	const slashCommands = { initialize: vi.fn(), shutdown: vi.fn() };
 	const map = {
+		presentation: ({ width, height }: { width: number; height: number }) => ({
+			title: "Map & Quest Log",
+			height: Math.min(height, (width - 320) / 1.5 + 80),
+		}),
 		disable: vi.fn(),
 		restore: vi.fn(),
 		isOpen: vi.fn(() => false),
