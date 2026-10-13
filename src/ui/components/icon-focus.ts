@@ -47,11 +47,11 @@ export class IconFocus {
 		this.glow.SetTexture("Interface\\Buttons\\UI-ActionButton-Border");
 		this.glow.SetBlendMode("ADD");
 		this.glow.SetVertexColor(1, 0.82, 0);
-		this.glow.SetAlpha(0.2);
+		this.glow.SetAlpha(1);
 		this.animation = this.glow.CreateAnimationGroup();
 		const pulse = this.animation.CreateAnimation("Alpha");
-		pulse.SetFromAlpha(0.2);
-		pulse.SetToAlpha(0.45);
+		pulse.SetFromAlpha(0.45);
+		pulse.SetToAlpha(1);
 		pulse.SetDuration(1.2);
 		pulse.SetSmoothing("IN_OUT");
 		this.animation.SetLooping("BOUNCE");

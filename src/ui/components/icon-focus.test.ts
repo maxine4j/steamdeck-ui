@@ -22,7 +22,10 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 			playing = false;
 		}),
 	};
-	const textures: { SetColorTexture: ReturnType<typeof vi.fn> }[] = [];
+	const textures: {
+		SetColorTexture: ReturnType<typeof vi.fn>;
+		SetAlpha: ReturnType<typeof vi.fn>;
+	}[] = [];
 	const natives: ReturnType<typeof create>[] = [];
 	function create() {
 		return {
@@ -83,8 +86,9 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 		-2,
 	);
 	expect(animation.SetLooping).toHaveBeenCalledWith("BOUNCE");
-	expect(alpha.SetFromAlpha).toHaveBeenCalledWith(0.2);
-	expect(alpha.SetToAlpha).toHaveBeenCalledWith(0.45);
+	expect(textures.at(-1)?.SetAlpha).toHaveBeenLastCalledWith(1);
+	expect(alpha.SetFromAlpha).toHaveBeenCalledWith(0.45);
+	expect(alpha.SetToAlpha).toHaveBeenCalledWith(1);
 	expect(alpha.SetDuration).toHaveBeenCalledWith(1.2);
 	expect(animation.Play).toHaveBeenCalledOnce();
 	icon.setFocused(true, true);
