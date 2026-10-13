@@ -239,6 +239,8 @@ export class MapClient implements IMapClient {
 		// Keep QuestMapFrame parented to the map: its scripts call the owner's map methods.
 		this.layout.bind(quests, {
 			parent: this.questPane,
+			// Anchoring alone retains the map's old level beneath our opaque pane.
+			levelOffset: 1,
 			insets: [8, 8, 8, 48],
 			// L/M toggles inspect this root's logical shown state.
 			visible: true,

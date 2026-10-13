@@ -123,6 +123,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		quests,
 		expect.objectContaining({
 			parent: pane,
+			levelOffset: 1,
 			visible: true,
 			alpha: 1,
 			mouse: true,

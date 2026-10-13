@@ -199,6 +199,11 @@ export class Frame implements IUIComponent {
 		native.SetPoint("TOPLEFT", parent.acquire(), "TOPLEFT", 0, 0);
 		native.SetPoint("BOTTOMRIGHT", parent.acquire(), "BOTTOMRIGHT", 0, 0);
 	}
+	getFrameLevel(): number {
+		return (
+			this.acquire() as WowFrame & { GetFrameLevel(): number }
+		).GetFrameLevel();
+	}
 	/** Generic existing-frame hosting; domain code never receives our native frame. */
 	anchorExisting(
 		native: WowFrame,

@@ -1,7 +1,56 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { IFramePoolManager } from "../frame-pool-manager";
+import { Frame } from "./frame";
 import { type LayoutFrame, NativeLayout } from "./native-layout";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("keeps an anchored native child above its host background without changing its script parent, then restores its level", () => {
+	const hooks = new Map<string, () => void>();
+	vi.stubGlobal(
+		"hooksecurefunc",
+		vi.fn((_frame: unknown, method: string, callback: () => void) =>
+			hooks.set(method, callback),
+		),
+	);
+	const owner = {};
+	let hostLevel = 20;
+	const host = new Frame("host", {
+		acquire: () => ({ GetFrameLevel: () => hostLevel }),
+		getBackground: () => ({}),
+	} as unknown as IFramePoolManager);
+	const native = {
+		GetParent: () => owner,
+		GetNumPoints: () => 0,
+		GetSize: () => [300, 400],
+		GetScale: () => 1,
+		GetFrameStrata: () => "DIALOG",
+		GetAlpha: () => 1,
+		IsShown: () => true,
+		GetFrameLevel: () => 3,
+		SetFrameLevel: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetSize: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetAlpha: vi.fn(),
+	} as unknown as LayoutFrame;
+	const layout = new NativeLayout();
+	layout.bind(native, { parent: host, levelOffset: 1 });
+	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(21);
+	expect(native.SetParent).not.toHaveBeenCalled();
+	hooks.get("SetFrameLevel")?.();
+	expect(native.SetFrameLevel).toHaveBeenCalledTimes(2);
+	hostLevel = 30;
+	hooks.get("Raise")?.();
+	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(31);
+	layout.release();
+	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(3);
+	hooks.get("SetFrameLevel")?.();
+	expect(native.SetFrameLevel).toHaveBeenCalledTimes(4);
+});
 
 it("owns anchors across native rewrites, keeps hooks inert after release, and restores original layout", () => {
 	const hooks = new Map<string, () => void>();
