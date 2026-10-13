@@ -106,6 +106,10 @@ export class AchievementsPanel implements IPanel {
 			batchSize: 30,
 			contentPadding: { horizontal: 18, vertical: 16 },
 			progressInset: { horizontal: 0, bottom: 12 },
+			progressTextures: {
+				fill: "ui-journeys-progressbar-fill",
+				track: "ui-journeys-progressbar-BG",
+			},
 			scheduler,
 			onChanged: (complete) => {
 				if (complete) this.renderDirty = false;

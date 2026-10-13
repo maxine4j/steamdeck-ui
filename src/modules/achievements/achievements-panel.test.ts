@@ -10,22 +10,24 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { AchievementsPanel } from "./achievements-panel";
 
-const { lists, frames, reveal, edges, resizeCallbacks } = vi.hoisted(() => ({
-	edges: vi.fn(),
-	resizeCallbacks: new Map<string, () => void>(),
-	reveal: vi.fn(),
-	lists: new Map<string, { rows: readonly ListRow[]; mounted: boolean }>(),
-	frames: new Map<
-		string,
-		{
-			visible: boolean;
-			layouts: number[][];
-			labels: Map<string, string>;
-			opacity: number;
-			click?: () => void;
-		}
-	>(),
-}));
+const { lists, frames, reveal, edges, resizeCallbacks, listOptions } =
+	vi.hoisted(() => ({
+		listOptions: new Map<string, unknown>(),
+		edges: vi.fn(),
+		resizeCallbacks: new Map<string, () => void>(),
+		reveal: vi.fn(),
+		lists: new Map<string, { rows: readonly ListRow[]; mounted: boolean }>(),
+		frames: new Map<
+			string,
+			{
+				visible: boolean;
+				layouts: number[][];
+				labels: Map<string, string>;
+				opacity: number;
+				click?: () => void;
+			}
+		>(),
+	}));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		state = {
@@ -92,7 +94,14 @@ vi.mock("../../ui/components/frame", () => ({
 vi.mock("../../ui/components/scroll-list", () => ({
 	ScrollList: class {
 		state = { rows: [] as readonly ListRow[], mounted: false };
-		constructor(id: string) {
+		constructor(
+			id: string,
+			_pool?: IFramePoolManager,
+			_title?: string,
+			_close?: () => void,
+			options?: unknown,
+		) {
+			listOptions.set(id, options);
 			lists.set(id, this.state);
 		}
 		setRows(rows: readonly ListRow[]) {
@@ -152,6 +161,16 @@ beforeEach(() => {
 	frames.clear();
 	reveal.mockClear();
 	resizeCallbacks.clear();
+});
+
+it("uses modern textured progress bars on achievement tiles", () => {
+	setup();
+	expect(listOptions.get("achievements-list")).toMatchObject({
+		progressTextures: {
+			fill: "ui-journeys-progressbar-fill",
+			track: "ui-journeys-progressbar-BG",
+		},
+	});
 });
 
 it("keeps a warm achievement page unchanged until reopening after cache updates", () => {

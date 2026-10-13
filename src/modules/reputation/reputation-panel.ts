@@ -31,6 +31,10 @@ export class ReputationPanel implements IPanel {
 			gap: 12,
 			edgeProgress: true,
 			progressInset: { horizontal: 10, bottom: 7 },
+			progressTextures: {
+				fill: "ui-journeys-progressbar-fill",
+				track: "ui-journeys-progressbar-BG",
+			},
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});

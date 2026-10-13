@@ -227,8 +227,8 @@ export class PaperDollPanel implements IPanel {
 			cell.details.setLabel(
 				"item",
 				slot.itemId === undefined || slot.itemLevel === undefined
-					? ""
-					: `|cffffffff${Math.floor(slot.itemLevel)}|r`,
+					? slot.name
+					: `${slot.name} · |cffffffff${Math.floor(slot.itemLevel)}|r`,
 				point,
 				0,
 				-15,
@@ -237,13 +237,14 @@ export class PaperDollPanel implements IPanel {
 			);
 			cell.details.setLabel("track", trackText(slot), point, 0, -29, 10, width);
 			const nameLimit = weapon ? 34 : 22;
+			const itemName = slot.itemName ?? `Item ${slot.itemId}`;
 			cell.details.setLabel(
 				"name",
 				slot.itemId === undefined
 					? ""
-					: slot.name.length > nameLimit
-						? `${slot.name.slice(0, nameLimit - 1)}…`
-						: slot.name,
+					: itemName.length > nameLimit
+						? `${itemName.slice(0, nameLimit - 3)}...`
+						: itemName,
 				point,
 				0,
 				-1,

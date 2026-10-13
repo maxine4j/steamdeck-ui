@@ -136,6 +136,7 @@ function setup() {
 		vi.fn(() => 4),
 	);
 	const item = {
+		GetItemInfo: vi.fn<() => [string | undefined]>(() => ["Helm of the Deck"]),
 		GetItemUpgradeInfo: vi.fn<
 			() =>
 				| { trackString?: string; currentLevel: number; maxLevel: number }
@@ -162,6 +163,7 @@ it("includes empty slots, requests unloaded equipment once and reads the equippe
 		slotId: 1,
 		name: "Head",
 		icon: 123,
+		itemName: "Helm of the Deck",
 		itemId: 42,
 		quality: 4,
 		itemLevel: 150,
@@ -171,10 +173,20 @@ it("includes empty slots, requests unloaded equipment once and reads the equippe
 		name: "Neck",
 		icon: 100,
 		itemId: undefined,
+		itemName: undefined,
 	});
 	expect(item.GetDetailedItemLevelInfo).toHaveBeenCalledWith("item:42:bonus");
 	expect(item.GetItemUpgradeInfo).toHaveBeenCalledWith("item:42:bonus");
+	expect(item.GetItemInfo).toHaveBeenCalledExactlyOnceWith(42);
 	client.getEquipment();
+	expect(item.RequestLoadItemDataByID).toHaveBeenCalledExactlyOnceWith(42);
+});
+it("leaves unloaded equipment names pending and reads them after item data arrives", () => {
+	const { client, item } = setup();
+	item.GetItemInfo.mockReturnValue([undefined]);
+	expect(client.getEquipment().at(0)?.itemName).toBeUndefined();
+	item.GetItemInfo.mockReturnValue(["Helm of the Deck"]);
+	expect(client.getEquipment().at(0)?.itemName).toBe("Helm of the Deck");
 	expect(item.RequestLoadItemDataByID).toHaveBeenCalledExactlyOnceWith(42);
 });
 it("omits upgrade data for untracked, unloaded and empty slots", () => {

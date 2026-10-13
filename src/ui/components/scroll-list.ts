@@ -98,6 +98,7 @@ export class ScrollList {
 			readonly batchSize?: number;
 			readonly edgeProgress?: boolean;
 			readonly progressInset?: { horizontal: number; bottom: number };
+			readonly progressTextures?: { fill: string; track: string };
 			readonly contentPadding?: { horizontal: number; vertical: number };
 			readonly centerSingleLine?: boolean;
 			readonly buttonWidth?: number;
@@ -506,7 +507,11 @@ export class ScrollList {
 						this.options.progressInset?.bottom ??
 							(this.options.edgeProgress ? 0 : 6),
 					);
-					button.track.setColor(0.025, 0.025, 0.025);
+					if (this.options.progressTextures)
+						button.track.setAtlasBackground(
+							this.options.progressTextures.track,
+						);
+					else button.track.setColor(0.025, 0.025, 0.025);
 					button.track.show();
 					const value = Math.max(0, Math.min(1, row.progress.value));
 					if (value > 0) {
@@ -519,7 +524,12 @@ export class ScrollList {
 							0,
 							0,
 						);
-						button.progress.setColor(...row.progress.color);
+						if (this.options.progressTextures)
+							button.progress.setAtlasBackground(
+								this.options.progressTextures.fill,
+								row.progress.color,
+							);
+						else button.progress.setColor(...row.progress.color);
 						button.progress.show();
 					} else button.progress.hide();
 				} else {

@@ -6,6 +6,7 @@ export interface EquipmentUpgradeTrack {
 export interface EquipmentSlot {
 	readonly slotId: number;
 	readonly name: string;
+	readonly itemName?: string;
 	readonly icon: number;
 	readonly itemId?: number;
 	readonly quality: number;
@@ -184,8 +185,10 @@ export class CharacterClient implements ICharacterClient {
 			const itemId = GetInventoryItemID("player", slotId) ?? undefined;
 			const hyperlink = GetInventoryItemLink("player", slotId) ?? undefined;
 			let itemLevel: number | undefined;
+			let itemName: string | undefined;
 			let upgradeTrack: EquipmentUpgradeTrack | undefined;
 			if (itemId !== undefined) {
+				[itemName] = C_Item.GetItemInfo(itemId);
 				if (
 					!C_Item.IsItemDataCachedByID(itemId) &&
 					!this.requested.has(itemId)
@@ -217,6 +220,7 @@ export class CharacterClient implements ICharacterClient {
 			return {
 				slotId,
 				name,
+				itemName,
 				itemId,
 				hyperlink,
 				itemLevel,

@@ -602,6 +602,10 @@ it("insets tile progress tracks and sizes the fill within the padded width", () 
 		{
 			edgeProgress: true,
 			progressInset: { horizontal: 10, bottom: 7 },
+			progressTextures: {
+				fill: "ui-journeys-progressbar-fill",
+				track: "ui-journeys-progressbar-BG",
+			},
 		},
 	);
 	list.setRows([
@@ -614,6 +618,12 @@ it("insets tile progress tracks and sizes the fill within the padded width", () 
 		},
 	]);
 	list.mount(new Frame("padded-parent", {} as IFramePoolManager));
+	expect(
+		frames.get("padded-track-0")?.setAtlasBackground,
+	).toHaveBeenLastCalledWith("ui-journeys-progressbar-BG");
+	expect(
+		frames.get("padded-progress-0")?.setAtlasBackground,
+	).toHaveBeenLastCalledWith("ui-journeys-progressbar-fill", [0, 1, 0]);
 	expect(frames.get("padded-track-0")?.layout).toHaveBeenLastCalledWith(
 		424,
 		6,

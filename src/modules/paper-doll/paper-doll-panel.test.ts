@@ -96,8 +96,11 @@ it("fits equipment around a character model with stats below, reuses controls an
 	);
 	const equipment = Array.from({ length: 18 }, (_, index) => ({
 		slotId: index + 1,
-		name:
-			index === 0 ? "An Extremely Long Equipment Item Name" : `Slot ${index}`,
+		name: index === 0 ? "Head" : `Slot ${index}`,
+		itemName:
+			index === 0 || index === 16
+				? "An Extremely Long Equipment Item Name"
+				: `Equipped item ${index}`,
 		icon: 123,
 		quality: 4,
 		itemId: 42,
@@ -131,12 +134,14 @@ it("fits equipment around a character model with stats below, reuses controls an
 	});
 	panel.setEquipment(equipment);
 	const details = natives.filter((native) =>
-		native.texts.includes("|cffffffff150|r"),
+		native.texts.some((text) => text.includes(" · |cffffffff150|r")),
 	);
 	expect(details).toHaveLength(18);
-	expect(details.at(0)?.texts).toContain("|cffffffff150|r");
-	expect(details.at(0)?.texts).toContain("An Extremely Long Equ…");
-	expect(details.at(1)?.texts).toContain("Slot 1");
+	expect(details.at(0)?.texts).toContain("Head · |cffffffff150|r");
+	expect(details.at(0)?.texts).toContain("An Extremely Long E...");
+	expect(details.at(1)?.texts).toContain("Equipped item 1");
+	expect(details.at(1)?.texts).toContain("Slot 1 · |cffffffff150|r");
+	expect(details.at(16)?.texts).toContain("An Extremely Long Equipment Ite...");
 	expect(details.at(0)?.texts).toContain(
 		"|cff0070ddChampion |cffffff005|cff0070dd/6|r",
 	);
@@ -299,12 +304,23 @@ it("fits equipment around a character model with stats below, reuses controls an
 	panel.setEquipment(
 		equipment.map((slot) => ({
 			...slot,
+			itemName: undefined,
+			itemLevel: undefined,
+		})),
+	);
+	expect(details.at(0)?.labels.at(0)?.SetText).toHaveBeenLastCalledWith("Head");
+	expect(details.at(0)?.labels.at(2)?.SetText).toHaveBeenLastCalledWith(
+		"Item 42",
+	);
+	panel.setEquipment(
+		equipment.map((slot) => ({
+			...slot,
 			itemId: undefined,
 			itemLevel: undefined,
 			upgradeTrack: undefined,
 		})),
 	);
-	expect(details.at(0)?.labels.at(0)?.SetText).toHaveBeenLastCalledWith("");
+	expect(details.at(0)?.labels.at(0)?.SetText).toHaveBeenLastCalledWith("Head");
 	expect(details.at(0)?.labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
 	expect(details.at(0)?.labels.at(2)?.SetText).toHaveBeenLastCalledWith("");
 	panel.destroy();
