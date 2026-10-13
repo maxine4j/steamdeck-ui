@@ -604,8 +604,11 @@ export class Frame implements IUIComponent {
 		this.setIconSize(info.width * scale, info.height * scale, x, y);
 	}
 	setPortraitIcon(unit: string, width: number, height: number, x = 0): void {
-		const mask = "UI-HUD-MicroMenu-Portrait-Mask";
-		this.setAtlasIcon(mask, width, height, x);
+		this.acquire();
+		this.clearAtlasSlices();
+		this.clearTextureTint();
+		const size = Math.min(width, height);
+		this.setIconSize(size, size, x);
 		const setPortrait = SetPortraitTexture as unknown as (
 			this: void,
 			texture: WowTexture,
@@ -615,7 +618,6 @@ export class Frame implements IUIComponent {
 			setPortrait(this.texture, unit);
 			this.texture.SetTexCoord(0, 1, 0, 1);
 		}
-		this.pool.setBackgroundMask(this.acquire(), mask);
 	}
 	setModelUnit(unit: string): void {
 		if (this.frameType !== "PlayerModel")

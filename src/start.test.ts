@@ -757,7 +757,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		const texture = textures.at(tabIndex);
 		if (!texture) throw new Error(`Missing tab texture ${icon}`);
 		expect(vi.mocked(texture.SetWidth).mock.lastCall?.at(0)).toBe(
-			typeof icon === "string" ? 8 : 32,
+			typeof icon === "string" && icon !== "player" ? 8 : 32,
 		);
 		expect(vi.mocked(texture.SetHeight).mock.lastCall?.at(0)).toBe(32);
 		const border = vi.mocked(tab.SetParent).mock.lastCall?.at(0) as WowFrame;
