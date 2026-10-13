@@ -11,6 +11,9 @@ const records = vi.hoisted(() => ({
 	created: 0,
 	layouts: new Map<string, [number, number]>(),
 	labels: new Map<string, Map<string, string>>(),
+	anchors: new Map<string, [string, number, number]>(),
+	skins: new Map<string, string>(),
+	labelAnchors: new Map<string, string>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
@@ -18,11 +21,20 @@ vi.mock("../../ui/components/frame", () => ({
 			records.created++;
 			records.labels.set(id, new Map());
 		}
-		layout(w: number, h: number) {
+		layout(
+			w: number,
+			h: number,
+			point: string,
+			_parent: unknown,
+			x = 0,
+			y = 0,
+		) {
 			records.layouts.set(this.id, [w, h]);
+			records.anchors.set(this.id, [point, x, y]);
 		}
-		setLabel(key: string, text: string) {
+		setLabel(key: string, text: string, point: string) {
 			records.labels.get(this.id)?.set(key, text);
+			records.labelAnchors.set(`${this.id}:${key}`, point);
 		}
 		getSize() {
 			return { width: 1280, height: this.id.includes("720") ? 720 : 800 };
@@ -34,14 +46,19 @@ vi.mock("../../ui/components/frame", () => ({
 			);
 		}
 		setParent = vi.fn();
-		setColor = vi.fn();
+		setColor = () => records.skins.set(this.id, "flat");
+		setAtlasBackground = (atlas: string) => records.skins.set(this.id, atlas);
+		setLabelStyle = vi.fn();
 		setCloseButtonBackground = vi.fn();
-		setButtonBackground = vi.fn();
+		setButtonBackground = () => records.skins.set(this.id, "red-button");
 		setWindowBackground = vi.fn();
 		setInsetBackground = vi.fn();
 		setFocusBorder = vi.fn();
 		setFocused = vi.fn();
 		setTooltip = vi.fn();
+		setHoverTooltip = vi.fn();
+		showTooltip = vi.fn();
+		hideTooltip = vi.fn();
 		setIcon = vi.fn();
 		setLabelWordWrap = vi.fn();
 		show = vi.fn();
@@ -64,6 +81,9 @@ beforeEach(() => {
 	records.created = 0;
 	records.labels.clear();
 	records.layouts.clear();
+	records.anchors.clear();
+	records.skins.clear();
+	records.labelAnchors.clear();
 });
 
 const page = {
@@ -103,7 +123,7 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 });
 
 it.each([720, 800])(
-	"fits a centered conversation within a 1280×%i host and reuses controls",
+	"keeps the right-side conversation narrow with options below prose at 1280×%i and reuses controls",
 	(height) => {
 		const d = display({
 			...page,
@@ -117,8 +137,25 @@ it.each([720, 800])(
 		const dimensions = records.layouts.get("dialogue-window");
 		if (!dimensions) throw new Error("Expected conversation layout");
 		const [w, h] = dimensions;
-		expect(w).toBeLessThan(1280);
+		expect(w).toBeLessThanOrEqual(520);
 		expect(h).toBeLessThan(height);
+		expect(records.anchors.get("dialogue-window")?.at(0)).toBe("RIGHT");
+		const readingTop = -(
+			records.anchors.get("dialogue-reading-host")?.at(2) ?? 0
+		);
+		const readingHeight =
+			records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
+		const choicesTop = -(
+			records.anchors.get("dialogue-choices-host")?.at(2) ?? 0
+		);
+		expect(choicesTop).toBeGreaterThanOrEqual(readingTop + readingHeight);
+		expect(records.skins.get("dialogue-window")).toBe("QuestBG-Parchment");
+		expect([...records.skins.values()]).not.toContain("red-button");
+		expect(
+			[...records.labels.values()]
+				.flatMap((labels) => [...labels.values()])
+				.join(" "),
+		).not.toContain("% read");
 		const count = records.created;
 		panel.show({ ...d, resetReading: false });
 		panel.onUnmount();
@@ -220,7 +257,7 @@ it("preserves focused reward identity through refresh and restores previous pane
 	const d = display({ ...page, kind: "rewards" });
 	panel.show(d);
 	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
-	nav.moveRight();
+	nav.moveDown();
 	nav.moveDown();
 	nav.moveDown();
 	expect(nav.focusedId).toBe("choice:2");
@@ -229,3 +266,33 @@ it("preserves focused reward identity through refresh and restores previous pane
 	panel.onUnmount();
 	expect(nav.focusedId).toBe("bags-item");
 });
+
+it("uses vertical navigation and aligns plain options inside their padded rows", () => {
+	const { panel } = setup(
+		display({
+			...page,
+			kind: "gossip",
+			entries: [{ id: "talk", label: "Tell me more." }],
+		}),
+	);
+	expect(panel.getNavGrid().map((row) => row.map((n) => n.navId))).toEqual([
+		["dialogue-reading"],
+		["talk"],
+		["dialogue-cancel"],
+	]);
+	expect(records.labelAnchors.get("dialogue-choices-row-0:label")).toBe("LEFT");
+});
+
+it.each(["offer", "rewards"] as const)(
+	"groups guaranteed and choice rewards on the %s page",
+	(kind) => {
+		setup(display({ ...page, kind, autoAccepted: false, pvp: false }));
+		const labels = [...records.labels.values()].flatMap((values) => [
+			...values.values(),
+		]);
+		expect(labels).toContain("Rewards");
+		expect(labels).toContain(
+			kind === "offer" ? "Choose on completion" : "Choose one reward",
+		);
+	},
+);

@@ -5,6 +5,36 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("shows full reward links on controller focus and hides them on blur", () => {
+	const list = new ScrollList(
+		"tooltip-list",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+	);
+	list.setRows([
+		{
+			id: "sword",
+			label: "Sword",
+			tooltipContent: "item:456",
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	const node = list.getNavGrid().at(0)?.at(0);
+	node?.onFocus();
+	expect(frames.get("tooltip-list-row-0")?.showTooltip).toHaveBeenCalledWith(
+		"item:456",
+	);
+	node?.onBlur();
+	expect(frames.get("tooltip-list-row-0")?.hideTooltip).toHaveBeenCalledOnce();
+	node?.onFocus();
+	list.setRows([{ id: "close", label: "Close", activate: vi.fn() }]);
+	expect(frames.get("tooltip-list-row-0")?.hideTooltip).toHaveBeenCalledTimes(
+		2,
+	);
+});
+
 it("rebuilds layout when an update adds a progress bar to a variable-height row", () => {
 	const pending: (() => void)[] = [];
 	const list = new ScrollList(
@@ -616,6 +646,9 @@ vi.mock("./frame", () => ({
 		setLabelWordWrap = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
+		setHoverTooltip = vi.fn();
+		showTooltip = vi.fn();
+		hideTooltip = vi.fn();
 		onClick = vi.fn();
 		inset = vi.fn();
 		fill = vi.fn();

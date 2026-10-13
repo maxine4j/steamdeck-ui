@@ -48,6 +48,7 @@ beforeEach(() => {
 		GetRewardXP: 100,
 		GetRewardHonor: 0,
 		GetRewardTitle: undefined,
+		GetQuestItemLink: undefined,
 	}))
 		vi.stubGlobal(name, () => result);
 	vi.stubGlobal("C_QuestInfoSystem", {
@@ -82,6 +83,27 @@ beforeEach(() => {
 		vi.stubGlobal(name, vi.fn());
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("supplies complete item, currency and spell links for reward inspection", () => {
+	vi.stubGlobal("GetNumQuestRewards", () => 1);
+	vi.stubGlobal("GetQuestItemInfo", () => ["Sword", 123, 1]);
+	vi.stubGlobal("GetQuestItemLink", () => "item:456");
+	vi.stubGlobal("C_QuestInfoSystem", {
+		GetQuestRewardCurrencies: () => [
+			{ name: "Tokens", texture: 12, totalRewardAmount: 5, currencyID: 789 },
+		],
+		GetQuestRewardSpells: () => [101],
+		GetQuestRewardSpellInfo: () => ({ name: "Training", texture: 13 }),
+	});
+	const page = new DialogueClient().read("rewards");
+	if (page.kind !== "rewards") throw new Error("Expected rewards");
+	expect(page.rewards.map((r) => r.tooltipLink)).toEqual([
+		"item:456",
+		"currency:789",
+		"spell:101",
+		undefined,
+	]);
+});
 
 it("uses gossip IDs and the documented orderIndex for identifier-less options", () => {
 	const c = new DialogueClient();

@@ -5,6 +5,37 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("styles readable prose without the default outlined gold font", () => {
+	const label = {
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetFont: vi.fn(),
+		SetJustifyH: vi.fn(),
+		SetWidth: vi.fn(),
+		SetText: vi.fn(),
+		SetTextColor: vi.fn(),
+	};
+	const native = {
+		Hide: vi.fn(),
+		SetParent: vi.fn(),
+		SetScript: vi.fn(),
+		CreateFontString: () => label,
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"prose",
+		new FramePoolManager({ createFrame: () => native }),
+	);
+	frame.setLabel("text", "Hello", "TOPLEFT", 0, 0, 18, 400);
+	frame.setLabelStyle("text", [0.19, 0.17, 0.13]);
+	expect(label.SetTextColor).toHaveBeenCalledWith(0.19, 0.17, 0.13);
+	expect(label.SetFont).toHaveBeenLastCalledWith("Fonts\\FRIZQT__.TTF", 18, "");
+});
+
 it("reuses a looping atlas animation and stops it before releasing its frame", () => {
 	const flipbook = {
 		SetDuration: vi.fn(),
@@ -153,6 +184,7 @@ it("configures secure toy activation and clears toy attributes before pooling", 
 it("shows toy hover details and clears handlers on pooled icon release", () => {
 	const scripts = new Map<string, (() => void) | undefined>();
 	const tooltip = {
+		SetHyperlink: vi.fn(),
 		SetOwner: vi.fn(),
 		SetText: vi.fn(),
 		SetPoint: vi.fn(),
@@ -221,6 +253,10 @@ it("shows toy hover details and clears handlers on pooled icon release", () => {
 		0,
 		0,
 	);
+	frame.showTooltip("item:456");
+	expect(tooltip.SetHyperlink).toHaveBeenLastCalledWith("item:456");
+	frame.hideTooltip();
+	expect(tooltip.Hide).toHaveBeenCalled();
 	frame.destroy();
 	expect(scripts.get("OnEnter")).toBeUndefined();
 	expect(scripts.get("OnLeave")).toBeUndefined();

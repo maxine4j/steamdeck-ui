@@ -4,7 +4,6 @@ import type { IModalNavigation } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
-import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -32,6 +31,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private readingHeight = 430;
 	private height = 620;
 	private navigationChanged?: () => void;
+	private readonly ink = [0.19, 0.17, 0.13] as const;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly navigation: IModalNavigation,
@@ -40,16 +40,24 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.readingHost = new Frame("dialogue-reading-host", pool);
 		this.choicesHost = new Frame("dialogue-choices-host", pool);
 		this.input = new Frame("dialogue-code", pool, "EditBox");
-		this.reading = new ScrollText("dialogue-reading", pool);
+		this.reading = new ScrollText("dialogue-reading", pool, {
+			showPosition: false,
+			textColor: this.ink,
+		});
 		this.choices = new ScrollList(
 			"dialogue-choices",
 			pool,
 			"",
 			() => this.actions?.cancel(),
 			{
-				width: 400,
-				top: 36,
-				bottom: 8,
+				width: 464,
+				padding: 0,
+				top: 0,
+				bottom: 0,
+				gap: 6,
+				contentPadding: { horizontal: 12, vertical: 10 },
+				centerSingleLine: true,
+				textColor: this.ink,
 				background: false,
 				autoHeight: true,
 				onChanged: (complete) => {
@@ -81,36 +89,26 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		if (!(parent instanceof Frame))
 			throw new Error("Dialogue requires a frame parent");
 		const available = parent.getSize();
-		const width = Math.min(980, available.width - 48);
+		const width = Math.min(520, available.width * 0.44);
 		const height = Math.min(620, available.height - 80);
 		this.height = height;
 		this.window.setParent(parent);
-		this.window.layout(width, height, "CENTER", parent);
-		this.window.setWindowBackground();
-		setWindowTitle(this.window, this.title);
-		this.window.setFocusBorder(true);
-		this.readingWidth = width - 444;
-		this.readingHeight = height - 162;
+		this.window.layout(width, height, "RIGHT", parent, -32, 0);
+		this.window.setAtlasBackground("QuestBG-Parchment");
+		this.readingWidth = width - 56;
+		this.readingHeight = Math.floor((height - 180) * 0.45);
 		this.readingHost.setParent(this.window);
 		this.readingHost.layout(
 			this.readingWidth,
 			this.readingHeight,
 			"TOPLEFT",
 			this.window,
-			24,
-			-102,
-		);
-		this.choicesHost.setParent(this.window);
-		this.choicesHost.layout(
-			400,
-			height - 146,
-			"TOPRIGHT",
-			this.window,
-			-16,
+			28,
 			-96,
 		);
+		this.choicesHost.setParent(this.window);
+		this.choices.setWidth(this.readingWidth);
 		this.input.setParent(this.window);
-		this.input.layout(360, 40, "TOPRIGHT", this.window, -32, -106);
 		this.input.setInsetBackground();
 		this.input.setFocusBorder(true);
 		this.input.configureInput((text) => {
@@ -132,14 +130,40 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			"speaker",
 			page.speaker,
 			"TOPLEFT",
-			24,
+			28,
 			-18,
 			16,
 			this.readingWidth,
 		);
-		this.window.setLabel("title", page.title, "TOPLEFT", 24, -42, 22, 924);
+		this.window.setLabel(
+			"title",
+			page.title,
+			"TOPLEFT",
+			28,
+			-44,
+			22,
+			this.readingWidth,
+		);
+		this.window.setLabelStyle("speaker", this.ink);
+		this.window.setLabelStyle("title", this.ink);
+		this.window.setLabelWordWrap("title", false);
 		const text = display.confirmation?.text ?? page.text;
 		this.reading.setText(text, display.resetReading);
+		// Short conversations leave more room for choices; long prose keeps its own reader.
+		const readerHeight = Math.min(
+			this.readingHeight,
+			Math.max(48, this.reading.getTextHeight()),
+		);
+		this.readingHost.layout(
+			this.readingWidth,
+			readerHeight,
+			"TOPLEFT",
+			this.window,
+			28,
+			-96,
+		);
+		this.reading.mount(this.readingHost, this.readingWidth, readerHeight);
+		this.reading.setText(text, false);
 		this.window.setLabel(
 			"hint",
 			display.suspended
@@ -147,20 +171,32 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				: (display.feedback ??
 						"D-pad: Focus · A: Select / Read · Y: Read up · B: Cancel / Close"),
 			"BOTTOMLEFT",
-			24,
+			28,
 			16,
-			14,
-			924,
+			12,
+			this.readingWidth,
 		);
+		this.window.setLabelStyle("hint", this.ink);
+		this.window.setLabelWordWrap("hint", true);
 		const rows: ListRow[] = [];
 		const enabled = !display.suspended && !display.waiting;
+		const choicesTop =
+			96 + readerHeight + 16 + (display.confirmation?.code ? 52 : 0);
 		this.choicesHost.layout(
-			400,
-			this.height - (display.confirmation?.code ? 208 : 146),
-			"TOPRIGHT",
+			this.readingWidth,
+			this.height - choicesTop - 64,
+			"TOPLEFT",
 			this.window,
-			-16,
-			display.confirmation?.code ? -158 : -96,
+			28,
+			-choicesTop,
+		);
+		this.input.layout(
+			this.readingWidth,
+			40,
+			"TOPLEFT",
+			this.window,
+			28,
+			-(choicesTop - 52),
 		);
 		const add = (
 			entry: DialogueEntry,
@@ -171,11 +207,23 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				...entry,
 				selected,
 				fontSize: 17,
-				background: entry.disabled ? [0.055, 0.055, 0.055] : undefined,
+				background: selected ? [0.67, 0.56, 0.36] : false,
 				detail: entry.detail,
+				tooltipContent: entry.tooltipLink,
 				activate: () => {
 					if (enabled) activate();
 				},
+			});
+		};
+		const heading = (id: string, label: string): void => {
+			rows.push({
+				id,
+				label,
+				heading: true,
+				background: false,
+				fontSize: 18,
+				marginTop: 12,
+				activate: () => {},
 			});
 		};
 		if (display.confirmation) {
@@ -199,6 +247,8 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				for (const entry of page.entries)
 					add(entry, () => this.actions?.select(page, entry.id));
 			if (page.kind === "progress") {
+				if (page.requirements.length > 0)
+					heading("requirements-heading", "Required items");
 				for (const entry of page.requirements) add(entry, () => {});
 				add(
 					{
@@ -211,17 +261,25 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				);
 			}
 			if (page.kind === "offer" || page.kind === "rewards") {
+				if (page.rewards.length > 0) heading("rewards-heading", "Rewards");
 				for (const reward of page.rewards)
 					add(
 						{ ...reward, detail: reward.detail ?? "Guaranteed reward" },
 						() => {},
+					);
+				if (page.choices.length > 0)
+					heading(
+						"choices-heading",
+						page.kind === "offer"
+							? "Choose on completion"
+							: "Choose one reward",
 					);
 				for (const choice of page.choices)
 					add(
 						{
 							...choice,
 							label: `${choice.index === display.selected ? "✓ " : ""}${choice.label}`,
-							detail: `${choice.detail ?? ""} · ${page.kind === "offer" ? "Choose on completion" : "Choose one"}`,
+							detail: choice.detail,
 						},
 						() => {
 							if (page.kind === "rewards" && choice.index !== undefined)
@@ -280,9 +338,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	getNavGrid(): NavGrid {
 		if (!this.mounted || !this.display) return [];
 		const choices = this.choices.getNavGrid();
-		for (const row of choices) for (const node of row) node.navColumn = 1;
-		const first = choices.at(0) ?? [];
-		return [[this.reading.node, ...first], ...choices.slice(1)];
+		return [[this.reading.node], ...choices];
 	}
 	private syncNavigation(): void {
 		if (!this.mounted || !this.display) return;

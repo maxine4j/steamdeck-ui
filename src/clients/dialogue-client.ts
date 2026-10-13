@@ -24,6 +24,11 @@ declare global {
 	function GetNumQuestCurrencies(this: void): number;
 	function GetNumQuestRewards(this: void): number;
 	function GetNumQuestChoices(this: void): number;
+	function GetQuestItemLink(
+		this: void,
+		kind: string,
+		index: number,
+	): string | undefined;
 	function GetQuestItemInfo(
 		this: void,
 		kind: string,
@@ -67,6 +72,7 @@ export interface DialogueEntry {
 	readonly detail?: string;
 	readonly disabled?: boolean;
 	readonly icon?: number;
+	readonly tooltipLink?: string;
 }
 export interface DialogueReward extends DialogueEntry {
 	readonly index?: number;
@@ -411,6 +417,7 @@ export class DialogueClient implements IDialogueClient {
 			label: name ?? "Loading item…",
 			icon,
 			detail: `×${count ?? 1}`,
+			tooltipLink: GetQuestItemLink(kind, index),
 		};
 	}
 	private rewards(questID: number): {
@@ -429,6 +436,7 @@ export class DialogueClient implements IDialogueClient {
 					index: i,
 					label: c?.name ?? "Loading currency…",
 					icon: c?.texture,
+					tooltipLink: c ? `currency:${c.currencyID}` : undefined,
 					detail: `×${c?.totalRewardAmount ?? 0}`,
 				});
 			} else choices.push(this.item("choice", i));
@@ -438,6 +446,7 @@ export class DialogueClient implements IDialogueClient {
 				id: `currency:${c.currencyID}`,
 				label: c.name,
 				icon: c.texture,
+				tooltipLink: `currency:${c.currencyID}`,
 				detail: `×${c.totalRewardAmount}`,
 			});
 		for (const id of questInfoAPI().GetQuestRewardSpells(questID) ?? []) {
@@ -446,6 +455,7 @@ export class DialogueClient implements IDialogueClient {
 				id: `spell:${id}`,
 				label: spell?.name ?? "Loading spell…",
 				icon: spell?.texture,
+				tooltipLink: `spell:${id}`,
 				detail: "Spell reward",
 			});
 		}

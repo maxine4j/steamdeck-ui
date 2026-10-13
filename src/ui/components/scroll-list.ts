@@ -2,6 +2,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { type AnimatedAtlas, Frame } from "./frame";
+import type { TooltipContent } from "./tooltip-content";
 import type { IUIComponent } from "./types";
 import { setWindowTitle } from "./window-title";
 
@@ -17,6 +18,7 @@ export interface ListRow {
 	readonly trailingLabel?: string;
 	readonly trailingOnFirstLine?: boolean;
 	readonly tooltip?: string;
+	readonly tooltipContent?: TooltipContent;
 	readonly selected?: boolean;
 	readonly animatedIcon?: AnimatedAtlas;
 	readonly checked?: boolean;
@@ -53,6 +55,7 @@ export class ScrollList {
 		animation?: Frame;
 		animatedFocus?: boolean;
 		dimmed: boolean;
+		tooltipContent?: TooltipContent;
 		secondaryNav: INavigable;
 		nav: INavigable;
 		top: number;
@@ -90,6 +93,7 @@ export class ScrollList {
 			readonly progressInset?: { horizontal: number; bottom: number };
 			readonly contentPadding?: { horizontal: number; vertical: number };
 			readonly centerSingleLine?: boolean;
+			readonly textColor?: readonly [number, number, number];
 		} = {},
 	) {
 		this.frame = new Frame(id, pool);
@@ -305,6 +309,8 @@ export class ScrollList {
 									if (control) control.animatedFocus = true;
 								} else frame.setFocused(true);
 								this.reveal(index);
+								const tooltip = this.rows.at(index)?.tooltipContent;
+								if (tooltip !== undefined) frame.showTooltip(tooltip);
 							},
 							onBlur: () => {
 								const control = this.buttons.at(index);
@@ -313,6 +319,8 @@ export class ScrollList {
 									control.animatedFocus = false;
 								}
 								this.style(index);
+								if (this.rows.at(index)?.tooltipContent !== undefined)
+									frame.hideTooltip();
 							},
 							onContext: () => {
 								if (this.isReady(index)) this.rows.at(index)?.context?.();
@@ -329,6 +337,12 @@ export class ScrollList {
 				}
 				if (button.nav.navId !== row.id)
 					button.nav = { ...button.nav, navId: row.id };
+				if (
+					button.tooltipContent !== undefined &&
+					button.tooltipContent !== row.tooltipContent
+				)
+					button.frame.hideTooltip();
+				button.tooltipContent = row.tooltipContent;
 				button.frame.setParent(this.content);
 				const rowHeight =
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
@@ -504,6 +518,10 @@ export class ScrollList {
 					textWidth,
 				);
 				button.frame.setLabelWordWrap("detail", columns === 1);
+				if (this.options.textColor) {
+					button.frame.setLabelStyle("label", this.options.textColor);
+					button.frame.setLabelStyle("detail", this.options.textColor);
+				}
 				if (columns > 1) {
 					button.frame.setLabelWordWrap("label", row.wrapLabel ?? false);
 				}
@@ -529,6 +547,10 @@ export class ScrollList {
 					);
 				}
 				button.frame.setTooltip(row.tooltip ?? row.label);
+				if (row.tooltipContent !== undefined)
+					button.frame.setHoverTooltip(
+						() => this.rows.at(index)?.tooltipContent,
+					);
 				if (this.options.secure) button.frame.setSpell(row.spell);
 				else
 					button.frame.onClick((mouseButton) => {
@@ -606,7 +628,11 @@ export class ScrollList {
 		);
 	}
 	unmount(): void {
-		for (const button of this.buttons) button.animation?.hide();
+		for (const [index, button] of this.buttons.entries()) {
+			button.animation?.hide();
+			if (this.rows.at(index)?.tooltipContent !== undefined)
+				button.frame.hideTooltip();
+		}
 		this.mounted = false;
 		this.cancelRender?.();
 		this.cancelRender = undefined;

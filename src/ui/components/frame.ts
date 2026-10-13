@@ -673,6 +673,17 @@ export class Frame implements IUIComponent {
 	setLabelWordWrap(key: string, wrap: boolean): void {
 		this.labels.get(key)?.SetWordWrap(wrap);
 	}
+	setLabelStyle(key: string, color: readonly [number, number, number]): void {
+		const label = this.labels.get(key) as
+			| (WowFontString & {
+					SetTextColor(r: number, g: number, b: number): void;
+			  })
+			| undefined;
+		const state = this.labelState.get(key);
+		if (!label || !state) return;
+		label.SetTextColor(...color);
+		label.SetFont("Fonts\\FRIZQT__.TTF", state.size, "");
+	}
 	labelHeight(key: string): number {
 		const label = this.labels.get(key) as
 			| (WowFontString & { GetStringHeight(): number })
@@ -797,31 +808,39 @@ export class Frame implements IUIComponent {
 				callback?: (this: void) => void,
 			): void;
 		};
-		const hide = () => this.hoverTooltip?.hide();
+		const hide = () => this.hideTooltip();
 		native.SetScript("OnEnter", () => {
 			const item = content();
 			if (item === undefined) {
 				hide();
 				return;
 			}
-			this.hoverTooltip ??= new Frame(
-				`${this.id}-hover-tooltip`,
-				this.pool,
-				"GameTooltip",
-			);
-			const tooltip = this.hoverTooltip.acquire() as ItemTooltipFrame;
-			tooltip.SetFrameStrata("TOOLTIP");
-			const anchor =
-				typeof item === "object" && "text" in item ? item.anchor : undefined;
-			if (anchor) anchor.anchorTooltip(tooltip);
-			else tooltip.SetOwner(native, "ANCHOR_RIGHT");
-			tooltip.ClearLines();
-			setTooltipContent(tooltip, item);
-			tooltip.Show();
+			this.showTooltip(item);
 		});
 		native.SetScript("OnLeave", hide);
 		native.SetScript("OnHide", hide);
 		this.hoverTooltipConfigured = true;
+	}
+	showTooltip(content: TooltipContent): void {
+		this.hoverTooltip ??= new Frame(
+			`${this.id}-hover-tooltip`,
+			this.pool,
+			"GameTooltip",
+		);
+		const tooltip = this.hoverTooltip.acquire() as ItemTooltipFrame;
+		tooltip.SetFrameStrata("TOOLTIP");
+		const anchor =
+			typeof content === "object" && "text" in content
+				? content.anchor
+				: undefined;
+		if (anchor) anchor.anchorTooltip(tooltip);
+		else tooltip.SetOwner(this.acquire(), "ANCHOR_RIGHT");
+		tooltip.ClearLines();
+		setTooltipContent(tooltip, content);
+		tooltip.Show();
+	}
+	hideTooltip(): void {
+		this.hoverTooltip?.hide();
 	}
 	setCooldown(start: number, duration: number): void {
 		if (this.frameType !== "Cooldown")

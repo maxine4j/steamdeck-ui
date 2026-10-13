@@ -11,7 +11,14 @@ export class ScrollText {
 	private height = 1;
 	private mounted = false;
 	readonly node: INavigable;
-	constructor(id: string, pool: IFramePoolManager) {
+	constructor(
+		id: string,
+		pool: IFramePoolManager,
+		private readonly options: {
+			readonly showPosition?: boolean;
+			readonly textColor?: readonly [number, number, number];
+		} = {},
+	) {
 		this.scroll = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
 		this.position = new Frame(`${id}-position`, pool);
@@ -29,21 +36,23 @@ export class ScrollText {
 		this.height = height;
 		this.mounted = true;
 		this.scroll.setParent(parent);
-		this.scroll.layout(width, height - 28, "TOPLEFT", parent);
+		this.scroll.layout(width, this.viewportHeight(), "TOPLEFT", parent);
 		this.content.setParent(this.scroll);
 		this.scroll.setScrollContent(this.content);
 		this.position.setParent(parent);
 		this.position.layout(width, 24, "BOTTOMLEFT", parent);
 		this.scroll.show();
 		this.content.show();
-		this.position.show();
+		if (this.options.showPosition !== false) this.position.show();
 	}
 	setText(text: string, reset: boolean): void {
 		this.content.setLabel("text", text, "TOPLEFT", 8, -8, 18, this.width - 24);
 		this.content.setLabelWordWrap("text", true);
+		if (this.options.textColor)
+			this.content.setLabelStyle("text", this.options.textColor);
 		this.content.layout(
 			this.width - 8,
-			Math.max(this.height - 28, this.content.labelHeight("text") + 24),
+			Math.max(this.viewportHeight(), this.content.labelHeight("text") + 24),
 			"TOPLEFT",
 			this.scroll,
 		);
@@ -51,11 +60,18 @@ export class ScrollText {
 		this.scroll.clampScroll();
 		this.move(0);
 	}
+	getTextHeight(): number {
+		return this.content.labelHeight("text") + 24;
+	}
+	private viewportHeight(): number {
+		return this.height - (this.options.showPosition === false ? 0 : 28);
+	}
 	private move(direction: number): void {
 		if (!this.mounted) return;
 		const { offset, range } = this.scroll.scrollBy(
 			direction * Math.max(80, this.height - 100),
 		);
+		if (this.options.showPosition === false) return;
 		this.position.setLabel(
 			"position",
 			`${range > 0 ? Math.round((offset / range) * 100) : 100}% read · A: Down · Y: Up`,

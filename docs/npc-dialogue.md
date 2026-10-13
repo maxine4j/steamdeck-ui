@@ -1,6 +1,6 @@
 # NPC dialogue implementation
 
-The feature owns one transient fullscreen-hosted conversation panel. It does not register a permanent dock tab. The panel composes pooled frames, a measured scrolling reader and reusable scrolling choices. Its exclusive navigation grid restores the previous grid and focused identity on unmount.
+The feature owns one transient fullscreen-hosted conversation panel. It does not register a permanent dock tab. Its narrow parchment surface sits on the right, leaving the left side open for the NPC camera. A measured scrolling reader sits above reusable scrolling choices and grouped quest rewards. Short prose gives the options more space; long prose remains independently scrollable. There is no reading-percentage label. Its vertical exclusive navigation grid restores the previous grid and focused identity on unmount. Item, currency and spell rewards expose full tooltips on controller focus and mouse hover.
 
 ## Verified local API semantics
 
@@ -15,7 +15,7 @@ The feature owns one transient fullscreen-hosted conversation panel. It does not
 - `QUEST_AUTOCOMPLETE` supplies the remote quest ID. An explicit review action invokes `ShowQuestComplete`; no reward is claimed automatically. Notifications arriving during a conversation wait until it ends.
 - `QUEST_ACCEPT_CONFIRM` supplies the shared offer's player, title and quest ID. Acceptance uses `ConfirmAcceptQuest` and checks the current quest-log limit.
 
-References: bundled `Blizzard_UIPanels_Game/Mainline/QuestFrame.lua`, `QuestInfo.lua`, `CustomGossipFrameBase.lua`, `Shared/GossipFrameShared.lua`, generated GossipInfo/QuestOffer/QuestLog/QuestRewards API documentation, `Blizzard_Game` event routing and `Blizzard_StaticPopup_Game/GameDialogDefs.lua`. DialogueUI's `Core.lua` informed event suppression; its `Camera.lua` informed camera restoration. Camera implementation here changes distance only, without targeting or persistent CVar changes.
+References: bundled `Blizzard_UIPanels_Game/Mainline/QuestFrame.lua`, `QuestInfo.lua`, `CustomGossipFrameBase.lua`, `Shared/GossipFrameShared.lua`, generated GossipInfo/QuestOffer/QuestLog/QuestRewards API documentation, `Blizzard_Game` event routing and `Blizzard_StaticPopup_Game/GameDialogDefs.lua`. DialogueUI's `Core.lua` informed event suppression; its `DialogueUI.lua`, `UITemplates.lua` and `ThemeUtil.lua` informed the narrow parchment layout, stacked options and brown text. We use Blizzard's parchment atlas, without depending on DialogueUI's assets. Its `Camera.lua` informed interaction focus, shoulder offset and camera restoration. Camera distance and each modified CVar are restored on closure, combat, service transitions and shutdown; first-person, item-started and remote/shared offers leave the camera alone.
 
 ## Suppression and lifecycle
 

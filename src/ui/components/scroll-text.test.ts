@@ -3,7 +3,7 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ScrollText } from "./scroll-text";
 
-const state = vi.hoisted(() => ({ offset: 0, created: 0 }));
+const state = vi.hoisted(() => ({ offset: 0, created: 0, labels: vi.fn() }));
 vi.mock("./frame", () => ({
 	Frame: class {
 		constructor() {
@@ -14,7 +14,8 @@ vi.mock("./frame", () => ({
 		show = vi.fn();
 		hide = vi.fn();
 		destroy = vi.fn();
-		setLabel = vi.fn();
+		setLabel = state.labels;
+		setLabelStyle = vi.fn();
 		setLabelWordWrap = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
@@ -29,6 +30,19 @@ vi.mock("./frame", () => ({
 		setFocused = vi.fn();
 	},
 }));
+it("can hide reading progress while retaining controller scrolling", () => {
+	state.labels.mockClear();
+	const reader = new ScrollText("read", {} as IFramePoolManager, {
+		showPosition: false,
+	});
+	reader.mount(new Frame("parent", {} as IFramePoolManager), 450, 400);
+	reader.setText("Long text", true);
+	reader.node.onInteract();
+	expect(state.offset).toBeGreaterThan(0);
+	expect(
+		state.labels.mock.calls.some((call) => call.at(0) === "position"),
+	).toBe(false);
+});
 it("offers controller scrolling with position feedback and preserves reading during refresh", () => {
 	state.offset = 0;
 	state.created = 0;
