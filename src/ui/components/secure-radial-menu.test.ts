@@ -31,6 +31,7 @@ function setup(
 	vi.stubGlobal("SecureHandlerUnwrapScript", unwrap);
 	vi.stubGlobal("SecureHandlerExecute", execute);
 	const create = vi.fn((_type: FrameType) => {
+		let lineCount = 0;
 		const line = {
 			SetStartPoint: vi.fn(),
 			SetEndPoint: vi.fn(),
@@ -64,7 +65,18 @@ function setup(
 		}
 		return {
 			line,
-			CreateLine: vi.fn(() => line),
+			CreateLine: vi.fn((_name, _layer) => {
+				if (lineCount++ === 0) return line;
+				return {
+					...line,
+					ClearAllPoints: vi.fn(),
+					SetStartPoint: vi.fn(),
+					SetEndPoint: vi.fn(),
+					SetColorTexture: vi.fn(),
+					Show: vi.fn(),
+					Hide: vi.fn(),
+				};
+			}),
 			attributes,
 			scripts,
 			textures,
@@ -83,6 +95,7 @@ function setup(
 			),
 			SetPropagateKeyboardInput: vi.fn(),
 			EnableGamePadStick: vi.fn(),
+			EnableMouse: vi.fn(),
 			RegisterForClicks: vi.fn(),
 			Show: vi.fn(),
 			Hide: vi.fn(),
@@ -93,7 +106,20 @@ function setup(
 			SetDrawSwipe: vi.fn(),
 			SetCountdownFormatter: vi.fn(),
 			Clear: vi.fn(),
-			CreateFontString: () => ({ SetPoint: vi.fn(), SetText: vi.fn() }),
+			fonts: [] as {
+				SetPoint: ReturnType<typeof vi.fn>;
+				SetText: ReturnType<typeof vi.fn>;
+			}[],
+			CreateFontString() {
+				const font = {
+					SetPoint: vi.fn(),
+					SetText: vi.fn(),
+					SetWidth: vi.fn(),
+					SetWordWrap: vi.fn(),
+				};
+				this.fonts.push(font);
+				return font;
+			},
 			CreateTexture: () => {
 				const result = texture();
 				textures.set(String(textures.size), result);
@@ -106,7 +132,12 @@ function setup(
 	});
 	const menu = new SecureRadialMenu(pool, 12);
 	const frames = create.mock.results.map((result) => result.value);
-	const read = vi.fn((slot: number) => ({ icon: slot }));
+	const read = vi.fn(
+		(slot: number): import("./secure-slot-button").SlotVisual => ({
+			icon: slot,
+			name: `Spell ${slot}`,
+		}),
+	);
 	menu.configure(
 		"PADDUP",
 		{
@@ -140,6 +171,43 @@ it("configures mixed secure actions and clears their attributes when pooled", ()
 	menu.destroy();
 	expect(trigger.attributes.get("kind37")).toBeUndefined();
 	expect(trigger.attributes.get("value39")).toBeUndefined();
+});
+
+it("draws a circular sliced wheel and shows the selected compacted slot name in its center", () => {
+	const { frames, menu } = setup();
+	const display = frames.at(1),
+		listener = frames.at(2);
+	display.attributes.set("count", 2);
+	frames.at(4).attributes.set("slot", 38);
+	frames.at(5).attributes.set("slot", 47);
+	menu.refresh();
+	expect(display.CreateLine.mock.calls.length).toBeGreaterThan(100);
+	const center = display.fonts.at(1);
+	expect(center.SetPoint).toHaveBeenCalledWith(
+		"CENTER",
+		display,
+		"CENTER",
+		0,
+		0,
+	);
+	listener.scripts.get("OnGamePadStick")(undefined, "Right", 0, -1, 1);
+	expect(center.SetText).toHaveBeenLastCalledWith("Spell 47");
+	listener.scripts.get("OnGamePadStick")(undefined, "Right", 0, 0, 0);
+	expect(center.SetText).toHaveBeenLastCalledWith("");
+	display.scripts.get("OnHide")();
+	expect(center.SetText).toHaveBeenLastCalledWith("");
+});
+
+it("shows and clears the name on mouse hover without changing secure actions", () => {
+	const { frames, menu } = setup();
+	expect(frames.at(4).EnableMouse).toHaveBeenCalledWith(true);
+	frames.at(1).attributes.set("count", 1);
+	frames.at(4).attributes.set("slot", 38);
+	menu.refresh();
+	frames.at(4).scripts.get("OnEnter")?.();
+	expect(frames.at(1).fonts.at(1).SetText).toHaveBeenLastCalledWith("Spell 38");
+	frames.at(4).scripts.get("OnLeave")?.();
+	expect(frames.at(1).fonts.at(1).SetText).toHaveBeenLastCalledWith("");
 });
 
 it("updates ring contents without rewrapping handlers or allocating for unchanged capacity", () => {
@@ -308,8 +376,8 @@ it("tracks the exact stick direction continuously, including between positions i
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		42,
-		56,
+		78,
+		104,
 	);
 	expect(display.line.SetColorTexture).toHaveBeenLastCalledWith(
 		1,
@@ -321,8 +389,8 @@ it("tracks the exact stick direction continuously, including between positions i
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		56,
-		42,
+		104,
+		78,
 	);
 	const updates = display.line.SetEndPoint.mock.calls.length;
 	input(undefined, "Left", 0, 1, 1);
@@ -332,15 +400,15 @@ it("tracks the exact stick direction continuously, including between positions i
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		72,
-		96,
+		78,
+		104,
 	);
 	input(undefined, "Right", 0.6, 0.8, 0.5);
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		36,
-		48,
+		39,
+		52,
 	);
 });
 
@@ -354,8 +422,8 @@ it("shows subdued analogue feedback inside the deadzone and clears it on center,
 	expect(display.line.SetEndPoint).toHaveBeenLastCalledWith(
 		"CENTER",
 		display,
-		10.5,
-		14,
+		19.5,
+		26,
 	);
 	expect(display.line.SetColorTexture).toHaveBeenLastCalledWith(
 		0.65,
@@ -440,6 +508,6 @@ it("clears handlers and temporary bindings and reuses every native frame", () =>
 	// Ring controls and their twenty-four cooldown frames return to the pool.
 	new SecureRadialMenu(pool, 12);
 	expect(create).toHaveBeenCalledTimes(40);
-	expect(frames.at(1)?.CreateLine).toHaveBeenCalledOnce();
+	expect(frames.at(1)?.CreateLine).toHaveBeenCalledTimes(141);
 	expect(frames.at(1)?.line.ClearAllPoints).toHaveBeenCalledOnce();
 });

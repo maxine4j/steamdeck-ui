@@ -5,6 +5,9 @@ import { CooldownOverlay } from "./cooldown-overlay";
 import { RADIAL_INDEX_SNIPPET, radialIndex } from "./radial-selection";
 import type { BindingTarget, SlotReader } from "./secure-slot-button";
 
+const RING_RADIUS = 130;
+const WHEEL_SEGMENTS = 128;
+
 /** API-specific queries are supplied by a client, executed in WoW's restricted environment. */
 export interface RadialDriver {
 	readonly slots: readonly number[];
@@ -21,6 +24,7 @@ export interface RadialAction {
 	readonly value: number | string;
 }
 interface RadialFrame extends WowFrame {
+	EnableMouse(enabled: boolean): void;
 	SetFrameStrata(
 		strata:
 			| "PARENT"
@@ -91,6 +95,11 @@ export class SecureRadialMenu {
 	private readonly cooldowns: CooldownOverlay[];
 	private readonly label: WowFontString;
 	private readonly pointer: WowLine;
+	private readonly wheel: WowLine[];
+	private readonly separators: WowLine[];
+	private readonly center: WowFontString;
+	private readonly names = new Map<number, string>();
+	private selected?: number;
 	private read?: SlotReader;
 	private inputActive = false;
 	private releaseGraceRemaining = 0;
@@ -114,6 +123,15 @@ export class SecureRadialMenu {
 			"GameFontNormal",
 		);
 		this.pointer = pool.getLine(this.display, "radial-pointer");
+		this.center = this.display.CreateFontString(
+			undefined,
+			"OVERLAY",
+			"GameFontNormalLarge",
+		);
+		this.wheel = Array.from({ length: WHEEL_SEGMENTS }, (_, i) =>
+			pool.getLine(this.display, `radial-fill-${i}`, "BACKGROUND"),
+		);
+		this.separators = [];
 	}
 	configure(
 		key: string,
@@ -142,6 +160,10 @@ export class SecureRadialMenu {
 		this.display.SetFrameStrata("DIALOG");
 		this.label.SetPoint("TOP", this.display, "BOTTOM", 0, -8);
 		this.label.SetText(caption);
+		this.center.SetPoint("CENTER", this.display, "CENTER", 0, 0);
+		this.center.SetWidth(112);
+		this.center.SetWordWrap(true);
+		this.center.SetText("");
 		this.pointer.SetThickness(3);
 		this.pointer.SetStartPoint("CENTER", this.display, 0, 0);
 		this.pointer.Hide();
@@ -175,6 +197,8 @@ export class SecureRadialMenu {
 			if (stick === driver.virtualStick) this.blocker.Hide();
 		});
 		this.display.SetScript("OnShow", () => {
+			this.selected = undefined;
+			this.center.SetText("");
 			this.inputActive = true;
 			this.releaseGraceRemaining = 0;
 			this.pointer.Hide();
@@ -182,6 +206,8 @@ export class SecureRadialMenu {
 			this.listener.Show();
 		});
 		this.display.SetScript("OnHide", () => {
+			this.selected = undefined;
+			this.center.SetText("");
 			this.pointer.Hide();
 			if (!this.inputActive) return;
 			this.inputActive = false;
@@ -222,7 +248,7 @@ if down then
 		item:Hide()
 		if i <= count then
 			local angle = (i - 1) * math.pi * 2 / count
-			local radius = math.max(70, count * 10)
+			local radius = ${RING_RADIUS}
 			item:SetAttribute("slot", self:GetAttribute("active"..i))
 			item:ClearAllPoints()
 			item:SetPoint("CENTER", display, "CENTER", math.sin(angle) * radius, math.cos(angle) * radius)
@@ -287,9 +313,23 @@ end`,
 			if (!item) continue;
 			item.SetParent(this.display);
 			item.SetSize(48, 48);
+			item.EnableMouse(true);
 			item.Hide();
 			this.trigger.SetAttribute(`slot${i + 1}`, driver.slots.at(i));
 			this.trigger.SetFrameRef(`item${i + 1}`, item);
+			item.SetScript("OnEnter", () => {
+				const count = this.display.GetAttribute("count") ?? 0;
+				if (!this.inputActive || i >= count) return;
+				const angle = (i * Math.PI * 2) / count;
+				this.highlight(Math.sin(angle), Math.cos(angle), 1);
+			});
+			item.SetScript("OnLeave", () => {
+				if (this.inputActive) this.highlight(0, 0, 0);
+			});
+			if (!this.separators.at(i))
+				this.separators.push(
+					this.pool.getLine(this.display, `radial-divider-${i}`),
+				);
 		}
 		for (const action of driver.actions ?? []) {
 			this.trigger.SetAttribute(`kind${action.slot}`, action.type);
@@ -308,18 +348,63 @@ end`,
 			if (!item || slot === undefined) continue;
 			const texture = this.pool.getBackground(item);
 			const visual = this.read(slot);
+			this.names.set(i + 1, visual.name ?? "");
 			texture.SetTexture(visual.icon);
 			texture.SetTexCoord(0.07, 0.93, 0.07, 0.93);
 			this.cooldowns.at(i)?.refresh(visual.cooldown, visual.recharge);
 			setBorder(this.pool, item, [0.42, 0.47, 0.55, 1]);
 		}
+		this.drawWheel(count);
+		this.center.SetText(
+			this.selected ? (this.names.get(this.selected) ?? "") : "",
+		);
+	}
+	private drawWheel(count: number): void {
+		for (let i = 0; i < this.wheel.length; i++) {
+			const line = this.wheel.at(i);
+			if (!line) continue;
+			const angle = (i * Math.PI * 2) / WHEEL_SEGMENTS;
+			const x = Math.sin(angle),
+				y = Math.cos(angle);
+			line.SetStartPoint("CENTER", this.display, x * 62, y * 62);
+			line.SetEndPoint("CENTER", this.display, x * 172, y * 172);
+			line.SetThickness(9);
+			if (
+				this.selected !== undefined &&
+				radialIndex(x, y, 1, count) === this.selected
+			)
+				line.SetColorTexture(0.65, 0.43, 0.12, 0.92);
+			else line.SetColorTexture(0.055, 0.07, 0.1, 0.94);
+			line.Show();
+		}
+		for (let i = 0; i < this.separators.length; i++) {
+			const line = this.separators.at(i);
+			if (!line) continue;
+			if (i >= count || count < 2) {
+				line.Hide();
+				continue;
+			}
+			const angle = ((i + 0.5) * Math.PI * 2) / count;
+			const x = Math.sin(angle),
+				y = Math.cos(angle);
+			line.SetStartPoint("CENTER", this.display, x * 62, y * 62);
+			line.SetEndPoint("CENTER", this.display, x * 172, y * 172);
+			line.SetThickness(2);
+			line.SetColorTexture(0.42, 0.47, 0.55, 0.8);
+			line.Show();
+		}
 	}
 	private highlight(x: number, y: number, length: number): void {
 		const count = this.display.GetAttribute("count") ?? 0;
 		const index = radialIndex(x, y, length, count);
+		if (index !== this.selected) {
+			this.selected = index;
+			this.drawWheel(count);
+			this.center.SetText(index ? (this.names.get(index) ?? "") : "");
+		}
 		const magnitude = Math.sqrt(x * x + y * y);
 		if (count > 0 && magnitude > 0 && length > 0) {
-			const distance = Math.max(70, count * 10) * Math.min(length, 1);
+			const distance = RING_RADIUS * Math.min(length, 1);
 			this.pointer.SetEndPoint(
 				"CENTER",
 				this.display,
@@ -348,6 +433,8 @@ end`,
 		SecureHandlerExecute(this.trigger, "self:ClearBindings()");
 		SecureHandlerUnwrapScript(this.trigger, "PreClick");
 		this.label.SetText("");
+		this.center.SetText("");
+		this.names.clear();
 		this.read = undefined;
 		this.display.SetScript("OnShow", undefined);
 		this.display.SetScript("OnHide", undefined);
@@ -389,6 +476,9 @@ end`,
 			const item = this.items.at(i);
 			if (!item) continue;
 			item.SetAttribute("slot", undefined);
+			item.SetScript("OnEnter", undefined);
+			item.SetScript("OnLeave", undefined);
+			item.EnableMouse(false);
 			this.pool.release("SecureFrame", item);
 		}
 		this.display.SetAttribute("count", undefined);

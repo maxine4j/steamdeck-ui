@@ -21,7 +21,11 @@ export interface IFramePoolManager {
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
 	getDecoration(frame: WowFrame, key: string): WowTexture;
-	getLine(frame: WowFrame, key: string): WowLine;
+	getLine(
+		frame: WowFrame,
+		key: string,
+		layer?: "ARTWORK" | "BACKGROUND",
+	): WowLine;
 }
 export class FramePoolManager implements IFramePoolManager {
 	private readonly available = new Map<FrameType, WowFrame[]>();
@@ -62,7 +66,11 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
-	getLine(frame: WowFrame, key: string): WowLine {
+	getLine(
+		frame: WowFrame,
+		key: string,
+		layer: "ARTWORK" | "BACKGROUND" = "ARTWORK",
+	): WowLine {
 		let lines = this.lines.get(frame);
 		if (!lines) {
 			lines = new Map<string, WowLine>();
@@ -70,7 +78,7 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		let line = lines.get(key);
 		if (!line) {
-			line = frame.CreateLine(undefined, "ARTWORK");
+			line = frame.CreateLine(undefined, layer);
 			line.Hide();
 			lines.set(key, line);
 		}

@@ -17,6 +17,7 @@ function setup(className = "HUNTER") {
 	vi.stubGlobal("GetNumShapeshiftForms", () => 0);
 	vi.stubGlobal("GetShapeshiftFormInfo", () => []);
 	vi.stubGlobal("C_Spell", {
+		GetSpellName: (spell: number) => `Spell ${spell}`,
 		GetSpellTexture: (spell: number) => spell,
 		GetSpellCooldownDuration: () => undefined,
 		GetSpellChargeDuration: () => undefined,
@@ -31,6 +32,7 @@ function setup(className = "HUNTER") {
 		GetContainerItemQuestInfo: () => ({ isQuestItem: true }),
 	});
 	vi.stubGlobal("C_Item", {
+		GetItemNameByID: () => "Quest item",
 		GetItemIDForItemInfo: () => 100,
 		IsUsableItem: (item: number) => [item !== 102],
 		GetItemIconByID: (item: number) => item + 1,
@@ -73,6 +75,20 @@ it("prepares pet actions even with no pet so a combat summon needs no protected 
 	expect(client.readRing("class", 4).icon).toBeUndefined();
 	petInfo.mockReturnValue(["Bite", 123, false, false, true, true, 456]);
 	expect(client.readRing("class", 4).icon).toBe(123);
+});
+
+it("provides spell and pet command names for the ring center", () => {
+	const client = setup();
+	client.getRingDriver("class");
+	expect(client.readRing("class", 1).name).toBe("Attack");
+	expect(client.readRing("class", 4).name).toBe("Spell 456");
+	vi.stubGlobal("GetActionInfo", () => ["spell", 789]);
+	vi.stubGlobal("C_ActionBar", {
+		GetActionTexture: () => 1,
+		GetActionCooldownDuration: () => undefined,
+		GetActionChargeDuration: () => undefined,
+	});
+	expect(client.readRing("abilities", 37).name).toBe("Spell 789");
 });
 
 it.each(["DRUID", "WARRIOR", "SHAMAN"])(

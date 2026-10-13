@@ -13,6 +13,10 @@ import type {
 
 type NativeBar = WowFrame & { GetParent(): WowFrame | undefined };
 declare global {
+	function GetActionInfo(
+		this: void,
+		slot: number,
+	): LuaMultiReturn<[string | undefined, number]>;
 	const ExtraActionButton1: { action: number };
 	function GetPetActionInfo(
 		this: void,
@@ -298,14 +302,19 @@ if pos then return pos.x, pos.y, pos.len end`,
 		return entries;
 	}
 	readRing(kind: ActionRingKind, slot: number): SlotVisual {
-		if (kind === "abilities") return this.read(slot);
+		if (kind === "abilities")
+			return { ...this.read(slot), name: this.actionName(slot) };
 		const entry = this.ringEntries
 			.get(kind)
 			?.find((candidate) => candidate.slot === slot);
 		if (!entry) return {};
-		if (entry.type === "action") return this.read(Number(entry.value));
+		if (entry.type === "action")
+			return {
+				...this.read(Number(entry.value)),
+				name: this.actionName(Number(entry.value)),
+			};
 		if (entry.type === "pet") {
-			const [, texture, token, , , , spell] = GetPetActionInfo(
+			const [name, texture, token, , , , spell] = GetPetActionInfo(
 				Number(entry.value),
 			);
 			const icon =
@@ -314,14 +323,32 @@ if pos then return pos.x, pos.y, pos.len end`,
 							texture
 						]
 					: texture;
-			return { icon, ...(spell ? this.spellVisual(spell) : {}) };
+			return {
+				icon,
+				name:
+					token && name
+						? ((_G as unknown as Record<string, string>)[name] ?? name)
+						: name,
+				...(spell ? this.spellVisual(spell) : {}),
+			};
 		}
 		if (entry.type === "spell")
 			return { ...this.spellVisual(Number(entry.value)), icon: entry.icon };
-		return { icon: entry.icon };
+		const item = Number(String(entry.value).replace("item:", ""));
+		return {
+			icon: entry.icon,
+			name: C_Item.GetItemNameByID(item) ?? undefined,
+		};
+	}
+	private actionName(slot: number): string | undefined {
+		const [kind, id] = GetActionInfo(slot);
+		if (kind === "spell") return C_Spell.GetSpellName(id);
+		if (kind === "item") return C_Item.GetItemNameByID(id) ?? undefined;
+		return C_ActionBar.GetActionText(slot);
 	}
 	private spellVisual(spell: number): SlotVisual {
 		return {
+			name: C_Spell.GetSpellName(spell),
 			cooldown: C_Spell.GetSpellCooldownDuration(spell, false) as unknown as
 				| CooldownDuration
 				| undefined,

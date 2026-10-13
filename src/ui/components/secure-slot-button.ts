@@ -8,6 +8,7 @@ export interface BindingTarget {
 	readonly name: string;
 }
 export interface SlotVisual {
+	name?: string;
 	spell?: number;
 	icon?: number | string;
 	cooldown?: CooldownDuration;
