@@ -723,7 +723,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(titles.getTitles).toHaveBeenCalledOnce();
 	clickFaction();
 	expect(reputation.activate).toHaveBeenCalledOnce();
-	clickRow("None")();
+	clickRow("|TInterface\\RaidFrame\\ReadyCheck-Ready:16:16|t None")();
 	expect(titles.select).toHaveBeenCalledExactlyOnceWith(-1);
 	const withTabs = frames.length;
 	clickTab(236683);

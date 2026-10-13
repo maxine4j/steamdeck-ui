@@ -13,6 +13,7 @@ vi.mock("../../ui/components/scroll-list", () => ({
 		mount = vi.fn();
 		unmount = vi.fn();
 		setRows = setRows;
+		updateRows = setRows;
 		constructor(...args: unknown[]) {
 			construct(...args);
 		}
@@ -33,6 +34,7 @@ it("gives the titles list 30px padding", () => {
 		padding: 30,
 		columns: 2,
 		gap: 12,
+		centerSingleLine: true,
 		scheduler,
 		onChanged: expect.any(Function),
 	});
@@ -57,10 +59,12 @@ it("uses neutral title tiles, highlights selection and applies a clicked title",
 	pending.shift()?.();
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(rows.at(0)).toMatchObject({
-		detail: "Selected",
+		label: "|TInterface\\RaidFrame\\ReadyCheck-Ready:16:16|t None",
 		background: [0.18, 0.28, 0.38],
 	});
 	expect(rows.at(1)).toMatchObject({ background: [0.1, 0.12, 0.16] });
+	expect(rows.at(1)?.label).toBe("Champion");
+	expect(rows.every((row) => row.detail === undefined)).toBe(true);
 	expect(rows.every((row) => row.backgroundAtlas === undefined)).toBe(true);
 	rows.at(1)?.activate();
 	expect(client.select).toHaveBeenCalledWith(42);

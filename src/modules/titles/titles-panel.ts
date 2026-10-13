@@ -24,6 +24,7 @@ export class TitlesPanel implements IPanel {
 			padding: 30,
 			columns: 2,
 			gap: 12,
+			centerSingleLine: true,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
 		});
@@ -32,11 +33,12 @@ export class TitlesPanel implements IPanel {
 		this.update.invalidate();
 	}
 	private render(): void {
-		this.list.setRows(
+		this.list.updateRows(
 			this.client.getTitles().map((title) => ({
 				id: `title-${title.id}`,
-				label: title.name,
-				detail: title.selected ? "Selected" : "Click to use this title",
+				label: title.selected
+					? `|TInterface\\RaidFrame\\ReadyCheck-Ready:16:16|t ${title.name}`
+					: title.name,
 				selected: title.selected,
 				background: title.selected
 					? ([0.18, 0.28, 0.38] as const)
