@@ -21,6 +21,10 @@ it("owns anchors across native rewrites, keeps hooks inert after release, and re
 		GetFrameStrata: () => "HIGH",
 		GetAlpha: () => 0.6,
 		IsShown: () => true,
+		IsMouseEnabled: () => true,
+		EnableMouse: vi.fn(),
+		DoesClipChildren: () => false,
+		SetClipsChildren: vi.fn(),
 		SetParent: vi.fn(),
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
@@ -90,6 +94,19 @@ it("owns anchors across native rewrites, keeps hooks inert after release, and re
 		-420,
 		-48,
 	);
+	layout.bind(frame, {
+		parent,
+		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
+		size: [780, 520],
+		mouse: false,
+		clip: true,
+	});
+	expect(frame.SetSize).toHaveBeenLastCalledWith(780, 520);
+	expect(frame.EnableMouse).toHaveBeenLastCalledWith(false);
+	expect(frame.SetClipsChildren).toHaveBeenLastCalledWith(true);
+	layout.release();
+	expect(frame.EnableMouse).toHaveBeenLastCalledWith(true);
+	expect(frame.SetClipsChildren).toHaveBeenLastCalledWith(false);
 });
 
 it("routes reading actions through the native scroll control", () => {

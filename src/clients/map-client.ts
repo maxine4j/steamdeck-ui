@@ -19,6 +19,7 @@ export interface IMapClient {
 	isOpen(): boolean;
 	close(): void;
 	mount(parent: Frame, questPane: Frame): void;
+	resize(): void;
 	unmount(): void;
 	read(): MapQuest[];
 	focus(id: number): void;
@@ -46,6 +47,7 @@ export interface NativeWorldMap extends LayoutFrame {
 	SidePanelToggle?: LayoutFrame;
 	HookScript(script: string, callback: (this: void) => void): void;
 	OnFrameSizeChanged(): void;
+	GetMapID(): number;
 	SetMapID(id: number): void;
 	SetFocusedQuestID(id: number): void;
 }
@@ -104,6 +106,7 @@ export class MapClient implements IMapClient {
 		this.hooked = true;
 		WorldMapFrame.HookScript("OnShow", this.visibility);
 		WorldMapFrame.HookScript("OnHide", this.visibility);
+		hooksecurefunc(WorldMapFrame, "OnMapChanged", () => this.resize());
 		// ShowUIPanel continues positioning after OnShow; generic frame leases enforce those writes.
 		hooksecurefunc("QuestMapFrame_ShowQuestDetails", (id: number) => {
 			if (!this.enabled || !this.parent) return;
@@ -131,9 +134,38 @@ export class MapClient implements IMapClient {
 	mount(parent: Frame, questPane: Frame): void {
 		this.parent = parent;
 		this.questPane = questPane;
+		this.resize();
+		this.applyQuestLayout();
+	}
+	resize(): void {
+		const parent = this.parent;
+		if (!parent || !this.enabled) return;
 		const map = WorldMapFrame;
+		const available = parent.getSize();
+		const layer = (
+			C_Map.GetMapArtLayers as unknown as (
+				this: void,
+				id: number,
+			) => { layerWidth: number; layerHeight: number }[] | undefined
+		)(map.GetMapID())?.at(0);
+		const aspect =
+			layer && layer.layerWidth > 0 && layer.layerHeight > 0
+				? layer.layerWidth / layer.layerHeight
+				: 1.5;
+		const width = Math.min(
+			Math.max(1, available.width - 420),
+			Math.max(1, available.height - 48) * aspect,
+		);
+		const height = width / aspect;
 		this.layout.bind(map, {
 			parent,
+			// Limit the native background as well as the scroll viewport to the fitted map.
+			insets: [
+				0,
+				0,
+				Math.max(0, available.width - width),
+				Math.max(0, available.height - height - 48),
+			],
 			reparent: true,
 			scale: 1,
 			strata: "DIALOG",
@@ -143,12 +175,14 @@ export class MapClient implements IMapClient {
 			parent: map,
 			anchors: [
 				["TOPLEFT", "TOPLEFT", 0, 0],
-				["BOTTOMRIGHT", "TOPRIGHT", -420, -48],
+				["BOTTOMRIGHT", "TOPRIGHT", 0, -48],
 			],
 		});
 		this.layout.bind(map.ScrollContainer, {
 			parent: map,
-			insets: [0, 48, 420, 0],
+			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
+			size: [width, height],
+			clip: true,
 		});
 		this.layout.bind(map.NavBar, {
 			parent: map.TitleCanvasSpacerFrame,
@@ -160,7 +194,6 @@ export class MapClient implements IMapClient {
 			map.SidePanelToggle,
 		])
 			if (frame) this.layout.bind(frame, { visible: false });
-		this.applyQuestLayout();
 		map.OnFrameSizeChanged();
 	}
 	private applyQuestLayout(): void {
@@ -170,13 +203,16 @@ export class MapClient implements IMapClient {
 		this.layout.bind(quests, {
 			parent: this.questPane,
 			insets: [8, 52, 8, 48],
-			visible: this.details,
+			// This logical shown state represents our custom quest pane to L/M toggles.
+			visible: true,
+			alpha: this.details ? 1 : 0,
+			mouse: this.details,
 			strata: "DIALOG",
 		});
 		this.layout.bind(quests.ContentsAnchor, { parent: quests });
 		this.layout.bind(quests.QuestsFrame, {
 			parent: quests.ContentsAnchor,
-			visible: true,
+			visible: this.details,
 		});
 		this.layout.bind(quests.DetailsFrame, {
 			parent: quests.QuestsFrame,

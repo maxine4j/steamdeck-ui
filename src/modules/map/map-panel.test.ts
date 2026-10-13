@@ -10,7 +10,11 @@ const state = vi.hoisted(() => ({
 	rows: [] as ListRow[],
 	frames: new Map<
 		string,
-		{ layout: ReturnType<typeof vi.fn>; hide: ReturnType<typeof vi.fn> }
+		{
+			layout: ReturnType<typeof vi.fn>;
+			hide: ReturnType<typeof vi.fn>;
+			onSizeChanged: ReturnType<typeof vi.fn>;
+		}
 	>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
@@ -66,6 +70,14 @@ beforeEach(() => {
 	state.rows = [];
 	state.frames.clear();
 });
+it("updates the native viewport when the fullscreen container changes size", () => {
+	const { client } = setup();
+	const resize = state.frames
+		.get("map-frame")
+		?.onSizeChanged.mock.lastCall?.at(0) as (() => void) | undefined;
+	resize?.();
+	expect(client.resize).toHaveBeenCalledOnce();
+});
 function setup() {
 	const quests: MapQuest[] = [
 		{
@@ -108,6 +120,7 @@ function setup() {
 		isOpen: () => true,
 		close: vi.fn(),
 		mount: vi.fn(),
+		resize: vi.fn(),
 		unmount: vi.fn(),
 		read: () => quests,
 		focus: vi.fn(),

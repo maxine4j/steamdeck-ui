@@ -60,7 +60,10 @@ export class MapPanel implements IPanel {
 		this.frame.show();
 		this.pane.setParent(this.frame);
 		this.layout();
-		this.frame.onSizeChanged(() => this.layout());
+		this.frame.onSizeChanged(() => {
+			this.layout();
+			this.client.resize();
+		});
 		this.pane.setWindowBackground();
 		this.pane.show();
 		this.listHost.inset(this.pane, 0, 48, 0, 40);

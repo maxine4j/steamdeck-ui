@@ -2,6 +2,10 @@ import type { WowFrame } from "../../types";
 import { Frame } from "./frame";
 
 export interface LayoutFrame extends WowFrame {
+	IsMouseEnabled(): boolean;
+	EnableMouse(enabled: boolean): void;
+	DoesClipChildren(): boolean;
+	SetClipsChildren(clip: boolean): void;
 	IsShown(): boolean;
 	SetFrameStrata(strata: string): void;
 	GetParent(): LayoutFrame | undefined;
@@ -17,6 +21,9 @@ export interface LayoutFrame extends WowFrame {
 	SetAlpha(alpha: number): void;
 }
 export interface NativeLayoutRule {
+	readonly size?: readonly [number, number];
+	readonly mouse?: boolean;
+	readonly clip?: boolean;
 	readonly parent?: LayoutFrame | Frame;
 	readonly insets?: readonly [number, number, number, number];
 	readonly reparent?: boolean;
@@ -40,6 +47,8 @@ export class NativeLayout {
 			alpha: number;
 			shown: boolean;
 			visibilityOwned: boolean;
+			mouse?: boolean;
+			clip?: boolean;
 		}
 	>();
 	private readonly hooked = new Set<LayoutFrame>();
@@ -73,6 +82,10 @@ export class NativeLayout {
 		this.rules.set(frame, rule);
 		const original = this.originals.get(frame);
 		if (original && rule.visible !== undefined) original.visibilityOwned = true;
+		if (original && rule.mouse !== undefined && original.mouse === undefined)
+			original.mouse = frame.IsMouseEnabled();
+		if (original && rule.clip !== undefined && original.clip === undefined)
+			original.clip = frame.DoesClipChildren();
 		if (!this.hooked.has(frame)) {
 			this.hooked.add(frame);
 			for (const method of [
@@ -89,6 +102,8 @@ export class NativeLayout {
 				"Show",
 				"Hide",
 				"SetShown",
+				"EnableMouse",
+				"SetClipsChildren",
 			])
 				hooksecurefunc(frame, method, () => this.apply(frame));
 		}
@@ -128,6 +143,9 @@ export class NativeLayout {
 			}
 		}
 		if (rule.scale !== undefined) frame.SetScale(rule.scale);
+		if (rule.size) frame.SetSize(...rule.size);
+		if (rule.mouse !== undefined) frame.EnableMouse(rule.mouse);
+		if (rule.clip !== undefined) frame.SetClipsChildren(rule.clip);
 		if (rule.strata !== undefined) frame.SetFrameStrata(rule.strata);
 		if (rule.alpha !== undefined) frame.SetAlpha(rule.alpha);
 		if (rule.visible !== undefined) {
@@ -154,6 +172,8 @@ export class NativeLayout {
 			frame.SetScale(original.scale);
 			frame.SetFrameStrata(original.strata);
 			frame.SetAlpha(original.alpha);
+			if (original.mouse !== undefined) frame.EnableMouse(original.mouse);
+			if (original.clip !== undefined) frame.SetClipsChildren(original.clip);
 			if (original.visibilityOwned) {
 				if (original.shown) frame.Show();
 				else frame.Hide();

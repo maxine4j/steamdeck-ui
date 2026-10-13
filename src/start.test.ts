@@ -276,6 +276,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		isOpen: vi.fn(() => false),
 		close: vi.fn(),
 		mount: vi.fn(),
+		resize: vi.fn(),
 		unmount: vi.fn(),
 		read: () => [],
 		focus: vi.fn(),
