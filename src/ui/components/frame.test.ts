@@ -5,7 +5,7 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("uses native atlas slicing and clears it on icon reuse and pooled release", () => {
+it("tiles sliced atlas centers instead of stretching and clears slicing on reuse", () => {
 	const texture = () => ({
 		SetAtlas: vi.fn(),
 		SetTexture: vi.fn(),
@@ -51,7 +51,7 @@ it("uses native atlas slicing and clears it on icon reuse and pooled release", (
 		16,
 		16,
 	);
-	expect(background?.SetTextureSliceMode).toHaveBeenLastCalledWith(0);
+	expect(background?.SetTextureSliceMode).toHaveBeenLastCalledWith(1);
 	expect(background?.SetVertexColor).toHaveBeenLastCalledWith(0.2, 0.8, 0.3);
 	frame.layout(500, 80);
 	frame.setAtlasBackground("tile", undefined, 16);

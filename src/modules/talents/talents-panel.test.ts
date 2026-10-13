@@ -67,19 +67,39 @@ it.each([2, 3, 4])(
 		expect(
 			rendered.find((row) => row.id === "talents-starter")?.detail,
 		).toBeUndefined();
-		expect(specs.at(0)?.detail).toContain("|A:roleicon-tiny-dps:16:16:0:0|a");
-		expect(specs.at(1)?.detail).toContain("|A:roleicon-tiny-tank:16:16:0:0|a");
-		if (count >= 3)
-			expect(specs.at(2)?.detail).toContain(
-				"|A:roleicon-tiny-healer:16:16:0:0|a",
-			);
-		expect(specs.at(0)?.detail).not.toContain("DAMAGER");
+		for (const spec of specs) {
+			expect(spec).toMatchObject({
+				fullWidth: true,
+				icon: 10,
+				backgroundAtlas: "ui-journeys-renown-button",
+				backgroundSlice: 16,
+				secondary: {
+					label: "Switch Spec",
+					width: 110,
+					height: 32,
+					onlyAction: true,
+				},
+			});
+		}
+		expect(specs.at(0)?.detail).toBe("Active specialization");
+		expect(specs.at(1)?.detail).toBeUndefined();
+		specs.at(1)?.secondary?.activate();
+		expect(client.selectSpec).toHaveBeenCalledWith(2);
+		pending.shift()?.();
 		expect(specs.at(count - 1)?.marginBottom).toBe(24);
 		expect(rendered.some((row) => row.id === "talents-full")).toBe(false);
 		expect(specs.map((row) => row.id)).toEqual(
 			Array.from({ length: count }, (_, i) => `talents-spec-${i + 1}`),
 		);
 		const loadout = rendered.find((row) => row.id === "talents-loadout-40");
+		expect(loadout).toMatchObject({
+			backgroundAtlas: "ui-journeys-renown-button",
+			backgroundSlice: 16,
+		});
+		expect(rendered.find((row) => row.id === "talents-starter")).toMatchObject({
+			backgroundAtlas: "ui-journeys-renown-button",
+			backgroundSlice: 16,
+		});
 		expect(loadout?.detail).toBe("Active loadout");
 		expect(
 			rendered.find((row) => row.id === "talents-loadout-41")?.detail,
@@ -98,7 +118,7 @@ it.each([2, 3, 4])(
 		expect(pending).toHaveLength(0);
 		panel.onMount({} as IUIComponent);
 		pending.shift()?.();
-		expect(client.read).toHaveBeenCalledTimes(3);
+		expect(client.read).toHaveBeenCalledTimes(4);
 	},
 );
 

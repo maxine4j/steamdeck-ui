@@ -6,11 +6,11 @@ import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
 
-const roleIcons = new Map<string, string>([
-	["DAMAGER", "|A:roleicon-tiny-dps:16:16:0:0|a"],
-	["TANK", "|A:roleicon-tiny-tank:16:16:0:0|a"],
-	["HEALER", "|A:roleicon-tiny-healer:16:16:0:0|a"],
-]);
+const tileBackground = {
+	backgroundAtlas: "ui-journeys-renown-button",
+	backgroundSlice: 16,
+	height: 64,
+};
 
 export class TalentsPanel implements IPanel {
 	readonly id = "talents";
@@ -30,8 +30,11 @@ export class TalentsPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 20,
+			columns: 2,
+			gap: 12,
 			contentPadding: { horizontal: 16, vertical: 10 },
 			centerSingleLine: true,
+			centerLabelsVertically: true,
 			verticallyCentered: true,
 			scheduler,
 			onChanged: () => this.navigationChanged?.(),
@@ -49,21 +52,29 @@ export class TalentsPanel implements IPanel {
 		const data = this.client.read();
 		const rows: ListRow[] = data.specs.map(
 			(spec): ListRow => ({
+				...tileBackground,
 				id: `talents-spec-${spec.id}`,
 				label: spec.name,
 				icon: spec.icon,
-				height: 64,
-				detail: `${roleIcons.get(spec.role) ?? ""} ${spec.selected ? "Active specialization" : "Switch specialization"}`,
+				fullWidth: true,
+				detail: spec.selected ? "Active specialization" : undefined,
 				marginBottom:
 					spec === data.specs.at(-1) &&
 					(data.loadouts.length > 0 || data.starterAvailable)
 						? 24
 						: undefined,
 				selected: spec.selected,
-				activate: () =>
-					this.activate(`talents-spec-${spec.id}`, () =>
-						this.client.selectSpec(spec.id),
-					),
+				activate: () => {},
+				secondary: {
+					label: "Switch Spec",
+					width: 110,
+					height: 32,
+					onlyAction: true,
+					activate: () =>
+						this.activate(`talents-spec-${spec.id}`, () =>
+							this.client.selectSpec(spec.id),
+						),
+				},
 			}),
 		);
 		const specID = data.specID;
@@ -82,6 +93,7 @@ export class TalentsPanel implements IPanel {
 			});
 			for (const loadout of data.loadouts)
 				rows.push({
+					...tileBackground,
 					id: `talents-loadout-${loadout.id}`,
 					label: loadout.name,
 					detail: loadout.selected ? "Active loadout" : undefined,
@@ -93,6 +105,7 @@ export class TalentsPanel implements IPanel {
 				});
 			if (data.starterAvailable)
 				rows.push({
+					...tileBackground,
 					id: "talents-starter",
 					label: "Starter build",
 					selected: data.starterSelected,

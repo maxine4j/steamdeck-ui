@@ -1003,6 +1003,50 @@ it("lays out two-column tiles with full-width headings and spatial navigation", 
 	);
 });
 
+it("mixes full-width action tiles with a two-column grid and matching navigation", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("mixed", pool, "", vi.fn(), { columns: 2 });
+	const switchSpec = vi.fn();
+	list.setRows([
+		{
+			id: "spec",
+			label: "Spec",
+			fullWidth: true,
+			height: 64,
+			secondary: {
+				label: "Switch Spec",
+				onlyAction: true,
+				activate: switchSpec,
+			},
+			activate: vi.fn(),
+		},
+		...["a", "b", "c"].map((id) => ({ id, label: id, activate: vi.fn() })),
+		{ id: "spec2", label: "Spec 2", fullWidth: true, activate: vi.fn() },
+	]);
+	list.mount(new Frame("mixed-parent", pool));
+	expect(frames.get("mixed-row-0")?.layout).toHaveBeenLastCalledWith(
+		456,
+		64,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-0,
+	);
+	expect(frames.get("mixed-row-4")?.layout).toHaveBeenLastCalledWith(
+		456,
+		48,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-172,
+	);
+	expect(
+		list.getNavGrid().map((line) => line.map((node) => node.navId)),
+	).toEqual([["spec"], ["a", "b"], ["c"], ["spec2"]]);
+	list.getNavGrid().at(0)?.at(0)?.onInteract();
+	expect(switchSpec).toHaveBeenCalledOnce();
+});
+
 it("resizes existing rows without replacing their controls", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("resize", pool, "Test", vi.fn());

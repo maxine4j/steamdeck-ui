@@ -1029,7 +1029,7 @@ export class Frame implements IUIComponent {
 		if (slice !== undefined && this.texture) {
 			const texture = this.texture as SlicedTexture;
 			texture.SetTextureSliceMargins(slice, slice, slice, slice);
-			texture.SetTextureSliceMode(0); // Enum.UITextureSliceMode.Stretched.
+			texture.SetTextureSliceMode(1); // Enum.UITextureSliceMode.Tiled preserves the artwork's scale.
 			this.atlasSliced = true;
 		}
 		if (tint) {

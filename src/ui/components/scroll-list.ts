@@ -10,6 +10,8 @@ export interface ListRow {
 	readonly id: string;
 	readonly label: string;
 	readonly heading?: boolean;
+	/** Occupy a whole line within a multi-column list. */
+	readonly fullWidth?: boolean;
 	readonly icon?: number | string;
 	readonly iconSize?: number;
 	readonly spell?: number;
@@ -152,6 +154,7 @@ export class ScrollList {
 				return (
 					next?.id === row.id &&
 					next.heading === row.heading &&
+					next.fullWidth === row.fullWidth &&
 					next.height === row.height &&
 					(next.progress !== undefined) === (row.progress !== undefined) &&
 					next.indent === row.indent &&
@@ -246,7 +249,8 @@ export class ScrollList {
 		let column = 0;
 		let lineHeight = 0;
 		const positions = this.rows.map((row) => {
-			if (row.heading && column > 0) {
+			const fullWidth = row.heading || row.fullWidth;
+			if (fullWidth && column > 0) {
 				top += lineHeight;
 				column = 0;
 				lineHeight = 0;
@@ -257,14 +261,14 @@ export class ScrollList {
 				top,
 				column,
 				height,
-				width: row.heading ? width : (width - gap * (columns - 1)) / columns,
+				width: fullWidth ? width : (width - gap * (columns - 1)) / columns,
 			};
 			lineHeight = Math.max(
 				lineHeight,
 				height + (row.heading ? 4 : gap) + (row.marginBottom ?? 0),
 			);
 			column++;
-			if (row.heading || column === columns) {
+			if (fullWidth || column === columns) {
 				top += lineHeight;
 				column = 0;
 				lineHeight = 0;
@@ -857,6 +861,11 @@ export class ScrollList {
 					column = 0;
 					continue;
 				}
+				if (row?.fullWidth && column > 0) {
+					if (line.length > 0) grid.push(line);
+					line = [];
+					column = 0;
+				}
 				const button = this.buttons.at(index);
 				if (button && row?.enabled !== false) {
 					const nav = row?.secondary?.onlyAction
@@ -866,7 +875,7 @@ export class ScrollList {
 					line.push(nav);
 				}
 				column++;
-				if (column === columns) {
+				if (row?.fullWidth || column === columns) {
 					if (line.length > 0) grid.push(line);
 					line = [];
 					column = 0;
