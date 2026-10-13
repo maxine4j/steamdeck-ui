@@ -30,6 +30,45 @@ declare global {
 		parent: FinderFrame,
 	): void;
 	function GetNumRandomDungeons(this: void): number;
+	function GetNumRFDungeons(this: void): number;
+	function GetRFDungeonInfo(
+		this: void,
+		index: number,
+	): LuaMultiReturn<
+		[
+			number,
+			string,
+			number,
+			number,
+			number,
+			number,
+			number,
+			number,
+			number,
+			number,
+			number,
+			string,
+			number,
+			number,
+			string,
+			boolean,
+			number,
+			number,
+			boolean,
+			string,
+			number,
+			boolean,
+			number,
+		]
+	>;
+	function GetLFGQueuedList(
+		this: void,
+		category: number,
+	): Record<number, boolean>;
+	function RaidFinderQueueFrame_SetRaid(this: void, id: number): void;
+	function RaidFinderQueueFrame_Join(this: void): void;
+	const RaidFinderFrameFindRaidButton: { IsEnabled(): boolean };
+	function LeaveSingleLFG(this: void, category: number, id: number): void;
 	function GetLFGRandomDungeonInfo(
 		this: void,
 		index: number,
@@ -76,6 +115,7 @@ declare global {
 	function GetLFGMode(
 		this: void,
 		category: number,
+		id?: number,
 	): LuaMultiReturn<[string | undefined, string | undefined]>;
 	function LeaveLFG(this: void, category: number): void;
 	function LFDQueueFrame_SetType(

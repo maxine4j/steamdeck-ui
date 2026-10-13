@@ -5,6 +5,51 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("centers compact buttons and their text while retaining full-width headings", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("compact", pool, "", vi.fn(), {
+		buttonWidth: 280,
+		centerText: true,
+		centerContent: true,
+	});
+	list.setRows([
+		{ id: "heading", label: "Dungeons", heading: true, activate: vi.fn() },
+		{ id: "wing", label: "Wing", height: 32, activate: vi.fn() },
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(frames.get("compact-content")?.layout).toHaveBeenCalledWith(
+		456,
+		68,
+		"TOP",
+		expect.anything(),
+	);
+	expect(frames.get("compact-row-0")?.layout).toHaveBeenCalledWith(
+		456,
+		28,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-0,
+	);
+	expect(frames.get("compact-row-1")?.layout).toHaveBeenCalledWith(
+		280,
+		32,
+		"TOPLEFT",
+		expect.anything(),
+		88,
+		-32,
+	);
+	expect(frames.get("compact-row-1")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Wing",
+		"CENTER",
+		0,
+		0,
+		14,
+		264,
+	);
+});
+
 it("uses small category icons and leaves room for their labels", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("small-icons", pool, "", vi.fn());

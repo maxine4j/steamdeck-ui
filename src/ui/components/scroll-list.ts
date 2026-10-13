@@ -95,6 +95,9 @@ export class ScrollList {
 			readonly progressInset?: { horizontal: number; bottom: number };
 			readonly contentPadding?: { horizontal: number; vertical: number };
 			readonly centerSingleLine?: boolean;
+			readonly buttonWidth?: number;
+			readonly centerText?: boolean;
+			readonly centerContent?: boolean;
 			readonly textColor?: readonly [number, number, number];
 		} = {},
 	) {
@@ -201,7 +204,13 @@ export class ScrollList {
 				this.contentHeight,
 				this.scroll,
 			);
-		else this.content.layout(width, this.contentHeight, "TOPLEFT", this.scroll);
+		else
+			this.content.layout(
+				width,
+				this.contentHeight,
+				this.options.centerContent ? "TOP" : "TOPLEFT",
+				this.scroll,
+			);
 	}
 	private render(startRow = 0, retainReady = false): void {
 		this.cancelRender?.();
@@ -267,7 +276,12 @@ export class ScrollList {
 				if (!position) return;
 				if (columns > 1) offset = position.top;
 				else if (row.heading) offset += row.marginTop ?? 0;
-				const rowWidth = position.width;
+				const rowWidth = row.heading
+					? position.width
+					: Math.min(
+							position.width,
+							this.options.buttonWidth ?? position.width,
+						);
 				let button = this.buttons.at(index);
 				if (!button) {
 					const frame = new Frame(
@@ -447,6 +461,8 @@ export class ScrollList {
 							!row.heading &&
 							!row.detail &&
 							!row.progress));
+				const centerText =
+					this.options.centerText && !row.heading && !row.detail;
 				if (row.progress) {
 					const horizontal = this.options.progressInset?.horizontal ?? 0;
 					const progressWidth = Math.max(
@@ -491,16 +507,18 @@ export class ScrollList {
 					rowHeight,
 					"TOPLEFT",
 					this.content,
-					indent + position.column * (rowWidth + gap),
+					indent +
+						position.column * (position.width + gap) +
+						(position.width - rowWidth) / 2,
 					-offset,
 				);
 				offset += rowHeight + (row.heading ? 4 : gap) + (row.marginBottom ?? 0);
 				button.frame.setLabel(
 					"label",
 					row.label,
-					centeredLabel ? "LEFT" : "TOPLEFT",
-					textLeft,
-					centeredLabel ? 0 : -verticalPadding,
+					centerText ? "CENTER" : centeredLabel ? "LEFT" : "TOPLEFT",
+					centerText ? 0 : textLeft,
+					centerText ? 0 : centeredLabel ? 0 : -verticalPadding,
 					row.fontSize ?? (row.heading ? 18 : 14),
 					Math.max(
 						1,

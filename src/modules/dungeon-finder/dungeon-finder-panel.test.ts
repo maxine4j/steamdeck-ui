@@ -91,6 +91,10 @@ vi.mock("../../ui/components/scroll-list", () => ({
 function setup(queued = false, canTank = true, canHeal = true) {
 	const callbacks: (() => void)[] = [];
 	const client: IDungeonFinderClient = {
+		getRaids: () => [],
+		canQueueRaid: () => true,
+		joinRaid: vi.fn(),
+		leaveRaid: vi.fn(),
 		getDungeonLists: () => [
 			{ id: "follower", label: "Follower Dungeon" },
 			{ id: "specific", label: "Specific Dungeons" },
@@ -186,7 +190,7 @@ it.each(["follower", "specific"] as const)(
 				.getNavGrid()
 				.flat()
 				.map((node) => node.navId),
-		).not.toContain("dungeon-back");
+		).toContain("dungeon-back");
 		expect(choices.some((row) => row.id === "dungeon-back")).toBe(false);
 		expect(
 			panel
@@ -202,7 +206,7 @@ it.each(["follower", "specific"] as const)(
 	},
 );
 
-it("returns from an empty secondary page via B without a Back button", () => {
+it("returns from an empty secondary page with the pinned Back button", () => {
 	const { rows, client, panel, callbacks } = setup();
 	client.getDungeonChoices = () => [];
 	rows.find((row) => row.id === "list-follower")?.activate();
@@ -217,8 +221,12 @@ it("returns from an empty secondary page via B without a Back button", () => {
 			.getNavGrid()
 			.flat()
 			.some((node) => node.navId === "dungeon-back"),
-	).toBe(false);
-	panel.onBack();
+	).toBe(true);
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "dungeon-back")
+		?.onInteract();
 	callbacks.shift()?.();
 	const overview = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(overview.some((row) => row.id === "list-follower")).toBe(true);
@@ -250,17 +258,20 @@ it("renders ordered sections and immediately joins available random dungeons", (
 	const { rows, client } = setup();
 	const headings = rows.filter((row) => row.heading);
 	expect(headings.map((row) => row.id)).toEqual([
+		"heading-dungeons",
 		"heading-special",
 		"heading-heroic",
 		"heading-normal",
+		"heading-raids",
+		"empty-raids",
 	]);
-	expect(headings.at(0)?.label).toContain(
+	expect(headings.at(1)?.label).toContain(
 		"|A:ui-hud-calendar-1-up:20:20|a Special events",
 	);
-	expect(headings.at(1)?.label).toContain(
+	expect(headings.at(2)?.label).toContain(
 		"|TInterface\\LFGFrame\\UI-LFG-ICON-HEROIC:20:16:0:0:32:32:0:16:0:20|t Heroic random",
 	);
-	expect(headings.at(2)?.label).toContain(
+	expect(headings.at(3)?.label).toContain(
 		"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:20:20|t Normal random",
 	);
 	expect(rows.find((row) => row.id === "dungeon-3")?.marginBottom).toBe(20);
@@ -334,7 +345,9 @@ it("pins four horizontal icon checkboxes above the scrolling dungeons", () => {
 it("removes the overview queue footer and compacts the role area", () => {
 	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
-		top: 144,
+		top: 180,
+		buttonWidth: 280,
+		centerText: true,
 		contentPadding: { horizontal: 16, vertical: 10 },
 		centerSingleLine: true,
 		bottom: 30,
@@ -404,6 +417,58 @@ it.each(["specific", "follower"] as const)(
 		).toBe(true);
 	},
 );
+
+it("separates dungeons and raids, with independently queueable wings and leave actions at capacity", () => {
+	const { client, panel, callbacks } = setup(true);
+	let capacity = true;
+	client.canQueueRaid = () => capacity;
+	client.getRaids = () => [
+		{
+			id: 60,
+			name: "New raid",
+			wings: [
+				{ id: 102, name: "Wing one", available: true, queued: true },
+				{ id: 103, name: "Wing two", available: true, queued: false },
+				{ id: 104, name: "Locked wing", available: false, queued: false },
+			],
+		},
+	];
+	panel.refresh();
+	callbacks.shift()?.();
+	let rows = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(rows.at(0)).toMatchObject({
+		id: "heading-dungeons",
+		label: "Dungeons",
+		marginTop: 16,
+	});
+	expect(rows.filter((row) => row.heading).slice(-2)).toMatchObject([
+		{ id: "heading-raids", label: "Raid Finder", fontSize: 22 },
+		{ id: "raid-60", label: "New raid", fontSize: 18 },
+	]);
+	expect(rows.findIndex((row) => row.id === "heading-raids")).toBeGreaterThan(
+		rows.findIndex((row) => row.id === "list-specific"),
+	);
+	rows.find((row) => row.id === "wing-103")?.activate();
+	expect(client.joinRaid).toHaveBeenCalledWith(103);
+	rows.find((row) => row.id === "wing-104")?.activate();
+	expect(client.joinRaid).toHaveBeenCalledOnce();
+	capacity = false;
+	callbacks.shift()?.();
+	rows = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(rows.find((row) => row.id === "wing-103")?.enabled).toBe(false);
+	expect(rows.find((row) => row.id === "wing-102")).toMatchObject({
+		enabled: true,
+		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
+	});
+	rows.find((row) => row.id === "wing-103")?.activate();
+	expect(client.joinRaid).toHaveBeenCalledOnce();
+	rows.find((row) => row.id === "wing-102")?.activate();
+	expect(client.leaveRaid).toHaveBeenCalledWith(102);
+	expect(client.leave).not.toHaveBeenCalled();
+	panel.onUnmount();
+	rows.find((row) => row.id === "wing-102")?.activate();
+	expect(client.leaveRaid).toHaveBeenCalledOnce();
+});
 
 it("removes navigation and guards retained controls when unmounted", () => {
 	const { panel, client } = setup();

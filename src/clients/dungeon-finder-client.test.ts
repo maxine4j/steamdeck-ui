@@ -3,6 +3,110 @@ import { DungeonFinderClient } from "./dungeon-finder-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+function setupRaids(queuedCount = 0) {
+	setup();
+	vi.stubGlobal("GetNumRFDungeons", () => 4);
+	vi.stubGlobal("GetRFDungeonInfo", (index: number) => {
+		const info: (string | number)[] = [];
+		info[0] = 100 + index;
+		info[1] = `Wing ${index}`;
+		info[9] = index === 1 ? 9 : 10;
+		info[19] = index === 1 ? "Old raid" : "New raid";
+		info[22] = index === 1 ? 50 : 60;
+		return info;
+	});
+	vi.stubGlobal("IsLFGDungeonJoinable", (id: number) => [
+		id !== 104,
+		id !== 104,
+		id === 104,
+	]);
+	vi.stubGlobal("GetLFGQueuedList", () =>
+		Object.fromEntries(
+			Array.from({ length: queuedCount }, (_, i) => [101 + i, true]),
+		),
+	);
+	vi.stubGlobal("GetLFGMode", (category: number, id?: number) =>
+		category === 1 || (id !== undefined && id < 101 + queuedCount)
+			? ["queued"]
+			: [],
+	);
+	vi.stubGlobal("RaidFinderQueueFrame_SetRaid", vi.fn());
+	vi.stubGlobal("RaidFinderFrameFindRaidButton", { IsEnabled: () => true });
+	vi.stubGlobal("RaidFinderQueueFrame_Join", vi.fn());
+	vi.stubGlobal("LeaveSingleLFG", vi.fn());
+}
+
+it("groups visible raid wings by raid, newest first, preserving wing order", () => {
+	setupRaids();
+	expect(new DungeonFinderClient().getRaids()).toEqual([
+		{
+			id: 60,
+			name: "New raid",
+			wings: [
+				{ id: 102, name: "Wing 2", available: true, queued: false },
+				{ id: 103, name: "Wing 3", available: true, queued: false },
+			],
+		},
+		{
+			id: 50,
+			name: "Old raid",
+			wings: [{ id: 101, name: "Wing 1", available: true, queued: false }],
+		},
+	]);
+});
+
+it("joins multiple raid wings while a dungeon is queued, stopping at seven raid queues", () => {
+	setupRaids(1);
+	const client = new DungeonFinderClient();
+	client.joinRaid(102);
+	client.joinRaid(103);
+	expect(RaidFinderQueueFrame_SetRaid).toHaveBeenCalledWith(102);
+	expect(RaidFinderQueueFrame_Join).toHaveBeenCalledTimes(2);
+	client.joinRaid(101);
+	client.joinRaid(104);
+	expect(RaidFinderQueueFrame_Join).toHaveBeenCalledTimes(2);
+	setupRaids(7);
+	expect(client.canQueueRaid()).toBe(false);
+	client.joinRaid(103);
+	expect(RaidFinderQueueFrame_Join).not.toHaveBeenCalled();
+	client.leaveRaid(101);
+	expect(LeaveSingleLFG).toHaveBeenCalledWith(3, 101);
+	client.leaveRaid(999);
+	expect(LeaveSingleLFG).toHaveBeenCalledOnce();
+});
+
+it("honors Blizzard's raid queue permission and proposal restrictions", () => {
+	setupRaids();
+	const client = new DungeonFinderClient();
+	vi.stubGlobal("RaidFinderFrameFindRaidButton", { IsEnabled: () => false });
+	client.joinRaid(102);
+	expect(RaidFinderQueueFrame_Join).not.toHaveBeenCalled();
+	vi.stubGlobal("GetLFGMode", () => ["proposal"]);
+	client.leaveRaid(102);
+	expect(LeaveSingleLFG).not.toHaveBeenCalled();
+});
+
+it("counts pending raid role checks toward capacity even before they appear in the queued list", () => {
+	setupRaids(6);
+	vi.stubGlobal("GetLFGMode", (category: number, id?: number) => {
+		if (category === 1) return ["queued"];
+		if (id === 104) return ["rolecheck"];
+		return id !== undefined && id >= 201 && id <= 206 ? ["queued"] : [];
+	});
+	vi.stubGlobal("GetLFGQueuedList", () => ({
+		201: true,
+		202: true,
+		203: true,
+		204: true,
+		205: true,
+		206: true,
+	}));
+	const client = new DungeonFinderClient();
+	expect(client.canQueueRaid()).toBe(false);
+	client.joinRaid(102);
+	expect(RaidFinderQueueFrame_Join).not.toHaveBeenCalled();
+});
+
 it("reads Blizzard's maintained choices after toggling instead of reloading saved choices", () => {
 	setupChoices();
 	const enabled = { 10: false };

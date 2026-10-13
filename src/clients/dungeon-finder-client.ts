@@ -18,7 +18,22 @@ export interface RandomDungeon {
 	readonly section: DungeonSection;
 	readonly available: boolean;
 }
+export interface RaidWing {
+	readonly id: number;
+	readonly name: string;
+	readonly available: boolean;
+	readonly queued: boolean;
+}
+export interface FinderRaid {
+	readonly id: number;
+	readonly name: string;
+	readonly wings: RaidWing[];
+}
 export interface IDungeonFinderClient {
+	getRaids(): FinderRaid[];
+	canQueueRaid(): boolean;
+	joinRaid(id: number): void;
+	leaveRaid(id: number): void;
 	getDungeons(): RandomDungeon[];
 	getSelected(): number | DungeonListId | undefined;
 	getDungeonLists(): readonly DungeonList[];
@@ -38,8 +53,107 @@ const sectionOrder: Record<DungeonSection, number> = {
 	heroic: 1,
 	normal: 2,
 };
+const raidCategory = 3;
+// Reported Retail limit; Blizzard exposes no queue-capacity API.
+const raidQueueLimit = 7;
+
+function activeQueue(mode: string | undefined): boolean {
+	return (
+		mode === "queued" ||
+		mode === "rolecheck" ||
+		mode === "proposal" ||
+		mode === "suspended"
+	);
+}
 
 export class DungeonFinderClient implements IDungeonFinderClient {
+	getRaids(): FinderRaid[] {
+		const raids: (FinderRaid & { expansion: number; newestWing: number })[] =
+			[];
+		for (let index = 1; index <= GetNumRFDungeons(); index++) {
+			const [
+				id,
+				name,
+				,
+				,
+				,
+				,
+				,
+				,
+				,
+				expansion,
+				,
+				,
+				,
+				,
+				,
+				,
+				,
+				,
+				,
+				raidName,
+				,
+				,
+				mapId,
+			] = GetRFDungeonInfo(index);
+			const [available, playerAvailable, hide] = IsLFGDungeonJoinable(id);
+			const [mode] = GetLFGMode(raidCategory, id);
+			const queued = activeQueue(mode);
+			if (!queued && !available && !playerAvailable && hide) continue;
+			let raid = raids.find((entry) => entry.id === mapId);
+			if (!raid) {
+				raid = {
+					id: mapId,
+					name: raidName,
+					wings: [],
+					expansion,
+					newestWing: id,
+				};
+				raids.push(raid);
+			}
+			raid.newestWing = Math.max(raid.newestWing, id);
+			raid.wings.push({ id, name, available, queued });
+		}
+		raids.sort(
+			(a, b) => b.expansion - a.expansion || b.newestWing - a.newestWing,
+		);
+		return raids.map(({ id, name, wings }) => ({ id, name, wings }));
+	}
+	canQueueRaid(): boolean {
+		const active = new Set<number>();
+		for (const id of Object.keys(GetLFGQueuedList(raidCategory))) {
+			const [mode] = GetLFGMode(raidCategory, Number(id));
+			if (activeQueue(mode)) active.add(Number(id));
+		}
+		// Blizzard's queued list omits pending role checks and proposals.
+		for (const raid of this.getRaids()) {
+			for (const wing of raid.wings) {
+				if (wing.queued) active.add(wing.id);
+			}
+		}
+		return active.size < raidQueueLimit;
+	}
+	joinRaid(id: number): void {
+		if (
+			!this.canQueueRaid() ||
+			!this.getRaids().some((raid) =>
+				raid.wings.some(
+					(wing) => wing.id === id && wing.available && !wing.queued,
+				),
+			)
+		)
+			return;
+		RaidFinderQueueFrame_SetRaid(id);
+		if (RaidFinderFrameFindRaidButton.IsEnabled()) RaidFinderQueueFrame_Join();
+	}
+	leaveRaid(id: number): void {
+		const [mode] = GetLFGMode(raidCategory, id);
+		if (mode !== "queued" && mode !== "rolecheck" && mode !== "suspended")
+			return;
+		RaidFinderQueueFrame_SetRaid(id);
+		if (RaidFinderFrameFindRaidButton.IsEnabled())
+			LeaveSingleLFG(raidCategory, id);
+	}
 	getDungeons(): RandomDungeon[] {
 		const dungeons: RandomDungeon[] = [];
 		for (let index = 1; index <= GetNumRandomDungeons(); index++) {
@@ -163,12 +277,7 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 	}
 	isQueued(): boolean {
 		const [mode] = GetLFGMode(1);
-		return (
-			mode === "queued" ||
-			mode === "rolecheck" ||
-			mode === "proposal" ||
-			mode === "suspended"
-		);
+		return activeQueue(mode);
 	}
 	select(id: number): void {
 		if (

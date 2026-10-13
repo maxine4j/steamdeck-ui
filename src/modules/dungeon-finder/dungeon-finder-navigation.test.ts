@@ -51,6 +51,10 @@ it.each(["random", "specific", "follower"] as const)(
 		let queued = false;
 		const selected = queue === "random" ? 3 : queue;
 		const client: IDungeonFinderClient = {
+			getRaids: () => [],
+			canQueueRaid: () => true,
+			joinRaid: vi.fn(),
+			leaveRaid: vi.fn(),
 			getDungeonLists: () => [
 				{ id: "specific", label: "Specific Dungeons" },
 				{ id: "follower", label: "Follower Dungeon" },
@@ -128,7 +132,7 @@ it.each(["random", "specific", "follower"] as const)(
 				.getNavGrid()
 				.flat()
 				.map((node) => node.navId),
-		).toEqual([action]);
+		).toEqual(queue === "random" ? [action] : ["dungeon-back", action]);
 		nav.interact();
 		flush();
 		expect(queued).toBe(false);
