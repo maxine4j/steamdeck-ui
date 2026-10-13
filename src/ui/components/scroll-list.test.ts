@@ -5,6 +5,42 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("centers tile icons beside centered labels and insets icons and actions by the content padding", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("padded-spec", pool, "", vi.fn(), {
+		centerLabelsVertically: true,
+		contentPadding: { horizontal: 24, vertical: 10 },
+	});
+	list.setRows([
+		{
+			id: "spec",
+			label: "Arms",
+			icon: 10,
+			height: 64,
+			secondary: {
+				label: "Switch Spec",
+				width: 110,
+				height: 32,
+				onlyAction: true,
+				activate: vi.fn(),
+			},
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("padded-parent", pool));
+	expect(frames.get("padded-spec-icon-0")?.layout).toHaveBeenLastCalledWith(
+		36,
+		36,
+		"LEFT",
+		expect.anything(),
+		24,
+		0,
+	);
+	expect(
+		frames.get("padded-spec-secondary-0")?.layout,
+	).toHaveBeenLastCalledWith(110, 32, "RIGHT", expect.anything(), -24, 0);
+});
+
 it("left-aligns and vertically centers one or two label lines and removes empty action tooltips", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("stacked-labels", pool, "", vi.fn(), {

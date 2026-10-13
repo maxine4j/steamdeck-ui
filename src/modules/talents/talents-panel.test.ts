@@ -4,9 +4,15 @@ import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { TalentsPanel } from "./talents-panel";
 
-const { rows } = vi.hoisted(() => ({ rows: vi.fn() }));
+const { rows, listOptions } = vi.hoisted(() => ({
+	rows: vi.fn(),
+	listOptions: vi.fn(),
+}));
 vi.mock("../../ui/components/scroll-list", () => ({
 	ScrollList: class {
+		constructor(...args: unknown[]) {
+			listOptions(args.at(4));
+		}
 		mount = vi.fn();
 		unmount = vi.fn();
 		destroy = vi.fn();
@@ -47,6 +53,12 @@ it.each([2, 3, 4])(
 			},
 		});
 		panel.refresh();
+		expect(listOptions).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				contentPadding: { horizontal: 24, vertical: 10 },
+				centerLabelsVertically: true,
+			}),
+		);
 		expect(client.read).not.toHaveBeenCalled();
 		panel.onMount({} as IUIComponent);
 		panel.refresh();

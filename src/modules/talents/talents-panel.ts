@@ -32,7 +32,7 @@ export class TalentsPanel implements IPanel {
 			padding: 20,
 			columns: 2,
 			gap: 12,
-			contentPadding: { horizontal: 16, vertical: 10 },
+			contentPadding: { horizontal: 24, vertical: 10 },
 			centerSingleLine: true,
 			centerLabelsVertically: true,
 			verticallyCentered: true,

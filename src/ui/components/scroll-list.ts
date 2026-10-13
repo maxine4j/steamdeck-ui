@@ -446,10 +446,10 @@ export class ScrollList {
 					button.icon.layout(
 						iconSize,
 						iconSize,
-						"TOPLEFT",
+						this.options.centerLabelsVertically ? "LEFT" : "TOPLEFT",
 						button.frame,
 						this.options.contentPadding?.horizontal ?? 6,
-						-verticalPadding,
+						this.options.centerLabelsVertically ? 0 : -verticalPadding,
 					);
 					button.icon.setIcon(row.icon);
 					button.icon.show();
