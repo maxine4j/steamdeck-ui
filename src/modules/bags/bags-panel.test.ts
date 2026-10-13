@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { InventoryItem } from "../../clients/inventory-client";
 import { Frame } from "../../ui/components/frame";
 import { FramePoolManager } from "../../ui/frame-pool-manager";
+import { NavigationGrid } from "../../ui/navigation/navigation-grid";
 import { BagsPanel } from "./bags-panel";
 
 afterEach(() => vi.restoreAllMocks());
@@ -111,6 +112,16 @@ it.each(["category", "expansion"] as const)(
 			flush();
 		};
 		if (mode === "expansion") toggle();
+		const grid = panel.getNavGrid();
+		// Spread exposes holes that JS forEach skips but Lua forEach visits.
+		expect([...grid].every((row) => Array.isArray(row))).toBe(true);
+		expect(grid.at(2)).toEqual([]);
+		const graph = new NavigationGrid(grid);
+		const firstItem = grid.at(1)?.at(0);
+		const lastItem = grid.at(3)?.at(0);
+		expect(firstItem).toBeDefined();
+		expect(lastItem).toBeDefined();
+		expect(graph.neighbor(firstItem?.navId ?? "", "down")).toBe(lastItem);
 		const headers = [...visible].filter((frame) => titles.has(frame));
 		expect(headers).toHaveLength(3);
 		toggle();

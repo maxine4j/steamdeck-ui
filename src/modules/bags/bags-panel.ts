@@ -218,6 +218,8 @@ export class BagsPanel implements IPanel {
 					const top =
 						groupTop + 28 + Math.floor(itemIndex / itemsPerRow) * itemSpacing;
 					const row = 1 + Math.floor(top / itemSpacing);
+					// Lua array iteration visits gaps, so retain them as empty rows.
+					while (grid.length <= row) grid.push([]);
 					const cells = grid.at(row) ?? [];
 					grid[row] = cells;
 					const node = cell.icon.navigationNode(
