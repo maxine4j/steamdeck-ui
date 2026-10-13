@@ -355,7 +355,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	flush();
 	layout.mockClear();
 	panel.setItems([
-		...Array.from({ length: 6 }, (_, index) => ({
+		...Array.from({ length: 40 }, (_, index) => ({
 			...gear,
 			itemId: 100 + index,
 		})),
@@ -380,18 +380,23 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		[42, 42, "TOPLEFT", expect.any(Frame), 0, -74],
 	]);
 	expect(positions("bags-border-6")).toEqual([
-		[42, 42, "TOPLEFT", expect.any(Frame), 234, -28],
+		[42, 42, "TOPLEFT", expect.any(Frame), 46, -74],
 	]);
 	const groupedGrid = panel.getNavGrid();
 	expect(groupedGrid.at(1)?.at(4)?.navId).toContain("item-104");
 	expect(groupedGrid.at(2)?.at(0)?.navId).toContain("item-105");
 	expect(groupedGrid.at(2)?.at(5)).toBeUndefined();
-	expect(groupedGrid.at(3)?.at(0)?.navId).toContain("item-200");
+	expect(
+		groupedGrid.flat().find((node) => node.navId.includes("item-200"))?.navColumn,
+	).toBe(5);
 	expect(positions("bags-header-2")).toEqual([
-		[226, 24, "TOPLEFT", expect.any(Frame), 0, -134],
+		[226, 24, "TOPLEFT", expect.any(Frame), 234, -138],
+	]);
+	expect(positions("bags-border-41")).toEqual([
+		[42, 42, "TOPLEFT", expect.any(Frame), 234, -166],
 	]);
 	expect(positions("bags-content")).toEqual([
-		[460, 222, "TOPLEFT", expect.any(Frame), 0, -189],
+		[460, 410, "TOPLEFT", expect.any(Frame), 0, -95],
 	]);
 	viewportHeight = 100;
 	layout.mockClear();
@@ -401,7 +406,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(positions("bags-border-0")).toEqual([]);
 	expect(positions("bags-content").at(-1)).toEqual([
 		460,
-		222,
+		410,
 		"TOPLEFT",
 		expect.any(Frame),
 		0,

@@ -157,8 +157,6 @@ export class BagsPanel implements IPanel {
 				),
 			],
 		];
-		let navRow = 1;
-		let navRowHeight = 0;
 		this.toggle.setLabel(
 			"mode",
 			this.grouping.mode === "category"
@@ -166,13 +164,17 @@ export class BagsPanel implements IPanel {
 				: "Group: Expansion",
 		);
 		const groups = groupItems(this.items, this.grouping.mode);
-		let y = 0;
-		let rowHeight = 0;
+		const columnBottoms = [0, 0];
 		let index = 0;
 		groups.forEach((group, groupIndex) => {
-			const x = (groupIndex % 2) * categorySpacing;
-			const groupTop = y;
-			const firstNavRow = navRow;
+			const column = columnBottoms[0] <= columnBottoms[1] ? 0 : 1;
+			const x = column * categorySpacing;
+			const previousBottom = columnBottoms[column] ?? 0;
+			const groupTop =
+				previousBottom === 0
+					? 0
+					: Math.ceil((previousBottom + itemSpacing) / itemSpacing) *
+						itemSpacing;
 			jobs.push(() => {
 				let header = this.headers.at(groupIndex);
 				if (!header) {
@@ -216,7 +218,7 @@ export class BagsPanel implements IPanel {
 					const source = item.sources.at(0);
 					const top =
 						groupTop + 28 + Math.floor(itemIndex / itemsPerRow) * itemSpacing;
-					const row = firstNavRow + Math.floor(itemIndex / itemsPerRow);
+					const row = 1 + Math.floor(top / itemSpacing);
 					const cells = grid.at(row) ?? [];
 					grid[row] = cells;
 					const node = cell.icon.navigationNode(
@@ -246,7 +248,7 @@ export class BagsPanel implements IPanel {
 								this.menu.open(source);
 						},
 						navColumn:
-							(groupIndex % 2) * itemsPerRow + (itemIndex % itemsPerRow),
+							column * itemsPerRow + (itemIndex % itemsPerRow),
 					});
 					cell.icon.onClick((button) => {
 						if (
@@ -281,22 +283,13 @@ export class BagsPanel implements IPanel {
 					cell.icon.show();
 				});
 			});
-			rowHeight = Math.max(
-				rowHeight,
-				28 + Math.ceil(group.items.length / itemsPerRow) * itemSpacing + 14,
-			);
-			navRowHeight = Math.max(
-				navRowHeight,
-				Math.ceil(group.items.length / itemsPerRow),
-			);
-			if (groupIndex % 2 === 1 || groupIndex === groups.length - 1) {
-				y += rowHeight;
-				rowHeight = 0;
-				navRow += navRowHeight;
-				navRowHeight = 0;
-			}
+			columnBottoms[column] =
+				groupTop +
+				28 +
+				Math.ceil(group.items.length / itemsPerRow) * itemSpacing +
+				14;
 		});
-		this.contentHeight = Math.max(1, y);
+		this.contentHeight = Math.max(1, ...columnBottoms);
 		this.layoutContent();
 		this.content.setLabel(
 			"empty",
