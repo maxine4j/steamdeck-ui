@@ -5,7 +5,7 @@ import { Frame } from "./frame";
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("nine-slices atlas borders without stretching corners and clears slices when reused as an icon", () => {
+it("uses native atlas slicing and clears it on icon reuse and pooled release", () => {
 	const texture = () => ({
 		SetAtlas: vi.fn(),
 		SetTexture: vi.fn(),
@@ -17,6 +17,9 @@ it("nine-slices atlas borders without stretching corners and clears slices when 
 		SetWidth: vi.fn(),
 		SetHeight: vi.fn(),
 		SetColorTexture: vi.fn(),
+		SetTextureSliceMargins: vi.fn(),
+		SetTextureSliceMode: vi.fn(),
+		ClearTextureSlice: vi.fn(),
 	});
 	const textures: ReturnType<typeof texture>[] = [];
 	const native = {
@@ -32,57 +35,40 @@ it("nine-slices atlas borders without stretching corners and clears slices when 
 			return next;
 		},
 	} as unknown as WowFrame;
-	vi.stubGlobal("C_Texture", {
-		GetAtlasInfo: () => ({
-			width: 374,
-			height: 112,
-			leftTexCoord: 0,
-			rightTexCoord: 1,
-			topTexCoord: 0,
-			bottomTexCoord: 1,
-		}),
-	});
 	const frame = new Frame(
 		"sliced-tile",
 		new FramePoolManager({ createFrame: () => native }),
 	);
 	frame.layout(420, 60);
 	frame.setAtlasBackground("tile", [0.2, 0.8, 0.3], 16);
-	expect(textures).toHaveLength(10);
-	const corner = textures.at(1);
-	expect(corner?.SetWidth).toHaveBeenLastCalledWith(16);
-	expect(corner?.SetHeight).toHaveBeenLastCalledWith(16);
-	expect(corner?.SetTexCoord).toHaveBeenLastCalledWith(
-		0,
-		16 / 374,
-		0,
-		16 / 112,
-	);
-	expect(corner?.SetVertexColor).toHaveBeenLastCalledWith(0.2, 0.8, 0.3);
-	const center = textures.at(5);
-	expect(center?.SetPoint).toHaveBeenCalledWith(
-		"TOPLEFT",
-		native,
-		"TOPLEFT",
+	expect(textures).toHaveLength(1);
+	const background = textures.at(0);
+	expect(background?.SetAtlas).toHaveBeenLastCalledWith("tile", false);
+	expect(background?.SetTexCoord).not.toHaveBeenCalled();
+	expect(background?.SetTextureSliceMargins).toHaveBeenLastCalledWith(
 		16,
-		-16,
-	);
-	expect(center?.SetPoint).toHaveBeenCalledWith(
-		"BOTTOMRIGHT",
-		native,
-		"BOTTOMRIGHT",
-		-16,
+		16,
+		16,
 		16,
 	);
+	expect(background?.SetTextureSliceMode).toHaveBeenLastCalledWith(0);
+	expect(background?.SetVertexColor).toHaveBeenLastCalledWith(0.2, 0.8, 0.3);
 	frame.layout(500, 80);
 	frame.setAtlasBackground("tile", undefined, 16);
-	expect(textures).toHaveLength(10);
-	expect(corner?.SetWidth).toHaveBeenLastCalledWith(16);
-	expect(corner?.SetVertexColor).toHaveBeenLastCalledWith(1, 1, 1);
+	expect(textures).toHaveLength(1);
+	expect(background?.SetTextureSliceMargins).toHaveBeenLastCalledWith(
+		16,
+		16,
+		16,
+		16,
+	);
+	expect(background?.SetVertexColor).toHaveBeenLastCalledWith(1, 1, 1);
 	frame.setIcon(133633);
-	expect(corner?.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+	expect(background?.ClearTextureSlice).toHaveBeenCalledTimes(2);
+	frame.setAtlasBackground("tile", undefined, 16);
 	frame.destroy();
-	expect(corner?.SetTexture).toHaveBeenLastCalledWith(undefined);
+	expect(background?.ClearTextureSlice).toHaveBeenCalledTimes(3);
+	expect(background?.SetTexture).toHaveBeenLastCalledWith(undefined);
 });
 
 it("reports hover changes alongside tooltips and replaces old hover callbacks", () => {
@@ -121,6 +107,10 @@ it("reports hover changes alongside tooltips and replaces old hover callbacks", 
 	frame.setTooltip("Replacement");
 	scripts.get("OnEnter")?.();
 	expect(hover).toHaveBeenCalledTimes(2);
+	frame.clearTooltip();
+	expect(scripts.get("OnEnter")).toBeUndefined();
+	expect(scripts.get("OnLeave")).toBeUndefined();
+	expect(tooltip.Hide).toHaveBeenCalledTimes(2);
 });
 
 it("styles readable prose without the default outlined gold font", () => {

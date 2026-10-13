@@ -112,6 +112,7 @@ export class ScrollList {
 			readonly centerSingleLine?: boolean;
 			readonly buttonWidth?: number;
 			readonly centerText?: boolean;
+			readonly centerLabelsVertically?: boolean;
 			readonly centerContent?: boolean;
 			readonly textColor?: readonly [number, number, number];
 		} = {},
@@ -327,7 +328,7 @@ export class ScrollList {
 								else secondary.setFocused(true);
 								if (!refresh) this.reveal(index);
 								const tooltip = this.rows.at(index)?.secondary?.tooltip;
-								if (tooltip !== undefined)
+								if (tooltip !== undefined && tooltip !== "")
 									secondary.showTooltip({ text: tooltip });
 							},
 							onBlur: () => {
@@ -462,9 +463,16 @@ export class ScrollList {
 					);
 					button.secondary.setButtonBackground();
 					button.secondary.setLabel("label", row.secondary.label);
-					button.secondary.setTooltip(
-						row.secondary.tooltip ?? row.secondary.label,
-					);
+					if (
+						row.secondary.onlyAction &&
+						(row.secondary.tooltip === undefined ||
+							row.secondary.tooltip === "")
+					)
+						button.secondary.clearTooltip();
+					else
+						button.secondary.setTooltip(
+							row.secondary.tooltip ?? row.secondary.label,
+						);
 					button.secondary.onClick((mouse) => {
 						if (
 							this.isReady(index) &&
@@ -535,6 +543,11 @@ export class ScrollList {
 				const centerText = this.options.centerText && !row.heading;
 				const twoLines =
 					row.detail !== undefined || row.hoverDetail !== undefined;
+				const verticallyCentered =
+					this.options.centerLabelsVertically && !row.heading;
+				const stackedLabels =
+					(row.detail !== undefined && row.detail !== "") ||
+					row.hoverDetail !== undefined;
 				if (row.progress) {
 					const horizontal = this.options.progressInset?.horizontal ?? 0;
 					const progressWidth = Math.max(
@@ -597,25 +610,31 @@ export class ScrollList {
 				button.frame.setLabel(
 					"label",
 					row.label,
-					centerText
-						? twoLines
-							? "TOP"
-							: "CENTER"
-						: centeredLabel
-							? "LEFT"
-							: "TOPLEFT",
+					verticallyCentered
+						? "LEFT"
+						: centerText
+							? twoLines
+								? "TOP"
+								: "CENTER"
+							: centeredLabel
+								? "LEFT"
+								: "TOPLEFT",
 					centerText
 						? secondarySpace > 0
 							? -secondarySpace / 2
 							: 0
 						: textLeft,
-					centerText
-						? twoLines
-							? -verticalPadding
+					verticallyCentered
+						? stackedLabels
+							? 8
 							: 0
-						: centeredLabel
-							? 0
-							: -verticalPadding,
+						: centerText
+							? twoLines
+								? -verticalPadding
+								: 0
+							: centeredLabel
+								? 0
+								: -verticalPadding,
 					row.fontSize ?? (row.heading ? 18 : 14),
 					Math.max(
 						1,
@@ -638,11 +657,19 @@ export class ScrollList {
 					trailingWidth,
 				);
 				button.detailLayout = {
-					point: centerText ? "BOTTOM" : "BOTTOMLEFT",
+					point: verticallyCentered
+						? "LEFT"
+						: centerText
+							? "BOTTOM"
+							: "BOTTOMLEFT",
 					x: centerText
 						? -secondarySpace / 2 + (row.animatedIconOnDetail ? -14 : 0)
 						: textLeft,
-					y: row.progress ? 18 : verticalPadding,
+					y: verticallyCentered
+						? -((row.fontSize ?? 14) + 4) / 2
+						: row.progress
+							? 18
+							: verticalPadding,
 					width: textWidth - (row.animatedIconOnDetail ? 28 : 0),
 				};
 				this.updateDetail(index);

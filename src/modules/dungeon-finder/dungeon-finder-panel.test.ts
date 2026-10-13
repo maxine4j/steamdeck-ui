@@ -300,9 +300,8 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	expect(rows.find((row) => row.id === "list-specific")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		backgroundTint: [0.2, 0.8, 0.3],
-		detail: "In Queue",
+		detail: undefined,
 		secondary: { label: "Leave Queue", tooltip: "In queue - leave?" },
-		animatedIconOnDetail: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		enabled: true,
 	});
@@ -344,15 +343,41 @@ it("renders ordered sections and immediately joins available random dungeons", (
 	activate(rows.find((row) => row.id === "dungeon-3"));
 	expect(client.select).toHaveBeenCalledWith(3);
 	expect(client.join).toHaveBeenCalledOnce();
-	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBe("");
+	expect(rows.find((row) => row.id === "dungeon-3")?.detail).toBeUndefined();
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		backgroundAtlas: "ui-journeys-renown-button",
 		height: 60,
-		secondary: { label: "Queue", tooltip: "Enter Queue?" },
+		secondary: { label: "Queue", tooltip: undefined },
 	});
 	activate(rows.find((row) => row.id === "dungeon-2"));
 	expect(client.select).toHaveBeenCalledTimes(1);
 });
+
+it.each([
+	[
+		"Random Timewalking Dungeon (Mists of Pandaria)",
+		"Random Timewalking Dungeon",
+		"(Mists of Pandaria)",
+	],
+	["Dungeon (Heroic) Return", "Dungeon Return", "(Heroic)"],
+	["Dungeon (unfinished", "Dungeon (unfinished", undefined],
+])(
+	"keeps parentheses when splitting %s onto a second line",
+	(name, label, detail) => {
+		const { client, panel, callbacks } = setup();
+		client.getDungeons = () => [
+			{ id: 3, name, section: "special", available: true },
+		];
+		panel.refresh();
+		callbacks.shift()?.();
+		const rows = setRows.mock.lastCall?.at(0) as ListRow[];
+		expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
+			label,
+			detail,
+			secondary: { tooltip: undefined },
+		});
+	},
+);
 
 it("dims unsupported roles and excludes them from controller navigation", () => {
 	const { panel } = setup(false, false, false);
@@ -418,7 +443,8 @@ it("removes the overview queue footer and compacts the role area", () => {
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
 		top: 180,
 		buttonWidth: 420,
-		centerText: true,
+		centerText: false,
+		centerLabelsVertically: true,
 		contentPadding: { horizontal: 16, vertical: 10 },
 		centerSingleLine: true,
 		bottom: 30,
@@ -511,7 +537,7 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 				},
 				{
 					id: 103,
-					name: "Wing two",
+					name: "Wing two (Raid Finder)",
 					available: true,
 					queued: false,
 					bosses: [{ name: "Third Boss", killed: false }],
@@ -553,9 +579,13 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 			label: "Queue",
 			tooltip: expect.stringContaining("Third Boss"),
 		},
-		detail: "0/1 bosses killed",
+		label: "Wing two • 0/1",
+		detail: "(Raid Finder)",
 		marginBottom: 0,
 	});
+	expect(
+		rows.find((row) => row.id === "wing-103")?.secondary?.tooltip,
+	).not.toContain("Enter Queue?");
 	expect(client.joinRaid).toHaveBeenCalledWith(103);
 	activate(rows.find((row) => row.id === "wing-104"));
 	expect(client.joinRaid).toHaveBeenCalledOnce();
@@ -565,8 +595,8 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	expect(rows.find((row) => row.id === "wing-103")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "wing-102")).toMatchObject({
 		backgroundTint: [0.2, 0.8, 0.3],
-		detail: "1/2 bosses killed • In Queue",
-		animatedIconOnDetail: true,
+		label: "Wing one • 1/2",
+		detail: undefined,
 		enabled: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		marginBottom: 0,
@@ -613,8 +643,7 @@ it.each(["specific", "follower"] as const)(
 			label: list === "follower" ? "Follower Dungeon" : "Specific Dungeons",
 			enabled: true,
 			backgroundTint: [0.2, 0.8, 0.3],
-			detail: "In Queue",
-			animatedIconOnDetail: true,
+			detail: undefined,
 			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		});
 		activate(choices.at(-1));

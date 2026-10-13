@@ -66,9 +66,7 @@ function queueTile(queued: boolean) {
 		backgroundAtlas: "ui-journeys-renown-button",
 		backgroundSlice: 16,
 		backgroundTint: queued ? ([0.2, 0.8, 0.3] as const) : undefined,
-		detail: queued ? "In Queue" : "",
 		animatedIcon: queued ? searchingEye : undefined,
-		animatedIconOnDetail: queued ? true : undefined,
 	};
 }
 
@@ -77,11 +75,27 @@ function actionTile(
 	queued: boolean,
 	label = "Queue",
 	actionTooltip?: string,
+	counter?: string,
 ): ListRow {
+	const start = row.label.indexOf("(");
+	let end = -1;
+	for (let index = row.label.length - 1; index > start; index--) {
+		if (row.label.charAt(index) === ")") {
+			end = index;
+			break;
+		}
+	}
+	const split = start >= 0 && end > start;
+	const name = split
+		? [row.label.slice(0, start).trim(), row.label.slice(end + 1).trim()]
+				.filter((part) => part !== "")
+				.join(" ")
+		: row.label;
 	return {
 		...row,
 		...queueTile(queued),
-		detail: row.detail ?? (queued ? "In Queue" : ""),
+		label: counter ? `${name} • ${counter}` : name,
+		detail: split ? row.label.slice(start, end + 1) : undefined,
 		tooltip: row.enabled === false ? row.tooltip : row.label,
 		activate: () => {},
 		secondary: {
@@ -94,7 +108,7 @@ function actionTile(
 				(queued
 					? "In queue - leave?"
 					: label === "Queue"
-						? "Enter Queue?"
+						? undefined
 						: "Choose Dungeons"),
 			activate: row.activate,
 		},
@@ -136,7 +150,8 @@ export class DungeonFinderPanel implements IPanel {
 			padding: 30,
 			contentPadding: { horizontal: 16, vertical: 10 },
 			centerSingleLine: true,
-			centerText: true,
+			centerText: false,
+			centerLabelsVertically: true,
 			centerContent: true,
 			buttonWidth: 420,
 			top: 180,
@@ -313,14 +328,13 @@ export class DungeonFinderPanel implements IPanel {
 				activate: () => {},
 			});
 			raid.wings.forEach((wing, index) => {
-				const progress = `${wing.bosses.filter((boss) => boss.killed).length}/${wing.bosses.length} bosses killed`;
-				const bossTooltip = `${wing.name}\n\n${wing.bosses.map((boss) => `${boss.name}${boss.killed ? " (killed)" : ""}`).join("\n")}\n\n${wing.queued ? "In queue - leave?" : "Enter Queue?"}`;
+				const progress = `${wing.bosses.filter((boss) => boss.killed).length}/${wing.bosses.length}`;
+				const bossTooltip = `${wing.name}\n\n${progress} bosses killed\n${wing.bosses.map((boss) => `${boss.name}${boss.killed ? " (killed)" : ""}`).join("\n")}`;
 				rows.push(
 					actionTile(
 						{
 							id: `wing-${wing.id}`,
 							label: wing.name,
-							detail: `${progress}${wing.queued ? " • In Queue" : ""}`,
 							enabled: wing.queued || (wing.available && capacity),
 							tooltip: wing.queued
 								? "Leave Queue"
@@ -357,6 +371,7 @@ export class DungeonFinderPanel implements IPanel {
 						wing.queued,
 						"Queue",
 						bossTooltip,
+						progress,
 					),
 				);
 			});
@@ -440,7 +455,7 @@ export class DungeonFinderPanel implements IPanel {
 					enabled: queued
 						? this.client.getSelected() === page
 						: choices.some((dungeon) => dungeon.checked && dungeon.available),
-					tooltip: queued ? "Leave Queue" : "Enter Queue?",
+					tooltip: queued ? "Leave Queue" : undefined,
 					activate: () => {
 						if (!this.mounted || this.page !== page) return;
 						if (this.client.isQueued()) {

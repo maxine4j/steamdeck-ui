@@ -5,6 +5,73 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("left-aligns and vertically centers one or two label lines and removes empty action tooltips", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("stacked-labels", pool, "", vi.fn(), {
+		buttonWidth: 420,
+		centerLabelsVertically: true,
+		contentPadding: { horizontal: 16, vertical: 10 },
+	});
+	const action = {
+		label: "Queue",
+		width: 110,
+		height: 32,
+		onlyAction: true,
+		activate: vi.fn(),
+	};
+	list.setRows([
+		{
+			id: "queue",
+			label: "Random Timewalking Dungeon",
+			detail: "(Mists of Pandaria)",
+			height: 60,
+			secondary: { ...action, tooltip: "Boss names" },
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	const tile = frames.get("stacked-labels-row-0");
+	expect(tile?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Random Timewalking Dungeon",
+		"LEFT",
+		16,
+		8,
+		14,
+		262,
+	);
+	expect(tile?.setLabel).toHaveBeenCalledWith(
+		"detail",
+		"(Mists of Pandaria)",
+		"LEFT",
+		16,
+		-9,
+		12,
+		262,
+	);
+	list.setRows([
+		{
+			id: "queue",
+			label: "Wing • 1/3",
+			height: 60,
+			secondary: action,
+			activate: vi.fn(),
+		},
+	]);
+	expect(tile?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Wing • 1/3",
+		"LEFT",
+		16,
+		0,
+		14,
+		262,
+	);
+	expect(
+		frames.get("stacked-labels-secondary-0")?.clearTooltip,
+	).toHaveBeenCalled();
+});
+
 it("uses animated navigation outlines for rows with animated artwork and skips arrival on refresh", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("arrival-row", pool, "", vi.fn());
@@ -986,6 +1053,7 @@ const { frames } = vi.hoisted(() => ({
 			show: ReturnType<typeof vi.fn>;
 			onClick: ReturnType<typeof vi.fn>;
 			setTooltip: ReturnType<typeof vi.fn>;
+			clearTooltip: ReturnType<typeof vi.fn>;
 			setFocused: ReturnType<typeof vi.fn>;
 			showTooltip: ReturnType<typeof vi.fn>;
 			hideTooltip: ReturnType<typeof vi.fn>;
@@ -1036,6 +1104,7 @@ vi.mock("./frame", () => ({
 		setLabelWordWrap = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
+		clearTooltip = vi.fn();
 		setHoverTooltip = vi.fn();
 		showTooltip = vi.fn();
 		hideTooltip = vi.fn();

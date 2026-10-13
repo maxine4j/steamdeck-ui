@@ -24,6 +24,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setBorder = vi.fn();
 		setOpacity = vi.fn();
 		setTooltip = vi.fn();
+		clearTooltip = vi.fn();
 		showTooltip = vi.fn();
 		hideTooltip = vi.fn();
 		setAnimatedAtlas = vi.fn();

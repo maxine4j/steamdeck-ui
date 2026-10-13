@@ -12,12 +12,7 @@ import {
 	SecureClickBindings,
 } from "./secure-click-bindings";
 import { applySideTabSkin } from "./side-tab-skin";
-import {
-	applyAtlasNineSlice,
-	applyButtonSkin,
-	applyWindowSkin,
-	clearAtlasNineSlice,
-} from "./skin";
+import { applyButtonSkin, applyWindowSkin } from "./skin";
 import {
 	setTooltipContent,
 	type TooltipContent,
@@ -59,9 +54,21 @@ interface AtlasAnimationGroup {
 	IsPlaying(): boolean;
 }
 
+type SlicedTexture = WowTexture & {
+	SetTextureSliceMargins(
+		left: number,
+		top: number,
+		right: number,
+		bottom: number,
+	): void;
+	SetTextureSliceMode(mode: number): void;
+	ClearTextureSlice(): void;
+};
+
 export class Frame implements IUIComponent {
 	private focusArrival?: FocusArrival;
 	private atlasSliced = false;
+	private simpleTooltipHovered = false;
 	private iconFocus?: IconFocus;
 	private animation?: AtlasAnimationGroup;
 	private flipbook?: FlipbookAnimation;
@@ -622,6 +629,7 @@ export class Frame implements IUIComponent {
 			suppressAutomaticCompareItem: boolean;
 		};
 		native.SetScript("OnEnter", () => {
+			this.simpleTooltipHovered = true;
 			onHover?.(true);
 			const tooltip = GameTooltip as HoverTooltip;
 			tooltip.SetOwner(native, "ANCHOR_RIGHT");
@@ -631,11 +639,19 @@ export class Frame implements IUIComponent {
 			tooltip.Show();
 		});
 		native.SetScript("OnLeave", () => {
+			this.simpleTooltipHovered = false;
 			onHover?.(false);
 			const tooltip = GameTooltip as HoverTooltip;
 			tooltip.Hide();
 			tooltip.suppressAutomaticCompareItem = false;
 		});
+	}
+	clearTooltip(): void {
+		if (this.simpleTooltipHovered) GameTooltip.Hide();
+		this.simpleTooltipHovered = false;
+		this.native?.SetScript("OnEnter", undefined);
+		this.native?.SetScript("OnLeave", undefined);
+		this.hideTooltip();
 	}
 	getSize(): { width: number; height: number } {
 		const native = this.acquire() as WowFrame & {
@@ -985,16 +1001,15 @@ export class Frame implements IUIComponent {
 		slice?: number,
 	): void {
 		this.setColor(0, 0, 0, 0);
-		if (
-			slice !== undefined &&
-			applyAtlasNineSlice(this.pool, this.acquire(), atlas, slice, tint)
-		) {
-			this.atlasSliced = true;
-			return;
-		}
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
 		this.texture?.SetAtlas(atlas, false);
+		if (slice !== undefined && this.texture) {
+			const texture = this.texture as SlicedTexture;
+			texture.SetTextureSliceMargins(slice, slice, slice, slice);
+			texture.SetTextureSliceMode(0); // Enum.UITextureSliceMode.Stretched.
+			this.atlasSliced = true;
+		}
 		if (tint) {
 			const [red, green, blue] = tint;
 			(
@@ -1031,8 +1046,8 @@ export class Frame implements IUIComponent {
 		this.texture?.SetAtlas("RedButton-Exit", false);
 	}
 	private clearAtlasSlices(): void {
-		if (!this.atlasSliced || !this.native) return;
-		clearAtlasNineSlice(this.pool, this.native);
+		if (!this.atlasSliced || !this.texture) return;
+		(this.texture as SlicedTexture).ClearTextureSlice();
 		this.atlasSliced = false;
 	}
 	setAnimatedAtlas(atlas: AnimatedAtlas): void {
@@ -1074,6 +1089,7 @@ export class Frame implements IUIComponent {
 		this.parent = parent;
 	}
 	destroy(): void {
+		this.clearAtlasSlices();
 		this.focusArrival?.destroy();
 		this.focusArrival = undefined;
 		this.iconFocus?.destroy();

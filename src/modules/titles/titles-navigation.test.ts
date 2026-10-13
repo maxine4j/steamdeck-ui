@@ -28,7 +28,7 @@ vi.mock("../../ui/components/frame", () => ({
 	},
 }));
 
-it("keeps the selected title's grid position and focus throughout scheduled updates", () => {
+it("defaults to the selected title on opening, selection and external updates", () => {
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -44,7 +44,7 @@ it("keeps the selected title's grid position and focus throughout scheduled upda
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
 	};
-	let selected = 1;
+	let selected = 18;
 	const client = {
 		getTitles: () =>
 			Array.from({ length: 24 }, (_, index) => ({
@@ -59,22 +59,29 @@ it("keeps the selected title's grid position and focus throughout scheduled upda
 	const pool = {} as IFramePoolManager;
 	const panel = new TitlesPanel(pool, client, vi.fn(), scheduler);
 	const nav = new NavigationManager(createTestEventBus());
-	panel.setNavigationChanged(() => nav.refreshGrid("titles"));
+	panel.setNavigationChanged((focusId) => nav.refreshGrid("titles", focusId));
 	panel.onMount(new Frame("parent", pool));
-	flush();
 	nav.registerGrid("titles", () => panel.getNavGrid());
 	nav.setActiveGrid("titles");
-	for (let row = 0; row < 8; row++) nav.moveDown();
-	nav.moveRight();
+	flush();
 	expect(nav.focusedId).toBe("title-18");
-	const focused = panel.getNavGrid().at(8)?.at(1);
+	nav.moveDown();
+	const focused = panel.getNavGrid().at(9)?.at(1);
 	focused?.onInteract();
-	expect(selected).toBe(18);
+	expect(selected).toBe(20);
 	while (pending.length) {
 		pending.shift()?.();
-		expect(nav.focusedId).toBe("title-18");
-		expect(panel.getNavGrid().at(8)?.at(1)).toBe(focused);
+		expect(nav.focusedId).toBe("title-20");
+		expect(panel.getNavGrid().at(9)?.at(1)).toBe(focused);
 	}
 	nav.moveDown();
+	expect(nav.focusedId).toBe("title-22");
+	panel.onUnmount();
+	panel.onMount(new Frame("parent", pool));
+	flush();
 	expect(nav.focusedId).toBe("title-20");
+	selected = 3;
+	panel.refresh();
+	flush();
+	expect(nav.focusedId).toBe("title-3");
 });
