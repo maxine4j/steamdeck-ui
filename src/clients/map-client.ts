@@ -68,6 +68,7 @@ interface NativeQuestScroll extends LayoutFrame, NativeNavigationScroll {
 	covenantCallingsHeaderFramePool: NativeQuestPool;
 }
 export interface NativeWorldMap extends LayoutFrame {
+	HandleUserActionToggleSelf(): void;
 	TitleCanvasSpacerFrame: LayoutFrame;
 	ScrollContainer: LayoutFrame;
 	NavBar: LayoutFrame;
@@ -97,6 +98,7 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	function ShowUIPanel(this: void, frame: NativeWorldMap): void;
 	function ExpandQuestHeader(this: void, index: number): void;
 	function CollapseQuestHeader(this: void, index: number): void;
 	function QuestLogQuests_Update(this: void): void;
@@ -121,6 +123,8 @@ declare global {
 }
 export class MapClient implements IMapClient {
 	private enabled = false;
+	private originalToggleSelf?: NativeWorldMap["HandleUserActionToggleSelf"];
+	private toggleSelf?: NativeWorldMap["HandleUserActionToggleSelf"];
 	private hooked = false;
 	private parent?: Frame;
 	private questPane?: Frame;
@@ -134,7 +138,15 @@ export class MapClient implements IMapClient {
 		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
 	};
 	disable(): void {
+		if (this.enabled) return;
 		this.enabled = true;
+		this.originalToggleSelf = WorldMapFrame.HandleUserActionToggleSelf;
+		// The combined pane has one open state; native M otherwise toggles flyout/maximize states.
+		this.toggleSelf = function (this: NativeWorldMap): void {
+			if (this.IsShown()) HideUIPanel(this);
+			else ShowUIPanel(this);
+		};
+		WorldMapFrame.HandleUserActionToggleSelf = this.toggleSelf;
 		if (this.hooked) return;
 		this.hooked = true;
 		WorldMapFrame.HookScript("OnShow", this.visibility);
@@ -160,6 +172,13 @@ export class MapClient implements IMapClient {
 	restore(): void {
 		this.enabled = false;
 		this.unmount();
+		if (
+			this.originalToggleSelf &&
+			WorldMapFrame.HandleUserActionToggleSelf === this.toggleSelf
+		)
+			WorldMapFrame.HandleUserActionToggleSelf = this.originalToggleSelf;
+		this.originalToggleSelf = undefined;
+		this.toggleSelf = undefined;
 	}
 	isOpen(): boolean {
 		return this.enabled && WorldMapFrame.IsShown();

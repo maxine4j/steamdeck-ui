@@ -28,6 +28,7 @@ function setup() {
 		SetMapID: vi.fn(),
 		GetMapID: vi.fn(() => 101),
 		SetFocusedQuestID: vi.fn(),
+		HandleUserActionToggleSelf: vi.fn(),
 		TitleCanvasSpacerFrame: {},
 		ScrollContainer: {},
 		NavBar: {},
@@ -87,6 +88,41 @@ function setup() {
 		client: new MapClient(events, layout, layout),
 	};
 }
+it("makes M close and reopen the combined pane without native flyout transitions, and restores the native handler", () => {
+	const { client, frame, scripts, events } = setup();
+	const nativeToggle = frame.HandleUserActionToggleSelf;
+	const visibility: boolean[] = [];
+	events.subscribe("MAP_VISIBILITY_CHANGED", () =>
+		visibility.push(client.isOpen()),
+	);
+	vi.mocked(HideUIPanel).mockImplementation(() => {
+		frame.IsShown.mockReturnValue(false);
+		scripts.get("OnHide")?.();
+	});
+	vi.stubGlobal(
+		"ShowUIPanel",
+		vi.fn(() => {
+			frame.IsShown.mockReturnValue(true);
+			scripts.get("OnShow")?.();
+		}),
+	);
+	client.disable();
+	client.disable();
+	frame.HandleUserActionToggleSelf();
+	expect(client.isOpen()).toBe(false);
+	frame.HandleUserActionToggleSelf();
+	expect(client.isOpen()).toBe(true);
+	frame.HandleUserActionToggleSelf();
+	expect(client.isOpen()).toBe(false);
+	expect(HideUIPanel).toHaveBeenCalledTimes(2);
+	expect(ShowUIPanel).toHaveBeenCalledOnce();
+	expect(visibility).toEqual([false, true, false]);
+	expect(nativeToggle).not.toHaveBeenCalled();
+	client.restore();
+	expect(frame.HandleUserActionToggleSelf).toBe(nativeToggle);
+	frame.HandleUserActionToggleSelf();
+	expect(nativeToggle).toHaveBeenCalledOnce();
+});
 it("retains the native canvas, breadcrumbs and filters while owning a fullscreen layout and restoring it on close", () => {
 	const { client, frame, quests, layout, events, scripts } = setup();
 	const changed = vi.fn();
