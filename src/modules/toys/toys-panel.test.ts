@@ -244,7 +244,7 @@ it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without
 	panel.refresh();
 	publish([toy(2, 11)]);
 	expect(vi.mocked(Frame.prototype.setIcon).mock.contexts.at(-1)).toBe(
-		icons.at(0),
+		icons.at(1),
 	);
 	expect(
 		vi.mocked(Frame.prototype.hide).mock.contexts.map((frame) => frame.id),
@@ -379,10 +379,49 @@ it("routes D-pad input through cached toys while a background load is pending", 
 	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(toys);
 	pending.shift()?.();
 	events.emit("NAV_RIGHT");
-	expect(nav.focusedId).toBe("toy-2");
+	expect(nav.focusedId).toBe("toy-14");
 	flush();
 	events.emit("NAV_DOWN");
-	expect(nav.focusedId).toBe("toy-12");
+	expect(nav.focusedId).toBe("toy-24");
+	nav.destroy();
+	panel.destroy();
+});
+
+it("keeps focus on an early toy as a larger sorted snapshot renders", () => {
+	const { panel, parent, client, pending, flush } = setup();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	panel.onMount(parent);
+	nav.registerGrid("toys", () => panel.getNavGrid());
+	nav.setActiveGrid("toys");
+	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
+	const toys = Array.from({ length: 40 }, (_, index) => ({
+		...toy(index + 1),
+		name: `Toy ${String(index + 1).padStart(2, "0")}`,
+	}));
+	vi.mocked(client.load).mock.calls.at(-1)?.at(2)?.(toys.slice(10, 30));
+	flush();
+	events.emit("NAV_DOWN");
+	expect(nav.focusedId).toBe("toy-21");
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(toys);
+	while (pending.length) {
+		pending.shift()?.();
+		expect(nav.focusedId).toBe("toy-21");
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === "toy-21")
+				?.secureActions?.().alternate,
+		).toBeDefined();
+	}
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "toy-21")
+			?.secureActions?.().alternate,
+	).toBeDefined();
 	nav.destroy();
 	panel.destroy();
 });

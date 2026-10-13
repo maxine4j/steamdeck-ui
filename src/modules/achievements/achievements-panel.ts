@@ -30,6 +30,7 @@ import {
 const gold = [0.7, 0.55, 0.15] as const;
 const spacing = 46;
 interface AchievementCell {
+	navId?: string;
 	border: Frame;
 	icon: Frame;
 }
@@ -65,6 +66,7 @@ export class AchievementsPanel implements IPanel {
 	private width = 468;
 	private contentHeight = 1;
 	private grid: NavGrid = [];
+	private renderedPage?: string;
 	private generation = 0;
 	private renderRevision = 0;
 	private renderDirty = true;
@@ -450,8 +452,11 @@ export class AchievementsPanel implements IPanel {
 		this.renderRevision++;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		this.grid = [];
-		this.viewport.hide();
+		if (this.renderedPage !== this.page || this.page === undefined) {
+			this.grid = [];
+			this.viewport.hide();
+		}
+		this.renderedPage = this.page;
 		this.list.unmount();
 		this.back.hide();
 		this.filter.hide();
@@ -547,14 +552,26 @@ export class AchievementsPanel implements IPanel {
 			Math.min(5, Math.floor((groupWidth + 4) / spacing)),
 		);
 		const jobs: (() => void)[] = [];
-		for (const cell of this.cells)
-			jobs.push(() => {
-				cell.border.hide();
-				cell.icon.hide();
-			});
-		for (const header of this.headers) jobs.push(() => header.hide());
-		const cleanupCount = jobs.length;
 		const grid: NavGrid = [];
+		const retained = new Map(
+			this.grid.flat().map((node) => [node.navId, node]),
+		);
+		const cellsById = new Map<string, AchievementCell>();
+		for (const cell of this.cells)
+			if (cell.navId) cellsById.set(cell.navId, cell);
+		const wanted = new Set(
+			page.sections.flatMap((section) =>
+				section.groups.flatMap((group) =>
+					group.achievements.map(
+						(achievement) => `achievement-${achievement.id}`,
+					),
+				),
+			),
+		);
+		const available = this.cells.filter(
+			(cell) => !cell.navId || !wanted.has(cell.navId),
+		);
+		for (const cell of available) cell.navId = undefined;
 		const generation = this.generation;
 		const revision = this.renderRevision;
 		let cellIndex = 0;
@@ -640,12 +657,20 @@ export class AchievementsPanel implements IPanel {
 						{ left, top: groupTop, width: groupWidth },
 					);
 					group.achievements.forEach((achievement, index) => {
-						const cellNumber = cellIndex++;
+						cellIndex++;
+						const navId = `achievement-${achievement.id}`;
+						let cell = cellsById.get(navId) ?? available.pop();
 						const row = Math.floor(index / columns);
+						const previous = retained.get(navId);
+						if (previous)
+							grid.at(firstRow + row)?.push({
+								...previous,
+								navColumn: side * columns + (index % columns),
+							});
 						const cellTop = top + row * spacing;
 						jobs.push(() => {
-							let cell = this.cells.at(cellNumber);
 							if (!cell) {
+								const cellNumber = this.cells.length;
 								cell = {
 									border: new Frame(
 										`achievements-border-${cellNumber}`,
@@ -659,6 +684,7 @@ export class AchievementsPanel implements IPanel {
 								};
 								this.cells.push(cell);
 							}
+							cell.navId = navId;
 							cell.border.setParent(this.content);
 							cell.border.layout(
 								42,
@@ -677,9 +703,7 @@ export class AchievementsPanel implements IPanel {
 							cell.icon.setIcon(achievement.icon);
 							cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
 							const current = () =>
-								this.mounted &&
-								revision === this.renderRevision &&
-								this.page === page.id;
+								this.mounted && cell?.navId === navId && this.page === page.id;
 							const activate = () => {
 								if (current()) {
 									this.selectedAchievement = achievement.id;
@@ -702,12 +726,18 @@ export class AchievementsPanel implements IPanel {
 										this.contentHeight,
 									),
 							);
-							grid.at(firstRow + row)?.push({
+							const navRow = grid.at(firstRow + row);
+							const oldIndex =
+								navRow?.findIndex((candidate) => candidate.navId === navId) ??
+								-1;
+							if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
+							navRow?.push({
 								...node,
 								navigationScroll: this.viewport,
 								navColumn: side * columns + (index % columns),
 								tooltipItem: tooltip,
 							});
+							navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
 							cell.border.show();
 							cell.icon.show();
 						});
@@ -717,6 +747,16 @@ export class AchievementsPanel implements IPanel {
 			}
 			y += 12;
 		}
+		// Retain visible controls while replacing their data; only surplus controls
+		// need cleanup, after the new controls have been published.
+		for (const cell of available)
+			jobs.push(() => {
+				cell.border.hide();
+				cell.icon.hide();
+				cell.navId = undefined;
+			});
+		for (const header of this.headers.slice(headerIndex))
+			jobs.push(() => header.hide());
 		this.contentHeight = Math.max(1, y);
 		this.content.layout(
 			this.width,
@@ -749,7 +789,7 @@ export class AchievementsPanel implements IPanel {
 				this.setLoadingProgress(
 					0.5 + 0.5 * (jobs.length > 0 ? cursor / jobs.length : 1),
 				);
-			if (cursor >= cleanupCount) this.viewport.show();
+			this.viewport.show();
 			this.grid = grid.filter((row) => row.length > 0);
 			const focusId = this.grid
 				.flat()

@@ -418,6 +418,51 @@ it("opens published partial rows and adds the remaining rows when that category 
 	).toContain("achievement-7");
 });
 
+it("keeps a focused achievement visible and navigable when the cold scan completes", () => {
+	const { panel, client, step, flush } = setup(false);
+	let complete: ((rows: Achievement[]) => void) | undefined;
+	vi.mocked(client.loadCategory).mockImplementation((id, done) => {
+		if (id === 92) complete = done;
+		else done([]);
+		return vi.fn();
+	});
+	step();
+	step();
+	const rows = Array.from({ length: 80 }, (_, index) =>
+		achievement(900100 + index),
+	);
+	complete?.(rows);
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "summary-category-Characters")
+		?.onInteract();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	nav.registerGrid("achievements", () => panel.getNavGrid());
+	nav.setActiveGrid("achievements");
+	panel.setNavigationChanged((id) => nav.refreshGrid("achievements", id));
+	// Render the early page before allowing the remaining scan to complete.
+	step();
+	step();
+	events.emit("NAV_DOWN");
+	expect(nav.focusedId).toBe("achievement-900100");
+	for (let index = 0; index < 20; index++) {
+		step();
+		expect(nav.focusedId).toBe("achievement-900100");
+		expect(frames.get("achievements-icon-0")?.visible).toBe(true);
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === "achievement-900100")
+				?.tooltipItem?.(),
+		).toBeDefined();
+	}
+	flush();
+	nav.destroy();
+});
+
 it("keeps publishing category counts when an event restarts the initial scan", () => {
 	const { panel, step } = setup(false);
 	step();

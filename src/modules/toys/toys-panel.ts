@@ -12,6 +12,7 @@ import { groupToys } from "./toy-display";
 const columns = 10;
 const spacing = 46;
 interface ToyCell {
+	navId?: string;
 	readonly border: Frame;
 	readonly favourite: Frame;
 	readonly icon: Frame;
@@ -31,6 +32,7 @@ export class ToysPanel implements IPanel {
 	private readonly headers: Frame[] = [];
 	private toys: readonly Toy[] = [];
 	private displayed: readonly Toy[] = [];
+	private displayedCells: readonly ToyCell[] = [];
 	private mounted = false;
 	private parent?: Frame;
 	private mountPending = false;
@@ -153,17 +155,34 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		const renderGeneration = ++this.renderGeneration;
-		// Refresh already cleared secure targets for older loads. A second
-		// snapshot from the same load must clear its targets before frame reuse.
-		if (this.grid.length > 0 && this.renderLoadGeneration === generation)
-			this.navigationChanged?.();
+		// Keep targets for retained toys; clear removed identities before reuse.
+		const replacing =
+			this.grid.length > 0 && this.renderLoadGeneration === generation;
 		this.renderLoadGeneration = generation;
 		const grid: NavGrid = [];
+		const retained = new Map(
+			this.grid.flat().map((node) => [node.navId, node]),
+		);
 		const displayed: Toy[] = [];
+		const displayedCells: ToyCell[] = [];
 		const jobs: (() => void)[] = [];
 		let renderedToys = 0;
-		let renderedRows = 0;
 		const groups = groupToys(this.toys);
+		const cellsById = new Map<string, ToyCell>();
+		for (const cell of this.cells)
+			if (cell.navId) cellsById.set(cell.navId, cell);
+		const wanted = new Set(
+			groups.flatMap((group) =>
+				group.toys.map((toy) =>
+					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
+				),
+			),
+		);
+		const available = this.cells.filter(
+			(cell) => !cell.navId || !wanted.has(cell.navId),
+		);
+		for (const cell of available) cell.navId = undefined;
+		if (replacing) this.navigationChanged?.();
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -192,28 +211,39 @@ export class ToysPanel implements IPanel {
 				grid.push([]);
 			group.toys.forEach((toy, index) => {
 				const cellIndex = displayed.length;
+				const navId =
+					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`;
+				let cell = cellsById.get(navId) ?? available.pop();
+				const previous = retained.get(navId);
+				if (previous)
+					grid.at(firstRow + Math.floor(index / columns))?.push({
+						...previous,
+						navColumn: index % columns,
+					});
 				displayed.push(toy);
 				const row = Math.floor(index / columns);
 				const cellTop = top + 28 + row * spacing;
 				jobs.push(() => {
-					let cell = this.cells.at(cellIndex);
 					if (!cell) {
+						const frameIndex = this.cells.length;
 						cell = {
-							border: new Frame(`toys-border-${cellIndex}`, this.pool),
-							favourite: new Frame(`toys-favourite-${cellIndex}`, this.pool),
+							border: new Frame(`toys-border-${frameIndex}`, this.pool),
+							favourite: new Frame(`toys-favourite-${frameIndex}`, this.pool),
 							icon: new Frame(
-								`toys-icon-${cellIndex}`,
+								`toys-icon-${frameIndex}`,
 								this.pool,
 								"SecureButton",
 							),
 							cooldown: new Frame(
-								`toys-cooldown-${cellIndex}`,
+								`toys-cooldown-${frameIndex}`,
 								this.pool,
 								"Cooldown",
 							),
 						};
 						this.cells.push(cell);
 					}
+					cell.navId = navId;
+					displayedCells[cellIndex] = cell;
 					cell.border.setParent(this.content);
 					cell.border.layout(
 						42,
@@ -247,12 +277,12 @@ export class ToysPanel implements IPanel {
 					const current = () =>
 						this.mounted &&
 						generation === this.generation &&
-						renderGeneration === this.renderGeneration;
+						cell?.navId === navId;
 					control.setHoverTooltip(() =>
 						current() ? { toy: toy.id } : undefined,
 					);
 					const node = control.navigationNode(
-						group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
+						navId,
 						() => {},
 						() =>
 							this.viewport.revealVerticalRange(
@@ -261,7 +291,11 @@ export class ToysPanel implements IPanel {
 								this.contentHeight,
 							),
 					);
-					grid.at(firstRow + row)?.push({
+					const navRow = grid.at(firstRow + row);
+					const oldIndex =
+						navRow?.findIndex((candidate) => candidate.navId === navId) ?? -1;
+					if (oldIndex >= 0) navRow?.splice(oldIndex, 1);
+					navRow?.push({
 						...node,
 						navigationScroll: this.viewport,
 						navColumn: index % columns,
@@ -276,8 +310,8 @@ export class ToysPanel implements IPanel {
 							if (current()) this.menu.open(toy);
 						},
 					});
+					navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
 					renderedToys++;
-					renderedRows = firstRow + row + 1;
 				});
 			});
 			y += 28 + Math.ceil(group.toys.length / columns) * spacing + 14;
@@ -291,12 +325,13 @@ export class ToysPanel implements IPanel {
 			0,
 			-10,
 		);
-		for (let i = displayed.length; i < this.cells.length; i++) {
-			const cell = this.cells.at(i);
+		for (const cell of available) {
 			jobs.push(() => {
-				cell?.border.hide();
-				cell?.icon.hide();
-				cell?.cooldown.hide();
+				cell.border.hide();
+				cell.icon.hide();
+				cell.cooldown.hide();
+				cell.favourite.hide();
+				cell.navId = undefined;
 			});
 		}
 		for (let i = groups.length; i < this.headers.length; i++) {
@@ -328,10 +363,10 @@ export class ToysPanel implements IPanel {
 				this.loadingTrack.hide();
 			}
 			if (renderedToys !== previousCount || cursor === jobs.length) {
-				// Publish only rendered controls, keeping their identities stable as
-				// later batches extend the grid. Cleanup jobs add no navigation work.
-				this.grid = grid.slice(0, renderedRows);
+				// Retain ready controls while batches add or update their identities.
+				this.grid = grid.filter((row) => row.length > 0);
 				this.displayed = displayed.slice(0, renderedToys);
+				this.displayedCells = displayedCells.slice(0, renderedToys);
 				this.navigationChanged?.();
 			}
 		};
@@ -345,7 +380,7 @@ export class ToysPanel implements IPanel {
 		if (!this.mounted) return;
 		this.displayed.forEach((toy, index) => {
 			const cooldown = this.client.getCooldown(toy.id);
-			this.cells
+			this.displayedCells
 				.at(index)
 				?.cooldown.setCooldown(cooldown.start, cooldown.duration);
 		});
