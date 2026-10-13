@@ -36,6 +36,7 @@ export interface IToysClient extends IJournalPrefetch {
 	load(
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
+		onFirstPage?: (toys: Toy[]) => void,
 	): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
@@ -59,7 +60,7 @@ export class ToysClient implements IToysClient {
 		this.snapshots = cache?.create("toys.snapshot", false, 3600);
 		this.journal = new JournalPrefetch(
 			scheduler,
-			(done, _preview, progress) => this.scan(done, progress),
+			(done, preview, progress) => this.scan(done, progress, preview),
 			this.snapshots,
 		);
 	}
@@ -89,12 +90,14 @@ export class ToysClient implements IToysClient {
 	load(
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
+		onFirstPage?: (toys: Toy[]) => void,
 	): () => void {
-		return this.journal.load(callback, undefined, onProgress);
+		return this.journal.load(callback, onFirstPage, onProgress);
 	}
 	private scan(
 		callback: (toys: Toy[]) => void,
 		onProgress?: (completed: number, total: number) => void,
+		onFirstPage?: (toys: Toy[]) => void,
 	): () => void {
 		const toys: Toy[] = [];
 		const saved = !this.backfill ? this.snapshots?.peek("snapshot") : undefined;
@@ -108,6 +111,7 @@ export class ToysClient implements IToysClient {
 		let index = 1;
 		let count: number | undefined;
 		let cancelled = false;
+		let previewed = false;
 		const step = () => {
 			if (cancelled) return;
 			if (!this.filtersInitialized) {
@@ -134,6 +138,10 @@ export class ToysClient implements IToysClient {
 				if (toy) toys.push(toy);
 			}
 			onProgress?.(Math.min(count, index - 1), count);
+			if (!previewed && toys.length > 0 && index <= count) {
+				previewed = true;
+				onFirstPage?.([...toys]);
+			}
 			if (cancelled) return;
 			if (index <= count) cancel = this.scheduler.nextFrame(step);
 			else {

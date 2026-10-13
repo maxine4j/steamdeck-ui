@@ -288,6 +288,50 @@ it("makes the first rendered batch interactive while remaining toys render", () 
 	expect(first?.secureActions?.().alternate).toBeDefined();
 });
 
+it("routes D-pad input through an early page while the cold journal scan is pending", () => {
+	const { panel, parent, client, pending, flush, publish } = setup();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	panel.onMount(parent);
+	nav.registerGrid("toys", () => panel.getNavGrid());
+	nav.setActiveGrid("toys");
+	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
+	const preview = vi.mocked(client.load).mock.calls.at(-1)?.at(2);
+	preview?.(
+		Array.from({ length: 20 }, (_, index) => ({
+			...toy(index + 1),
+			name: `Toy ${String(index + 1).padStart(2, "0")}`,
+		})),
+	);
+	pending.shift()?.();
+	events.emit("NAV_RIGHT");
+	expect(nav.focusedId).toBe("toy-2");
+	expect(
+		panel.getNavGrid().at(0)?.at(1)?.secureActions?.().alternate,
+	).toBeDefined();
+	flush();
+	expect(Frame.prototype.setLabel).not.toHaveBeenCalledWith(
+		"loading",
+		"",
+		"BOTTOMRIGHT",
+		-16,
+		16,
+		12,
+	);
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([toy(99)]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["toy-99"]);
+	nav.destroy();
+	panel.destroy();
+});
+
 it("retains partial navigation while waiting for replacement data and disables stale actions", () => {
 	const { panel, parent, client, menu, pending, publish } = setup();
 	panel.onMount(parent);

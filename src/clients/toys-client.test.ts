@@ -4,6 +4,34 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("does not rescan persisted toys when reopening an unchanged journal", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const { client, api, pending } = setup(45, true);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const info = vi.spyOn(api, "GetToyInfo");
+	const done = vi.fn();
+	client.load(done);
+	while (pending.length) pending.shift()?.();
+	client.load(done);
+	while (pending.length) pending.shift()?.();
+	expect(done).toHaveBeenCalledTimes(2);
+	expect(info).not.toHaveBeenCalled();
+});
+
+it("publishes an early usable page before a cold scan finishes", () => {
+	const { client, pending } = setup(65);
+	const done = vi.fn();
+	const preview = vi.fn();
+	client.load(done, undefined, preview);
+	pending.shift()?.();
+	expect(preview.mock.lastCall?.at(0)).toHaveLength(20);
+	expect(done).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(preview).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(65);
+});
+
 it("prefetches the full journal despite a saved native search and filters", () => {
 	const { client, api, pending } = setup(25);
 	let search = "old search";

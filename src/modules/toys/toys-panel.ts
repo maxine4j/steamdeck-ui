@@ -130,6 +130,11 @@ export class ToysPanel implements IPanel {
 				// fractions, not an estimate of elapsed time.
 				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
 			},
+			(toys) => {
+				if (!this.mounted || generation !== this.generation) return;
+				this.toys = toys;
+				if (!this.client.isInCombat()) this.render(generation, false);
+			},
 		);
 	}
 	private setLoadingProgress(progress: number): void {
@@ -144,7 +149,7 @@ export class ToysPanel implements IPanel {
 			this.loadingProgress.show();
 		}
 	}
-	private render(generation: number): void {
+	private render(generation: number, complete = true): void {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		const renderGeneration = ++this.renderGeneration;
@@ -311,12 +316,13 @@ export class ToysPanel implements IPanel {
 			const previousCount = renderedToys;
 			const end = Math.min(jobs.length, cursor + 10);
 			while (cursor < end) jobs.at(cursor++)?.();
-			this.setLoadingProgress(
-				jobs.length === 0 ? 1 : 0.5 + (cursor / jobs.length) * 0.5,
-			);
+			if (complete)
+				this.setLoadingProgress(
+					jobs.length === 0 ? 1 : 0.5 + (cursor / jobs.length) * 0.5,
+				);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
-			else {
+			else if (complete) {
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 				this.loadingTrack.hide();

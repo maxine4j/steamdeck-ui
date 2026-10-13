@@ -2,6 +2,26 @@ import { expect, it, vi } from "vitest";
 import { JournalPrefetch } from "./journal-prefetch";
 import { TieredCache } from "./tiered-cache";
 
+it("does not retain completed persisted loads as observers of later invalidations", () => {
+	const scheduler = { nextFrame: () => () => {} };
+	const saved = new TieredCache<number[]>(
+		() => ({}),
+		() => 10,
+		60,
+		scheduler,
+	);
+	const scan = vi.fn((_done: (value: number[]) => void) => () => {});
+	const journal = new JournalPrefetch(scheduler, scan, saved);
+	journal.prefetch();
+	scan.mock.calls.at(0)?.at(0)?.([1]);
+	const done = vi.fn();
+	journal.load(done);
+	journal.invalidate();
+	scan.mock.calls.at(1)?.at(0)?.([2]);
+	expect(done).toHaveBeenCalledExactlyOnceWith([1]);
+	expect(scan).toHaveBeenCalledTimes(2);
+});
+
 it("publishes saved data synchronously while sharing the bounded refresh", () => {
 	const pending: (() => void)[] = [];
 	const scheduler = {

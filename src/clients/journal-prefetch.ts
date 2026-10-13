@@ -50,6 +50,10 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		this.active = true;
 		if (this.persisted) {
 			const value = this.persisted.peek("snapshot");
+			if (!this.dirty && value !== undefined) {
+				done(value);
+				return () => {};
+			}
 			// Keep the complete cached view interactive until replacement is ready.
 			const observer = {
 				done,
@@ -83,7 +87,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		};
 	}
 	private start(): void {
-		if (this.cancel) return;
+		if (!this.dirty || this.cancel) return;
 		const revision = this.revision;
 		const generation = this.generation;
 		this.cancel = this.scan(
