@@ -147,7 +147,7 @@ export class MapPanel implements IPanel {
 			this.pane.setLabel(
 				"hint",
 				this.section === "map"
-					? "Map · D-pad: Move  X: Click  Y: Zoom out  LB/RB: Quests"
+					? "Map · D-pad: Move  X: Select / Pin  Y: Zoom out  LB/RB: Quests"
 					: "Quests · B: Back  LB/RB: Map",
 				"BOTTOMLEFT",
 				12,
@@ -165,7 +165,7 @@ export class MapPanel implements IPanel {
 		this.pane.setLabel(
 			"hint",
 			this.section === "map"
-				? "Map · D-pad: Move  X: Click  Y: Zoom out  LB/RB: Quests"
+				? "Map · D-pad: Move  X: Select / Pin  Y: Zoom out  LB/RB: Quests"
 				: "Quests · A: Details  X: Focus  Y: Options  LB/RB: Map",
 			"BOTTOMLEFT",
 			12,
@@ -224,7 +224,8 @@ export class MapPanel implements IPanel {
 						this.client.showDetails(questID);
 					} else {
 						node.onInteract();
-						this.refresh();
+						// Header changes rebuild native pools asynchronously. The module's
+						// deferred QUEST_LOG_UPDATE refresh restores focus after that rebuild.
 					}
 				},
 				onAlternate:

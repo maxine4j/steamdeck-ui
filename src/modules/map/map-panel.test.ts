@@ -84,7 +84,7 @@ it("outlines only the active map or quest side and removes it while inactive", (
 		false,
 	);
 	expect(state.frames.get("map-side")?.layout).toHaveBeenCalledWith(
-		846,
+		858,
 		720,
 		"TOPLEFT",
 		expect.anything(),
@@ -112,6 +112,38 @@ it("outlines only the active map or quest side and removes it while inactive", (
 	expect(
 		state.frames.get("map-quests")?.setFocusBorder,
 	).toHaveBeenLastCalledWith(false);
+});
+
+it("waits for the native category rebuild before refreshing controller focus", () => {
+	const { panel, client, changed } = setup();
+	let rebuilding = false;
+	const original = client.navigation;
+	client.navigation = vi.fn(() =>
+		rebuilding
+			? []
+			: [
+					...original(),
+					{
+						node: {
+							navId: "map-header-later",
+							onFocus: vi.fn(),
+							onBlur: vi.fn(),
+							onInteract: vi.fn(),
+						},
+					},
+				],
+	);
+	panel.refresh();
+	const category = panel.getNavGrid().at(-1)?.at(0);
+	category?.onFocus();
+	// Collapse returns before Blizzard has rebuilt the pooled rows.
+	rebuilding = true;
+	changed.mockClear();
+	category?.onInteract();
+	expect(changed).not.toHaveBeenCalled();
+	rebuilding = false;
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-header-later");
 });
 
 it("updates the native viewport when the fullscreen container changes size", () => {
@@ -210,6 +242,9 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	const { panel, client, changed } = setup();
 	panel.getNavGrid().at(2)?.at(0)?.onFocus();
 	panel.onPanelCycle(-1);
+	expect(
+		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
+	).toContain("X: Select / Pin");
 	const cursor = panel.getNavGrid().at(0)?.at(0);
 	expect(cursor?.navId).toBe("map-cursor");
 	cursor?.onFocus();
@@ -244,7 +279,7 @@ it("puts Blizzard's unified quest hierarchy on the right without custom tabs or 
 	const { panel, client, changed } = setup();
 	expect(client.mount).toHaveBeenCalled();
 	expect(state.frames.get("map-quests")?.layout).toHaveBeenCalledWith(
-		354,
+		342,
 		720,
 		"TOPRIGHT",
 		expect.anything(),

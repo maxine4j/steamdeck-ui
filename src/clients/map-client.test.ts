@@ -64,9 +64,18 @@ function setup() {
 	};
 	vi.stubGlobal("WorldMapFrame", frame);
 	vi.stubGlobal("C_Map", {
+		CanSetUserWaypointOnMap: vi.fn(() => false),
+		SetUserWaypoint: vi.fn(() => true),
 		GetMapArtLayers: vi.fn(() => [
 			{ layerWidth: 1000, layerHeight: 666.6666666666666 },
 		]),
+	});
+	vi.stubGlobal("UiMapPoint", {
+		CreateFromCoordinates: vi.fn((uiMapID: number, x: number, y: number) => ({
+			uiMapID,
+			x,
+			y,
+		})),
 	});
 	vi.stubGlobal("QuestMapFrame", quests);
 	vi.stubGlobal("HideUIPanel", vi.fn());
@@ -146,6 +155,7 @@ it("shows and moves the map cursor only while mounted and releases it on close",
 
 it("hovers icons with motion enabled even when mouse clicks are disabled", () => {
 	const { client, frame, cursor } = setup();
+	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(true);
 	const icon = {
 		IsShown: () => true,
 		IsMouseEnabled: () => false,
@@ -166,6 +176,7 @@ it("hovers icons with motion enabled even when mouse clicks are disabled", () =>
 	expect(cursor.hover).toHaveBeenLastCalledWith(icon);
 	client.clickMap("LeftButton");
 	expect(icon.OnClick).not.toHaveBeenCalled();
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
 });
 
 it("uses virtual map positions for party dot tooltips and restores the native unit query", () => {
@@ -232,7 +243,7 @@ it("keeps the native area name above the fullscreen map artwork", () => {
 	);
 });
 
-it("left clicks quest pins and blobs before zones using virtual coordinates; right click navigates out", () => {
+it("left clicks quest pins and blobs before waypoints using virtual coordinates; right click navigates out", () => {
 	const { client, cursor, frame } = setup();
 	const pin = { questID: 7, IsShown: () => true, OnClick: vi.fn() };
 	const blob = {
@@ -265,6 +276,7 @@ it("left clicks quest pins and blobs before zones using virtual coordinates; rig
 	});
 	const zone = vi.fn(() => ({ mapID: 202 }));
 	Object.assign(C_Map, { GetMapInfoAtPosition: zone });
+	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(true);
 	client.clickMap("LeftButton");
 	expect(zone).not.toHaveBeenCalled();
 	client.disable();
@@ -276,23 +288,52 @@ it("left clicks quest pins and blobs before zones using virtual coordinates; rig
 	cursor.contains.mockReturnValue(true);
 	client.clickMap("LeftButton");
 	expect(pin.OnClick).toHaveBeenCalledWith("LeftButton");
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
 	expect(zone).not.toHaveBeenCalled();
 	cursor.contains.mockReturnValue(false);
 	blob.UpdateMouseOverTooltip.mockReturnValue([7, 1]);
 	client.clickMap("LeftButton");
 	expect(frame.SetFocusedQuestID).toHaveBeenCalledWith(7);
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
 	expect(zone).not.toHaveBeenCalled();
 	blob.UpdateMouseOverTooltip.mockReturnValue([0, 0]);
 	client.clickMap("LeftButton");
 	expect(normalize).toHaveBeenCalledWith(420, 300);
-	expect(zone).toHaveBeenCalledWith(101, 0.25, 0.75, false);
-	expect(frame.SetMapID).toHaveBeenCalledWith(202);
+	expect(C_Map.SetUserWaypoint).toHaveBeenCalledWith({
+		uiMapID: 101,
+		x: 0.25,
+		y: 0.75,
+	});
+	expect(zone).not.toHaveBeenCalled();
+	expect(frame.SetMapID).not.toHaveBeenCalled();
 	client.clickMap("RightButton");
 	expect(frame.NavigateToParentMap).toHaveBeenCalledOnce();
 });
 
+it("places a waypoint on empty map art without requiring zone navigation, and skips unsupported maps", () => {
+	const { client } = setup();
+	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(true);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	client.clickMap("LeftButton");
+	expect(C_Map.SetUserWaypoint).toHaveBeenCalledWith({
+		uiMapID: 101,
+		x: 0.25,
+		y: 0.75,
+	});
+	vi.mocked(C_Map.SetUserWaypoint).mockClear();
+	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(false);
+	client.clickMap("LeftButton");
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
+});
+
 it("clicks world map quest variants and non-quest icons using the topmost enabled pin", () => {
 	const { client, cursor, frame } = setup();
+	vi.mocked(C_Map.CanSetUserWaypointOnMap).mockReturnValue(true);
 	const pin = (template: string, level: number) => ({
 		pinTemplate: template,
 		IsShown: () => true,
@@ -330,6 +371,7 @@ it("clicks world map quest variants and non-quest icons using the topmost enable
 	poi.IsMouseClickEnabled = () => false;
 	client.clickMap("LeftButton");
 	expect(quest.OnClick).toHaveBeenCalledWith("LeftButton");
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
 });
 
 it("supplies virtual coordinates to native hover providers and restores physical mouse queries on blur", () => {
@@ -466,7 +508,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		expect.objectContaining({
 			parent: frame,
 			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-			size: [846, 564],
+			size: [840, 560],
 			clip: true,
 		}),
 	);
@@ -552,7 +594,7 @@ it("navigates Blizzard's visible headers and quest rows in native layout order a
 	hooks.get("QuestLogQuests_Update")?.();
 	expect(refreshed).toHaveBeenCalledOnce();
 });
-it("keeps category navigation identity when log indices change after collapse", () => {
+it("keeps category navigation identity when log indices and display titles change after collapse", () => {
 	const { client, quests } = setup();
 	const header = { IsShown: () => true, questLogIndex: 8, layoutIndex: 4 };
 	Object.assign(quests.QuestsFrame.ScrollFrame, {
@@ -563,7 +605,11 @@ it("keeps category navigation identity when log indices change after collapse", 
 		covenantCallingsHeaderFramePool: { EnumerateActive: () => [] },
 	});
 	vi.stubGlobal("C_QuestLog", {
-		GetInfo: () => ({ title: "Local quests", isCollapsed: false }),
+		GetInfo: vi.fn(() => ({
+			headerSortKey: 42,
+			title: "Local quests",
+			isCollapsed: false,
+		})),
 	});
 	vi.stubGlobal("CollapseQuestHeader", vi.fn());
 	client.disable();
@@ -573,6 +619,11 @@ it("keeps category navigation identity when log indices change after collapse", 
 	);
 	const id = client.navigation().at(0)?.node.navId;
 	header.questLogIndex = 3;
+	vi.mocked(C_QuestLog.GetInfo).mockReturnValue({
+		headerSortKey: 42,
+		title: "Local quests (collapsed)",
+		isCollapsed: false,
+	} as never);
 	const row = client.navigation().at(0);
 	expect(row?.node.navId).toBe(id);
 	row?.node.onInteract();
@@ -588,7 +639,7 @@ it("leaves the metal header exposed above breadcrumbs, quests and details", () =
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 354, 76] }),
+		expect.objectContaining({ insets: [0, 32, 360, 80] }),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests,
@@ -637,7 +688,7 @@ it("converts quest log headers and campaign membership without dropping dailies 
 	);
 });
 
-it("keeps map art top-aligned and fitted to the left pane across map changes and resizing", () => {
+it("centers map art alone, reserving breadcrumbs above it, across map changes and resizing", () => {
 	const { client, frame, layout, hooks } = setup();
 	vi.mocked(C_Map.GetMapArtLayers).mockImplementation(
 		(id: number) =>
@@ -650,7 +701,7 @@ it("keeps map art top-aligned and fitted to the left pane across map changes and
 	client.mount({ getSize: () => size } as Frame, {} as Frame);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 354, 76] }),
+		expect.objectContaining({ insets: [0, 32, 360, 80] }),
 	);
 	const viewport = () =>
 		layout.bind.mock.calls
@@ -659,25 +710,31 @@ it("keeps map art top-aligned and fitted to the left pane across map changes and
 			?.at(1);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [846, 564],
+		size: [840, 560],
 	});
 	frame.GetMapID.mockReturnValue(102);
 	hooks.get("OnMapChanged")?.();
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 32, 560, 0] }),
+		expect.objectContaining({ insets: [0, 32, 640, 80] }),
 	);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [640, 640],
+		size: [560, 560],
 	});
 	frame.GetMapID.mockReturnValue(103);
 	hooks.get("OnMapChanged")?.();
-	expect(viewport()).toMatchObject({ size: [846, 564] });
+	expect(viewport()).toMatchObject({ size: [840, 560] });
 	size.width = 1400;
 	size.height = 900;
 	client.resize();
-	expect(viewport()).toMatchObject({ size: [1046, 1046 / 1.5] });
+	expect(viewport()).toMatchObject({ size: [1058, 1058 / 1.5] });
+	expect(layout.bind).toHaveBeenCalledWith(
+		frame,
+		expect.objectContaining({
+			insets: [0, (900 - 1058 / 1.5) / 2 - 48, 342, (900 - 1058 / 1.5) / 2],
+		}),
+	);
 	const calls = layout.bind.mock.calls.length;
 	client.unmount();
 	hooks.get("OnMapChanged")?.();

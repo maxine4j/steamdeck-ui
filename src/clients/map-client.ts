@@ -13,8 +13,8 @@ import type {
 } from "../ui/components/native-navigation";
 import type { INavigable, NavDirection } from "../ui/navigation/types";
 
-// Blizzard's 338px quest root includes the fixed-width rows and scrollbar.
-export const MAP_QUEST_PANE_WIDTH = 338 + 16;
+// QuestScrollFrame.Contents is 304px wide; reserve 22px for its scrollbar.
+export const MAP_QUEST_PANE_WIDTH = 304 + 22 + 16;
 const CONTENT_TOP = 32;
 const BREADCRUMB_HEIGHT = 48;
 
@@ -63,6 +63,7 @@ interface QuestLogInfo {
 	isHidden: boolean;
 	isTask: boolean;
 	isCollapsed: boolean;
+	headerSortKey?: number;
 }
 interface NativeQuestRow extends NativeNavigationFrame {
 	IsShown(): boolean;
@@ -151,6 +152,17 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	const UiMapPoint: {
+		CreateFromCoordinates(
+			this: void,
+			mapID: number,
+			x: number,
+			y: number,
+		): {
+			uiMapID: number;
+			position: { GetXY(): LuaMultiReturn<[number, number]> };
+		};
+	};
 	function secureexecuterange(
 		this: void,
 		providers: unknown,
@@ -296,9 +308,12 @@ export class MapClient implements IMapClient {
 				: 1.5;
 		const width = Math.min(
 			Math.max(1, available.width - MAP_QUEST_PANE_WIDTH),
-			Math.max(1, available.height - CONTENT_TOP - BREADCRUMB_HEIGHT) * aspect,
+			// Center the artwork itself while leaving room for breadcrumbs above it.
+			Math.max(1, available.height - 2 * (CONTENT_TOP + BREADCRUMB_HEIGHT)) *
+				aspect,
 		);
 		const height = width / aspect;
+		const artTop = (available.height - height) / 2;
 		this.layout.bind(map, {
 			parent,
 			// Quest children extend beyond the fitted map root's render-buffer bounds.
@@ -306,12 +321,9 @@ export class MapClient implements IMapClient {
 			// Limit the native background as well as the scroll viewport to the fitted map.
 			insets: [
 				0,
-				CONTENT_TOP,
+				artTop - BREADCRUMB_HEIGHT,
 				Math.max(0, available.width - width),
-				Math.max(
-					0,
-					available.height - CONTENT_TOP - height - BREADCRUMB_HEIGHT,
-				),
+				artTop,
 			],
 			reparent: true,
 			scale: 1,
@@ -554,6 +566,18 @@ export class MapClient implements IMapClient {
 				return;
 			}
 		}
+		// Tooltip-only markers still occupy this location; do not drop a pin on them.
+		if (this.hoveredPin) return;
+		if (C_Map.CanSetUserWaypointOnMap(map.GetMapID())) {
+			// The generated API declarations flatten UiMapPoint into a number.
+			(
+				C_Map.SetUserWaypoint as unknown as (
+					this: void,
+					point: ReturnType<typeof UiMapPoint.CreateFromCoordinates>,
+				) => boolean
+			)(UiMapPoint.CreateFromCoordinates(map.GetMapID(), x, y));
+			return;
+		}
 		if (!scroll.ShouldNavigateOnClick()) return;
 		const zone = (
 			C_Map.GetMapInfoAtPosition as unknown as (
@@ -583,15 +607,16 @@ export class MapClient implements IMapClient {
 		rows.sort((a, b) => a.layoutIndex - b.layoutIndex);
 		const headerOccurrences = new Map<string, number>();
 		return rows.map((row) => {
-			const info = row.questLogIndex
-				? (
-						C_QuestLog.GetInfo as unknown as (
-							this: void,
-							index: number,
-						) => QuestLogInfo | undefined
-					)(row.questLogIndex)
-				: undefined;
-			const header = info?.title ?? `${row.questLogIndex}`;
+			const info =
+				!row.questID && row.questLogIndex
+					? (
+							C_QuestLog.GetInfo as unknown as (
+								this: void,
+								index: number,
+							) => QuestLogInfo | undefined
+						)(row.questLogIndex)
+					: undefined;
+			const header = `${info?.headerSortKey ?? info?.title ?? row.questLogIndex}`;
 			const occurrence = (headerOccurrences.get(header) ?? 0) + 1;
 			if (!row.questID) headerOccurrences.set(header, occurrence);
 			return {
