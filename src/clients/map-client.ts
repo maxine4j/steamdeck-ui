@@ -1,12 +1,16 @@
 import type { IEventBus } from "../events/types";
 import type { Frame } from "../ui/components/frame";
+import type {
+	CursorSurface,
+	NativeCursor,
+} from "../ui/components/native-cursor";
 import type { LayoutFrame, NativeLayout } from "../ui/components/native-layout";
 import type {
 	NativeNavigation,
 	NativeNavigationFrame,
 	NativeNavigationScroll,
 } from "../ui/components/native-navigation";
-import type { INavigable } from "../ui/navigation/types";
+import type { INavigable, NavDirection } from "../ui/navigation/types";
 
 export interface MapQuestNavigation {
 	readonly questID?: number;
@@ -34,6 +38,9 @@ export interface IMapClient {
 	unmount(): void;
 	read(): MapQuest[];
 	navigation(): MapQuestNavigation[];
+	moveCursor(direction: NavDirection): void;
+	setCursorActive(active: boolean): void;
+	clickMap(button: "LeftButton" | "RightButton"): void;
 	focus(id: number): void;
 	showDetails(id: number): void;
 	hideDetails(): void;
@@ -67,10 +74,28 @@ interface NativeQuestScroll extends LayoutFrame, NativeNavigationScroll {
 	campaignHeaderMinimalFramePool: NativeQuestPool;
 	covenantCallingsHeaderFramePool: NativeQuestPool;
 }
+interface MapPin extends CursorSurface {
+	IsShown(): boolean;
+	questID?: number;
+	OnClick?(button: string): void;
+	UpdateMouseOverTooltip?(
+		x: number,
+		y: number,
+	): LuaMultiReturn<[number | undefined, number]>;
+}
+interface MapScroll extends LayoutFrame, CursorSurface {
+	NormalizeUIPosition(x: number, y: number): LuaMultiReturn<[number, number]>;
+	ShouldNavigateOnClick(): boolean;
+	ShouldNavigateIgnoreZoneMapPositionData(): boolean;
+	ShouldZoomInOnClick(): boolean;
+	ZoomOut(): void;
+}
 export interface NativeWorldMap extends LayoutFrame {
 	HandleUserActionToggleSelf(): void;
 	TitleCanvasSpacerFrame: LayoutFrame;
-	ScrollContainer: LayoutFrame;
+	ScrollContainer: MapScroll;
+	EnumeratePinsByTemplate(template: string): LuaIterable<MapPin>;
+	NavigateToParentMap(): void;
 	NavBar: LayoutFrame;
 	BorderFrame: LayoutFrame;
 	BlackoutFrame: LayoutFrame;
@@ -129,10 +154,15 @@ export class MapClient implements IMapClient {
 	private parent?: Frame;
 	private questPane?: Frame;
 	private details = false;
+	private cursorActive = false;
 	constructor(
 		private readonly events: IEventBus,
 		private readonly layout: Pick<NativeLayout, "bind" | "release" | "scroll">,
 		private readonly controls: Pick<NativeNavigation, "navigation" | "release">,
+		private readonly cursor: Pick<
+			NativeCursor,
+			"show" | "hide" | "move" | "position" | "contains" | "release"
+		>,
 	) {}
 	private readonly visibility = () => {
 		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
@@ -258,6 +288,7 @@ export class MapClient implements IMapClient {
 		])
 			if (frame) this.layout.bind(frame, { visible: false });
 		map.OnFrameSizeChanged();
+		if (this.cursorActive) this.cursor.show(map.ScrollContainer);
 	}
 	private applyQuestLayout(): void {
 		if (!this.questPane) return;
@@ -302,11 +333,72 @@ export class MapClient implements IMapClient {
 			this.layout.bind(frame, { visible: false });
 	}
 	unmount(): void {
+		this.cursorActive = false;
+		this.cursor.release();
 		this.parent = undefined;
 		this.questPane = undefined;
 		this.details = false;
 		this.layout.release();
 		this.controls.release();
+	}
+	setCursorActive(active: boolean): void {
+		this.cursorActive = active && this.enabled && this.parent !== undefined;
+		if (this.cursorActive) this.cursor.show(WorldMapFrame.ScrollContainer);
+		else this.cursor.hide();
+	}
+	moveCursor(direction: NavDirection): void {
+		if (this.cursorActive) this.cursor.move(direction);
+	}
+	clickMap(button: "LeftButton" | "RightButton"): void {
+		if (!this.cursorActive) return;
+		const map = WorldMapFrame,
+			scroll = map.ScrollContainer;
+		if (button === "RightButton") {
+			if (
+				scroll.ShouldNavigateOnClick() &&
+				!scroll.ShouldNavigateIgnoreZoneMapPositionData()
+			)
+				map.NavigateToParentMap();
+			if (scroll.ShouldZoomInOnClick()) scroll.ZoomOut();
+			return;
+		}
+		for (const template of [
+			"QuestPinTemplate",
+			"WorldQuestPinTemplate",
+			"BonusObjectivePinTemplate",
+		]) {
+			for (const pin of map.EnumeratePinsByTemplate(template)) {
+				if (
+					pin.IsShown() &&
+					pin.questID &&
+					pin.OnClick &&
+					this.cursor.contains(scroll, pin)
+				) {
+					pin.OnClick("LeftButton");
+					return;
+				}
+			}
+		}
+		const [x, y] = scroll.NormalizeUIPosition(...this.cursor.position(scroll));
+		for (const blob of map.EnumeratePinsByTemplate("QuestBlobPinTemplate")) {
+			if (!blob.IsShown() || !blob.UpdateMouseOverTooltip) continue;
+			const [id] = blob.UpdateMouseOverTooltip(x, y);
+			if (id && id > 0) {
+				map.SetFocusedQuestID(id);
+				return;
+			}
+		}
+		if (!scroll.ShouldNavigateOnClick()) return;
+		const zone = (
+			C_Map.GetMapInfoAtPosition as unknown as (
+				this: void,
+				id: number,
+				x: number,
+				y: number,
+				ignore: boolean,
+			) => { mapID: number } | undefined
+		)(map.GetMapID(), x, y, scroll.ShouldNavigateIgnoreZoneMapPositionData());
+		if (zone) map.SetMapID(zone.mapID);
 	}
 	navigation(): MapQuestNavigation[] {
 		if (!this.parent || this.details) return [];

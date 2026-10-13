@@ -13,6 +13,8 @@ export interface INavigable {
 	onInteract(): void; // Maps to A button
 	onContext?(): void; // Maps to Y button
 	onAlternate?(): void; // Maps to X button
+	/** Continuous controls consume directional input while retaining focus. */
+	onMove?(direction: NavDirection): void;
 }
 
 export type NavGrid = INavigable[][];

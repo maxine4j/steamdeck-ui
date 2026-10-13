@@ -77,6 +77,14 @@ function setup() {
 			onBlur: vi.fn(),
 		})),
 	};
+	const cursor = {
+		show: vi.fn(),
+		hide: vi.fn(),
+		move: vi.fn(),
+		position: vi.fn(() => [420, 300] as const),
+		contains: vi.fn(() => false),
+		release: vi.fn(),
+	};
 	vi.stubGlobal("QuestLogQuests_Update", vi.fn());
 	return {
 		events,
@@ -85,9 +93,84 @@ function setup() {
 		frame,
 		quests,
 		layout,
-		client: new MapClient(events, layout, layout),
+		cursor,
+		client: new MapClient(events, layout, layout, cursor),
 	};
 }
+it("shows and moves the map cursor only while mounted and releases it on close", () => {
+	const { client, cursor, frame, hooks } = setup();
+	client.setCursorActive(true);
+	expect(cursor.show).not.toHaveBeenCalled();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	expect(cursor.show).toHaveBeenCalledWith(frame.ScrollContainer);
+	client.moveCursor("up");
+	expect(cursor.move).toHaveBeenCalledWith("up");
+	hooks.get("OnMapChanged")?.();
+	expect(cursor.show).toHaveBeenCalledTimes(2);
+	client.setCursorActive(false);
+	expect(cursor.hide).toHaveBeenCalled();
+	client.moveCursor("left");
+	expect(cursor.move).toHaveBeenCalledOnce();
+	client.unmount();
+	expect(cursor.release).toHaveBeenCalledOnce();
+});
+
+it("left clicks quest pins and blobs before zones using virtual coordinates; right click navigates out", () => {
+	const { client, cursor, frame } = setup();
+	const pin = { questID: 7, IsShown: () => true, OnClick: vi.fn() };
+	const blob = {
+		IsShown: () => true,
+		UpdateMouseOverTooltip: vi.fn(() => [0, 0]),
+	};
+	Object.assign(frame, {
+		EnumeratePinsByTemplate: (template: string) =>
+			template === "QuestPinTemplate"
+				? [pin]
+				: template === "QuestBlobPinTemplate"
+					? [blob]
+					: [],
+		NavigateToParentMap: vi.fn(),
+	});
+	const normalize = vi.fn(() => [0.25, 0.75]);
+	Object.assign(frame.ScrollContainer, {
+		NormalizeUIPosition: normalize,
+		ShouldNavigateOnClick: () => true,
+		ShouldNavigateIgnoreZoneMapPositionData: () => false,
+		ShouldZoomInOnClick: () => false,
+		ZoomOut: vi.fn(),
+	});
+	const zone = vi.fn(() => ({ mapID: 202 }));
+	Object.assign(C_Map, { GetMapInfoAtPosition: zone });
+	client.clickMap("LeftButton");
+	expect(zone).not.toHaveBeenCalled();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	cursor.contains.mockReturnValue(true);
+	client.clickMap("LeftButton");
+	expect(pin.OnClick).toHaveBeenCalledWith("LeftButton");
+	expect(zone).not.toHaveBeenCalled();
+	cursor.contains.mockReturnValue(false);
+	blob.UpdateMouseOverTooltip.mockReturnValue([7, 1]);
+	client.clickMap("LeftButton");
+	expect(frame.SetFocusedQuestID).toHaveBeenCalledWith(7);
+	expect(zone).not.toHaveBeenCalled();
+	blob.UpdateMouseOverTooltip.mockReturnValue([0, 0]);
+	client.clickMap("LeftButton");
+	expect(normalize).toHaveBeenCalledWith(420, 300);
+	expect(zone).toHaveBeenCalledWith(101, 0.25, 0.75, false);
+	expect(frame.SetMapID).toHaveBeenCalledWith(202);
+	client.clickMap("RightButton");
+	expect(frame.NavigateToParentMap).toHaveBeenCalledOnce();
+});
 it("makes M close and reopen the combined pane without native flyout transitions, and restores the native handler", () => {
 	const { client, frame, scripts, events } = setup();
 	const nativeToggle = frame.HandleUserActionToggleSelf;

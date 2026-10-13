@@ -10,6 +10,18 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("routes D-pad input to a continuous control without changing focus", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const move = vi.fn();
+	manager.registerGrid("canvas", [[{ ...node("cursor"), onMove: move }]]);
+	manager.setActiveGrid("canvas");
+	for (const event of ["NAV_UP", "NAV_DOWN", "NAV_LEFT", "NAV_RIGHT"] as const)
+		events.emit(event);
+	expect(move.mock.calls).toEqual([["up"], ["down"], ["left"], ["right"]]);
+	expect(manager.focusedId).toBe("cursor");
+});
+
 it("selects a requested grid node and publishes its tooltip on refresh", () => {
 	const changed = vi.fn();
 	const manager = new NavigationManager(

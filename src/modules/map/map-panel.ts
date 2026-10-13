@@ -17,6 +17,7 @@ export class MapPanel implements IPanel {
 	private readonly pane: Frame;
 	private readonly reading: Frame[];
 	private focus?: string;
+	private section: "map" | "quests" = "quests";
 	private rows: MapQuestNavigation[] = [];
 	private quests: MapQuest[] = [];
 	private details?: number;
@@ -71,6 +72,9 @@ export class MapPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.section = "quests";
+		this.focus = undefined;
+		this.client.setCursorActive(false);
 		this.modal.close();
 		this.client.unmount();
 		this.details = undefined;
@@ -96,15 +100,29 @@ export class MapPanel implements IPanel {
 	private render(): void {
 		if (this.details !== undefined) {
 			for (const button of this.reading) button.show();
-			this.pane.setLabel("hint", "", "BOTTOMLEFT");
-			this.navigationChanged?.("map-details-down");
+			this.pane.setLabel(
+				"hint",
+				this.section === "map"
+					? "Map · D-pad: Move  X: Click  Y: Zoom out  LB/RB: Quests"
+					: "Quests · B: Back  LB/RB: Map",
+				"BOTTOMLEFT",
+				12,
+				48,
+				13,
+				396,
+			);
+			this.navigationChanged?.(
+				this.section === "map" ? "map-cursor" : "map-details-down",
+			);
 			return;
 		}
 		for (const button of this.reading) button.hide();
 		this.rows = this.client.navigation();
 		this.pane.setLabel(
 			"hint",
-			"A: Details  X: Focus  Y: Options  B: Close",
+			this.section === "map"
+				? "Map · D-pad: Move  X: Click  Y: Zoom out  LB/RB: Quests"
+				: "Quests · A: Details  X: Focus  Y: Options  LB/RB: Map",
 			"BOTTOMLEFT",
 			12,
 			14,
@@ -114,7 +132,11 @@ export class MapPanel implements IPanel {
 		const focusId = this.rows.some((row) => row.node.navId === this.focus)
 			? this.focus
 			: this.rows.at(0)?.node.navId;
-		this.navigationChanged?.(focusId);
+		this.navigationChanged?.(this.section === "map" ? "map-cursor" : focusId);
+	}
+	onPanelCycle(_direction: -1 | 1): void {
+		this.section = this.section === "map" ? "quests" : "map";
+		this.render();
 	}
 	showDetails(id?: number): void {
 		if (!this.mounted) return;
@@ -122,6 +144,7 @@ export class MapPanel implements IPanel {
 			const quest = this.quests.find((quest) => quest.id === id);
 			if (!quest) return;
 			this.focus = `map-quest-${id}`;
+			this.section = "quests";
 		}
 		this.details = id;
 		this.render();
@@ -136,6 +159,20 @@ export class MapPanel implements IPanel {
 		this.render();
 	}
 	getNavGrid(): NavGrid {
+		if (this.section === "map")
+			return [
+				[
+					{
+						navId: "map-cursor",
+						onFocus: () => this.client.setCursorActive(true),
+						onBlur: () => this.client.setCursorActive(false),
+						onMove: (direction) => this.client.moveCursor(direction),
+						onInteract: () => {},
+						onAlternate: () => this.client.clickMap("LeftButton"),
+						onContext: () => this.client.clickMap("RightButton"),
+					},
+				],
+			];
 		if (this.details !== undefined)
 			return this.reading.map((button, index) => [
 				button.navigationNode(

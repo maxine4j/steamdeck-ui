@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
 			layout: ReturnType<typeof vi.fn>;
 			hide: ReturnType<typeof vi.fn>;
 			onSizeChanged: ReturnType<typeof vi.fn>;
+			setLabel: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -121,6 +122,9 @@ function setup() {
 		close: vi.fn(),
 		mount: vi.fn(),
 		resize: vi.fn(),
+		moveCursor: vi.fn(),
+		setCursorActive: vi.fn(),
+		clickMap: vi.fn(),
 		unmount: vi.fn(),
 		read: () => quests,
 		navigation: () => [
@@ -159,6 +163,40 @@ function setup() {
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	return { panel, client, modal, close, changed, quests };
 }
+it("cycles map and quests with bumpers, retaining quest focus and routing map controls", () => {
+	const { panel, client, changed } = setup();
+	panel.getNavGrid().at(2)?.at(0)?.onFocus();
+	panel.onPanelCycle(-1);
+	const cursor = panel.getNavGrid().at(0)?.at(0);
+	expect(cursor?.navId).toBe("map-cursor");
+	cursor?.onFocus();
+	expect(client.setCursorActive).toHaveBeenLastCalledWith(true);
+	cursor?.onMove?.("left");
+	expect(client.moveCursor).toHaveBeenCalledWith("left");
+	cursor?.onAlternate?.();
+	cursor?.onContext?.();
+	expect(client.clickMap.mock.calls).toEqual([["LeftButton"], ["RightButton"]]);
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-cursor");
+	cursor?.onBlur();
+	expect(client.setCursorActive).toHaveBeenLastCalledWith(false);
+	panel.onPanelCycle(1);
+	expect(changed).toHaveBeenLastCalledWith("map-quest-2");
+	panel.onPanelCycle(1);
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
+	panel.showDetails(2);
+	expect(changed).toHaveBeenLastCalledWith("map-details-down");
+	panel.onPanelCycle(-1);
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
+	expect(
+		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
+	).toContain("LB/RB: Quests");
+	panel.onPanelCycle(1);
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details-down");
+	panel.onUnmount();
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-header-1");
+});
 it("puts Blizzard's unified quest hierarchy on the right without custom tabs or red rows", () => {
 	const { panel, client, changed } = setup();
 	expect(client.mount).toHaveBeenCalled();
