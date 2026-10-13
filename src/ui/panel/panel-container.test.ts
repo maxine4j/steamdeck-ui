@@ -65,7 +65,7 @@ it.each(["left", "right"] as const)(
 				55,
 				position === "left" ? "RIGHT" : "LEFT",
 				frame,
-				position === "left" ? 43 : -43,
+				position === "left" ? 43 : -41,
 				y,
 			);
 		}
@@ -348,7 +348,7 @@ it.each(["left", "right"] as const)(
 			55,
 			position === "left" ? "RIGHT" : "LEFT",
 			frame,
-			position === "left" ? 43 : -43,
+			position === "left" ? 43 : -41,
 			29,
 		);
 		buttons.at(1)?.onClick.mock.calls.at(-1)?.at(0)("LeftButton");

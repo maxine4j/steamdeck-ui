@@ -64,7 +64,7 @@ export class PanelContainer implements IPanelContainer {
 		if (!createTab || this.position === "fullscreen") return;
 		const edge = this.position === "left" ? "RIGHT" : "LEFT";
 		const mirrored = this.position === "right";
-		const x = mirrored ? -43 : 43;
+		const x = mirrored ? -41 : 43;
 		const grouped = new Set<string>();
 		const groups: IPanel[][] = [];
 		for (const ids of this.tabGroups) {
