@@ -73,8 +73,10 @@ it("reads the highest-priority zone spell and leaves an absent zone ability empt
 	expect(client.read(-2)).toEqual({});
 });
 
-it("suppresses all eight standard action bars once and restores their parents", () => {
+it("suppresses the native action controls once and restores their parents", () => {
 	const bars = [
+		"ZoneAbilityFrame",
+		"ExtraActionBarFrame",
 		"MainActionBar",
 		"MultiBarBottomLeft",
 		"MultiBarBottomRight",
@@ -139,6 +141,8 @@ it("keeps dynamic main-bar paging for the face buttons and directions", () => {
 
 it("reveals native bars only for action drags, hides them after dropping, and defers changes in combat", () => {
 	for (const name of [
+		"ZoneAbilityFrame",
+		"ExtraActionBarFrame",
 		"MainActionBar",
 		"MultiBarBottomLeft",
 		"MultiBarBottomRight",

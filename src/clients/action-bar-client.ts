@@ -18,6 +18,8 @@ declare global {
 		slot: number,
 	): LuaMultiReturn<[string | undefined, number]>;
 	const ExtraActionButton1: { action: number };
+	const ExtraActionBarFrame: NativeBar | undefined;
+	const ZoneAbilityFrame: NativeBar | undefined;
 	function GetPetActionInfo(
 		this: void,
 		slot: number,
@@ -104,6 +106,8 @@ export class ActionBarClient implements IActionBarClient {
 	disableBuiltIn(): void {
 		if (this.suppressed) return;
 		this.frames.suppress([
+			ZoneAbilityFrame,
+			ExtraActionBarFrame,
 			MainActionBar,
 			MultiBarBottomLeft,
 			MultiBarBottomRight,
@@ -112,7 +116,7 @@ export class ActionBarClient implements IActionBarClient {
 			MultiBar5,
 			MultiBar6,
 			MultiBar7,
-		]);
+		].filter((frame): frame is NativeBar => frame !== undefined));
 		this.suppressed = true;
 	}
 	getSlotDriver(
