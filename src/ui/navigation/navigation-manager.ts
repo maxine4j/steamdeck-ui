@@ -1,4 +1,8 @@
-import type { ApplicationEvent, IEventBus } from "../../events/types";
+import type {
+	ApplicationEvent,
+	EventPayload,
+	IEventBus,
+} from "../../events/types";
 import { NavigationGrid } from "./navigation-grid";
 import type { INavigable, NavDirection, NavGrid } from "./types";
 
@@ -31,13 +35,11 @@ export class NavigationManager implements INavManager {
 	private modal?: { id: string; previous?: string; cancel: () => void };
 	private focused?: INavigable;
 	private graph = new NavigationGrid([]);
-	private readonly directionChanged = ({
-		direction,
-		pressed,
-	}: {
-		direction: NavDirection;
-		pressed: boolean;
-	}) => this.focused?.onMove?.(direction, pressed);
+	private readonly directionChanged: (
+		this: void,
+		payload: EventPayload<"NAV_DIRECTION_CHANGED">,
+	) => void = ({ direction, pressed }) =>
+		this.focused?.onMove?.(direction, pressed);
 	private readonly handlers: [ApplicationEvent, () => void][] = [
 		["NAV_UP", () => this.moveUp()],
 		["NAV_DOWN", () => this.moveDown()],
