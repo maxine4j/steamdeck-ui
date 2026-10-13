@@ -55,7 +55,8 @@ export class AchievementsPanel implements IPanel {
 	private summary?: AchievementSummary;
 	private page?: string;
 	private pendingCategory?: number;
-	private expanded?: number;
+	private selectedAchievement?: number;
+	private pendingFocus?: string;
 	private incomplete = false;
 	private loading = false;
 	private scanning = false;
@@ -67,7 +68,7 @@ export class AchievementsPanel implements IPanel {
 	private renderDirty = true;
 	private cancelScan?: () => void;
 	private cancelRender?: () => void;
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
 	constructor(
 		private readonly pool: IFramePoolManager,
 		private readonly client: IAchievementsClient,
@@ -178,7 +179,8 @@ export class AchievementsPanel implements IPanel {
 								const value = totals.get(page.id);
 								return value ? { ...page, ...value, pending: false } : page;
 							});
-							if (this.page === undefined) this.render();
+							if (this.page === undefined)
+								this.list.updateRows(this.summaryRows());
 						}
 						if (firstLoad) this.entries = entries;
 						if (
@@ -226,8 +228,7 @@ export class AchievementsPanel implements IPanel {
 				this.pages = buildAchievementPages(this.categories, this.entries);
 				this.resolveSelection();
 				this.render();
-				if (this.page === undefined || this.expanded !== undefined)
-					this.finishLoading();
+				if (this.page === undefined) this.finishLoading();
 			}
 		};
 		this.cancelScan = this.scheduler.nextFrame(step);
@@ -263,8 +264,9 @@ export class AchievementsPanel implements IPanel {
 		this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 	}
 	selectCategory(id?: number): void {
+		this.pendingFocus = undefined;
 		this.pendingCategory = id;
-		this.expanded = undefined;
+		this.selectedAchievement = undefined;
 		this.page = undefined;
 		this.incomplete = false;
 		this.resolveSelection();
@@ -274,18 +276,18 @@ export class AchievementsPanel implements IPanel {
 	}
 	private resolveSelection(): void {
 		if (this.loading) return;
-		if (this.expanded !== undefined) {
+		if (this.selectedAchievement !== undefined) {
 			this.page = this.pages.find((p) =>
 				p.sections.some((s) =>
 					s.groups.some((g) =>
-						g.achievements.some((a) => a.id === this.expanded),
+						g.achievements.some((a) => a.id === this.selectedAchievement),
 					),
 				),
 			)?.id;
 			if (!this.page) {
 				// Deep links may target an achievement hidden from normal enumeration.
-				const achievement = this.client.achievement(this.expanded);
-				const category = this.client.categoryFor(this.expanded);
+				const achievement = this.client.achievement(this.selectedAchievement);
+				const category = this.client.categoryFor(this.selectedAchievement);
 				this.entries.set(category, [
 					...(this.entries.get(category) ?? []),
 					achievement,
@@ -294,7 +296,7 @@ export class AchievementsPanel implements IPanel {
 				this.page = this.pages.find((p) =>
 					p.sections.some((s) =>
 						s.groups.some((g) =>
-							g.achievements.some((a) => a.id === this.expanded),
+							g.achievements.some((a) => a.id === this.selectedAchievement),
 						),
 					),
 				)?.id;
@@ -319,7 +321,8 @@ export class AchievementsPanel implements IPanel {
 		this.pendingCategory = undefined;
 	}
 	selectAchievement(id: number): void {
-		this.expanded = this.client.selection(id);
+		this.selectedAchievement = this.client.selection(id);
+		this.pendingFocus = `achievement-${this.selectedAchievement}`;
 		this.incomplete = false;
 		if (this.summary) {
 			this.resolveSelection();
@@ -327,74 +330,73 @@ export class AchievementsPanel implements IPanel {
 		} else this.refresh();
 	}
 	private openPage(page: string): void {
+		this.pendingFocus = undefined;
 		this.page = page;
-		this.expanded = undefined;
+		this.selectedAchievement = undefined;
 		this.incomplete = false;
 		this.viewport.resetScroll();
 		this.list.resetScroll();
 		this.render();
 	}
 	onBack(): void {
-		if (this.expanded !== undefined) {
-			this.expanded = undefined;
-			this.render();
-		} else if (this.page !== undefined) this.selectCategory();
+		if (this.page !== undefined) this.selectCategory();
 		else this.close();
-	}
-	private details(): ListRow[] {
-		if (this.expanded === undefined) return [];
-		const achievement = this.client.achievement(this.expanded);
-		return [
-			{
-				id: "achievement-detail",
-				label: achievement.name,
-				icon: achievement.icon,
-				detail: this.tooltip(achievement).slice(achievement.name.length + 1),
-				tooltip: this.tooltip(achievement),
-				fontSize: 18,
-				height: 80,
-				activate: () => {},
-			},
-			...this.client.chain(achievement.id).map((step) => ({
-				id: `chain-${step.id}`,
-				label: `${step.name} • ${formatAchievementNumber(step.points)} points`,
-				icon: step.icon,
-				detail: step.completed ? step.date : "Incomplete",
-				activate: () => {
-					this.expanded = step.id;
-					this.render();
-				},
-			})),
-			...this.client.criteria(achievement.id).map((criterion, index) => ({
-				id: `criterion-${achievement.id}-${index}`,
-				label: `${criterion.completed ? "✓" : "−"} ${criterion.name}`,
-				detail: criterion.progress
-					? formatAchievementProgress(criterion.quantity, criterion.required)
-					: criterion.text ||
-						(criterion.required > 1
-							? formatAchievementProgress(
-									criterion.quantity,
-									criterion.required,
-								)
-							: ""),
-				progress: criterion.progress
-					? {
-							value:
-								criterion.required > 0
-									? criterion.quantity / criterion.required
-									: 0,
-							color: gold,
-						}
-					: undefined,
-				activate: () => {
-					if (criterion.achievement)
-						this.selectAchievement(criterion.achievement);
-				},
-			})),
-		];
 	}
 	private tooltip(achievement: Achievement): string {
 		return `${achievement.name}\n${formatAchievementNumber(achievement.points)} points • ${achievement.completed ? `Completed ${achievement.date}` : "Incomplete"}\n${achievement.description}${achievement.reward !== "" ? `\nReward: ${achievement.reward}` : ""}`;
+	}
+	private summaryRows(): ListRow[] {
+		if (!this.summary) return [];
+		return [
+			{
+				id: "summary-progress",
+				label: "Overall progress",
+				detail: formatAchievementProgress(
+					this.summary.totals.completed,
+					this.summary.totals.total,
+				),
+				heading: true,
+				height: 64,
+				progress: {
+					value:
+						this.summary.totals.total > 0
+							? this.summary.totals.completed / this.summary.totals.total
+							: 0,
+					color: gold,
+				},
+				activate: () => {},
+			},
+			...this.pages.map((p) => ({
+				id: `summary-category-${p.id}`,
+				label: p.name,
+				backgroundAtlas: "ui-journeys-renown-button",
+				backgroundTint: achievementCategoryTint(p.id),
+				fontSize: 12,
+				wrapLabel: true,
+				trailingLabel: p.pending
+					? "Loading..."
+					: formatAchievementProgress(p.completed, p.total)
+							.replace(" / ", "/")
+							.replace(" • ", " "),
+				trailingOnFirstLine: true,
+				height: 80,
+				progress: {
+					value: p.total > 0 ? p.completed / p.total : 0,
+					color: gold,
+				},
+				activate: () => this.openPage(p.id),
+			})),
+			...(this.pages.length > 0
+				? []
+				: [
+						{
+							id: "empty",
+							label: "No achievements to display",
+							heading: true,
+							activate: () => {},
+						},
+					]),
+		];
 	}
 	private render(): void {
 		if (!this.mounted || !this.summary) return;
@@ -461,56 +463,7 @@ export class AchievementsPanel implements IPanel {
 			this.page = undefined;
 			this.list.setColumns(2);
 			this.list.mount(this.body);
-			this.list.setRows([
-				{
-					id: "summary-progress",
-					label: "Overall progress",
-					detail: formatAchievementProgress(
-						this.summary.totals.completed,
-						this.summary.totals.total,
-					),
-					heading: true,
-					height: 64,
-					progress: {
-						value:
-							this.summary.totals.total > 0
-								? this.summary.totals.completed / this.summary.totals.total
-								: 0,
-						color: gold,
-					},
-					activate: () => {},
-				},
-				...this.pages.map((p) => ({
-					id: `summary-category-${p.id}`,
-					label: p.name,
-					backgroundAtlas: "ui-journeys-renown-button",
-					backgroundTint: achievementCategoryTint(p.id),
-					fontSize: 12,
-					wrapLabel: true,
-					trailingLabel: p.pending
-						? "Loading..."
-						: formatAchievementProgress(p.completed, p.total)
-								.replace(" / ", "/")
-								.replace(" • ", " "),
-					trailingOnFirstLine: true,
-					height: 80,
-					progress: {
-						value: p.total > 0 ? p.completed / p.total : 0,
-						color: gold,
-					},
-					activate: () => this.openPage(p.id),
-				})),
-				...(this.pages.length > 0
-					? []
-					: [
-							{
-								id: "empty",
-								label: "No achievements to display",
-								heading: true,
-								activate: () => {},
-							},
-						]),
-			]);
+			this.list.setRows(this.summaryRows());
 		} else {
 			this.back.show();
 			this.frame.setLabel(
@@ -522,34 +475,31 @@ export class AchievementsPanel implements IPanel {
 				13,
 				this.width - 150,
 			);
-			if (this.expanded !== undefined) {
-				this.list.setColumns(1);
-				this.list.mount(this.body);
-				this.list.resetScroll();
-				this.list.setRows(this.details());
-			} else {
-				this.filter.setLabel(
-					"label",
-					this.incomplete ? "Incomplete only" : "All achievements",
-					"CENTER",
-					0,
-					0,
-					12,
-				);
-				this.filter.show();
-				const visible = this.incomplete
-					? buildAchievementPages(this.categories, this.entries, true).find(
-							(p) => p.id === page.id,
-						)
-					: page;
-				this.renderGrid(visible ?? page);
-			}
+			this.filter.setLabel(
+				"label",
+				this.incomplete ? "Incomplete only" : "All achievements",
+				"CENTER",
+				0,
+				0,
+				12,
+			);
+			this.filter.show();
+			const visible = this.incomplete
+				? buildAchievementPages(this.categories, this.entries, true).find(
+						(p) => p.id === page.id,
+					)
+				: page;
+			this.renderGrid(visible ?? page);
 		}
 		this.navigationChanged?.();
 	}
 	private renderGrid(page: AchievementPage): void {
 		if (!this.scanning) this.setLoadingProgress(0.5);
-		const columns = Math.max(1, Math.floor(this.width / spacing));
+		const groupWidth = (this.width - 16) / 2;
+		const columns = Math.max(
+			1,
+			Math.min(5, Math.floor((groupWidth + 4) / spacing)),
+		);
 		const jobs: (() => void)[] = [];
 		for (const cell of this.cells)
 			jobs.push(() => {
@@ -569,9 +519,11 @@ export class AchievementsPanel implements IPanel {
 			count: string,
 			size: number,
 			height: number,
+			layout?: { left: number; top: number; width: number },
 		) => {
 			const index = headerIndex++;
-			const top = y;
+			const top = layout?.top ?? y;
+			const width = layout?.width ?? this.width;
 			jobs.push(() => {
 				let header = this.headers.at(index);
 				if (!header) {
@@ -579,7 +531,14 @@ export class AchievementsPanel implements IPanel {
 					this.headers.push(header);
 				}
 				header.setParent(this.content);
-				header.layout(this.width, height, "TOPLEFT", this.content, 0, -top);
+				header.layout(
+					width,
+					height,
+					"TOPLEFT",
+					this.content,
+					layout?.left ?? 0,
+					-top,
+				);
 				header.setLabel(
 					"title",
 					title,
@@ -587,12 +546,20 @@ export class AchievementsPanel implements IPanel {
 					0,
 					-2,
 					size,
-					this.width - 190,
+					layout ? width : width - 190,
 				);
-				header.setLabel("count", count, "TOPRIGHT", 0, -4, 12, 180);
+				header.setLabel(
+					"count",
+					count,
+					layout ? "TOPLEFT" : "TOPRIGHT",
+					0,
+					layout ? -36 : -4,
+					12,
+					layout ? width : 180,
+				);
 				header.show();
 			});
-			y += height;
+			if (!layout) y += height;
 		};
 		for (const section of page.sections) {
 			if (!section.groups.length) continue;
@@ -602,96 +569,105 @@ export class AchievementsPanel implements IPanel {
 				18,
 				32,
 			);
-			for (const group of section.groups) {
-				heading(
-					group.name,
-					formatAchievementProgress(group.completed, group.total),
-					13,
-					24,
-				);
-				const top = y;
+			for (
+				let groupIndex = 0;
+				groupIndex < section.groups.length;
+				groupIndex += 2
+			) {
+				const pair = section.groups.slice(groupIndex, groupIndex + 2);
+				const groupTop = y;
+				const top = groupTop + 56;
 				const firstRow = grid.length;
-				for (
-					let row = 0;
-					row < Math.ceil(group.achievements.length / columns);
-					row++
-				)
-					grid.push([]);
-				group.achievements.forEach((achievement, index) => {
-					const cellNumber = cellIndex++;
-					const row = Math.floor(index / columns);
-					const cellTop = top + row * spacing;
-					jobs.push(() => {
-						let cell = this.cells.at(cellNumber);
-						if (!cell) {
-							cell = {
-								border: new Frame(
-									`achievements-border-${cellNumber}`,
-									this.pool,
-								),
-								icon: new Frame(
-									`achievements-icon-${cellNumber}`,
-									this.pool,
-									"Button",
-								),
-							};
-							this.cells.push(cell);
-						}
-						cell.border.setParent(this.content);
-						cell.border.layout(
-							42,
-							42,
-							"TOPLEFT",
-							this.content,
-							(index % columns) * spacing,
-							-cellTop,
-						);
-						const [red, green, blue] = achievement.completed
-							? gold
-							: ([0.12, 0.12, 0.12] as const);
-						cell.border.setColor(red, green, blue);
-						cell.icon.setParent(cell.border);
-						cell.icon.layout(38, 38, "CENTER", cell.border);
-						cell.icon.setIcon(achievement.icon);
-						cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
-						const current = () =>
-							this.mounted &&
-							revision === this.renderRevision &&
-							this.expanded === undefined &&
-							this.page === page.id;
-						const activate = () => {
-							if (current()) {
-								this.expanded = achievement.id;
-								this.render();
+				const rows = pair.reduce(
+					(maximum, group) =>
+						Math.max(maximum, Math.ceil(group.achievements.length / columns)),
+					0,
+				);
+				for (let row = 0; row < rows; row++) grid.push([]);
+				pair.forEach((group, side) => {
+					const left = side * (groupWidth + 16);
+					heading(
+						group.name,
+						formatAchievementProgress(group.completed, group.total),
+						13,
+						56,
+						{ left, top: groupTop, width: groupWidth },
+					);
+					group.achievements.forEach((achievement, index) => {
+						const cellNumber = cellIndex++;
+						const row = Math.floor(index / columns);
+						const cellTop = top + row * spacing;
+						jobs.push(() => {
+							let cell = this.cells.at(cellNumber);
+							if (!cell) {
+								cell = {
+									border: new Frame(
+										`achievements-border-${cellNumber}`,
+										this.pool,
+									),
+									icon: new Frame(
+										`achievements-icon-${cellNumber}`,
+										this.pool,
+										"Button",
+									),
+								};
+								this.cells.push(cell);
 							}
-						};
-						cell.icon.onClick(activate);
-						const tooltip = () =>
-							current()
-								? { text: this.tooltip(achievement), anchor: this.frame }
-								: undefined;
-						cell.icon.setHoverTooltip(tooltip);
-						const node = cell.icon.navigationNode(
-							`achievement-${achievement.id}`,
-							activate,
-							() =>
-								this.viewport.revealVerticalRange(
-									cellTop,
-									cellTop + 42,
-									this.contentHeight,
-								),
-						);
-						grid.at(firstRow + row)?.push({
-							...node,
-							navigationScroll: this.viewport,
-							navColumn: index % columns,
-							tooltipItem: tooltip,
+							cell.border.setParent(this.content);
+							cell.border.layout(
+								42,
+								42,
+								"TOPLEFT",
+								this.content,
+								left + (index % columns) * spacing,
+								-cellTop,
+							);
+							const [red, green, blue] = achievement.completed
+								? gold
+								: ([0.12, 0.12, 0.12] as const);
+							cell.border.setColor(red, green, blue);
+							cell.icon.setParent(cell.border);
+							cell.icon.layout(38, 38, "CENTER", cell.border);
+							cell.icon.setIcon(achievement.icon);
+							cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
+							const current = () =>
+								this.mounted &&
+								revision === this.renderRevision &&
+								this.page === page.id;
+							const activate = () => {
+								if (current()) {
+									this.selectedAchievement = achievement.id;
+									this.navigationChanged?.(`achievement-${achievement.id}`);
+								}
+							};
+							cell.icon.onClick(activate);
+							const tooltip = () =>
+								current()
+									? { text: this.tooltip(achievement), anchor: this.frame }
+									: undefined;
+							cell.icon.setHoverTooltip(tooltip);
+							const node = cell.icon.navigationNode(
+								`achievement-${achievement.id}`,
+								activate,
+								() =>
+									this.viewport.revealVerticalRange(
+										cellTop,
+										cellTop + 42,
+										this.contentHeight,
+									),
+							);
+							grid.at(firstRow + row)?.push({
+								...node,
+								navigationScroll: this.viewport,
+								navColumn: side * columns + (index % columns),
+								tooltipItem: tooltip,
+							});
+							cell.border.show();
+							cell.icon.show();
 						});
-						cell.border.show();
-						cell.icon.show();
 					});
 				});
-				y += Math.ceil(group.achievements.length / columns) * spacing + 12;
+				y = top + rows * spacing + 12;
 			}
 			y += 12;
 		}
@@ -729,7 +705,13 @@ export class AchievementsPanel implements IPanel {
 				);
 			if (cursor >= cleanupCount) this.viewport.show();
 			this.grid = grid.filter((row) => row.length > 0);
-			this.navigationChanged?.();
+			const focusId = this.grid
+				.flat()
+				.some((node) => node.navId === this.pendingFocus)
+				? this.pendingFocus
+				: undefined;
+			if (focusId) this.pendingFocus = undefined;
+			this.navigationChanged?.(focusId);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else {
@@ -782,8 +764,7 @@ export class AchievementsPanel implements IPanel {
 		this.filter.onClick(() => this.toggleFilter());
 		this.frame.show();
 		if (this.renderDirty) this.render();
-		else if (this.page === undefined || this.expanded !== undefined)
-			this.list.mount(this.body);
+		else if (this.page === undefined) this.list.mount(this.body);
 		this.update.setActive(true);
 	}
 	private toggleFilter(): void {
@@ -804,9 +785,10 @@ export class AchievementsPanel implements IPanel {
 		this.frame.hide();
 	}
 	onContainerClosed(): void {
+		this.pendingFocus = undefined;
 		this.renderDirty = true;
 		this.page = undefined;
-		this.expanded = undefined;
+		this.selectedAchievement = undefined;
 		this.pendingCategory = undefined;
 		this.incomplete = false;
 		this.close();
@@ -818,7 +800,6 @@ export class AchievementsPanel implements IPanel {
 			...this.back.navigationNode("achievements-back", () => this.onBack()),
 			navColumn: 0,
 		};
-		if (this.expanded !== undefined) return [[back], ...this.list.getNavGrid()];
 		const filter = {
 			...this.filter.navigationNode("achievements-filter", () =>
 				this.toggleFilter(),
@@ -827,7 +808,7 @@ export class AchievementsPanel implements IPanel {
 		};
 		return [[back, filter], ...this.grid];
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

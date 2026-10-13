@@ -746,8 +746,11 @@ export class Frame implements IUIComponent {
 			SetOwner(owner: WowFrame, anchor: string): void;
 		};
 		native.SetOwner(this.acquire(), "ANCHOR_NONE");
-		native.ClearAllPoints();
-		native.SetPoint("TOPLEFT", this.acquire(), "TOPRIGHT", 0, 0);
+		this.positionTooltip(native);
+	}
+	positionTooltip(tooltip: WowFrame): void {
+		tooltip.ClearAllPoints();
+		tooltip.SetPoint("TOPLEFT", this.acquire(), "TOPRIGHT", 0, 0);
 	}
 	setHoverTooltip(content: () => TooltipContent | undefined): void {
 		const native = this.acquire() as WowFrame & {

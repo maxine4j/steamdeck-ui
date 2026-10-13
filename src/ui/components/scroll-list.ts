@@ -61,6 +61,7 @@ export class ScrollList {
 	private mounted = false;
 	private dirty = true;
 	private cancelRender?: () => void;
+	private pendingUpdate = false;
 	private renderedRows = 0;
 	private contentHeight = 1;
 	private width?: number;
@@ -109,12 +110,39 @@ export class ScrollList {
 		this.scroll.resetScroll();
 	}
 	setRows(rows: readonly ListRow[]): void {
+		this.pendingUpdate = false;
 		const preserve =
 			rows.length >= this.rows.length &&
 			this.rows.every((row, index) => row === rows.at(index));
 		this.rows = rows;
 		this.dirty = true;
 		if (this.mounted) this.render(preserve ? this.renderedRows : 0);
+	}
+	/** Update existing controls without withdrawing their navigation readiness. */
+	updateRows(rows: readonly ListRow[]): void {
+		const sameLayout =
+			rows.length === this.rows.length &&
+			this.rows.every((row, index) => {
+				const next = rows.at(index);
+				return (
+					next?.id === row.id &&
+					next.heading === row.heading &&
+					next.height === row.height &&
+					(next.progress !== undefined) === (row.progress !== undefined) &&
+					next.indent === row.indent &&
+					next.enabled === row.enabled &&
+					(next.secondary !== undefined) === (row.secondary !== undefined)
+				);
+			});
+		if (!sameLayout) {
+			this.setRows(rows);
+			return;
+		}
+		this.rows = rows;
+		this.dirty = true;
+		if (!this.mounted) return;
+		if (this.cancelRender) this.pendingUpdate = true;
+		else this.render(0, true);
 	}
 	setWidth(width: number): void {
 		if (this.width === width) return;
@@ -169,10 +197,11 @@ export class ScrollList {
 			);
 		else this.content.layout(width, this.contentHeight, "TOPLEFT", this.scroll);
 	}
-	private render(startRow = 0): void {
+	private render(startRow = 0, retainReady = false): void {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		this.renderedRows = startRow;
+		const readyRows = retainReady ? this.renderedRows : startRow;
+		this.renderedRows = readyRows;
 		this.options.onChanged?.(false);
 		const width =
 			(this.width ?? this.options.width ?? 480) -
@@ -517,7 +546,7 @@ export class ScrollList {
 				this.buttons.at(index)?.animation?.hide();
 				this.buttons.at(index)?.frame.hide();
 			}
-			this.renderedRows = Math.min(end, this.rows.length);
+			this.renderedRows = Math.max(readyRows, Math.min(end, this.rows.length));
 			cursor = end;
 			if (cursor < total && this.options.scheduler)
 				this.cancelRender = this.options.scheduler.nextFrame(step);
@@ -527,6 +556,10 @@ export class ScrollList {
 				this.dirty = false;
 			}
 			this.options.onChanged?.(!this.dirty);
+			if (!this.dirty && this.pendingUpdate) {
+				this.pendingUpdate = false;
+				this.render(0, true);
+			}
 		};
 		if (this.options.scheduler)
 			this.cancelRender = this.options.scheduler.nextFrame(step);

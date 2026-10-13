@@ -13,7 +13,7 @@ export interface GridOptions extends GridNeighbors {
 export interface INavManager {
 	registerGrid(panelId: string, grid: GridSource, options?: GridOptions): void;
 	unregisterGrid(panelId: string): void;
-	refreshGrid(panelId: string): void;
+	refreshGrid(panelId: string, focusId?: string): void;
 	setActiveGrid(panelId: string): void;
 	moveUp(): void;
 	moveDown(): void;
@@ -100,13 +100,13 @@ export class NavigationManager implements INavManager {
 		this.unregisterGrid(id);
 		if (previous) this.setActiveGrid(previous);
 	}
-	refreshGrid(panelId: string): void {
+	refreshGrid(panelId: string, focusId?: string): void {
 		if (this.active !== panelId) return;
 		const source = this.grids.get(panelId);
 		this.graph = new NavigationGrid(
 			typeof source === "function" ? source() : (source ?? []),
 		);
-		const id = this.focusedId ?? this.remembered.get(panelId);
+		const id = focusId ?? this.focusedId ?? this.remembered.get(panelId);
 		this.setFocus((id ? this.graph.get(id) : undefined) ?? this.graph.first);
 		this.onActiveChanged?.(true);
 	}

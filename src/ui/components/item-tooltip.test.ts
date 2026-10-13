@@ -11,6 +11,7 @@ function setup() {
 	const frames: ReturnType<typeof native>[] = [];
 	function native() {
 		let shown = false;
+		let text = "";
 		return {
 			Hide: vi.fn(() => {
 				shown = false;
@@ -19,9 +20,14 @@ function setup() {
 				shown = true;
 			}),
 			IsShown: () => shown,
-			SetOwner: vi.fn(),
+			SetOwner: vi.fn(() => {
+				text = "";
+			}),
 			SetHyperlink: vi.fn(),
-			SetText: vi.fn(),
+			SetText: vi.fn((value: string) => {
+				text = value;
+			}),
+			getText: () => text,
 			SetToyByItemID: vi.fn(),
 			SetMountBySpellID: vi.fn(),
 			ClearLines: vi.fn(),
@@ -73,6 +79,7 @@ it("anchors plain text focus tooltips outside their supplied panel", () => {
 	anchor.show();
 	const nativeAnchor = frames.at(0);
 	tooltip.setItem({ text: "Achievement", anchor });
+	expect(frames.at(1)?.getText()).toBe("Achievement");
 	expect(frames.at(1)?.SetOwner).toHaveBeenLastCalledWith(
 		nativeAnchor,
 		"ANCHOR_NONE",

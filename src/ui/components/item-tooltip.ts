@@ -111,7 +111,7 @@ export class ItemTooltip {
 			const main = this.tooltips.at(0);
 			if (main) {
 				main.SetScale(1);
-				this.item.anchor.anchorTooltip(main);
+				this.item.anchor.positionTooltip(main);
 			}
 			return;
 		}

@@ -53,7 +53,9 @@ export class PanelContainer implements IPanelContainer {
 		this.frame.show();
 		this.renderTabs();
 		panel.onMount(this.frame);
-		panel.setNavigationChanged?.(() => this.navigation?.refreshGrid(this.id));
+		panel.setNavigationChanged?.((focusId) =>
+			this.navigation?.refreshGrid(this.id, focusId),
+		);
 		this.focus();
 	}
 	private renderTabs(): void {

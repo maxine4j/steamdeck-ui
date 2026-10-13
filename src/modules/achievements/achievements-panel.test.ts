@@ -22,6 +22,7 @@ const { lists, frames, reveal, edges, resizeCallbacks } = vi.hoisted(() => ({
 			layouts: number[][];
 			labels: Map<string, string>;
 			opacity: number;
+			click?: () => void;
 		}
 	>(),
 }));
@@ -32,6 +33,7 @@ vi.mock("../../ui/components/frame", () => ({
 			layouts: [] as number[][],
 			labels: new Map<string, string>(),
 			opacity: 1,
+			click: undefined as (() => void) | undefined,
 		};
 		constructor(public id: string) {
 			frames.set(id, this.state);
@@ -50,7 +52,9 @@ vi.mock("../../ui/components/frame", () => ({
 		onSizeChanged(callback: () => void) {
 			resizeCallbacks.set(this.id, callback);
 		}
-		onClick() {}
+		onClick(callback: () => void) {
+			this.state.click = callback;
+		}
 		setHoverTooltip() {}
 		setOpacity(value: number) {
 			this.state.opacity = value;
@@ -92,6 +96,9 @@ vi.mock("../../ui/components/scroll-list", () => ({
 			lists.set(id, this.state);
 		}
 		setRows(rows: readonly ListRow[]) {
+			this.state.rows = rows;
+		}
+		updateRows(rows: readonly ListRow[]) {
 			this.state.rows = rows;
 		}
 		setWidth() {}
@@ -442,9 +449,14 @@ it("opens a two-column reputation-style summary with progress buttons and drills
 	expect(labels).toContain("Regular Counts");
 	expect(labels).toContain("Unknown");
 });
-it("opens lazy achievement details, criteria and rewards; Back walks to grid, summary, then closes", () => {
+it("selects clicked achievements in the grid with their tooltip; Back returns to summary", () => {
 	const { panel, client, activate, close, flush } = setup();
 	activate("summary-category-Quests");
+	const changed = vi.fn();
+	const nav = new NavigationManager(createTestEventBus(), undefined, changed);
+	panel.setNavigationChanged((focusId) => nav.refreshGrid("left", focusId));
+	nav.registerGrid("left", () => panel.getNavGrid());
+	nav.setActiveGrid("left");
 	expect(client.criteria).not.toHaveBeenCalled();
 	const tooltip = panel
 		.getNavGrid()
@@ -454,19 +466,13 @@ it("opens lazy achievement details, criteria and rewards; Back walks to grid, su
 	expect(tooltip).toMatchObject({
 		text: expect.stringContaining("Explore the world"),
 	});
-	activate("achievement-503");
-	expect(client.criteria).toHaveBeenCalledWith(503);
-	expect(
-		lists.get("achievements-list")?.rows.find((r) => r.id === "criterion-503-0")
-			?.progress?.value,
-	).toBe(0.6);
-	expect(
-		lists
-			.get("achievements-list")
-			?.rows.find((r) => r.id === "achievement-detail")?.detail,
-	).toContain("Title");
-	panel.onBack();
+	frames.get("achievements-icon-1")?.click?.();
 	flush();
+	expect(nav.focusedId).toBe("achievement-503");
+	expect(changed.mock.lastCall?.at(0)?.tooltipItem?.()).toEqual(tooltip);
+	nav.interact();
+	expect(nav.focusedId).toBe("achievement-503");
+	expect(client.criteria).not.toHaveBeenCalled();
 	expect(
 		panel
 			.getNavGrid()
@@ -512,10 +518,8 @@ it("fits the left container, has spatial grid columns and reveals focused icons"
 	flush();
 	activate("summary-category-Characters");
 	const grid = panel.getNavGrid().slice(1);
-	expect(grid.map((row) => row.length)).toEqual([10, 2]);
-	expect(grid.at(0)?.map((n) => n.navColumn)).toEqual([
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-	]);
+	expect(grid.map((row) => row.length)).toEqual([5, 5, 2]);
+	expect(grid.at(0)?.map((n) => n.navColumn)).toEqual([0, 1, 2, 3, 4]);
 	for (const state of frames.values())
 		for (const [width, , x] of state.layouts)
 			expect((width ?? 0) + (x ?? 0)).toBeLessThanOrEqual(500);
@@ -525,6 +529,7 @@ it("fits the left container, has spatial grid columns and reveals focused icons"
 	manager.setActiveGrid("achievements");
 	manager.moveUp();
 	expect(edges).toHaveBeenLastCalledWith("up");
+	manager.moveDown();
 	manager.moveDown();
 	manager.moveDown();
 	expect(edges).toHaveBeenLastCalledWith("down");
@@ -545,14 +550,14 @@ it("defers hidden refreshes, cancels scans on unmount and selects external achie
 	panel.onMount(parent);
 	flush();
 	expect(client.summary).toHaveBeenCalledTimes(2);
-	expect(client.criteria).toHaveBeenCalledWith(503);
+	expect(client.criteria).not.toHaveBeenCalled();
 	expect(
-		lists
-			.get("achievements-list")
-			?.rows.find((r) => r.id === "achievement-detail")?.label,
-	).toContain("503");
-	panel.onBack();
-	flush();
+		panel
+			.getNavGrid()
+			.flat()
+			.find((n) => n.navId === "achievement-503")
+			?.tooltipItem?.(),
+	).toMatchObject({ text: expect.stringContaining("503") });
 	expect(
 		panel
 			.getNavGrid()
@@ -641,17 +646,21 @@ it("shows an empty state when every achievement is completed", () => {
 		"No achievements to display",
 	);
 });
-it("can inspect an earlier completed chain level without jumping to the latest level", () => {
-	const { panel, client, flush, activate } = setup();
-	vi.spyOn(client, "chain").mockReturnValue([
-		achievement(6, true),
-		achievement(7, true),
-	]);
+it("external selection focuses its grid cell without a details page", () => {
+	const { panel, client, flush } = setup();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
 	vi.spyOn(client, "selection").mockReturnValue(7);
 	panel.selectAchievement(7);
 	flush();
-	activate("chain-6");
-	expect(client.criteria).toHaveBeenLastCalledWith(6);
+	expect(changed).toHaveBeenCalledWith("achievement-7");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "achievement-7"),
+	).toBe(true);
+	expect(client.criteria).not.toHaveBeenCalled();
 });
 it("reflows grids when the host changes size", () => {
 	const { panel, client, flush, activate } = setup();
@@ -676,7 +685,7 @@ it("reflows grids when the host changes size", () => {
 			.getNavGrid()
 			.slice(1)
 			.map((row) => row.length),
-	).toEqual([5, 5, 2]);
+	).toEqual([2, 2, 2, 2, 2, 2]);
 	vi.restoreAllMocks();
 });
 it("invalidates old icon actions and tooltips when the grid is replaced", () => {
@@ -690,6 +699,30 @@ it("invalidates old icon actions and tooltips when the grid is replaced", () => 
 	old?.onInteract();
 	expect(client.criteria).not.toHaveBeenCalled();
 	expect(old?.tooltipItem?.()).toBeUndefined();
+});
+it("pairs five-wide achievement grids and aligns navigation across unequal group heights", () => {
+	const { panel, client, flush, activate } = setup();
+	const ids = [
+		6, 7, 8, 14782, 14783, 15805, 1176, 1177, 1178, 1180, 1181, 5455, 5456,
+		6753, 889, 890, 5180,
+	];
+	vi.mocked(client.achievements).mockImplementation((id) =>
+		id === 92 ? ids.map((id) => achievement(id)) : [],
+	);
+	panel.refresh();
+	flush();
+	activate("summary-category-Characters");
+	const rows = panel.getNavGrid().slice(1);
+	expect(rows.map((row) => row.length)).toEqual([10, 4, 3]);
+	expect(rows.at(1)?.map((n) => n.navColumn)).toEqual([0, 5, 6, 7]);
+	const left = frames.get("achievements-border-0")?.layouts.at(-1);
+	const right = frames.get("achievements-border-6")?.layouts.at(-1);
+	expect(left?.at(2)).toBe(0);
+	expect(right?.at(2)).toBe(242);
+	expect(left?.at(3)).toBe(right?.at(3));
+	expect(
+		frames.get("achievements-border-14")?.layouts.at(-1)?.at(3),
+	).toBeLessThan(right?.at(3) ?? 0);
 });
 it("keeps the current page usable while refreshing completion data in the background", () => {
 	const { panel, client, activate, step, flush } = setup();
@@ -705,12 +738,13 @@ it("keeps the current page usable while refreshing completion data in the backgr
 		text: expect.stringContaining("Explore the world"),
 	});
 	icon?.onInteract();
-	expect(client.criteria).toHaveBeenCalledWith(503);
+	expect(client.criteria).not.toHaveBeenCalled();
 	flush();
 	expect(
-		lists
-			.get("achievements-list")
-			?.rows.find((r) => r.id === "achievement-detail"),
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "achievement-503"),
 	).toBeDefined();
 });
 it("restarts an interrupted scan when reopened instead of retaining a partial catalog", () => {

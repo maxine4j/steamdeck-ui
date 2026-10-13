@@ -10,6 +10,23 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("selects a requested grid node and publishes its tooltip on refresh", () => {
+	const changed = vi.fn();
+	const manager = new NavigationManager(
+		createTestEventBus(),
+		undefined,
+		changed,
+	);
+	const second = { ...node("second"), tooltipItem: () => "Achievement" };
+	manager.registerGrid("panel", [[node("first"), second]]);
+	manager.setActiveGrid("panel");
+	manager.refreshGrid("panel", "second");
+	expect(manager.focusedId).toBe("second");
+	expect(changed).toHaveBeenLastCalledWith(second);
+	manager.moveLeft();
+	expect(manager.focusedId).toBe("first");
+});
+
 it("finishes scrolling on repeated vertical boundary presses without changing focus", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

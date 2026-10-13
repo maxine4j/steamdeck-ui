@@ -5,6 +5,95 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("rebuilds layout when an update adds a progress bar to a variable-height row", () => {
+	const pending: (() => void)[] = [];
+	const list = new ScrollList(
+		"changed-layout",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+		{
+			scheduler: {
+				nextFrame: (callback) => {
+					pending.push(callback);
+					return vi.fn();
+				},
+			},
+		},
+	);
+	list.setRows([{ id: "row", label: "Row", activate: vi.fn() }]);
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	pending.shift()?.();
+	list.updateRows([
+		{
+			id: "row",
+			label: "Row",
+			progress: { value: 0.5, color: [1, 1, 1] },
+			activate: vi.fn(),
+		},
+	]);
+	expect(list.getNavGrid()).toEqual([]);
+	while (pending.length) pending.shift()?.();
+	expect(frames.get("changed-layout-row-0")?.layout).toHaveBeenLastCalledWith(
+		456,
+		60,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-0,
+	);
+});
+
+it("keeps early navigation and focus active while pending progress updates arrive", () => {
+	const pending: (() => void)[] = [];
+	const nav = new NavigationManager(createTestEventBus());
+	const makeRows = (completed: number) =>
+		["quests", "exploration"].map((id) => ({
+			id,
+			label: id,
+			height: 80,
+			trailingLabel: `${completed}/10`,
+			progress: { value: completed / 10, color: [1, 1, 1] as const },
+			activate: vi.fn(),
+		}));
+	const list = new ScrollList(
+		"early-nav",
+		{} as IFramePoolManager,
+		"",
+		vi.fn(),
+		{
+			columns: 2,
+			scheduler: {
+				nextFrame: (callback) => {
+					let cancelled = false;
+					pending.push(() => {
+						if (!cancelled) callback();
+					});
+					return () => {
+						cancelled = true;
+					};
+				},
+			},
+			onChanged: () => nav.refreshGrid("left"),
+		},
+	);
+	list.setRows(makeRows(0));
+	list.mount(new Frame("parent", {} as IFramePoolManager));
+	nav.registerGrid("left", () => list.getNavGrid());
+	nav.setActiveGrid("left");
+	list.updateRows(makeRows(1));
+	list.updateRows(makeRows(2));
+	pending.shift()?.();
+	expect(nav.focusedId).toBe("quests");
+	nav.moveRight();
+	expect(nav.focusedId).toBe("exploration");
+	list.updateRows(makeRows(3));
+	expect(nav.focusedId).toBe("exploration");
+	expect(list.getNavGrid().flat()).toHaveLength(2);
+	while (pending.length) pending.shift()?.();
+	expect(nav.focusedId).toBe("exploration");
+});
+
 it("supports larger scheduled batches and wrapped labels in narrow two-column tiles", () => {
 	const pending: (() => void)[] = [];
 	const list = new ScrollList(
