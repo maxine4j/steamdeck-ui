@@ -21,6 +21,7 @@ import type { INavigable, NavDirection } from "../ui/navigation/types";
 export const MAP_QUEST_PANE_WIDTH = 304 + 16;
 const CONTENT_TOP = 20;
 const BREADCRUMB_HEIGHT = 32;
+const MAP_INSET = 8;
 
 export interface MapQuestNavigation {
 	readonly questID?: number;
@@ -322,7 +323,10 @@ export class MapClient implements IMapClient {
 		this.applyQuestLayout();
 		QuestLogQuests_Update();
 	}
-	private mapDimensions(available: { width: number; height: number }): {
+	private mapDimensions(
+		available: { width: number; height: number },
+		inset = 0,
+	): {
 		width: number;
 		height: number;
 	} {
@@ -337,8 +341,11 @@ export class MapClient implements IMapClient {
 				? layer.layerWidth / layer.layerHeight
 				: 1.5;
 		const width = Math.min(
-			Math.max(1, available.width - MAP_QUEST_PANE_WIDTH),
-			Math.max(1, available.height - CONTENT_TOP - BREADCRUMB_HEIGHT) * aspect,
+			Math.max(1, available.width - MAP_QUEST_PANE_WIDTH - inset * 2),
+			Math.max(
+				1,
+				available.height - CONTENT_TOP - BREADCRUMB_HEIGHT - inset * 2,
+			) * aspect,
 		);
 		return { width, height: width / aspect };
 	}
@@ -347,20 +354,25 @@ export class MapClient implements IMapClient {
 		if (!parent || !this.enabled) return;
 		const map = WorldMapFrame;
 		const available = parent.getSize();
-		const { width, height } = this.mapDimensions(available);
+		const { width, height } = this.mapDimensions(available, MAP_INSET);
+		const left = Math.max(
+			0,
+			(available.width - MAP_QUEST_PANE_WIDTH - width) / 2,
+		);
+		const vertical = Math.max(
+			0,
+			(available.height - CONTENT_TOP - BREADCRUMB_HEIGHT - height) / 2,
+		);
 		this.layout.bind(map, {
 			parent,
 			// Quest children extend beyond the fitted map root's render-buffer bounds.
 			frameBuffer: false,
 			// Limit the native background as well as the scroll viewport to the fitted map.
 			insets: [
-				0,
-				CONTENT_TOP,
-				Math.max(0, available.width - width),
-				Math.max(
-					0,
-					available.height - height - CONTENT_TOP - BREADCRUMB_HEIGHT,
-				),
+				left,
+				CONTENT_TOP + vertical,
+				Math.max(0, available.width - left - width),
+				vertical,
 			],
 			reparent: true,
 			scale: 1,
