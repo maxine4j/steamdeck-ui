@@ -274,6 +274,20 @@ it("makes summary categories interactive before scanning and uses the corner loa
 	expect(frames.get("achievements-loading-track")?.visible).toBe(false);
 	expect(frames.get("achievements")?.labels.get("loading")).toBe("");
 });
+it("publishes one summary button when native roots share a curated page name", () => {
+	const { client, step, panel } = setup(false);
+	vi.spyOn(client, "categories").mockReturnValue([
+		{ id: 15246, name: "Expansion Features", parent: -1 },
+		{ id: 900000, name: "Expansion Features", parent: -1 },
+	]);
+	step();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => node.navId === "summary-category-Expansion Features"),
+	).toHaveLength(1);
+});
 it("updates completion counts within a category before the category finishes loading", () => {
 	const { client, step } = setup(false);
 	let partial:
@@ -319,6 +333,89 @@ it("fills summary button counts as categories arrive while later scans remain pe
 			.flat()
 			.some((n) => n.navId === "summary-category-Quests"),
 	).toBe(true);
+});
+
+it("yields between cached categories so loading progress is visible before completion", () => {
+	const { client, step, flush } = setup(false);
+	vi.mocked(client.loadCategory).mockImplementation((id, complete) => {
+		complete(client.achievements(id, false));
+		return vi.fn();
+	});
+	step();
+	step();
+	expect(client.loadCategory).toHaveBeenCalledTimes(1);
+	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
+	expect(
+		frames.get("achievements-loading-progress")?.layouts.at(-1)?.at(0),
+	).toBeCloseTo(140 / 6);
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Characters")?.progress
+			?.value,
+	).toBe(0.5);
+	flush();
+});
+
+it("opens an already loaded category while unrelated categories are still scanning", () => {
+	const { panel, client, step, flush } = setup(false);
+	vi.mocked(client.loadCategory).mockImplementation((id, complete) => {
+		if (id === 92) complete([achievement(6, true), achievement(7)]);
+		return vi.fn();
+	});
+	step();
+	step();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "summary-category-Characters")
+		?.onInteract();
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toContain("achievement-6");
+	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
+});
+
+it("opens published partial rows and adds the remaining rows when that category completes", () => {
+	const { panel, client, step, flush } = setup(false);
+	let complete: ((rows: Achievement[]) => void) | undefined;
+	let progress:
+		| ((completed: number, total: number, rows: readonly Achievement[]) => void)
+		| undefined;
+	vi.mocked(client.loadCategory).mockImplementation((id, done, partial) => {
+		if (id === 92) {
+			complete = done;
+			progress = partial;
+		}
+		return vi.fn();
+	});
+	step();
+	step();
+	progress?.(1, 2, [achievement(6, true)]);
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "summary-category-Characters")
+		?.onInteract();
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toContain("achievement-6");
+	complete?.([achievement(6, true), achievement(7)]);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toContain("achievement-7");
 });
 
 it("keeps publishing category counts when an event restarts the initial scan", () => {

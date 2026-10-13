@@ -123,8 +123,15 @@ export class AchievementsPanel implements IPanel {
 		if (firstLoad) {
 			this.summary = summary;
 			this.categories = categories;
+			const pageNames = new Set<string>();
 			this.pages = categories
 				.filter((c) => c.parent === -1)
+				.filter((category) => {
+					const name = achievementPageName(category);
+					if (pageNames.has(name)) return false;
+					pageNames.add(name);
+					return true;
+				})
 				.map((category) => {
 					const name = achievementPageName(category);
 					return {
@@ -181,31 +188,27 @@ export class AchievementsPanel implements IPanel {
 			}
 			const category = categories.at(cursor);
 			if (category) {
-				this.cancelScan = this.client.loadCategory(
+				let completed = false;
+				const cancel = this.client.loadCategory(
 					category.id,
 					(achievements) => {
 						if (!this.mounted || generation !== this.generation) return;
+						completed = true;
 						entries.set(category.id, achievements);
 						cursor++;
+						const previous = this.pages.find((page) => page.id === this.page);
 						publish(category, achievements);
 						if (firstLoad) this.entries = entries;
-						if (
-							firstLoad &&
-							this.page !== undefined &&
-							!categories
-								.slice(cursor)
-								.some(
-									(category) =>
-										achievementPageName(
-											achievementRoot(categories, category.id) ?? category,
-										) === this.page,
-								)
-						) {
+						if (firstLoad && this.page !== undefined) {
 							const selected = buildAchievementPages(categories, entries).find(
 								(page) => page.id === this.page,
 							);
-							const previous = this.pages.find((page) => page.id === this.page);
-							if (selected && previous?.sections.length === 0) {
+							if (
+								selected &&
+								(previous?.sections.length === 0 ||
+									selected.total !== previous?.total ||
+									selected.completed !== previous?.completed)
+							) {
 								this.pages = this.pages.map((page) =>
 									page.id === selected.id ? selected : page,
 								);
@@ -215,10 +218,15 @@ export class AchievementsPanel implements IPanel {
 						this.setLoadingProgress(
 							(0.5 * cursor) / Math.max(1, categories.length),
 						);
-						step();
+						this.cancelScan = this.scheduler.nextFrame(step);
 					},
 					(completed, total, rows) => {
 						if (!this.mounted || generation !== this.generation) return;
+						entries.set(category.id, [
+							...(entries.get(category.id) ?? []),
+							...rows,
+						]);
+						if (firstLoad) this.entries = entries;
 						publish(category, rows);
 						this.setLoadingProgress(
 							(0.5 * (cursor + (total > 0 ? completed / total : 1))) /
@@ -227,6 +235,8 @@ export class AchievementsPanel implements IPanel {
 					},
 					false,
 				);
+				// Cached loads complete inline; retain the scheduled continuation's cancel.
+				if (!completed) this.cancelScan = cancel;
 			} else {
 				this.loading = false;
 				this.scanning = false;
@@ -357,6 +367,15 @@ export class AchievementsPanel implements IPanel {
 		this.page = page;
 		this.selectedAchievement = undefined;
 		this.incomplete = false;
+		if (this.scanning && !this.catalogLoaded) {
+			const loaded = buildAchievementPages(this.categories, this.entries).find(
+				(candidate) => candidate.id === page,
+			);
+			if (loaded)
+				this.pages = this.pages.map((candidate) =>
+					candidate.id === page ? loaded : candidate,
+				);
+		}
 		this.viewport.resetScroll();
 		this.list.resetScroll();
 		this.render();
