@@ -7,6 +7,7 @@ import type {
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
 import { IconCheckbox } from "../../ui/components/icon-checkbox";
+import type { IModal } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
@@ -65,7 +66,7 @@ function queueTile(queued: boolean, hoverDetail = "Enter Queue?") {
 		backgroundAtlas: "ui-journeys-renown-button",
 		backgroundTint: queued ? ([0.2, 0.8, 0.3] as const) : undefined,
 		detail: queued ? "In Queue" : undefined,
-		hoverDetail: queued ? undefined : hoverDetail,
+		hoverDetail: queued ? "In queue - leave?" : hoverDetail,
 		animatedIcon: queued ? searchingEye : undefined,
 		animatedIconOnDetail: queued ? true : undefined,
 	};
@@ -83,11 +84,13 @@ export class DungeonFinderPanel implements IPanel {
 	private page?: DungeonListId;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
+	private pendingLeave?: () => void;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IDungeonFinderClient,
 		close: () => void,
 		scheduler: ITaskScheduler,
+		private readonly confirmation: IModal,
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
 		this.back = new Frame("dungeon-back", pool, "Button");
@@ -119,6 +122,39 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	refresh(): void {
 		this.update.invalidate();
+	}
+	private dismissLeave(): void {
+		this.pendingLeave = undefined;
+		this.confirmation.close();
+	}
+	private confirmLeave(leave: () => void, stillQueued: () => boolean): void {
+		const confirm = () => {
+			if (!this.mounted || this.pendingLeave !== confirm) return;
+			this.dismissLeave();
+			if (!stillQueued()) return;
+			leave();
+			this.refresh();
+		};
+		this.pendingLeave = confirm;
+		this.confirmation.open(
+			"Leave Queue?",
+			[
+				{
+					id: "cancel",
+					label: "Stay in Queue",
+					select: () => this.dismissLeave(),
+				},
+				{ id: "leave", label: "Leave Queue", select: confirm },
+			],
+			undefined,
+			"left",
+		);
+	}
+	private confirmDungeonLeave(id: number | DungeonListId): void {
+		this.confirmLeave(
+			() => this.client.leave(),
+			() => this.client.isQueued() && this.client.getSelected() === id,
+		);
 	}
 	private overviewRows(): ListRow[] {
 		const dungeons = this.client.getDungeons();
@@ -165,7 +201,8 @@ export class DungeonFinderPanel implements IPanel {
 							return;
 						if (this.client.isQueued()) {
 							if (this.client.getSelected() !== dungeon.id) return;
-							this.client.leave();
+							this.confirmDungeonLeave(dungeon.id);
+							return;
 						} else {
 							this.client.select(dungeon.id);
 							this.client.join();
@@ -197,7 +234,11 @@ export class DungeonFinderPanel implements IPanel {
 						(this.client.isQueued() && this.client.getSelected() !== list.id)
 					)
 						return;
-					if (!this.client.isQueued()) this.client.selectList(list.id);
+					if (this.client.isQueued()) {
+						this.confirmDungeonLeave(list.id);
+						return;
+					}
+					this.client.selectList(list.id);
 					this.page = list.id;
 					this.list.resetScroll();
 					this.refresh();
@@ -245,8 +286,21 @@ export class DungeonFinderPanel implements IPanel {
 							.find((entry) => entry.id === raid.id)
 							?.wings.find((entry) => entry.id === wing.id);
 						if (!current) return;
-						if (current.queued) this.client.leaveRaid(wing.id);
-						else if (current.available && this.client.canQueueRaid())
+						if (current.queued) {
+							this.confirmLeave(
+								() => this.client.leaveRaid(wing.id),
+								() =>
+									this.client
+										.getRaids()
+										.some((entry) =>
+											entry.wings.some(
+												(candidate) =>
+													candidate.id === wing.id && candidate.queued,
+											),
+										),
+							);
+							return;
+						} else if (current.available && this.client.canQueueRaid())
 							this.client.joinRaid(wing.id);
 						this.refresh();
 					},
@@ -336,7 +390,8 @@ export class DungeonFinderPanel implements IPanel {
 				if (!this.mounted || this.page !== page) return;
 				if (this.client.isQueued()) {
 					if (this.client.getSelected() !== page) return;
-					this.client.leave();
+					this.confirmDungeonLeave(page);
+					return;
 				} else if (
 					this.client
 						.getDungeonChoices(page)
@@ -370,6 +425,7 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	onBack(): void {
 		if (!this.mounted || !this.page) return;
+		this.dismissLeave();
 		this.page = undefined;
 		this.list.resetScroll();
 		this.refresh();
@@ -393,6 +449,7 @@ export class DungeonFinderPanel implements IPanel {
 		this.update.setActive(true);
 	}
 	onUnmount(): void {
+		this.dismissLeave();
 		this.mounted = false;
 		this.update.setActive(false);
 		this.list.unmount();

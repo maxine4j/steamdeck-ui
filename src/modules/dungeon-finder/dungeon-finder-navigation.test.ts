@@ -1,7 +1,8 @@
 import { expect, it, vi } from "vitest";
 import type { IDungeonFinderClient } from "../../clients/dungeon-finder-client";
-import type { IEventBus } from "../../events/types";
+import { createTestEventBus } from "../../events/test-event-bus";
 import { Frame } from "../../ui/components/frame";
+import type { ModalOption } from "../../ui/components/modal";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { DungeonFinderPanel } from "./dungeon-finder-panel";
@@ -97,16 +98,37 @@ it.each(["random", "specific", "follower"] as const)(
 			},
 		};
 		const pool = {} as IFramePoolManager;
-		const panel = new DungeonFinderPanel(pool, client, vi.fn(), {
-			nextFrame: (callback) => {
-				callbacks.push(callback);
-				return vi.fn();
+		const events = createTestEventBus();
+		const nav = new NavigationManager(events);
+		const modal = {
+			open: (_title: string, options: readonly ModalOption[]) => {
+				nav.pushModal(
+					"confirm",
+					options.map((option) => [
+						{
+							navId: `confirm-${option.id}`,
+							onFocus: vi.fn(),
+							onBlur: vi.fn(),
+							onInteract: option.select,
+						},
+					]),
+					() => modal.close(),
+				);
 			},
-		});
-		const nav = new NavigationManager({
-			subscribe: vi.fn(),
-			unsubscribe: vi.fn(),
-		} as IEventBus);
+			close: () => nav.popModal("confirm"),
+		};
+		const panel = new DungeonFinderPanel(
+			pool,
+			client,
+			vi.fn(),
+			{
+				nextFrame: (callback) => {
+					callbacks.push(callback);
+					return vi.fn();
+				},
+			},
+			modal,
+		);
 		const focus = (id: string) => {
 			for (let steps = 0; steps < 30 && nav.focusedId !== id; steps++)
 				nav.moveDown();
@@ -133,6 +155,15 @@ it.each(["random", "specific", "follower"] as const)(
 				.flat()
 				.map((node) => node.navId),
 		).toEqual(queue === "random" ? [action] : ["dungeon-back", action]);
+		nav.interact();
+		expect(nav.focusedId).toBe("confirm-cancel");
+		expect(queued).toBe(true);
+		events.emit("NAV_CANCEL");
+		expect(nav.focusedId).toBe(action);
+		expect(queued).toBe(true);
+		nav.interact();
+		expect(nav.focusedId).toBe("confirm-cancel");
+		nav.moveDown();
 		nav.interact();
 		flush();
 		expect(queued).toBe(false);

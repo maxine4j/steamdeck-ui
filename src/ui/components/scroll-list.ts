@@ -692,10 +692,10 @@ export class ScrollList {
 		const layout = button?.detailLayout;
 		if (!row || !button || !layout) return;
 		const detail =
-			row.detail ??
 			(this.isReady(index) && (button.focused || button.hovered)
 				? row.hoverDetail
 				: undefined) ??
+			row.detail ??
 			"";
 		button.frame.setLabel(
 			"detail",

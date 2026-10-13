@@ -305,6 +305,12 @@ export function startSteamDeckUI(
 			dialogueCamera,
 		),
 	);
+	const dungeonQueueConfirmation = new Modal(
+		"dungeon-queue-confirmation",
+		pool,
+		navigation,
+		events,
+	);
 	const dungeonFinderPanel = new DungeonFinderPanel(
 		pool,
 		dungeonFinder,
@@ -313,6 +319,7 @@ export function startSteamDeckUI(
 			ui.closePanel("right", "dungeon-finder");
 		},
 		scheduler,
+		dungeonQueueConfirmation,
 	);
 	ui.registerPanel(dungeonFinderPanel, "right");
 	modules.register(
@@ -440,6 +447,7 @@ export function startSteamDeckUI(
 			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();
+			dungeonQueueConfirmation.destroy();
 			collectionsFeature.toyModal.destroy();
 			collectionsFeature.mountModal.destroy();
 			navigation.destroy();

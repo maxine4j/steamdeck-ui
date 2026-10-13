@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { IDungeonFinderClient } from "../../clients/dungeon-finder-client";
 import { Frame } from "../../ui/components/frame";
+import type { ModalOption } from "../../ui/components/modal";
 import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { DungeonFinderPanel } from "./dungeon-finder-panel";
@@ -90,6 +91,17 @@ vi.mock("../../ui/components/scroll-list", () => ({
 
 function setup(queued = false, canTank = true, canHeal = true) {
 	const callbacks: (() => void)[] = [];
+	let options: readonly ModalOption[] = [];
+	const modal = {
+		open: vi.fn((_title: string, next: readonly ModalOption[]) => {
+			options = next;
+		}),
+		close: vi.fn(),
+	};
+	const confirm = () =>
+		options.find((option) => option.id === "leave")?.select();
+	const cancel = () =>
+		options.find((option) => option.id === "cancel")?.select();
 	const client: IDungeonFinderClient = {
 		getRaids: () => [],
 		canQueueRaid: () => true,
@@ -151,11 +163,12 @@ function setup(queued = false, canTank = true, canHeal = true) {
 				return vi.fn();
 			},
 		},
+		modal,
 	);
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	callbacks.shift()?.();
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
-	return { panel, client, rows, callbacks };
+	return { panel, client, rows, callbacks, modal, confirm, cancel };
 }
 
 it.each(["follower", "specific"] as const)(
@@ -233,7 +246,7 @@ it("returns from an empty secondary page with the pinned Back button", () => {
 });
 
 it("greys competing queues and lets A leave the active random queue", () => {
-	const { rows, client, panel, callbacks } = setup(true);
+	const { rows, client, panel, callbacks, modal, confirm } = setup(true);
 	rows.find((row) => row.id === "list-specific")?.activate();
 	callbacks.shift()?.();
 	expect(client.selectList).not.toHaveBeenCalled();
@@ -242,11 +255,15 @@ it("greys competing queues and lets A leave the active random queue", () => {
 	expect(rows.find((row) => row.id === "dungeon-3")).toMatchObject({
 		backgroundTint: [0.2, 0.8, 0.3],
 		detail: "In Queue",
+		hoverDetail: "In queue - leave?",
 		animatedIconOnDetail: true,
 		animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		enabled: true,
 	});
 	rows.find((row) => row.id === "dungeon-3")?.activate();
+	expect(client.leave).not.toHaveBeenCalled();
+	expect(modal.open).toHaveBeenCalled();
+	confirm();
 	expect(client.leave).toHaveBeenCalledOnce();
 	expect(
 		panel
@@ -369,7 +386,7 @@ it("removes the overview queue footer and compacts the role area", () => {
 });
 
 it("locks pinned roles while queued and offers Leave Queue", () => {
-	const { panel, client } = setup(true);
+	const { panel, client, confirm } = setup(true);
 	expect(
 		panel
 			.getNavGrid()
@@ -387,6 +404,7 @@ it("locks pinned roles while queued and offers Leave Queue", () => {
 		.flat()
 		.find((node) => node.navId === "dungeon-3")
 		?.onInteract();
+	confirm();
 	expect(client.leave).toHaveBeenCalledOnce();
 	expect(client.join).not.toHaveBeenCalled();
 });
@@ -426,7 +444,7 @@ it.each(["specific", "follower"] as const)(
 );
 
 it("separates dungeons and raids, with independently queueable wings and leave actions at capacity", () => {
-	const { client, panel, callbacks } = setup(true);
+	const { client, panel, callbacks, confirm } = setup(true);
 	let capacity = true;
 	client.canQueueRaid = () => capacity;
 	client.getRaids = () => [
@@ -482,6 +500,8 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	rows.find((row) => row.id === "wing-103")?.activate();
 	expect(client.joinRaid).toHaveBeenCalledOnce();
 	rows.find((row) => row.id === "wing-102")?.activate();
+	expect(client.leaveRaid).not.toHaveBeenCalled();
+	confirm();
 	expect(client.leaveRaid).toHaveBeenCalledWith(102);
 	expect(client.leave).not.toHaveBeenCalled();
 	panel.onUnmount();
@@ -503,7 +523,7 @@ it("removes navigation and guards retained controls when unmounted", () => {
 it.each(["specific", "follower"] as const)(
 	"shows the active %s queue in green and leaves it from its bottom action",
 	(list) => {
-		const { panel, client, rows, callbacks } = setup();
+		const { panel, client, rows, callbacks, confirm } = setup();
 		rows.find((row) => row.id === `list-${list}`)?.activate();
 		callbacks.shift()?.();
 		client.getSelected = () => list;
@@ -521,6 +541,8 @@ it.each(["specific", "follower"] as const)(
 			animatedIcon: { atlas: "groupfinder-eye-flipbook-searching" },
 		});
 		choices.at(-1)?.activate();
+		expect(client.leave).not.toHaveBeenCalled();
+		confirm();
 		expect(client.leave).toHaveBeenCalledOnce();
 		expect(client.join).not.toHaveBeenCalled();
 		panel.onBack();
@@ -531,5 +553,37 @@ it.each(["specific", "follower"] as const)(
 				.flat()
 				.some((node) => node.navId === `list-${list}`),
 		).toBe(true);
+	},
+);
+
+it("cancels leaving without dequeuing and rejects stale confirmation after queue changes or unmount", () => {
+	const { rows, client, panel, confirm, cancel, modal } = setup(true);
+	const action = rows.find((row) => row.id === "dungeon-3");
+	action?.activate();
+	cancel();
+	confirm();
+	expect(client.leave).not.toHaveBeenCalled();
+	action?.activate();
+	client.getSelected = () => 1;
+	confirm();
+	expect(client.leave).not.toHaveBeenCalled();
+	client.getSelected = () => 3;
+	action?.activate();
+	panel.onUnmount();
+	expect(modal.close).toHaveBeenCalled();
+	confirm();
+	expect(client.leave).not.toHaveBeenCalled();
+});
+
+it.each(["follower", "specific"] as const)(
+	"confirms leaving the active %s queue from the overview",
+	(list) => {
+		const { rows, client, confirm, modal } = setup(true);
+		client.getSelected = () => list;
+		rows.find((row) => row.id === `list-${list}`)?.activate();
+		expect(modal.open).toHaveBeenCalled();
+		expect(client.leave).not.toHaveBeenCalled();
+		confirm();
+		expect(client.leave).toHaveBeenCalledOnce();
 	},
 );

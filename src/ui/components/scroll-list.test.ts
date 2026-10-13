@@ -54,7 +54,7 @@ it("shows a second-line prompt on mouse hover or controller focus and retains qu
 		{
 			...tile,
 			detail: "In Queue",
-			hoverDetail: undefined,
+			hoverDetail: "In queue - leave?",
 			animatedIconOnDetail: true,
 			animatedIcon: {
 				atlas: "eye",
@@ -85,6 +85,16 @@ it("shows a second-line prompt on mouse hover or controller focus and retains qu
 	);
 	nav?.onBlur();
 	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("In Queue");
+	const queuedHover = frame?.setTooltip.mock.lastCall?.at(3) as
+		| ((hovered: boolean) => void)
+		| undefined;
+	queuedHover?.(true);
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("In queue - leave?");
+	queuedHover?.(false);
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("In Queue");
+	nav?.onFocus();
+	expect(frame?.setLabel.mock.lastCall?.at(1)).toBe("In queue - leave?");
+	nav?.onBlur();
 	expect(frame?.setAtlasBackground).toHaveBeenLastCalledWith(
 		"ui-journeys-renown-button",
 		[0.2, 0.8, 0.3],
