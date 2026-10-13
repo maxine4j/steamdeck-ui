@@ -13,6 +13,11 @@ import type {
 } from "../ui/components/native-navigation";
 import type { INavigable, NavDirection } from "../ui/navigation/types";
 
+// Blizzard's 338px quest root includes the fixed-width rows and scrollbar.
+export const MAP_QUEST_PANE_WIDTH = 338 + 16;
+const CONTENT_TOP = 32;
+const BREADCRUMB_HEIGHT = 48;
+
 export interface MapQuestNavigation {
 	readonly questID?: number;
 	readonly node: INavigable;
@@ -290,8 +295,8 @@ export class MapClient implements IMapClient {
 				? layer.layerWidth / layer.layerHeight
 				: 1.5;
 		const width = Math.min(
-			Math.max(1, available.width - 420),
-			Math.max(1, available.height - 48) * aspect,
+			Math.max(1, available.width - MAP_QUEST_PANE_WIDTH),
+			Math.max(1, available.height - CONTENT_TOP - BREADCRUMB_HEIGHT) * aspect,
 		);
 		const height = width / aspect;
 		this.layout.bind(map, {
@@ -301,9 +306,12 @@ export class MapClient implements IMapClient {
 			// Limit the native background as well as the scroll viewport to the fitted map.
 			insets: [
 				0,
-				0,
+				CONTENT_TOP,
 				Math.max(0, available.width - width),
-				Math.max(0, available.height - height - 48),
+				Math.max(
+					0,
+					available.height - CONTENT_TOP - height - BREADCRUMB_HEIGHT,
+				),
 			],
 			reparent: true,
 			scale: 1,
@@ -357,7 +365,7 @@ export class MapClient implements IMapClient {
 			raised: true,
 			// Anchoring alone retains the map's old level beneath our opaque pane.
 			levelOffset: 1,
-			insets: [8, 8, 8, 48],
+			insets: [8, CONTENT_TOP, 8, 48],
 			// L/M toggles inspect this root's logical shown state.
 			visible: true,
 			alpha: 1,
@@ -372,6 +380,7 @@ export class MapClient implements IMapClient {
 		});
 		this.layout.bind(quests.DetailsFrame, {
 			parent: quests.QuestsFrame,
+			insets: [0, 0, 0, 0],
 			visible: this.details,
 		});
 		this.layout.bind(quests.QuestsFrame.ScrollFrame, {
@@ -572,29 +581,43 @@ export class MapClient implements IMapClient {
 				if (row.IsShown()) rows.push(row);
 		}
 		rows.sort((a, b) => a.layoutIndex - b.layoutIndex);
-		return rows.map((row) => ({
-			questID: row.questID,
-			node: this.controls.navigation(
-				row,
-				scroll,
-				row.questID
-					? `map-quest-${row.questID}`
-					: `map-header-${row.questLogIndex}`,
-				() => {
-					if (row.questID) this.showDetails(row.questID);
-					else if (row.questLogIndex) {
-						const info = (
-							C_QuestLog.GetInfo as unknown as (
-								this: void,
-								index: number,
-							) => QuestLogInfo | undefined
-						)(row.questLogIndex);
-						if (info?.isCollapsed) ExpandQuestHeader(row.questLogIndex);
-						else CollapseQuestHeader(row.questLogIndex);
-					}
-				},
-			),
-		}));
+		const headerOccurrences = new Map<string, number>();
+		return rows.map((row) => {
+			const info = row.questLogIndex
+				? (
+						C_QuestLog.GetInfo as unknown as (
+							this: void,
+							index: number,
+						) => QuestLogInfo | undefined
+					)(row.questLogIndex)
+				: undefined;
+			const header = info?.title ?? `${row.questLogIndex}`;
+			const occurrence = (headerOccurrences.get(header) ?? 0) + 1;
+			if (!row.questID) headerOccurrences.set(header, occurrence);
+			return {
+				questID: row.questID,
+				node: this.controls.navigation(
+					row,
+					scroll,
+					row.questID
+						? `map-quest-${row.questID}`
+						: `map-header-${header}${occurrence > 1 ? `-${occurrence}` : ""}`,
+					() => {
+						if (row.questID) this.showDetails(row.questID);
+						else if (row.questLogIndex) {
+							const info = (
+								C_QuestLog.GetInfo as unknown as (
+									this: void,
+									index: number,
+								) => QuestLogInfo | undefined
+							)(row.questLogIndex);
+							if (info?.isCollapsed) ExpandQuestHeader(row.questLogIndex);
+							else CollapseQuestHeader(row.questLogIndex);
+						}
+					},
+				),
+			};
+		});
 	}
 	read(): MapQuest[] {
 		const [count] = C_QuestLog.GetNumQuestLogEntries();

@@ -1,7 +1,8 @@
-import type {
-	IMapClient,
-	MapQuest,
-	MapQuestNavigation,
+import {
+	type IMapClient,
+	MAP_QUEST_PANE_WIDTH,
+	type MapQuest,
+	type MapQuestNavigation,
 } from "../../clients/map-client";
 import { Frame } from "../../ui/components/frame";
 import type { IModal, ModalOption } from "../../ui/components/modal";
@@ -14,6 +15,7 @@ export class MapPanel implements IPanel {
 	readonly id = "map";
 	readonly title = "Map & Quests";
 	private readonly frame: Frame;
+	private readonly mapSide: Frame;
 	private readonly pane: Frame;
 	private readonly reading: Frame[];
 	private focus?: string;
@@ -22,6 +24,7 @@ export class MapPanel implements IPanel {
 	private quests: MapQuest[] = [];
 	private details?: number;
 	private mounted = false;
+	private active = false;
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly cursorNode: INavigable = {
 		navId: "map-cursor",
@@ -39,6 +42,7 @@ export class MapPanel implements IPanel {
 		private readonly close: () => void,
 	) {
 		this.frame = new Frame("map-frame", pool);
+		this.mapSide = new Frame("map-side", pool);
 		this.pane = new Frame("map-quests", pool);
 		this.reading = [
 			new Frame("map-details-down", pool, "Button"),
@@ -49,8 +53,10 @@ export class MapPanel implements IPanel {
 		if (!(parent instanceof Frame))
 			throw new Error("Map requires a frame parent");
 		this.frame.fill(parent);
-		this.frame.setWindowBackground();
 		this.frame.show();
+		this.mapSide.setParent(this.frame);
+		this.mapSide.setWindowBackground();
+		this.mapSide.show();
 		this.pane.setParent(this.frame);
 		this.layout();
 		this.frame.onSizeChanged(() => {
@@ -61,7 +67,15 @@ export class MapPanel implements IPanel {
 		this.pane.show();
 		this.reading.forEach((button, index) => {
 			button.setParent(this.pane);
-			button.layout(194, 32, "BOTTOMLEFT", this.pane, 12 + index * 202, 8);
+			const width = (MAP_QUEST_PANE_WIDTH - 32) / 2;
+			button.layout(
+				width,
+				32,
+				"BOTTOMLEFT",
+				this.pane,
+				12 + index * (width + 8),
+				8,
+			);
 			button.setButtonBackground();
 			button.setLabel(
 				"label",
@@ -77,10 +91,30 @@ export class MapPanel implements IPanel {
 		this.refresh();
 	}
 	private layout(): void {
-		this.pane.layout(420, this.frame.getSize().height, "TOPRIGHT", this.frame);
+		const size = this.frame.getSize();
+		this.mapSide.layout(
+			Math.max(1, size.width - MAP_QUEST_PANE_WIDTH),
+			size.height,
+			"TOPLEFT",
+			this.frame,
+		);
+		this.pane.layout(MAP_QUEST_PANE_WIDTH, size.height, "TOPRIGHT", this.frame);
+	}
+	onActiveChanged(active: boolean): void {
+		this.active = active;
+		this.updateOutline();
+	}
+	private updateOutline(): void {
+		this.mapSide.setFocusBorder(
+			this.mounted && this.active && this.section === "map",
+		);
+		this.pane.setFocusBorder(
+			this.mounted && this.active && this.section === "quests",
+		);
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.onActiveChanged(false);
 		this.section = "quests";
 		this.focus = undefined;
 		this.client.setCursorActive(false);
@@ -107,6 +141,7 @@ export class MapPanel implements IPanel {
 		this.render();
 	}
 	private render(): void {
+		this.updateOutline();
 		if (this.details !== undefined) {
 			for (const button of this.reading) button.show();
 			this.pane.setLabel(
@@ -118,7 +153,7 @@ export class MapPanel implements IPanel {
 				12,
 				48,
 				13,
-				396,
+				MAP_QUEST_PANE_WIDTH - 24,
 			);
 			this.navigationChanged?.(
 				this.section === "map" ? "map-cursor" : "map-details-down",
@@ -136,7 +171,7 @@ export class MapPanel implements IPanel {
 			12,
 			14,
 			13,
-			396,
+			MAP_QUEST_PANE_WIDTH - 24,
 		);
 		const focusId = this.rows.some((row) => row.node.navId === this.focus)
 			? this.focus
@@ -268,7 +303,7 @@ export class MapPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
-		for (const frame of [...this.reading, this.pane, this.frame])
+		for (const frame of [...this.reading, this.pane, this.mapSide, this.frame])
 			frame.destroy();
 	}
 }

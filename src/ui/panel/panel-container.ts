@@ -141,7 +141,11 @@ export class PanelContainer implements IPanelContainer {
 			() => this.stack.at(-1)?.getNavGrid() ?? [],
 			{
 				...this.navigationNeighbors,
-				onActiveChanged: (active) => this.frame.setFocusBorder(active),
+				onActiveChanged: (active) => {
+					const panel = this.stack.at(-1);
+					this.frame.setFocusBorder(active && !panel?.onActiveChanged);
+					panel?.onActiveChanged?.(active);
+				},
 				onPanelCycle: (direction) => this.cyclePanel(direction),
 				onCancel: () => {
 					const panel = this.stack.at(-1);

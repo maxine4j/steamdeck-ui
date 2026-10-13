@@ -466,7 +466,7 @@ it("retains the native canvas, breadcrumbs and filters while owning a fullscreen
 		expect.objectContaining({
 			parent: frame,
 			anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-			size: [780, 520],
+			size: [846, 564],
 			clip: true,
 		}),
 	);
@@ -552,6 +552,55 @@ it("navigates Blizzard's visible headers and quest rows in native layout order a
 	hooks.get("QuestLogQuests_Update")?.();
 	expect(refreshed).toHaveBeenCalledOnce();
 });
+it("keeps category navigation identity when log indices change after collapse", () => {
+	const { client, quests } = setup();
+	const header = { IsShown: () => true, questLogIndex: 8, layoutIndex: 4 };
+	Object.assign(quests.QuestsFrame.ScrollFrame, {
+		headerFramePool: { EnumerateActive: () => [header] },
+		titleFramePool: { EnumerateActive: () => [] },
+		campaignHeaderFramePool: { EnumerateActive: () => [] },
+		campaignHeaderMinimalFramePool: { EnumerateActive: () => [] },
+		covenantCallingsHeaderFramePool: { EnumerateActive: () => [] },
+	});
+	vi.stubGlobal("C_QuestLog", {
+		GetInfo: () => ({ title: "Local quests", isCollapsed: false }),
+	});
+	vi.stubGlobal("CollapseQuestHeader", vi.fn());
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	const id = client.navigation().at(0)?.node.navId;
+	header.questLogIndex = 3;
+	const row = client.navigation().at(0);
+	expect(row?.node.navId).toBe(id);
+	row?.node.onInteract();
+	expect(CollapseQuestHeader).toHaveBeenCalledWith(3);
+});
+
+it("leaves the metal header exposed above breadcrumbs, quests and details", () => {
+	const { client, frame, quests, layout, hooks } = setup();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		frame,
+		expect.objectContaining({ insets: [0, 32, 354, 76] }),
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests,
+		expect.objectContaining({ insets: [8, 32, 8, 48] }),
+	);
+	hooks.get("QuestMapFrame_ShowQuestDetails")?.(7);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests.DetailsFrame,
+		expect.objectContaining({ visible: true, insets: [0, 0, 0, 0] }),
+	);
+});
+
 it("converts quest log headers and campaign membership without dropping dailies or local stories", () => {
 	const { client } = setup();
 	const entries = [
@@ -601,7 +650,7 @@ it("keeps map art top-aligned and fitted to the left pane across map changes and
 	client.mount({ getSize: () => size } as Frame, {} as Frame);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 0, 420, 152] }),
+		expect.objectContaining({ insets: [0, 32, 354, 76] }),
 	);
 	const viewport = () =>
 		layout.bind.mock.calls
@@ -610,25 +659,25 @@ it("keeps map art top-aligned and fitted to the left pane across map changes and
 			?.at(1);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [780, 520],
+		size: [846, 564],
 	});
 	frame.GetMapID.mockReturnValue(102);
 	hooks.get("OnMapChanged")?.();
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame,
-		expect.objectContaining({ insets: [0, 0, 528, 0] }),
+		expect.objectContaining({ insets: [0, 32, 560, 0] }),
 	);
 	expect(viewport()).toMatchObject({
 		anchors: [["TOPLEFT", "TOPLEFT", 0, -48]],
-		size: [672, 672],
+		size: [640, 640],
 	});
 	frame.GetMapID.mockReturnValue(103);
 	hooks.get("OnMapChanged")?.();
-	expect(viewport()).toMatchObject({ size: [780, 520] });
+	expect(viewport()).toMatchObject({ size: [846, 564] });
 	size.width = 1400;
 	size.height = 900;
 	client.resize();
-	expect(viewport()).toMatchObject({ size: [980, 980 / 1.5] });
+	expect(viewport()).toMatchObject({ size: [1046, 1046 / 1.5] });
 	const calls = layout.bind.mock.calls.length;
 	client.unmount();
 	hooks.get("OnMapChanged")?.();

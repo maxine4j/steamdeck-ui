@@ -18,6 +18,8 @@ export interface IPanel {
 	getNavGrid(): NavGrid;
 	onBack?(): void;
 	onPanelCycle?(direction: -1 | 1): void;
+	/** Panels with internal sections can own the active focus outline. */
+	onActiveChanged?(active: boolean): void;
 	setNavigationChanged?(callback?: (focusId?: string) => void): void;
 }
 

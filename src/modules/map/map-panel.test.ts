@@ -4,6 +4,7 @@ import { Frame } from "../../ui/components/frame";
 import type { ModalOption } from "../../ui/components/modal";
 import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { IPanel } from "../../ui/panel/types";
 import { MapPanel } from "./map-panel";
 
 const state = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const state = vi.hoisted(() => ({
 			hide: ReturnType<typeof vi.fn>;
 			onSizeChanged: ReturnType<typeof vi.fn>;
 			setLabel: ReturnType<typeof vi.fn>;
+			setFocusBorder: ReturnType<typeof vi.fn>;
 		}
 	>(),
 }));
@@ -31,6 +33,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setParent = vi.fn();
 		setWindowBackground = vi.fn();
 		setLabel = vi.fn();
+		setFocusBorder = vi.fn();
 		setButtonBackground = vi.fn();
 		onClick = vi.fn();
 		onSizeChanged = vi.fn();
@@ -71,6 +74,46 @@ beforeEach(() => {
 	state.rows = [];
 	state.frames.clear();
 });
+it("outlines only the active map or quest side and removes it while inactive", () => {
+	const { panel } = setup();
+	(panel as IPanel).onActiveChanged?.(true);
+	expect(
+		state.frames.get("map-quests")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(true);
+	expect(state.frames.get("map-side")?.setFocusBorder).toHaveBeenLastCalledWith(
+		false,
+	);
+	expect(state.frames.get("map-side")?.layout).toHaveBeenCalledWith(
+		846,
+		720,
+		"TOPLEFT",
+		expect.anything(),
+	);
+	panel.onPanelCycle(1);
+	expect(
+		state.frames.get("map-quests")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(false);
+	expect(state.frames.get("map-side")?.setFocusBorder).toHaveBeenLastCalledWith(
+		true,
+	);
+	(panel as IPanel).onActiveChanged?.(false);
+	expect(state.frames.get("map-side")?.setFocusBorder).toHaveBeenLastCalledWith(
+		false,
+	);
+	panel.onPanelCycle(-1);
+	expect(
+		state.frames.get("map-quests")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(false);
+	(panel as IPanel).onActiveChanged?.(true);
+	expect(
+		state.frames.get("map-quests")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(true);
+	panel.onUnmount();
+	expect(
+		state.frames.get("map-quests")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(false);
+});
+
 it("updates the native viewport when the fullscreen container changes size", () => {
 	const { client } = setup();
 	const resize = state.frames
@@ -201,7 +244,7 @@ it("puts Blizzard's unified quest hierarchy on the right without custom tabs or 
 	const { panel, client, changed } = setup();
 	expect(client.mount).toHaveBeenCalled();
 	expect(state.frames.get("map-quests")?.layout).toHaveBeenCalledWith(
-		420,
+		354,
 		720,
 		"TOPRIGHT",
 		expect.anything(),

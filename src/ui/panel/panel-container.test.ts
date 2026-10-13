@@ -36,6 +36,43 @@ it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
 	expect(frame.dock).toHaveBeenCalledWith("fullscreen", 500, 20);
 });
 
+it("lets a sectioned panel own its active outline, including modal suspension and close", () => {
+	const navigation = new NavigationManager(createTestEventBus());
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+		destroy: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"fullscreen",
+		"fullscreen",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+	);
+	const onActiveChanged = vi.fn();
+	container.swapPanel({
+		id: "split",
+		title: "Split",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+		onActiveChanged,
+	});
+	expect(onActiveChanged).toHaveBeenLastCalledWith(true);
+	expect(frame.setFocusBorder).toHaveBeenLastCalledWith(false);
+	navigation.pushModal("modal", [], () => {});
+	expect(onActiveChanged).toHaveBeenLastCalledWith(false);
+	navigation.popModal("modal");
+	expect(onActiveChanged).toHaveBeenLastCalledWith(true);
+	container.clear();
+	expect(onActiveChanged).toHaveBeenLastCalledWith(false);
+});
+
 it("closes the active panel on controller cancel when it has no back handler", () => {
 	const events = createTestEventBus();
 	const navigation = new NavigationManager(events);
