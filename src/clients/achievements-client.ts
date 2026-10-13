@@ -43,18 +43,22 @@ export interface IAchievementsClient {
 	achievement(id: number): Achievement;
 	selection(id: number): number;
 }
-const summaryCategories = [
-	92, 96, 97, 15522, 95, 168, 169, 201, 155, 15117, 15246,
-];
 export class AchievementsClient implements IAchievementsClient {
 	categories(): AchievementCategory[] {
 		const source = GetCategoryList().map((id) => this.category(id));
-		return source
-			.filter((c) => c.parent === -1)
-			.flatMap((parent) => [
-				parent,
-				...source.filter((c) => c.parent === parent.id),
-			]);
+		const ordered: AchievementCategory[] = [];
+		const visited = new Set<number>();
+		const visit = (category: AchievementCategory) => {
+			if (visited.has(category.id)) return;
+			visited.add(category.id);
+			ordered.push(category);
+			for (const child of source.filter((c) => c.parent === category.id))
+				visit(child);
+		};
+		for (const root of source.filter((c) => c.parent === -1)) visit(root);
+		// Retain orphaned categories if Blizzard changes the hierarchy.
+		for (const category of source) visit(category);
+		return ordered;
 	}
 	private category(id: number): AchievementCategory {
 		const [name, parent] = GetCategoryInfo(id);
@@ -67,20 +71,53 @@ export class AchievementsClient implements IAchievementsClient {
 		category: number,
 		categories: AchievementCategory[],
 	): AchievementTotals {
-		let [total, completed] = GetCategoryNumAchievements(category, true);
-		for (const child of categories.filter((c) => c.parent === category)) {
-			const [count, done] = GetCategoryNumAchievements(child.id, true);
+		let total = 0;
+		let completed = 0;
+		const visited = new Set<number>();
+		const visit = (id: number) => {
+			if (visited.has(id)) return;
+			visited.add(id);
+			const [count, done] = GetCategoryNumAchievements(id, true);
 			total += count;
 			completed += done;
-		}
+			for (const child of categories.filter((c) => c.parent === id))
+				visit(child.id);
+		};
+		visit(category);
 		return { total, completed };
 	}
 	achievements(category: number, incomplete: boolean): Achievement[] {
 		const [count, , incompleteCount] = GetCategoryNumAchievements(category);
 		const rows: Achievement[] = [];
 		const offset = incomplete ? count - incompleteCount : 0;
+		const seen = new Set<number>();
+		const append = (achievement: Achievement) => {
+			if (!seen.has(achievement.id)) {
+				seen.add(achievement.id);
+				rows.push(achievement);
+			}
+		};
 		for (let index = offset + 1; index <= count; index++) {
-			rows.push(this.read(category, index));
+			const achievement = this.read(category, index);
+			if (!incomplete) {
+				const previous: Achievement[] = [];
+				const visited = new Set<number>([achievement.id]);
+				let id = GetPreviousAchievement(achievement.id);
+				while (id !== undefined && !visited.has(id)) {
+					visited.add(id);
+					previous.unshift(this.read(id));
+					id = GetPreviousAchievement(id);
+				}
+				for (const step of previous) append(step);
+			}
+			append(achievement);
+			if (!incomplete) {
+				let [id] = GetNextAchievement(achievement.id);
+				while (id !== undefined && !seen.has(id)) {
+					append(this.read(id));
+					[id] = GetNextAchievement(id);
+				}
+			}
 		}
 		return rows;
 	}
@@ -150,10 +187,12 @@ export class AchievementsClient implements IAchievementsClient {
 			points: GetTotalAchievementPoints(),
 			totals: { total, completed },
 			recent,
-			categories: summaryCategories.map((id) => ({
-				...this.category(id),
-				...this.categoryTotals(id, categories),
-			})),
+			categories: categories
+				.filter((c) => c.parent === -1)
+				.map((category) => ({
+					...category,
+					...this.categoryTotals(category.id, categories),
+				})),
 		};
 	}
 	criteria(id: number): AchievementCriterion[] {

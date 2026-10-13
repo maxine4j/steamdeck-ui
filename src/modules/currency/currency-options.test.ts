@@ -3,7 +3,7 @@ import type { Currency, ICurrencyClient } from "../../clients/currency-client";
 import type { ModalOption } from "../../ui/components/modal";
 import { CurrencyOptions } from "./currency-options";
 
-it("offers watch and inactive actions, and confirms source and transfer cost before submission", () => {
+it("offers addon favourites and inactive actions, and confirms source and transfer cost before submission", () => {
 	let options: readonly ModalOption[] = [];
 	const modal = {
 		open: vi.fn((_title: string, rows: readonly ModalOption[]) => {
@@ -13,6 +13,7 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 	};
 	const client: ICurrencyClient = {
 		getCurrencies: () => [],
+		getCurrency: () => undefined,
 		load: vi.fn(),
 		toggleHeader: vi.fn(),
 		setWatched: vi.fn(() => true),
@@ -32,7 +33,16 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 		transferable: true,
 	} as Currency;
 	const refresh = vi.fn();
-	const menu = new CurrencyOptions(modal, client, refresh);
+	let favourites: number[] = [];
+	const config = {
+		getCurrencyFavourites: () => favourites,
+		setCurrencyFavourite: vi.fn((id: number, favourite: boolean) => {
+			favourites = favourite
+				? [...favourites, id]
+				: favourites.filter((value) => value !== id);
+		}),
+	};
+	const menu = new CurrencyOptions(modal, client, refresh, config);
 	menu.open(currency);
 	expect(modal.open).toHaveBeenCalledWith(
 		"Marks • 125 / 500",
@@ -41,13 +51,14 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 		"left",
 	);
 	expect(options.map((option) => option.label)).toEqual([
-		"|A:bags-icon-multiple:18:18|a Watch in backpack",
+		"|A:collections-icon-favorites:18:18|a Add to favourites",
 		"|A:common-icon-redx:18:18|a Mark inactive",
 		"|A:warbands-transferable-icon:18:18|a Transfer from another character…",
 		"|A:lootroll-toast-icon-pass-up:18:18|a Cancel",
 	]);
-	options.find((option) => option.id === "watch")?.select();
-	expect(client.setWatched).toHaveBeenCalledWith(42, true);
+	options.find((option) => option.id === "favourite")?.select();
+	expect(config.setCurrencyFavourite).toHaveBeenCalledWith(42, true);
+	expect(client.setWatched).not.toHaveBeenCalled();
 	expect(refresh).toHaveBeenCalled();
 	menu.open(currency);
 	options.find((option) => option.id === "transfer")?.select();
@@ -73,11 +84,13 @@ it("offers watch and inactive actions, and confirms source and transfer cost bef
 	);
 	menu.open({ ...currency, watched: true, unused: true });
 	expect(options.at(0)?.label).toBe(
-		"|A:common-icon-redx:18:18|a Unwatch in backpack",
+		"|A:common-icon-redx:18:18|a Remove from favourites",
 	);
 	expect(options.at(1)?.label).toBe(
 		"|A:common-dropdown-icon-checkmark-yellow:18:18|a Mark active",
 	);
+	options.find((option) => option.id === "favourite")?.select();
+	expect(config.setCurrencyFavourite).toHaveBeenLastCalledWith(42, false);
 	client.sourcesReady = () => false;
 	options.find((option) => option.id === "transfer")?.select();
 	expect(options.at(0)?.label).toBe("|A:common-icon-undo:18:18|a Check again");

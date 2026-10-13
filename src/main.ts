@@ -1,5 +1,6 @@
 import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
+import { AddonConfigClient } from "./clients/addon-config-client";
 import { CharacterClient } from "./clients/character-client";
 import { ControllerInputClient } from "./clients/controller-input-client";
 import { CurrencyClient } from "./clients/currency-client";
@@ -50,4 +51,5 @@ startSteamDeckUI(
 	new VendorClient(),
 	new AchievementsClient(),
 	new ToysClient(scheduler),
+	new AddonConfigClient(),
 );

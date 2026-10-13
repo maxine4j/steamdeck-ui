@@ -1,3 +1,4 @@
+import type { IAddonConfigClient } from "../../clients/addon-config-client";
 import type {
 	Currency,
 	CurrencySource,
@@ -21,6 +22,7 @@ export class CurrencyOptions {
 		private readonly modal: IModal,
 		private readonly client: ICurrencyClient,
 		private readonly changed: () => void,
+		private readonly config: IAddonConfigClient,
 	) {}
 	close(): void {
 		this.awaitingTransfer = false;
@@ -37,20 +39,17 @@ export class CurrencyOptions {
 	}
 	open(currency: Currency): void {
 		const options: ModalOption[] = [];
-		if (currency.discovered)
-			options.push({
-				id: "watch",
-				label: currency.watched
-					? `${menuIcons.remove} Unwatch in backpack`
-					: `${menuIcons.backpack} Watch in backpack`,
-				select: () => {
-					if (!this.client.setWatched(currency.id, !currency.watched))
-						this.message(
-							"Watch limit reached — unwatch another currency first",
-						);
-					this.changed();
-				},
-			});
+		const favourite = this.config.getCurrencyFavourites().includes(currency.id);
+		options.push({
+			id: "favourite",
+			label: favourite
+				? `${menuIcons.remove} Remove from favourites`
+				: `${menuIcons.favourite} Add to favourites`,
+			select: () => {
+				this.config.setCurrencyFavourite(currency.id, !favourite);
+				this.changed();
+			},
+		});
 		options.push({
 			id: "unused",
 			label: currency.unused

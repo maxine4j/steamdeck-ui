@@ -2,11 +2,13 @@
 export type TooltipContent =
 	| string
 	| number
+	| { readonly text: string }
 	| { readonly toy: number }
 	| { readonly mountSpell: number }
 	| { readonly item: string | number };
 
 export interface TooltipDataFrame {
+	SetText(text: string): void;
 	SetHyperlink(link: string): void;
 	SetToyByItemID(id: number): boolean;
 	SetMountBySpellID(spell: number): void;
@@ -16,6 +18,10 @@ export function setTooltipContent(
 	frame: TooltipDataFrame,
 	content: TooltipContent,
 ): void {
+	if (typeof content === "object" && "text" in content) {
+		frame.SetText(content.text);
+		return;
+	}
 	if (typeof content === "object" && "toy" in content) {
 		frame.SetToyByItemID(content.toy);
 		return;

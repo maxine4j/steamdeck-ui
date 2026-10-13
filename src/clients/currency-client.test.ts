@@ -69,6 +69,21 @@ it("preserves category depth, icons and stable currency IDs", () => {
 		{ id: 42, icon: 123, depth: 1, quantity: 20 },
 	]);
 });
+it("reads a favourite by ID even when its category is collapsed", () => {
+	const api = setup();
+	api.GetCurrencyListSize.mockReturnValue(1);
+	const client = new CurrencyClient(scheduler);
+	expect(client.getCurrency(42)).toMatchObject({
+		id: 42,
+		name: "Marks",
+		icon: 123,
+		quantity: 20,
+		maximum: 100,
+		header: false,
+	});
+	api.GetCurrencyInfo = () => undefined;
+	expect(client.getCurrency(42)).toBeUndefined();
+});
 it("caps transfers against source balance, weekly and total limits and revalidates submission", () => {
 	const api = setup();
 	const client = new CurrencyClient(scheduler);

@@ -336,6 +336,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		{
 			getCurrencies: () => [],
+			getCurrency: () => undefined,
 			load: (callback) => {
 				callback([]);
 				return vi.fn();
@@ -419,6 +420,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			}),
 		},
 		toys,
+		{ getCurrencyFavourites: () => [], setCurrencyFavourite: vi.fn() },
 	);
 	expect(frames).toHaveLength(3);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -751,18 +753,23 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("left", "merchant").activePanelId).toBeUndefined();
 	events.emit("NAV_CONTAINER_LEFT");
 	expect(app.navigation.focusedId).not.toContain("vendor");
-	app.ui.openPanel("achievements", "fullscreen");
+	const rightPanelBeforeAchievements =
+		app.ui.getContainer("right").activePanelId;
+	app.ui.openPanel("achievements", "left");
 	flush();
-	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
-	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("achievements");
+	expect(app.ui.getContainer("right").activePanelId).toBe(
+		rightPanelBeforeAchievements,
+	);
+	expect(app.ui.getContainer("left").activePanelId).toBe("achievements");
 	expect(labels.flat()).toContain("123 points");
 	expect(labels.flat()).toContain("2 / 10 achievements");
 	const achievementFrames = frames.length;
-	app.ui.closePanel("fullscreen");
-	app.ui.openPanel("achievements", "fullscreen");
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	app.ui.openPanel("achievements", "left");
 	flush();
 	expect(frames).toHaveLength(achievementFrames);
-	app.ui.closePanel("fullscreen");
+	app.ui.closePanel("left");
 	// Opening another native panel must not auto-minimize talents into the spellbook.
 	let spellsShown = false;
 	let spellsTab = 2;

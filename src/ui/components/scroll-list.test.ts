@@ -1,7 +1,50 @@
 import { expect, it, vi } from "vitest";
+import { createTestEventBus } from "../../events/test-event-bus";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
+
+it("renders plain rows with transparent backgrounds and no checkboxes", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("plain", pool, "", vi.fn());
+	list.setRows([
+		{ id: "currency", label: "Marks", background: false, activate: vi.fn() },
+	]);
+	list.mount(new Frame("plain-parent", pool));
+	expect(frames.get("plain-row-0")?.setColor).toHaveBeenLastCalledWith(
+		0,
+		0,
+		0,
+		0,
+	);
+	expect(frames.has("plain-checkbox-0")).toBe(false);
+});
+
+it("preserves focused row identity when favourite duplicates are inserted before it", () => {
+	const pool = {} as IFramePoolManager;
+	const navigation = new NavigationManager(createTestEventBus());
+	const list = new ScrollList("favourites-focus", pool, "", vi.fn(), {
+		onChanged: (complete) => {
+			if (complete) navigation.refreshGrid("currency");
+		},
+	});
+	const row = { id: "currency-42", label: "Marks", activate: vi.fn() };
+	list.setRows([{ id: "category", label: "Category", activate: vi.fn() }, row]);
+	list.mount(new Frame("favourites-focus-parent", pool));
+	navigation.registerGrid("currency", () => list.getNavGrid());
+	navigation.setActiveGrid("currency");
+	navigation.moveDown();
+	expect(navigation.focusedId).toBe("currency-42");
+	list.setRows([
+		{ id: "favourite-42", label: "Marks", activate: vi.fn() },
+		{ id: "category", label: "Category", activate: vi.fn() },
+		row,
+	]);
+	expect(navigation.focusedId).toBe("currency-42");
+	list.setRows([{ id: "category", label: "Category", activate: vi.fn() }, row]);
+	expect(navigation.focusedId).toBe("currency-42");
+});
 
 it("pads button contents and centers single-line labels without crowding icons", () => {
 	const pool = {} as IFramePoolManager;

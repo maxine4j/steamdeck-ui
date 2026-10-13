@@ -6,8 +6,8 @@ export class AchievementsModule implements IModule {
 	readonly id = "achievements";
 	private readonly refresh = () => this.view.refresh();
 	private readonly sync = () => {
-		if (this.native.isOpen()) this.ui.openPanel(this.id, "fullscreen");
-		else this.ui.closePanel("fullscreen", this.id);
+		if (this.native.isOpen()) this.ui.openPanel(this.id, "left");
+		else this.ui.closePanel("left", this.id);
 	};
 	private readonly selected = ({ id }: { id: number }) => {
 		this.sync();

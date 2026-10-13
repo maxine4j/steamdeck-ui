@@ -1,5 +1,6 @@
 import type { IAchievementsClient } from "./clients/achievements-client";
 import type { IActionBarClient } from "./clients/action-bar-client";
+import type { IAddonConfigClient } from "./clients/addon-config-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
 import { CollectionsClient } from "./clients/collections-client";
@@ -91,6 +92,7 @@ export function startSteamDeckUI(
 	vendor: IVendorClient,
 	achievements: IAchievementsClient,
 	toys: IToysClient,
+	config: IAddonConfigClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -154,8 +156,11 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	ui.registerPanel(panel, "right");
-	const currencyOptions = new CurrencyOptions(currencyModal, currency, () =>
-		currencyPanel.refresh(),
+	const currencyOptions = new CurrencyOptions(
+		currencyModal,
+		currency,
+		() => currencyPanel.refresh(),
+		config,
 	);
 	const currencyPanel = new CurrencyPanel(
 		pool,
@@ -166,6 +171,7 @@ export function startSteamDeckUI(
 			ui.closePanel("right", "currency");
 		},
 		scheduler,
+		config,
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
@@ -178,11 +184,11 @@ export function startSteamDeckUI(
 		achievements,
 		() => {
 			builtInAchievements.close();
-			ui.closePanel("fullscreen", "achievements");
+			ui.closePanel("left", "achievements");
 		},
 		scheduler,
 	);
-	ui.registerPanel(achievementsPanel);
+	ui.registerPanel(achievementsPanel, "left");
 	modules.register(
 		new AchievementsModule(ui, events, achievementsPanel, builtInAchievements),
 	);

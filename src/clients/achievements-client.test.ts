@@ -73,11 +73,36 @@ it("maps criteria quantities and completion without scanning collapsed achieveme
 		},
 	]);
 });
-it("uses recent achievements and Blizzard summary category order", () => {
+it("uses recent achievements and includes every live top-level category", () => {
 	const client = setup();
 	expect(client.summary().recent.map((a) => a.id)).toEqual([921, 961, 6]);
-	expect(client.summary().categories.map((c) => c.id)).toEqual([
-		92, 96, 97, 15522, 95, 168, 169, 201, 155, 15117, 15246,
+	expect(client.summary().categories.map((c) => c.id)).toEqual([92, 96, 15234]);
+});
+
+it("retains new nested categories and includes their totals", () => {
+	const client = setup();
+	vi.stubGlobal("GetCategoryList", () => [92, 12, 999, 1000]);
+	vi.stubGlobal("GetCategoryInfo", (id: number) => [
+		`Category ${id}`,
+		id === 12 ? 92 : id === 999 ? 12 : -1,
+	]);
+	expect(client.categories().map((c) => c.id)).toEqual([92, 12, 999, 1000]);
+	expect(client.totals(92)).toEqual({ total: 7, completed: 3 });
+	expect(client.summary().categories.map((c) => c.id)).toEqual([92, 1000]);
+});
+
+it("enumerates all chain levels once for completion grids", () => {
+	const client = setup();
+	vi.stubGlobal("GetCategoryNumAchievements", () => [1, 1, 0]);
+	vi.stubGlobal("GetPreviousAchievement", (id: number) =>
+		id === 921 ? 920 : undefined,
+	);
+	vi.stubGlobal("GetNextAchievement", (id: number) => [
+		id === 921 ? 922 : undefined,
+		false,
+	]);
+	expect(client.achievements(92, false).map((a) => a.id)).toEqual([
+		920, 921, 922,
 	]);
 });
 

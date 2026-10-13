@@ -24,6 +24,7 @@ export interface CurrencySource {
 }
 export interface ICurrencyClient {
 	getCurrencies(): Currency[];
+	getCurrency(id: number): Currency | undefined;
 	load(callback: (currencies: Currency[]) => void): () => void;
 	toggleHeader(currency: Currency): void;
 	setWatched(id: number, watched: boolean): boolean;
@@ -55,6 +56,12 @@ const infoFor = (id: number) =>
 	)(id);
 export class CurrencyClient implements ICurrencyClient {
 	constructor(private readonly scheduler: ITaskScheduler) {}
+	getCurrency(id: number): Currency | undefined {
+		const data = infoFor(id);
+		return data
+			? { ...this.convert(data, 0), id, header: false, depth: 0 }
+			: undefined;
+	}
 	load(callback: (currencies: Currency[]) => void): () => void {
 		const rows: Currency[] = [];
 		let index = 1;
@@ -89,6 +96,9 @@ export class CurrencyClient implements ICurrencyClient {
 	private currencyAt(index: number): Currency | undefined {
 		const data = infoAt(index);
 		if (!data) return undefined;
+		return this.convert(data, index);
+	}
+	private convert(data: NativeCurrency, index: number): Currency {
 		return {
 			index,
 			id: data.currencyID ?? 0,

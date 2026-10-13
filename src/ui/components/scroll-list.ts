@@ -24,7 +24,7 @@ export interface ListRow {
 	/** Extra space above a full-width heading. */
 	readonly marginTop?: number;
 	readonly marginBottom?: number;
-	readonly background?: readonly [number, number, number];
+	readonly background?: readonly [number, number, number] | false;
 	readonly backgroundAtlas?: string;
 	readonly progress?: {
 		readonly value: number;
@@ -284,7 +284,8 @@ export class ScrollList {
 					};
 					this.buttons.push(button);
 				}
-				button.nav.navId = row.id;
+				if (button.nav.navId !== row.id)
+					button.nav = { ...button.nav, navId: row.id };
 				button.frame.setParent(this.content);
 				const rowHeight =
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
@@ -520,7 +521,11 @@ export class ScrollList {
 		const row = this.rows.at(index);
 		const frame = this.buttons.at(index)?.frame;
 		frame?.setFocused(false);
-		if (row?.heading || row?.checked !== undefined) {
+		if (
+			row?.heading ||
+			row?.checked !== undefined ||
+			row?.background === false
+		) {
 			frame?.setColor(0, 0, 0, 0);
 			return;
 		}

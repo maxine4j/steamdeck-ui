@@ -3,5 +3,6 @@
 ## Notes: All in one SteamDeck support
 ## Author: Maxine
 ## Version: 0.0.1
+## SavedVariables: SteamDeckUIConfig
 
 main.lua
