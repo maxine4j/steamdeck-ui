@@ -271,7 +271,7 @@ it.each([
 	},
 );
 
-it("renders the live micro-menu portrait with its crop and mask", () => {
+it("renders the full live portrait without the micro-menu's tight crop", () => {
 	const { pool, textures, mask } = setup();
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 35, height: 65 }),
@@ -281,12 +281,7 @@ it("renders the live micro-menu portrait with its crop and mask", () => {
 	const frame = new Frame("equipment-tab", pool);
 	frame.setPortraitIcon("player", 32, 32, -2);
 	expect(portrait).toHaveBeenCalledExactlyOnceWith(textures.at(0), "player");
-	expect(textures.at(0)?.SetTexCoord).toHaveBeenLastCalledWith(
-		0.2,
-		0.8,
-		0.0666,
-		0.9,
-	);
+	expect(textures.at(0)?.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
 	expect(textures.at(0)?.SetHeight).toHaveBeenLastCalledWith(32);
 	expect(textures.at(0)?.SetWidth.mock.lastCall?.at(0)).toBeCloseTo(
 		35 * (32 / 65),
