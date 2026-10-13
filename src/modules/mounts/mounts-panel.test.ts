@@ -7,6 +7,18 @@ import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { MountsPanel } from "./mounts-panel";
 
 afterEach(() => vi.restoreAllMocks());
+it("shows controller graphics beside summon action descriptions", () => {
+	const { panel, parent } = setup();
+	panel.onMount(parent);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"actions",
+		expect.stringContaining("xbox_r_x.blp:18:18|t Summon"),
+		"BOTTOMLEFT",
+		16,
+		16,
+		12,
+	);
+});
 
 it("keeps a warm mount view and summon actions unchanged until reopening after invalidation", () => {
 	const { panel, parent, client, publish, flush } = setup();

@@ -106,19 +106,21 @@ export class ActionBarClient implements IActionBarClient {
 	}
 	disableBuiltIn(): void {
 		if (this.suppressed) return;
-		this.frames.suppress([
-			PetActionBarFrame,
-			ZoneAbilityFrame,
-			ExtraActionBarFrame,
-			MainActionBar,
-			MultiBarBottomLeft,
-			MultiBarBottomRight,
-			MultiBarLeft,
-			MultiBarRight,
-			MultiBar5,
-			MultiBar6,
-			MultiBar7,
-		].filter((frame): frame is NativeBar => frame !== undefined));
+		this.frames.suppress(
+			[
+				PetActionBarFrame,
+				ZoneAbilityFrame,
+				ExtraActionBarFrame,
+				MainActionBar,
+				MultiBarBottomLeft,
+				MultiBarBottomRight,
+				MultiBarLeft,
+				MultiBarRight,
+				MultiBar5,
+				MultiBar6,
+				MultiBar7,
+			].filter((frame): frame is NativeBar => frame !== undefined),
+		);
 		this.suppressed = true;
 	}
 	getSlotDriver(

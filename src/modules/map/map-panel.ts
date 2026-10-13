@@ -4,6 +4,7 @@ import {
 	type MapQuest,
 	type MapQuestNavigation,
 } from "../../clients/map-client";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import type { IModal, ModalOption } from "../../ui/components/modal";
 import type { IUIComponent } from "../../ui/components/types";
@@ -165,8 +166,8 @@ export class MapPanel implements IPanel {
 			this.pane.setLabel(
 				"hint",
 				this.section === "map"
-					? "Map · D-pad: Move  X: Select / Pin  Y: Zoom out  LB/RB: Quests"
-					: "Quests · B: Back  LB/RB: Map",
+					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
+					: `Quests · ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 				"BOTTOMLEFT",
 				12,
 				48,
@@ -183,8 +184,8 @@ export class MapPanel implements IPanel {
 		this.pane.setLabel(
 			"hint",
 			this.section === "map"
-				? "Map · D-pad: Move  X: Select / Pin  Y: Zoom out  LB/RB: Quests"
-				: "Quests · A: Details  X: Focus  Y: Options  LB/RB: Map",
+				? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
+				: `Quests · ${controllerIcon("A")} Details  ${controllerIcon("X")} Focus  ${controllerIcon("Y")} Options  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 			"BOTTOMLEFT",
 			12,
 			14,

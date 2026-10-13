@@ -1,5 +1,6 @@
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
@@ -377,7 +378,7 @@ export class MountsPanel implements IPanel {
 							? "Not collected"
 							: !mount.usable
 								? "Unavailable here"
-								: "Y: Actions",
+								: `${controllerIcon("Y")} Actions`,
 					);
 					const current = () =>
 						this.mounted &&
@@ -490,7 +491,7 @@ export class MountsPanel implements IPanel {
 		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
-			"X: Summon   Y: Actions",
+			`${controllerIcon("X")} Summon   ${controllerIcon("Y")} Actions`,
 			"BOTTOMLEFT",
 			16,
 			16,

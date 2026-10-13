@@ -1,5 +1,6 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IToysClient, Toy } from "../../clients/toys-client";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -80,7 +81,7 @@ export class ToysPanel implements IPanel {
 		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
-			"X: Use   Y: Actions",
+			`${controllerIcon("X")} Use   ${controllerIcon("Y")} Actions`,
 			"BOTTOMLEFT",
 			16,
 			16,

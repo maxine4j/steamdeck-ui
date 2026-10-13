@@ -7,6 +7,18 @@ import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
 
 afterEach(() => vi.restoreAllMocks());
+it("shows controller graphics beside toy action descriptions", () => {
+	const { panel, parent } = setup();
+	panel.onMount(parent);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"actions",
+		expect.stringContaining("xbox_r_x.blp:18:18|t Use"),
+		"BOTTOMLEFT",
+		16,
+		16,
+		12,
+	);
+});
 it("keeps a warm toy view and its actions unchanged until reopening after invalidation", () => {
 	const { panel, parent, client, menu, publish, flush } = setup();
 	panel.onMount(parent);

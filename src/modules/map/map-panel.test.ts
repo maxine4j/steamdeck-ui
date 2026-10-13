@@ -292,7 +292,7 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	panel.onPanelCycle(-1);
 	expect(
 		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
-	).toContain("X: Select / Pin");
+	).toContain("xbox_r_x.blp:18:18|t Select / Pin");
 	const cursor = panel.getNavGrid().at(0)?.at(0);
 	expect(cursor?.navId).toBe("map-cursor");
 	cursor?.onFocus();
@@ -316,7 +316,9 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	expect(
 		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
-	).toContain("LB/RB: Quests");
+	).toContain(
+		"xbox_s_lb.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t Quests",
+	);
 	panel.onPanelCycle(1);
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details-down");
 	panel.onUnmount();

@@ -122,6 +122,13 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 	resetReading: true,
 });
 
+it("shows controller graphics beside conversation actions", () => {
+	setup(display(page));
+	expect(records.labels.get("dialogue-window")?.get("hint")).toContain(
+		"xbox_r_a.blp:18:18|t Select / Read",
+	);
+});
+
 it.each([720, 800])(
 	"keeps the right-side conversation narrow with options below prose at 1280×%i and reuses controls",
 	(height) => {

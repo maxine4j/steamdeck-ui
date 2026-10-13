@@ -1,4 +1,5 @@
 import type { DialogueEntry } from "../../clients/dialogue-client";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import type { IModalNavigation } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
@@ -169,7 +170,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			display.suspended
 				? "Dialogue paused during combat. Actions resume after combat."
 				: (display.feedback ??
-						"D-pad: Focus · A: Select / Read · Y: Read up · B: Cancel / Close"),
+						`${controllerIcon("D-pad")} Focus · ${controllerIcon("A")} Select / Read · ${controllerIcon("Y")} Read up · ${controllerIcon("B")} Cancel / Close`),
 			"BOTTOMLEFT",
 			28,
 			16,
@@ -233,7 +234,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 					{
 						id: "dialogue-input",
 						label: "Enter code",
-						detail: "A: Focus · Steam+X: Keyboard",
+						detail: `${controllerIcon("A")} Focus · ${controllerIcon("Steam")}+${controllerIcon("X")} Keyboard`,
 					},
 					() => this.input.focusInput(),
 				);

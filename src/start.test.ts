@@ -49,6 +49,21 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetPoint: vi.fn(),
 				SetHeight: vi.fn(),
 				SetWidth: vi.fn(),
+				SetBlendMode: vi.fn(),
+				SetVertexColor: vi.fn(),
+				SetAlpha: vi.fn(),
+				CreateAnimationGroup: () => ({
+					CreateAnimation: () => ({
+						SetFromAlpha: vi.fn(),
+						SetToAlpha: vi.fn(),
+						SetDuration: vi.fn(),
+						SetSmoothing: vi.fn(),
+					}),
+					SetLooping: vi.fn(),
+					IsPlaying: () => false,
+					Play: vi.fn(),
+					Stop: vi.fn(),
+				}),
 			};
 			let shown = false;
 			const frame = {

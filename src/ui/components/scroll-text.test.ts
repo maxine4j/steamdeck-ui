@@ -51,6 +51,15 @@ it("offers controller scrolling with position feedback and preserves reading dur
 	reader.setText("Long text", true);
 	reader.node.onInteract();
 	expect(state.offset).toBe(300);
+	expect(state.labels).toHaveBeenCalledWith(
+		"position",
+		expect.stringContaining("xbox_r_a.blp:18:18|t Down"),
+		"CENTER",
+		0,
+		0,
+		13,
+		450,
+	);
 	reader.setText("Updated text", false);
 	expect(state.offset).toBe(300);
 	reader.node.onContext?.();

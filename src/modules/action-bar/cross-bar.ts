@@ -1,4 +1,5 @@
 import type { IActionBarClient } from "../../clients/action-bar-client";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import {
 	SecureSlotButton,
@@ -16,24 +17,52 @@ const controls: readonly {
 	utility?: "RING" | "MOUNT" | "FIXED";
 }[] = [
 	// ConsolePort's Crossbar: Minimal uses 50px horizontal / 25px vertical offsets.
-	{ key: "PADDUP", label: "↑", x: -200, y: 106, slot: 5, utility: "RING" },
-	{ key: "PADDRIGHT", label: "→", x: -150, y: 81, slot: 6, utility: "RING" },
-	{ key: "PADDDOWN", label: "↓", x: -200, y: 56, slot: 7, utility: "MOUNT" },
-	{ key: "PADDLEFT", label: "←", x: -250, y: 81, slot: 8, utility: "RING" },
-	{ key: "PAD4", label: "|cffffe74fY|r", x: 200, y: 106, slot: 2 },
-	{ key: "PAD2", label: "|cffff4451B|r", x: 250, y: 81, slot: 3 },
+	{
+		key: "PADDUP",
+		label: controllerIcon("Up"),
+		x: -200,
+		y: 106,
+		slot: 5,
+		utility: "RING",
+	},
+	{
+		key: "PADDRIGHT",
+		label: controllerIcon("Right"),
+		x: -150,
+		y: 81,
+		slot: 6,
+		utility: "RING",
+	},
+	{
+		key: "PADDDOWN",
+		label: controllerIcon("Down"),
+		x: -200,
+		y: 56,
+		slot: 7,
+		utility: "MOUNT",
+	},
+	{
+		key: "PADDLEFT",
+		label: controllerIcon("Left"),
+		x: -250,
+		y: 81,
+		slot: 8,
+		utility: "RING",
+	},
+	{ key: "PAD4", label: controllerIcon("Y"), x: 200, y: 106, slot: 2 },
+	{ key: "PAD2", label: controllerIcon("B"), x: 250, y: 81, slot: 3 },
 	{
 		key: "PAD1",
-		label: "|cff52c14eA|r",
+		label: controllerIcon("A"),
 		x: 200,
 		y: 56,
 		slot: 4,
 		defaultCommand: "JUMP",
 	},
-	{ key: "PAD3", label: "|cff00a2ffX|r", x: 150, y: 81, slot: 1 },
+	{ key: "PAD3", label: controllerIcon("X"), x: 150, y: 81, slot: 1 },
 	{
 		key: "PADRTRIGGER",
-		label: "RT",
+		label: controllerIcon("RT"),
 		x: 100,
 		y: 56,
 		slot: 156,
@@ -41,7 +70,7 @@ const controls: readonly {
 	},
 	{
 		key: "PADLSHOULDER",
-		label: "",
+		label: controllerIcon("LB"),
 		x: -100,
 		y: 106,
 		slot: 155,
@@ -58,7 +87,7 @@ const placeholders = [
 	},
 	{
 		key: "PADRSHOULDER",
-		label: "RB",
+		label: controllerIcon("RB"),
 		x: 100,
 		y: 106,
 		icon: "Interface\\AddOns\\SteamDeckUI\\assets\\Target_Wide_Enemy.png",

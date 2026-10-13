@@ -53,6 +53,15 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 	modal.open("Toy actions", [
 		{ id: "use", label: "Use", toy: 42, select: selected },
 	]);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"hint",
+		expect.stringContaining("xbox_r_a.blp:18:18|t Select"),
+		"BOTTOMRIGHT",
+		-20,
+		16,
+		12,
+		328,
+	);
 	expect(Frame.prototype.setToy).toHaveBeenLastCalledWith(42);
 	navigation.interact();
 	expect(clicks).not.toHaveBeenCalled();

@@ -324,6 +324,13 @@ function setup(flushLoad = true) {
 	return { panel, client, close, parent, flush, step, activate };
 }
 
+it("shows controller graphics beside achievement actions", () => {
+	setup();
+	expect(frames.get("achievements")?.labels.get("actions")).toContain(
+		"xbox_r_a.blp:18:18|t Open category",
+	);
+});
+
 it("makes summary categories interactive before scanning and uses the corner loading bar", () => {
 	const { panel, client, step, flush } = setup(false);
 	step();

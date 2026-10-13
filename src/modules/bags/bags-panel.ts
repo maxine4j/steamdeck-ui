@@ -3,6 +3,7 @@ import type {
 	InventoryItem,
 } from "../../clients/inventory-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -85,7 +86,7 @@ export class BagsPanel implements IPanel {
 		setWindowTitle(this.frame, this.title);
 		this.frame.setLabel(
 			"actions",
-			"X: Use / Equip   Y: Actions",
+			`${controllerIcon("X")} Use / Equip   ${controllerIcon("Y")} Actions`,
 			"BOTTOMLEFT",
 			16,
 			16,

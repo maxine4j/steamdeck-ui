@@ -58,16 +58,66 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 	expect(
 		configure.mock.calls.map(([label, x, y, slot]) => [label, x, y, slot]),
 	).toEqual([
-		["↑", -200, 106, -1],
-		["→", -150, 81, -1],
-		["↓", -200, 56, -3],
-		["←", -250, 81, -1],
-		["|cffffe74fY|r", 200, 106, 2],
-		["|cffff4451B|r", 250, 81, 3],
-		["|cff52c14eA|r", 200, 56, 0],
-		["|cff00a2ffX|r", 150, 81, 1],
-		["RT", 100, 56, 156],
-		["", -100, 106, 155],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_up.blp:18:18|t",
+			-200,
+			106,
+			-1,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_right.blp:18:18|t",
+			-150,
+			81,
+			-1,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_down.blp:18:18|t",
+			-200,
+			56,
+			-3,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_left.blp:18:18|t",
+			-250,
+			81,
+			-1,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_y.blp:18:18|t",
+			200,
+			106,
+			2,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_b.blp:18:18|t",
+			250,
+			81,
+			3,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_a.blp:18:18|t",
+			200,
+			56,
+			0,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_x.blp:18:18|t",
+			150,
+			81,
+			1,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rt.blp:18:18|t",
+			100,
+			56,
+			156,
+		],
+		[
+			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_lb.blp:18:18|t",
+			-100,
+			106,
+			155,
+		],
 	]);
 	expect(configure.mock.calls.map((call) => call.at(4))).toEqual([
 		"slot-5-RING",
@@ -94,6 +144,10 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 	expect(indicators.at(1)?.setIcon).toHaveBeenCalledWith(
 		"Interface\\AddOns\\SteamDeckUI\\assets\\Target_Wide_Enemy.png",
 		false,
+	);
+	expect(indicators.at(1)?.setLabel).toHaveBeenCalledWith(
+		"modifier",
+		"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t",
 	);
 	for (const indicator of indicators)
 		expect(indicator.setBorder).toHaveBeenCalledWith([0.32, 0.6, 0.85, 1]);

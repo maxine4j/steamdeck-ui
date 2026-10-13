@@ -272,6 +272,9 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
 	expect(actions.pickupItem).not.toHaveBeenCalled();
 	const texts = () => labels.map((label) => label.text).filter(Boolean);
+	expect(
+		texts().some((text) => text.includes("xbox_r_x.blp:18:18|t Use / Equip")),
+	).toBe(true);
 	expect(texts()).toEqual(
 		expect.arrayContaining([
 			"Group: Category",

@@ -1,6 +1,7 @@
 import type { IEventBus } from "../../events/types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { NavGrid } from "../navigation/types";
+import { controllerIcon } from "./controller-icon";
 import { Frame } from "./frame";
 import type { TooltipContent } from "./tooltip-content";
 
@@ -95,7 +96,7 @@ export class Modal implements IModal {
 		);
 		this.window.setLabel(
 			"hint",
-			"A: Select   B: Cancel",
+			`${controllerIcon("A")} Select   ${controllerIcon("B")} Cancel`,
 			"BOTTOMRIGHT",
 			-20,
 			16,

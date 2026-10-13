@@ -5,6 +5,7 @@ import type {
 	IAchievementsClient,
 } from "../../clients/achievements-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
+import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
@@ -539,7 +540,9 @@ export class AchievementsPanel implements IPanel {
 		);
 		this.frame.setLabel(
 			"actions",
-			this.page ? "A: Details   B: Back" : "A: Open category   B: Close",
+			this.page
+				? `${controllerIcon("A")} Details   ${controllerIcon("B")} Back`
+				: `${controllerIcon("A")} Open category   ${controllerIcon("B")} Close`,
 			"BOTTOMLEFT",
 			16,
 			12,

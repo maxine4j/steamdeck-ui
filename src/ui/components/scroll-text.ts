@@ -1,5 +1,6 @@
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
+import { controllerIcon } from "./controller-icon";
 import { Frame } from "./frame";
 
 /** Measured, wrapped prose with an explicit controller reading control. */
@@ -74,7 +75,7 @@ export class ScrollText {
 		if (this.options.showPosition === false) return;
 		this.position.setLabel(
 			"position",
-			`${range > 0 ? Math.round((offset / range) * 100) : 100}% read · A: Down · Y: Up`,
+			`${range > 0 ? Math.round((offset / range) * 100) : 100}% read · ${controllerIcon("A")} Down · ${controllerIcon("Y")} Up`,
 			"CENTER",
 			0,
 			0,
