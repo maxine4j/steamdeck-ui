@@ -1,5 +1,38 @@
 import { expect, it, vi } from "vitest";
 import { JournalPrefetch } from "./journal-prefetch";
+import { TieredCache } from "./tiered-cache";
+
+it("publishes saved data synchronously while sharing the bounded refresh", () => {
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	const saved = new TieredCache<number[]>(
+		() => ({ snapshot: { value: [1], expiresAt: 0 } }),
+		() => 10,
+		60,
+		scheduler,
+	);
+	const scan = vi.fn(
+		(_done: (value: number[]) => void, _preview?: (value: number[]) => void) =>
+			() => {},
+	);
+	const journal = new JournalPrefetch(scheduler, scan, saved);
+	const done = vi.fn();
+	const preview = vi.fn();
+	journal.prefetch();
+	journal.load(done, preview);
+	expect(done).toHaveBeenCalledWith([1]);
+	expect(scan).toHaveBeenCalledOnce();
+	scan.mock.calls.at(0)?.at(1)?.([2]);
+	expect(preview).not.toHaveBeenCalled();
+	scan.mock.calls.at(0)?.at(0)?.([2]);
+	expect(done).toHaveBeenLastCalledWith([2]);
+	expect(saved.peek("snapshot")).toEqual([2]);
+});
 
 function setup() {
 	const pending: (() => void)[] = [];

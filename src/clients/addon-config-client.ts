@@ -4,7 +4,15 @@ export interface IAddonConfigClient {
 }
 
 declare global {
-	var SteamDeckUIConfig: { currencyFavourites?: number[] } | undefined;
+	var SteamDeckUIConfig:
+		| {
+				currencyFavourites?: number[];
+				collectionCache?: {
+					version: number;
+					namespaces: Record<string, unknown>;
+				};
+		  }
+		| undefined;
 }
 
 export class AddonConfigClient implements IAddonConfigClient {

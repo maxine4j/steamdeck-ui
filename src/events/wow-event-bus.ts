@@ -147,7 +147,11 @@ const talentEvents = [
 	"STARTER_BUILD_ACTIVATION_FAILED",
 	"PLAYER_ENTERING_WORLD",
 ];
-const mountEvents = ["COMPANION_LEARNED", "COMPANION_UNLEARNED"];
+const mountEvents = [
+	"COMPANION_LEARNED",
+	"COMPANION_UNLEARNED",
+	"NEW_MOUNT_ADDED",
+];
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {
 	private readonly handlers = new Map<ApplicationEvent, EventHandler[]>();
@@ -298,13 +302,36 @@ export class WowEventBus implements IEventBus {
 				(event === "PLAYER_SPECIALIZATION_CHANGED" && unit === "player")
 			)
 				this.emit("TALENTS_CHANGED");
-			if (mountEvents.includes(event)) this.emit("MOUNTS_CHANGED");
+			if (mountEvents.includes(event))
+				this.emit(
+					"MOUNTS_CHANGED",
+					event === "NEW_MOUNT_ADDED" && typeof unit === "number"
+						? { id: unit }
+						: undefined,
+				);
 			if (event === "MOUNT_JOURNAL_SEARCH_UPDATED")
 				this.emit("MOUNTS_SEARCH_CHANGED");
 			if (event === "MOUNT_EQUIPMENT_APPLY_RESULT")
 				this.emit("MOUNTS_EQUIPMENT_CHANGED");
-			if (achievementEvents.includes(event)) this.emit("ACHIEVEMENTS_CHANGED");
-			if (event === "TOYS_UPDATED") this.emit("TOYS_CHANGED");
+			if (achievementEvents.includes(event))
+				this.emit(
+					"ACHIEVEMENTS_CHANGED",
+					event === "ACHIEVEMENT_EARNED" && typeof unit === "number"
+						? { id: unit }
+						: undefined,
+				);
+			if (event === "TOYS_UPDATED")
+				this.emit(
+					"TOYS_CHANGED",
+					typeof unit === "number" ? { id: unit } : undefined,
+				);
+			if (event === "ITEM_DATA_LOAD_RESULT")
+				this.emit(
+					"ITEM_DATA_LOAD_RESULT",
+					typeof unit === "number"
+						? { id: unit, success: args.at(1) === true }
+						: undefined,
+				);
 			if (event === "SPELL_UPDATE_COOLDOWN") this.emit("TOYS_COOLDOWN_CHANGED");
 			if (dungeonFinderEvents.includes(event))
 				this.emit("DUNGEON_FINDER_CHANGED");
@@ -333,8 +360,7 @@ export class WowEventBus implements IEventBus {
 				event === "BAG_UPDATE_DELAYED" ||
 				event === "BAG_OPEN" ||
 				event === "BAG_CLOSED" ||
-				event === "PLAYER_MONEY" ||
-				event === "ITEM_DATA_LOAD_RESULT"
+				event === "PLAYER_MONEY"
 			)
 				this.emit(event);
 		});

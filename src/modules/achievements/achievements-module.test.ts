@@ -38,3 +38,24 @@ it("closes the left achievement pane when the native UI is hidden", () => {
 	module.initialize();
 	expect(ui.closePanel).toHaveBeenCalledWith("left", "achievements");
 });
+
+it("starts and stops login backfill and routes targeted changes and cache updates", () => {
+	const events = createTestEventBus();
+	const journal = { prefetch: vi.fn(), stop: vi.fn(), invalidate: vi.fn() };
+	const view = { refresh: vi.fn(), selectAchievement: vi.fn() };
+	const module = new AchievementsModule(
+		{ openPanel: vi.fn(), closePanel: vi.fn() },
+		events,
+		view,
+		{ disable: vi.fn(), restore: vi.fn(), isOpen: () => false },
+		journal,
+	);
+	module.initialize();
+	expect(journal.prefetch).toHaveBeenCalledOnce();
+	events.emit("ACHIEVEMENTS_CHANGED", { id: 42 });
+	expect(journal.invalidate).toHaveBeenCalledWith(42);
+	events.emit("ACHIEVEMENTS_CACHE_UPDATED");
+	expect(view.refresh).toHaveBeenCalledTimes(2);
+	module.shutdown();
+	expect(journal.stop).toHaveBeenCalledOnce();
+});

@@ -1,4 +1,7 @@
+import type { IEventBus } from "../events/types";
+import type { ICollectionCache } from "./collection-cache";
 import type { ITaskScheduler } from "./task-scheduler";
+import type { TieredCache } from "./tiered-cache";
 export interface AchievementTotals {
 	total: number;
 	completed: number;
@@ -34,6 +37,9 @@ export interface AchievementSummary {
 	categories: (AchievementCategory & AchievementTotals)[];
 }
 export interface IAchievementsClient {
+	prefetch?(): void;
+	stop?(): void;
+	invalidate?(id?: number): void;
 	loadCategory(
 		category: number,
 		complete: (achievements: Achievement[]) => void,
@@ -42,6 +48,7 @@ export interface IAchievementsClient {
 			total: number,
 			rows: readonly Achievement[],
 		) => void,
+		refresh?: boolean,
 	): () => void;
 	categories(): AchievementCategory[];
 	totals(category: number): AchievementTotals;
@@ -54,8 +61,106 @@ export interface IAchievementsClient {
 	selection(id: number): number;
 }
 export class AchievementsClient implements IAchievementsClient {
-	constructor(private readonly scheduler: ITaskScheduler) {}
+	private readonly items?: TieredCache<Achievement>;
+	private readonly categoryRows?: TieredCache<Achievement[]>;
+	private readonly categoryList?: TieredCache<AchievementCategory[]>;
+	private readonly summaries?: TieredCache<AchievementSummary>;
+	private readonly criterionRows?: TieredCache<AchievementCriterion[]>;
+	private cancelBackfill?: () => void;
+	private cancelNotification?: () => void;
+	private generation = 0;
+	constructor(
+		private readonly scheduler: ITaskScheduler,
+		cache?: ICollectionCache,
+		private readonly events?: IEventBus,
+	) {
+		this.items = cache?.create("achievements.items", true, 300);
+		this.categoryRows = cache?.create("achievements.categories", true, 86400);
+		this.categoryList = cache?.create(
+			"achievements.category-list",
+			false,
+			86400,
+		);
+		this.summaries = cache?.create("achievements.summary", true, 300);
+		this.criterionRows = cache?.create("achievements.criteria", true, 60);
+	}
+	prefetch(): void {
+		if (!this.items || this.cancelBackfill) return;
+		const generation = this.generation;
+		let categories: AchievementCategory[] | undefined;
+		let index = 0;
+		const step = () => {
+			if (generation !== this.generation) return;
+			categories ??= this.readCategories();
+			this.categoryList?.put("list", categories);
+			const category = categories.at(index++);
+			if (!category) {
+				this.cancelBackfill = undefined;
+				return;
+			}
+			this.cancelBackfill = this.scanCategory(category.id, () => {
+				this.cancelBackfill = this.scheduler.nextFrame(step);
+			});
+		};
+		this.cancelBackfill = this.scheduler.nextFrame(step);
+	}
+	stop(): void {
+		this.generation++;
+		this.cancelBackfill?.();
+		this.cancelNotification?.();
+		this.cancelBackfill = undefined;
+		this.cancelNotification = undefined;
+		for (const cache of [
+			this.items,
+			this.categoryRows,
+			this.categoryList,
+			this.summaries,
+			this.criterionRows,
+		])
+			cache?.stop();
+	}
+	invalidate(id?: number): void {
+		if (id !== undefined) {
+			this.items?.refresh(String(id), () => this.read(id));
+			if (this.criterionRows?.peek(String(id)))
+				this.criterionRows.refresh(String(id), () => this.readCriteria(id));
+		}
+	}
+	private changed(): void {
+		if (!this.events || this.cancelNotification) return;
+		const generation = this.generation;
+		this.cancelNotification = this.scheduler.nextFrame(() => {
+			if (generation !== this.generation) return;
+			this.cancelNotification = undefined;
+			this.events?.emit("ACHIEVEMENTS_CACHE_UPDATED");
+		});
+	}
 	loadCategory(
+		category: number,
+		complete: (achievements: Achievement[]) => void,
+		progress?: (
+			completed: number,
+			total: number,
+			rows: readonly Achievement[],
+		) => void,
+		refresh = true,
+	): () => void {
+		const rows = this.categoryRows?.peek(String(category));
+		if (rows && this.items) {
+			complete(
+				rows.map((row) => {
+					if (this.items?.peek(String(row.id)) === undefined)
+						this.items?.put(String(row.id), row);
+					return refresh
+						? this.achievement(row.id)
+						: (this.items?.peek(String(row.id)) ?? row);
+				}),
+			);
+			return () => {};
+		}
+		return this.scanCategory(category, complete, progress);
+	}
+	private scanCategory(
 		category: number,
 		complete: (achievements: Achievement[]) => void,
 		progress?: (
@@ -91,6 +196,7 @@ export class AchievementsClient implements IAchievementsClient {
 					phase = "row";
 				} else if (phase === "row") {
 					if (index > count) {
+						this.categoryRows?.put(String(category), rows);
 						complete(rows);
 						return;
 					}
@@ -148,6 +254,12 @@ export class AchievementsClient implements IAchievementsClient {
 		};
 	}
 	categories(): AchievementCategory[] {
+		return (
+			this.categoryList?.get("list", () => this.readCategories()) ??
+			this.readCategories()
+		);
+	}
+	private readCategories(): AchievementCategory[] {
 		const source = GetCategoryList().map((id) => this.category(id));
 		const ordered: AchievementCategory[] = [];
 		const visited = new Set<number>();
@@ -190,6 +302,11 @@ export class AchievementsClient implements IAchievementsClient {
 		return { total, completed };
 	}
 	achievements(category: number, incomplete: boolean): Achievement[] {
+		const saved = this.categoryRows?.peek(String(category));
+		if (saved)
+			return saved
+				.map((row) => this.achievement(row.id))
+				.filter((row) => !incomplete || !row.completed);
 		const [count, , incompleteCount] = GetCategoryNumAchievements(category);
 		const rows: Achievement[] = [];
 		const offset = incomplete ? count - incompleteCount : 0;
@@ -238,7 +355,7 @@ export class AchievementsClient implements IAchievementsClient {
 			icon,
 			reward,
 		] = GetAchievementInfo(id, index);
-		return {
+		const row = {
 			id: achievementID,
 			name,
 			points,
@@ -251,18 +368,32 @@ export class AchievementsClient implements IAchievementsClient {
 			icon,
 			reward,
 		};
+		const old = this.items?.peek(String(row.id));
+		this.items?.put(String(row.id), row);
+		if (
+			old &&
+			(old.completed !== row.completed ||
+				old.name !== row.name ||
+				old.date !== row.date ||
+				old.points !== row.points ||
+				old.description !== row.description ||
+				old.reward !== row.reward ||
+				old.icon !== row.icon)
+		)
+			this.changed();
+		return row;
 	}
 	achievement(id: number): Achievement {
-		return this.read(id);
+		return this.items?.get(String(id), () => this.read(id)) ?? this.read(id);
 	}
 	categoryFor(id: number): number {
 		return GetAchievementCategory(id);
 	}
 	selection(id: number): number {
 		let current = id;
-		if (!this.read(id).completed) {
+		if (!this.achievement(id).completed) {
 			let previous = GetPreviousAchievement(current);
-			while (previous !== undefined && !this.read(previous).completed) {
+			while (previous !== undefined && !this.achievement(previous).completed) {
 				current = previous;
 				previous = GetPreviousAchievement(current);
 			}
@@ -276,6 +407,13 @@ export class AchievementsClient implements IAchievementsClient {
 		return current;
 	}
 	summary(includeCategories = true): AchievementSummary {
+		return (
+			this.summaries?.get(String(includeCategories), () =>
+				this.readSummary(includeCategories),
+			) ?? this.readSummary(includeCategories)
+		);
+	}
+	private readSummary(includeCategories: boolean): AchievementSummary {
 		const categories = includeCategories ? this.categories() : [];
 		const [total, completed] = GetNumCompletedAchievements();
 		const recent = [...GetLatestCompletedAchievements()]
@@ -286,7 +424,7 @@ export class AchievementsClient implements IAchievementsClient {
 			const row = this.read(id);
 			if (!row.completed && !recent.some((a) => a.id === id)) recent.push(row);
 		}
-		return {
+		const summary = {
 			points: GetTotalAchievementPoints(),
 			totals: { total, completed },
 			recent,
@@ -297,8 +435,25 @@ export class AchievementsClient implements IAchievementsClient {
 					...this.categoryTotals(category.id, categories),
 				})),
 		};
+		const old = this.summaries?.peek(String(includeCategories));
+		if (
+			old &&
+			(old.points !== summary.points ||
+				old.totals.total !== total ||
+				old.totals.completed !== completed ||
+				old.recent.map((row) => row.id).join(",") !==
+					recent.map((row) => row.id).join(","))
+		)
+			this.changed();
+		return summary;
 	}
 	criteria(id: number): AchievementCriterion[] {
+		return (
+			this.criterionRows?.get(String(id), () => this.readCriteria(id)) ??
+			this.readCriteria(id)
+		);
+	}
+	private readCriteria(id: number): AchievementCriterion[] {
 		const criteria: AchievementCriterion[] = [];
 		for (let index = 1; index <= GetAchievementNumCriteria(id); index++) {
 			const [name, type, completed, quantity, required, , flags, asset, text] =
@@ -315,13 +470,30 @@ export class AchievementsClient implements IAchievementsClient {
 				achievement: type === 8 && asset > 0 ? asset : undefined,
 			});
 		}
+		const old = this.criterionRows?.peek(String(id));
+		if (
+			old &&
+			(old.length !== criteria.length ||
+				criteria.some((row, index) => {
+					const previous = old.at(index);
+					return (
+						!previous ||
+						row.quantity !== previous.quantity ||
+						row.completed !== previous.completed ||
+						row.required !== previous.required ||
+						row.text !== previous.text ||
+						row.name !== previous.name
+					);
+				}))
+		)
+			this.changed();
 		return criteria;
 	}
 	chain(id: number): Achievement[] {
-		const rows = [this.read(id)];
+		const rows = [this.achievement(id)];
 		let previous = GetPreviousAchievement(id);
 		while (previous !== undefined) {
-			rows.unshift(this.read(previous));
+			rows.unshift(this.achievement(previous));
 			previous = GetPreviousAchievement(previous);
 		}
 		return rows.length > 1 && rows.at(-1)?.completed ? rows : [];

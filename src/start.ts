@@ -193,7 +193,13 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	modules.register(
-		new AchievementsModule(ui, events, achievementsPanel, builtInAchievements),
+		new AchievementsModule(
+			ui,
+			events,
+			achievementsPanel,
+			builtInAchievements,
+			achievements,
+		),
 	);
 	const vendorPanel = new VendorPanel("vendor", pool, vendor, () =>
 		vendorModule.close(),

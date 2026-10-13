@@ -2,6 +2,7 @@ import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { AddonConfigClient } from "./clients/addon-config-client";
 import { CharacterClient } from "./clients/character-client";
+import { CollectionCache } from "./clients/collection-cache";
 import { ControllerInputClient } from "./clients/controller-input-client";
 import { CurrencyClient } from "./clients/currency-client";
 import { DialogueCamera } from "./clients/dialogue-camera";
@@ -30,6 +31,7 @@ const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
 const scheduler = new TaskScheduler();
+const collectionCache = new CollectionCache(scheduler);
 startSteamDeckUI(
 	frameFactory,
 	events,
@@ -37,7 +39,7 @@ startSteamDeckUI(
 	character,
 	reputation,
 	titles,
-	new MountsClient(scheduler),
+	new MountsClient(scheduler, collectionCache),
 	new ActionBarClient(new FrameSuppression(new FramePoolManager(frameFactory))),
 	new ControllerInputClient(
 		events,
@@ -50,8 +52,8 @@ startSteamDeckUI(
 	new DialogueClient(),
 	new DialogueCamera(),
 	new VendorClient(),
-	new AchievementsClient(scheduler),
-	new ToysClient(scheduler),
+	new AchievementsClient(scheduler, collectionCache, events),
+	new ToysClient(scheduler, collectionCache),
 	new SlashCommandsClient(),
 	new AddonConfigClient(),
 );

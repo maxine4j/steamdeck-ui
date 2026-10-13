@@ -1,5 +1,7 @@
+import type { ICollectionCache } from "./collection-cache";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import type { ITaskScheduler } from "./task-scheduler";
+import type { TieredCache } from "./tiered-cache";
 
 // Legacy toy APIs are absent from the generated Retail declarations.
 declare global {
@@ -29,6 +31,7 @@ export interface Toy {
 	readonly expansionId?: number;
 }
 export interface IToysClient extends IJournalPrefetch {
+	invalidateItem?(id: number): boolean;
 	isInCombat(): boolean;
 	load(
 		callback: (toys: Toy[]) => void,
@@ -43,19 +46,44 @@ export class ToysClient implements IToysClient {
 	private filtersInitialized = false;
 	private readonly requestedItems = new Set<number>();
 	private readonly journal: JournalPrefetch<Toy[]>;
-	constructor(private readonly scheduler: ITaskScheduler) {
-		this.journal = new JournalPrefetch(scheduler, (done, _preview, progress) =>
-			this.scan(done, progress),
+	private readonly items?: TieredCache<Toy>;
+	private readonly snapshots?: TieredCache<Toy[]>;
+	private backfill = false;
+	private expiredOnly = false;
+	private readonly dirtyIds = new Set<number>();
+	constructor(
+		private readonly scheduler: ITaskScheduler,
+		cache?: ICollectionCache,
+	) {
+		this.items = cache?.create("toys.items", false, 3600);
+		this.snapshots = cache?.create("toys.snapshot", false, 3600);
+		this.journal = new JournalPrefetch(
+			scheduler,
+			(done, _preview, progress) => this.scan(done, progress),
+			this.snapshots,
 		);
 	}
 	prefetch(): void {
+		this.backfill = true;
 		this.journal.prefetch();
 	}
-	invalidate(): void {
+	invalidate(id?: number): void {
+		if (id !== undefined && id > 0) this.dirtyIds.add(id);
+		else this.expiredOnly = true;
 		this.journal.invalidate();
+	}
+	invalidateItem(id: number): boolean {
+		if (
+			!this.requestedItems.has(id) &&
+			this.items?.peek(String(id)) === undefined
+		)
+			return false;
+		this.invalidate(id);
+		return true;
 	}
 	stop(): void {
 		this.journal.stop();
+		this.items?.stop();
 		this.filtersInitialized = false;
 	}
 	load(
@@ -69,6 +97,14 @@ export class ToysClient implements IToysClient {
 		onProgress?: (completed: number, total: number) => void,
 	): () => void {
 		const toys: Toy[] = [];
+		const saved = !this.backfill ? this.snapshots?.peek("snapshot") : undefined;
+		const ids = saved?.map((toy) => toy.id);
+		for (const id of this.dirtyIds) if (ids && !ids.includes(id)) ids.push(id);
+		const targeted =
+			this.dirtyIds.size > 0 ? new Set(this.dirtyIds) : undefined;
+		const expiredOnly = this.expiredOnly;
+		this.expiredOnly = false;
+		this.dirtyIds.clear();
 		let index = 1;
 		let count: number | undefined;
 		let cancelled = false;
@@ -81,35 +117,31 @@ export class ToysClient implements IToysClient {
 				C_ToyBoxInfo.SetDefaultFilters();
 				C_ToyBox.SetFilterString("");
 			}
-			count ??= C_ToyBox.GetNumFilteredToys();
+			count ??= ids?.length ?? C_ToyBox.GetNumFilteredToys();
 			const end = Math.min(count, index + 19);
 			while (index <= end) {
-				const id = C_ToyBox.GetToyFromIndex(index++);
+				const id = ids
+					? (ids.at(index++ - 1) ?? 0)
+					: C_ToyBox.GetToyFromIndex(index++);
 				if (id <= 0) continue;
-				const [itemId, name, icon, favourite] = C_ToyBox.GetToyInfo(id);
-				if (itemId === undefined) continue;
-				const [itemName, , , , , , , , , , , , , , expansionId] =
-					C_Item.GetItemInfo(id);
-				const loaded = itemName !== undefined && itemName !== "";
-				if (!loaded && !this.requestedItems.has(id)) {
-					this.requestedItems.add(id);
-					C_Item.RequestLoadItemDataByID(id);
-				}
-				toys.push({
-					id,
-					// Startup prefetch can precede name caching. Keep the entry;
-					// item-data events invalidate the snapshot when metadata arrives.
-					name: name || itemName || `Toy ${id}`,
-					icon,
-					favourite,
-					collected: PlayerHasToy(id),
-					expansionId: loaded ? expansionId : undefined,
-				});
+				const cached = this.items?.peek(String(id));
+				const toy =
+					cached &&
+					((targeted && !targeted.has(id)) ||
+						(!targeted && expiredOnly && !this.items?.isExpired(String(id))))
+						? cached
+						: this.readToy(id);
+				if (toy) toys.push(toy);
 			}
 			onProgress?.(Math.min(count, index - 1), count);
 			if (cancelled) return;
 			if (index <= count) cancel = this.scheduler.nextFrame(step);
-			else callback(toys);
+			else {
+				this.backfill = false;
+				// Retain completed work even if a newer event superseded publication.
+				this.snapshots?.put("snapshot", toys);
+				callback(toys);
+			}
 		};
 		let cancel = this.scheduler.nextFrame(step);
 		return () => {
@@ -117,9 +149,31 @@ export class ToysClient implements IToysClient {
 			cancel();
 		};
 	}
+	private readToy(id: number): Toy | undefined {
+		const previous = this.items?.peek(String(id));
+		const [itemId, name, icon, favourite] = C_ToyBox.GetToyInfo(id);
+		if (itemId === undefined) return this.items?.peek(String(id));
+		const [itemName, , , , , , , , , , , , , , expansionId] =
+			C_Item.GetItemInfo(id);
+		const loaded = itemName !== undefined && itemName !== "";
+		if (!loaded && !this.requestedItems.has(id)) {
+			this.requestedItems.add(id);
+			C_Item.RequestLoadItemDataByID(id);
+		}
+		const toy = {
+			id,
+			name: name || itemName || previous?.name || `Toy ${id}`,
+			icon,
+			favourite,
+			collected: PlayerHasToy(id),
+			expansionId: loaded ? expansionId : previous?.expansionId,
+		};
+		this.items?.put(String(id), toy);
+		return toy;
+	}
 	toggleFavourite(id: number): void {
 		if (PlayerHasToy(id)) {
-			this.invalidate();
+			this.invalidate(id);
 			C_ToyBox.SetIsFavorite(id, !C_ToyBox.GetIsFavorite(id));
 		}
 	}

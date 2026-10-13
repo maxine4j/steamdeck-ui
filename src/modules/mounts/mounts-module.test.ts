@@ -60,6 +60,8 @@ it("prefetches at initialization, invalidates journal data and stops on shutdown
 	events.emit("MOUNTS_CHANGED");
 	events.emit("MOUNTS_SEARCH_CHANGED");
 	expect(journal.invalidate).toHaveBeenCalledTimes(2);
+	events.emit("MOUNTS_CHANGED", { id: 42 });
+	expect(journal.invalidate).toHaveBeenLastCalledWith(42);
 	module.shutdown();
 	expect(journal.stop).toHaveBeenCalledOnce();
 });

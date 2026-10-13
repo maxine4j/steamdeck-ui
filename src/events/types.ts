@@ -21,6 +21,11 @@ export interface DialogueEventPayloads {
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ACHIEVEMENTS_SELECTED: { id: number };
+	ACHIEVEMENTS_CACHE_UPDATED: undefined;
+	MOUNTS_CHANGED: { id: number } | undefined;
+	TOYS_CHANGED: { id: number } | undefined;
+	ACHIEVEMENTS_CHANGED: { id: number } | undefined;
+	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
 	| keyof ApplicationEventPayloads

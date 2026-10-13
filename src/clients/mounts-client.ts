@@ -1,6 +1,13 @@
+import type { ICollectionCache } from "./collection-cache";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getMountExpansion } from "./mount-expansions";
 import type { ITaskScheduler } from "./task-scheduler";
+import type { TieredCache } from "./tiered-cache";
+
+interface MountSnapshot {
+	mounts: Mount[];
+	count: { collected: number; total: number };
+}
 
 export interface Mount {
 	readonly id: number;
@@ -48,6 +55,11 @@ export interface IMountsClient extends IJournalPrefetch {
 export class MountsClient implements IMountsClient {
 	private readonly indices = new Map<number, number>();
 	private displayRevision = 0;
+	private readonly items?: TieredCache<Mount>;
+	private readonly snapshots?: TieredCache<MountSnapshot>;
+	private backfill = false;
+	private expiredOnly = false;
+	private readonly dirtyIds = new Set<number>();
 	private readonly journal: JournalPrefetch<
 		{
 			mounts: Mount[];
@@ -55,19 +67,35 @@ export class MountsClient implements IMountsClient {
 		},
 		Mount[]
 	>;
-	constructor(private readonly scheduler: ITaskScheduler) {
-		this.journal = new JournalPrefetch(scheduler, (done, preview, progress) =>
-			this.scan((mounts, count) => done({ mounts, count }), preview, progress),
+	constructor(
+		private readonly scheduler: ITaskScheduler,
+		cache?: ICollectionCache,
+	) {
+		this.items = cache?.create("mounts.items", false, 3600);
+		this.snapshots = cache?.create("mounts.snapshot", false, 3600);
+		this.journal = new JournalPrefetch(
+			scheduler,
+			(done, preview, progress) =>
+				this.scan(
+					(mounts, count) => done({ mounts, count }),
+					preview,
+					progress,
+				),
+			this.snapshots,
 		);
 	}
 	prefetch(): void {
+		this.backfill = true;
 		this.journal.prefetch();
 	}
-	invalidate(): void {
+	invalidate(id?: number): void {
+		if (id !== undefined && id > 0) this.dirtyIds.add(id);
+		else this.expiredOnly = true;
 		this.journal.invalidate();
 	}
 	stop(): void {
 		this.journal.stop();
+		this.items?.stop();
 	}
 	load(
 		callback: (
@@ -92,21 +120,31 @@ export class MountsClient implements IMountsClient {
 		onProgress?: (completed: number, total: number) => void,
 	): () => void {
 		const mounts: Mount[] = [];
+		const saved = !this.backfill ? this.snapshots?.peek("snapshot") : undefined;
+		const targeted =
+			this.dirtyIds.size > 0 ? new Set(this.dirtyIds) : undefined;
+		const expiredOnly = this.expiredOnly;
+		this.expiredOnly = false;
+		const changedIds = saved && targeted ? [...targeted] : [];
+		let changedIndex = 0;
+		this.dirtyIds.clear();
 		const seen = new Set<number>();
 		let revision = this.displayRevision;
 		let ids: number[] | undefined;
 		let displayed = 0;
 		let index = 1;
 		let countIndex = 0;
-		let collected = 0;
-		let total = 0;
+		let collected = saved?.count.collected ?? 0;
+		let total = saved?.count.total ?? 0;
 		let publishedFirstPage = false;
 		let cancelled = false;
 		const step = () => {
 			if (cancelled) return;
 			if (!ids) {
 				displayed = C_MountJournal.GetNumDisplayedMounts();
-				ids = C_MountJournal.GetMountIDs() as unknown as number[];
+				ids = saved
+					? []
+					: (C_MountJournal.GetMountIDs() as unknown as number[]);
 			}
 			if (revision !== this.displayRevision) {
 				// Removing a favourite can shift an unread mount behind the scan's
@@ -116,8 +154,40 @@ export class MountsClient implements IMountsClient {
 			}
 			// Bound API work per frame, including the unfiltered collection count.
 			let remaining = 20;
+			while (changedIndex < changedIds.length && remaining > 0) {
+				const id = changedIds.at(changedIndex++);
+				if (id !== undefined) {
+					const previous = this.items?.peek(String(id));
+					const mount = this.readMount(id, previous?.index ?? 0);
+					if (mount) {
+						if (!previous) {
+							total++;
+							if (mount.collected) collected++;
+						} else if (previous.collected !== mount.collected)
+							collected += mount.collected ? 1 : -1;
+					}
+				}
+				remaining--;
+			}
 			while (index <= displayed && remaining > 0) {
-				const mount = this.getDisplayedMount(index++);
+				const current = index++;
+				let mount: Mount | undefined;
+				if (saved && this.items) {
+					const id = C_MountJournal.GetDisplayedMountID(current);
+					const previous = this.items.peek(String(id));
+					mount =
+						previous &&
+						(targeted || (expiredOnly && !this.items.isExpired(String(id))))
+							? { ...previous, index: current }
+							: this.readMount(id, current);
+					if (mount) {
+						if (!previous) {
+							total++;
+							if (mount.collected) collected++;
+						} else if (previous.collected !== mount.collected)
+							collected += mount.collected ? 1 : -1;
+					}
+				} else mount = this.getDisplayedMount(current);
 				if (mount && !seen.has(mount.id)) {
 					seen.add(mount.id);
 					mounts.push(mount);
@@ -133,9 +203,21 @@ export class MountsClient implements IMountsClient {
 			while (countIndex < ids.length && remaining > 0) {
 				const id = ids.at(countIndex++);
 				if (id !== undefined) {
-					const [, , , , , , , , , hidden, owned] =
+					const [name, spell, icon, , usable, , favourite, , , hidden, owned] =
 						C_MountJournal.GetMountInfoByID(id);
 					if (!hidden) {
+						if (name !== undefined && name !== "")
+							this.items?.put(String(id), {
+								id,
+								index: this.indices.get(id) ?? 0,
+								name,
+								spell,
+								icon,
+								usable,
+								favourite,
+								collected: owned,
+								expansionId: getMountExpansion(id),
+							});
 						total++;
 						if (owned) collected++;
 					}
@@ -144,15 +226,47 @@ export class MountsClient implements IMountsClient {
 			}
 			onProgress?.(index - 1 + countIndex, displayed + ids.length);
 			if (cancelled) return;
-			if (index <= displayed || countIndex < ids.length)
+			if (
+				changedIndex < changedIds.length ||
+				index <= displayed ||
+				countIndex < ids.length
+			)
 				cancel = this.scheduler.nextFrame(step);
-			else callback(mounts, { collected, total });
+			else {
+				this.backfill = false;
+				// A superseded scan still owns valid per-item and count updates.
+				this.snapshots?.put("snapshot", {
+					mounts,
+					count: { collected, total },
+				});
+				callback(mounts, { collected, total });
+			}
 		};
 		let cancel = this.scheduler.nextFrame(step);
 		return () => {
 			cancelled = true;
 			cancel();
 		};
+	}
+	private readMount(id: number, index: number): Mount | undefined {
+		const [name, spell, icon, , usable, , favourite, , , hidden, collected] =
+			C_MountJournal.GetMountInfoByID(id);
+		if (!name) return this.items?.peek(String(id));
+		if (hidden) return undefined;
+		const mount = {
+			id,
+			index,
+			name,
+			spell,
+			icon,
+			usable,
+			collected,
+			favourite,
+			expansionId: getMountExpansion(id),
+		};
+		this.indices.set(id, index);
+		this.items?.put(String(id), mount);
+		return mount;
 	}
 	private getDisplayedMount(index: number): Mount | undefined {
 		const [
@@ -171,7 +285,7 @@ export class MountsClient implements IMountsClient {
 		] = C_MountJournal.GetDisplayedMountInfo(index);
 		if (hidden) return undefined;
 		this.indices.set(id, index);
-		return {
+		const mount = {
 			id,
 			index,
 			name,
@@ -182,6 +296,8 @@ export class MountsClient implements IMountsClient {
 			favourite,
 			expansionId: getMountExpansion(id),
 		};
+		this.items?.put(String(id), mount);
+		return mount;
 	}
 	summon(id: number): void {
 		C_MountJournal.SummonByID(id);
@@ -195,6 +311,11 @@ export class MountsClient implements IMountsClient {
 		C_MountJournal.Pickup(0);
 	}
 	getMounts(): Mount[] {
+		const saved = this.snapshots?.peek("snapshot");
+		if (saved) {
+			this.load(() => {});
+			return saved.mounts;
+		}
 		const mounts: Mount[] = [];
 		const count = C_MountJournal.GetNumDisplayedMounts();
 		for (let index = 1; index <= count; index++) {
@@ -204,6 +325,8 @@ export class MountsClient implements IMountsClient {
 		return mounts;
 	}
 	getCount() {
+		const saved = this.snapshots?.peek("snapshot");
+		if (saved) return saved.count;
 		// The generated scalar annotation omits the API's returned Lua table.
 		const ids = C_MountJournal.GetMountIDs() as unknown as number[];
 		let total = 0;
@@ -280,7 +403,7 @@ export class MountsClient implements IMountsClient {
 		const apply = (index: number) => {
 			const [, allowed] = C_MountJournal.GetIsFavorite(index);
 			if (allowed) {
-				this.invalidate();
+				this.invalidate(id);
 				this.displayRevision++;
 				C_MountJournal.SetIsFavorite(index, favourite);
 			}

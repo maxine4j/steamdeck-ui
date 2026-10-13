@@ -3,6 +3,38 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("preserves collection IDs for targeted cache refreshes", () => {
+	let dispatch: (
+		frame: WowEventFrame,
+		event: string,
+		...args: unknown[]
+	) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const mounts = vi.fn(),
+		toys = vi.fn(),
+		achievements = vi.fn(),
+		items = vi.fn();
+	bus.subscribe("MOUNTS_CHANGED", mounts);
+	bus.subscribe("TOYS_CHANGED", toys);
+	bus.subscribe("ACHIEVEMENTS_CHANGED", achievements);
+	bus.subscribe("ITEM_DATA_LOAD_RESULT", items);
+	dispatch(frame, "NEW_MOUNT_ADDED", 42);
+	dispatch(frame, "TOYS_UPDATED", 99, true);
+	dispatch(frame, "ACHIEVEMENT_EARNED", 123);
+	dispatch(frame, "ITEM_DATA_LOAD_RESULT", 99, true);
+	expect(mounts).toHaveBeenCalledWith({ id: 42 });
+	expect(toys).toHaveBeenCalledWith({ id: 99 });
+	expect(achievements).toHaveBeenCalledWith({ id: 123 });
+	expect(items).toHaveBeenCalledWith({ id: 99, success: true });
+});
+
 it("separates structural ring events from cooldown refreshes and filters pet unit events", () => {
 	let dispatch: (
 		frame: WowEventFrame,

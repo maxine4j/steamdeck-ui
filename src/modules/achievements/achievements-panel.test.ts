@@ -556,6 +556,14 @@ it("filters completed icons without rescanning, and reuses controls when moving 
 	activate("summary-category-Characters");
 	expect(frames.size).toBe(count);
 });
+
+it("refreshes only the retained records in the opened curated page", () => {
+	const { client, activate } = setup();
+	const lookup = vi.spyOn(client, "achievement");
+	activate("summary-category-Characters");
+	expect(lookup.mock.calls.map((call) => call.at(0))).toEqual([6, 7]);
+	expect(client.loadCategory).toHaveBeenCalledTimes(3);
+});
 it("fits the left container, has spatial grid columns and reveals focused icons", () => {
 	const { panel, client, flush, activate } = setup();
 	vi.mocked(client.achievements).mockImplementation((id) =>

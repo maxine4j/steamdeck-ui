@@ -1,5 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { createTestEventBus } from "../events/test-event-bus";
 import { AchievementsClient } from "./achievements-client";
+import { CollectionCache } from "./collection-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -33,6 +35,241 @@ const setup = (scheduler: ITaskScheduler = { nextFrame: vi.fn() }) => {
 	vi.stubGlobal("GetNextAchievement", () => [undefined, false]);
 	return new AchievementsClient(scheduler);
 };
+
+it("hydrates a category immediately and refreshes its individual achievements without re-enumerating", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	const row = {
+		id: 921,
+		name: "Saved",
+		points: 10,
+		completed: false,
+		date: "",
+		description: "",
+		icon: 1,
+		reward: "",
+	};
+	cache.create("achievements.categories", true).put("92", [row]);
+	cache.create("achievements.items", true).put("921", row);
+	const count = vi.fn(() => [10000, 0, 10000]);
+	vi.stubGlobal("GetCategoryNumAchievements", count);
+	const info = vi.fn(() => [
+		921,
+		"Updated",
+		10,
+		true,
+		10,
+		12,
+		26,
+		"",
+		0,
+		1,
+		"",
+	]);
+	vi.stubGlobal("GetAchievementInfo", info);
+	const client = new AchievementsClient(scheduler, cache);
+	const complete = vi.fn();
+	client.loadCategory(92, complete);
+	expect(complete).toHaveBeenCalledExactlyOnceWith([row]);
+	expect(info).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(count).not.toHaveBeenCalled();
+	expect(info).toHaveBeenCalledExactlyOnceWith(921, undefined);
+	expect(client.achievement(921).name).toBe("Updated");
+});
+
+it("backfills categories across frames at login and retains data after cancellation of a panel load", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	const client = new AchievementsClient(scheduler, cache);
+	client.prefetch();
+	expect(
+		cache.create("achievements.categories", true).peek("92"),
+	).toBeUndefined();
+	while (pending.length) pending.shift()?.();
+	expect(
+		cache.create<unknown[]>("achievements.categories", true).peek("92"),
+	).toHaveLength(2);
+});
+
+it("does not refresh unrelated cached categories while assembling the panel catalog", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	const row = {
+		id: 921,
+		name: "Saved",
+		points: 10,
+		completed: false,
+		date: "",
+		description: "",
+		icon: 1,
+		reward: "",
+	};
+	cache.create("achievements.categories", true).put("92", [row]);
+	cache.create("achievements.items", true).put("921", row);
+	const info = vi.fn(() => [921, "Saved", 10, false, 0, 0, 0, "", 0, 1, ""]);
+	vi.stubGlobal("GetAchievementInfo", info);
+	const client = new AchievementsClient(scheduler, cache);
+	client.loadCategory(92, vi.fn(), undefined, false);
+	while (pending.length) pending.shift()?.();
+	expect(info).not.toHaveBeenCalled();
+});
+
+it("publishes changed criterion progress after serving cached criteria, without an endless refresh loop", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	cache.create("achievements.criteria", true).put("921", [
+		{
+			name: "Progress",
+			completed: false,
+			quantity: 1,
+			required: 10,
+			text: "",
+			progress: false,
+		},
+	]);
+	vi.stubGlobal("GetAchievementNumCriteria", () => 1);
+	vi.stubGlobal("GetAchievementCriteriaInfo", () => [
+		"Progress",
+		0,
+		false,
+		2,
+		10,
+		false,
+		0,
+		0,
+		"",
+	]);
+	const events = createTestEventBus();
+	const changed = vi.fn();
+	events.subscribe("ACHIEVEMENTS_CACHE_UPDATED", changed);
+	const client = new AchievementsClient(scheduler, cache, events);
+	expect(client.criteria(921).at(0)?.quantity).toBe(1);
+	while (pending.length) pending.shift()?.();
+	expect(changed).toHaveBeenCalledOnce();
+	expect(client.criteria(921).at(0)?.quantity).toBe(2);
+	while (pending.length) pending.shift()?.();
+	expect(changed).toHaveBeenCalledOnce();
+});
+
+it("uses cached achievement records for detail chains and selection before refreshing", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	const row = {
+		id: 921,
+		name: "Saved",
+		points: 10,
+		completed: true,
+		date: "",
+		description: "",
+		icon: 1,
+		reward: "",
+	};
+	cache.create("achievements.items", true).put("921", row);
+	cache.create("achievements.items", true).put("920", { ...row, id: 920 });
+	vi.stubGlobal("GetPreviousAchievement", (id: number) =>
+		id === 921 ? 920 : undefined,
+	);
+	const info = vi.fn(() => [921, "Updated", 10, true, 0, 0, 0, "", 0, 1, ""]);
+	vi.stubGlobal("GetAchievementInfo", info);
+	const client = new AchievementsClient(scheduler, cache);
+	expect(client.chain(921).map((row) => row.name)).toEqual(["Saved", "Saved"]);
+	expect(client.selection(921)).toBe(921);
+	expect(info).not.toHaveBeenCalled();
+	client.stop();
+});
+
+it("notifies the view when a cached summary's totals change", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	const cache = new CollectionCache(
+		scheduler,
+		() => 100,
+		() => "player",
+	);
+	cache.create("achievements.summary", true).put("false", {
+		points: 0,
+		totals: { total: 10, completed: 0 },
+		recent: [],
+		categories: [],
+	});
+	const events = createTestEventBus();
+	const changed = vi.fn();
+	events.subscribe("ACHIEVEMENTS_CACHE_UPDATED", changed);
+	const client = new AchievementsClient(scheduler, cache, events);
+	expect(client.summary(false).points).toBe(0);
+	while (pending.length) pending.shift()?.();
+	expect(changed).toHaveBeenCalledOnce();
+	expect(client.summary(false).points).toBe(100);
+	client.stop();
+});
 it("bounds category and chain API work per frame and cancels the latest continuation", () => {
 	const pending: (() => void)[] = [];
 	const client = setup({

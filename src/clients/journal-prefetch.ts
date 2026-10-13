@@ -1,8 +1,9 @@
 import type { ITaskScheduler } from "./task-scheduler";
+import type { TieredCache } from "./tiered-cache";
 
 export interface IJournalPrefetch {
 	prefetch(): void;
-	invalidate(): void;
+	invalidate(id?: number): void;
 	stop(): void;
 }
 
@@ -29,6 +30,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 			preview?: (value: P) => void,
 			progress?: (completed: number, total: number) => void,
 		) => () => void,
+		private readonly persisted?: TieredCache<T>,
 	) {}
 	prefetch(): void {
 		this.active = true;
@@ -46,6 +48,21 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 		progress?: (completed: number, total: number) => void,
 	): () => void {
 		this.active = true;
+		if (this.persisted) {
+			const value = this.persisted.peek("snapshot");
+			// Keep the complete cached view interactive until replacement is ready.
+			const observer = {
+				done,
+				preview: value === undefined ? preview : undefined,
+				progress,
+			};
+			this.observers.add(observer);
+			if (value !== undefined) done(value);
+			this.start();
+			return () => {
+				this.observers.delete(observer);
+			};
+		}
 		if (!this.dirty && this.value !== undefined) {
 			const value = this.value;
 			const revision = this.revision;
@@ -78,6 +95,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 					return;
 				}
 				this.value = value;
+				this.persisted?.put("snapshot", value);
 				this.dirty = false;
 				const observers = [...this.observers];
 				this.observers.clear();

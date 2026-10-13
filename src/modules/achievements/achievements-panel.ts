@@ -225,6 +225,7 @@ export class AchievementsPanel implements IPanel {
 								Math.max(1, categories.length),
 						);
 					},
+					false,
 				);
 			} else {
 				this.loading = false;
@@ -236,6 +237,7 @@ export class AchievementsPanel implements IPanel {
 				this.pages = buildAchievementPages(this.categories, this.entries);
 				this.resolveSelection();
 				this.render();
+				this.refreshPageRecords();
 				if (this.page === undefined) this.finishLoading();
 			}
 		};
@@ -281,6 +283,19 @@ export class AchievementsPanel implements IPanel {
 		this.viewport.resetScroll();
 		this.list.resetScroll();
 		this.render();
+		this.refreshPageRecords();
+	}
+	private refreshPageRecords(): void {
+		const page = this.pages.find((page) => page.id === this.page);
+		if (!page) return;
+		const seen = new Set<number>();
+		for (const section of page.sections)
+			for (const group of section.groups)
+				for (const row of group.achievements) {
+					if (seen.has(row.id)) continue;
+					seen.add(row.id);
+					this.client.achievement(row.id);
+				}
 	}
 	private resolveSelection(): void {
 		if (this.loading) return;
@@ -345,6 +360,7 @@ export class AchievementsPanel implements IPanel {
 		this.viewport.resetScroll();
 		this.list.resetScroll();
 		this.render();
+		this.refreshPageRecords();
 	}
 	onBack(): void {
 		if (this.page !== undefined) this.selectCategory();

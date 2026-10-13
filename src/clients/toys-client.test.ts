@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { CollectionCache } from "./collection-cache";
 import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -76,7 +77,7 @@ it("passes item cooldown values through without arithmetic", () => {
 	expect(C_Container.GetItemCooldown).toHaveBeenCalledExactlyOnceWith(42);
 });
 
-function setup(count = 2) {
+function setup(count = 2, persistent = false) {
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -122,8 +123,93 @@ function setup(count = 2) {
 		],
 		RequestLoadItemDataByID: vi.fn(),
 	});
-	return { api, pending, client: new ToysClient(scheduler) };
+	return {
+		api,
+		pending,
+		client: new ToysClient(
+			scheduler,
+			persistent
+				? new CollectionCache(
+						scheduler,
+						() => 100,
+						() => "player",
+					)
+				: undefined,
+		),
+	};
 }
+
+it("serves saved toys immediately and refreshes an event's item without enumerating the journal", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const first = setup(45, true);
+	first.client.prefetch();
+	while (first.pending.length) first.pending.shift()?.();
+	first.client.stop();
+	const next = setup(45, true);
+	const count = vi.spyOn(next.api, "GetNumFilteredToys");
+	const info = vi.spyOn(next.api, "GetToyInfo");
+	const done = vi.fn();
+	next.client.invalidate(1);
+	next.client.load(done);
+	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
+	expect(info).not.toHaveBeenCalled();
+	while (next.pending.length) next.pending.shift()?.();
+	expect(count).not.toHaveBeenCalled();
+	expect(info).toHaveBeenCalledExactlyOnceWith(1);
+});
+
+it("uses item TTLs to avoid rereading fresh toys for events without an item ID", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const { client, api, pending } = setup(45, true);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const info = vi.spyOn(api, "GetToyInfo");
+	client.invalidate();
+	while (pending.length) pending.shift()?.();
+	expect(info).not.toHaveBeenCalled();
+});
+
+it("retains newly discovered toys when another event arrives during a refresh", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const { client, pending } = setup(45, true);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	client.invalidate(46);
+	pending.shift()?.();
+	client.invalidate(47);
+	while (pending.length) pending.shift()?.();
+	const done = vi.fn();
+	client.load(done);
+	expect(
+		done.mock.lastCall?.at(0)?.map((toy: { id: number }) => toy.id),
+	).toContain(46);
+	expect(
+		done.mock.lastCall?.at(0)?.map((toy: { id: number }) => toy.id),
+	).toContain(47);
+	client.stop();
+});
+
+it("retains saved metadata while Blizzard item data is temporarily unavailable", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const { client, api, pending } = setup(2, true);
+	api.GetToyInfo = (id) => [id, "Named toy", 101, true];
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	api.GetToyInfo = (id) => [id, undefined, 101, true];
+	vi.stubGlobal("C_Item", {
+		GetItemInfo: () => [],
+		RequestLoadItemDataByID: vi.fn(),
+	});
+	client.invalidate(1);
+	while (pending.length) pending.shift()?.();
+	const done = vi.fn();
+	client.load(done);
+	expect(done.mock.lastCall?.at(0)?.at(0)).toMatchObject({
+		name: "Named toy",
+		expansionId: 10,
+	});
+	client.stop();
+});
 
 it("converts journal entries and item expansion metadata without using native frames", () => {
 	const { client, pending } = setup();
