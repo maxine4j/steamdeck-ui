@@ -180,6 +180,54 @@ it("cycles grouped panels in their visual order even when registered differently
 	}
 });
 
+it.each(["NAV_PANEL_NEXT", "NAV_PANEL_PREVIOUS"] as const)(
+	"keeps the active fullscreen panel when %s follows previously opened panels",
+	(event) => {
+		const events = createTestEventBus();
+		const navigation = new NavigationManager(events);
+		const frame = {
+			dock: vi.fn(),
+			onClose: vi.fn(),
+			show: vi.fn(),
+			hide: vi.fn(),
+			setFocusBorder: vi.fn(),
+		} as unknown as Frame;
+		const onTabSelected = vi.fn();
+		const container = new PanelContainer(
+			"fullscreen",
+			"fullscreen",
+			frame,
+			undefined,
+			onTabSelected,
+			navigation,
+		);
+		const map = {
+			id: "map",
+			title: "Map",
+			onMount: vi.fn(),
+			onUnmount: vi.fn(),
+			getNavGrid: () => [],
+		};
+		const talents = {
+			...map,
+			id: "talents",
+			title: "Talents",
+			onUnmount: vi.fn(),
+		};
+		container.swapPanel(map);
+		container.popPanel();
+		container.swapPanel(talents);
+		map.onMount.mockClear();
+
+		events.emit(event);
+
+		expect(container.activePanelId).toBe("talents");
+		expect(talents.onUnmount).not.toHaveBeenCalled();
+		expect(map.onMount).not.toHaveBeenCalled();
+		expect(onTabSelected).not.toHaveBeenCalled();
+	},
+);
+
 it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
 	const events = createTestEventBus();
 	const navigation = new NavigationManager(events);

@@ -186,6 +186,7 @@ export class PanelContainer implements IPanelContainer {
 			active.onPanelCycle(direction);
 			return;
 		}
+		if (this.position === "fullscreen") return;
 		const orderedPanels = this.getPanelGroups().flat();
 		if (!active || orderedPanels.length < 2) return;
 		const index = orderedPanels.indexOf(active);
