@@ -20,6 +20,7 @@ export class MapPanel implements IPanel {
 	private readonly mapSide: Frame;
 	private readonly pane: Frame;
 	private focus?: string;
+	private focusFallbacks: string[] = [];
 	private section: "map" | "quests" = "quests";
 	private rows: MapQuestNavigation[] = [];
 	private quests: MapQuest[] = [];
@@ -117,6 +118,7 @@ export class MapPanel implements IPanel {
 		this.onActiveChanged(false);
 		this.section = "quests";
 		this.focus = undefined;
+		this.focusFallbacks = [];
 		this.client.setCursorActive(false);
 		this.modal.close();
 		this.client.unmount();
@@ -174,10 +176,21 @@ export class MapPanel implements IPanel {
 			13,
 			MAP_QUEST_PANE_WIDTH - 24,
 		);
-		const focusId = this.rows.some((row) => row.node.navId === this.focus)
-			? this.focus
-			: this.rows.at(0)?.node.navId;
+		const focusId =
+			[this.focus, ...this.focusFallbacks].find((id) =>
+				this.rows.some((row) => row.node.navId === id),
+			) ?? this.rows.at(0)?.node.navId;
+		if (focusId !== undefined) this.rememberQuestFocus(focusId);
 		this.navigationChanged?.(this.section === "map" ? "map-cursor" : focusId);
+	}
+	private rememberQuestFocus(id: string): void {
+		this.focus = id;
+		const index = this.rows.findIndex((row) => row.node.navId === id);
+		if (index >= 0)
+			this.focusFallbacks = this.rows
+				.slice(0, index)
+				.reverse()
+				.map((row) => row.node.navId);
 	}
 	onPanelCycle(_direction: -1 | 1): void {
 		this.section = this.section === "map" ? "quests" : "map";
@@ -188,7 +201,7 @@ export class MapPanel implements IPanel {
 		if (id !== undefined) {
 			const quest = this.quests.find((quest) => quest.id === id);
 			if (!quest) return;
-			this.focus = `map-quest-${id}`;
+			this.rememberQuestFocus(`map-quest-${id}`);
 			this.section = "quests";
 		}
 		this.details = id;
@@ -210,7 +223,7 @@ export class MapPanel implements IPanel {
 			{
 				...node,
 				onFocus: (refresh) => {
-					this.focus = node.navId;
+					this.rememberQuestFocus(node.navId);
 					node.onFocus(refresh);
 				},
 				onInteract: () => {

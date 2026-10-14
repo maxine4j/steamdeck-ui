@@ -85,6 +85,7 @@ interface NativeQuestRow extends NativeNavigationFrame {
 	layoutIndex: number;
 	questID?: number;
 	questLogIndex?: number;
+	sortKey?: number;
 }
 interface NativeQuestPool {
 	EnumerateActive(): LuaIterable<NativeQuestRow>;
@@ -698,7 +699,7 @@ export class MapClient implements IMapClient {
 							) => QuestLogInfo | undefined
 						)(row.questLogIndex)
 					: undefined;
-			const header = `${info?.headerSortKey ?? info?.title ?? row.questLogIndex}`;
+			const header = `${row.sortKey ?? info?.headerSortKey ?? info?.title ?? row.questLogIndex}`;
 			const occurrence = (headerOccurrences.get(header) ?? 0) + 1;
 			if (!row.questID) headerOccurrences.set(header, occurrence);
 			return {

@@ -190,6 +190,37 @@ it("waits for the native category rebuild before refreshing controller focus", (
 	expect(changed).toHaveBeenLastCalledWith("map-header-later");
 });
 
+it("keeps focus near a removed quest instead of returning to the first category", () => {
+	const { panel, quests, changed } = setup();
+	panel.getNavGrid().at(2)?.at(0)?.onFocus();
+	quests.splice(1, 1);
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-quest-1");
+});
+
+it("returns to the containing category when a focused quest is hidden by collapse", () => {
+	const { panel, client, changed } = setup();
+	const original = client.navigation;
+	const header = {
+		node: {
+			navId: "map-header-later",
+			onFocus: vi.fn(),
+			onBlur: vi.fn(),
+			onInteract: vi.fn(),
+		},
+	};
+	client.navigation = () => [
+		...original().slice(0, 2),
+		header,
+		...original().slice(2),
+	];
+	panel.refresh();
+	panel.getNavGrid().at(4)?.at(0)?.onFocus();
+	client.navigation = () => [...original().slice(0, 2), header];
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-header-later");
+});
+
 it("updates the native viewport when the fullscreen container changes size", () => {
 	const { client } = setup();
 	const resize = state.frames

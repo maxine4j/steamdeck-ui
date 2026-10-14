@@ -777,6 +777,34 @@ it("keeps category navigation identity when log indices and display titles chang
 	expect(CollapseQuestHeader).toHaveBeenCalledWith(3);
 });
 
+it("uses the displayed category sort key when quest log lookup changes during a rebuild", () => {
+	const { client, quests } = setup();
+	const header = {
+		IsShown: () => true,
+		questLogIndex: 8,
+		layoutIndex: 4,
+		sortKey: 42,
+	};
+	Object.assign(quests.QuestsFrame.ScrollFrame, {
+		headerFramePool: { EnumerateActive: () => [header] },
+		titleFramePool: { EnumerateActive: () => [] },
+		campaignHeaderFramePool: { EnumerateActive: () => [] },
+		campaignHeaderMinimalFramePool: { EnumerateActive: () => [] },
+		covenantCallingsHeaderFramePool: { EnumerateActive: () => [] },
+	});
+	vi.stubGlobal("C_QuestLog", {
+		GetInfo: vi.fn(() => undefined),
+	});
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	expect(client.navigation().at(0)?.node.navId).toBe("map-header-42");
+	header.questLogIndex = 3;
+	expect(client.navigation().at(0)?.node.navId).toBe("map-header-42");
+});
+
 it("leaves the metal header exposed above breadcrumbs, quests and details", () => {
 	const { client, frame, quests, layout, hooks } = setup();
 	client.disable();
