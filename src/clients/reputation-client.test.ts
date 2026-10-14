@@ -2,6 +2,53 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ReputationClient } from "./reputation-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("exposes and safely toggles war and inactive status using current faction permissions", () => {
+	const data = {
+		factionID: 42,
+		name: "Faction",
+		reaction: 5,
+		canToggleAtWar: true,
+		canSetInactive: true,
+		atWarWith: true,
+	};
+	const api = {
+		GetNumFactions: () => 1,
+		GetFactionDataByIndex: () => data,
+		IsFactionActive: vi.fn(() => false),
+		IsMajorFaction: () => false,
+		IsFactionParagonForCurrentPlayer: () => false,
+		ToggleFactionAtWar: vi.fn(),
+		SetFactionActive: vi.fn(),
+	};
+	vi.stubGlobal("C_Reputation", api);
+	vi.stubGlobal("C_GossipInfo", { GetFriendshipReputation: () => undefined });
+	const client = new ReputationClient();
+	const row = client.getReputations().at(0);
+	if (!row) throw new Error("Missing faction");
+	expect(row).toMatchObject({
+		atWar: true,
+		canToggleAtWar: true,
+		inactive: true,
+		canSetInactive: true,
+	});
+	client.toggleAtWar(row);
+	client.toggleInactive(row);
+	expect(api.ToggleFactionAtWar).toHaveBeenCalledExactlyOnceWith(1);
+	expect(api.SetFactionActive).toHaveBeenCalledExactlyOnceWith(1, true);
+	data.canToggleAtWar = false;
+	data.canSetInactive = false;
+	client.toggleAtWar(row);
+	client.toggleInactive(row);
+	data.canToggleAtWar = true;
+	data.canSetInactive = true;
+	data.factionID = 99;
+	client.toggleAtWar(row);
+	client.toggleInactive(row);
+	client.toggleAtWar({ ...row, seasonal: true });
+	client.toggleInactive({ ...row, seasonal: true });
+	expect(api.ToggleFactionAtWar).toHaveBeenCalledOnce();
+	expect(api.SetFactionActive).toHaveBeenCalledOnce();
+});
 beforeEach(() => {
 	vi.stubGlobal("GetExpansionLevel", () => 11);
 	vi.stubGlobal("C_MajorFactions", { GetMajorFactionIDs: () => [] });

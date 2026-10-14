@@ -61,6 +61,13 @@ it("renders plain text details for controller focus and hover", () => {
 		SetMountBySpellID: vi.fn(),
 	};
 	setTooltipContent(frame, { text: "Explorer\nExplore the world" });
-	expect(frame.SetText).toHaveBeenCalledWith("Explorer\nExplore the world");
+	expect(frame.SetText).toHaveBeenCalledWith(
+		"Explorer\nExplore the world",
+		1,
+		1,
+		1,
+		1,
+		true,
+	);
 	expect(frame.SetHyperlink).not.toHaveBeenCalled();
 });

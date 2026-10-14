@@ -16,10 +16,16 @@ export interface Reputation {
 	readonly maxed: boolean;
 	readonly seasonal?: boolean;
 	readonly locked?: boolean;
+	readonly atWar?: boolean;
+	readonly canToggleAtWar?: boolean;
+	readonly inactive?: boolean;
+	readonly canSetInactive?: boolean;
 }
 export interface IReputationClient {
 	getReputations(): Reputation[];
 	activate(reputation: Reputation): void;
+	toggleAtWar(reputation: Reputation): void;
+	toggleInactive(reputation: Reputation): void;
 }
 // Generated declarations flatten these documented table returns to numbers.
 type NativeFaction = Omit<FactionData, "factionId"> & { factionID: number };
@@ -134,6 +140,12 @@ export class ReputationClient implements IReputationClient {
 				child: data.isChild === true,
 				collapsed: data.isCollapsed,
 				watched: data.isWatched,
+				atWar: data.atWarWith,
+				canToggleAtWar: hasReputation && !data.isHeader && data.canToggleAtWar,
+				canSetInactive: hasReputation && data.canSetInactive,
+				inactive: data.canSetInactive
+					? !C_Reputation.IsFactionActive(index)
+					: false,
 				standing: hasReputation ? standing : "",
 				progress:
 					hasReputation && maximum > 0
@@ -204,6 +216,28 @@ export class ReputationClient implements IReputationClient {
 			});
 		}
 		return rows;
+	}
+	private currentFaction(reputation: Reputation): NativeFaction | undefined {
+		if (reputation.seasonal) return undefined;
+		const data = factionAt(reputation.index);
+		return data &&
+			data.factionID === reputation.id &&
+			data.name === reputation.name &&
+			(!data.isHeader || data.isHeaderWithRep)
+			? data
+			: undefined;
+	}
+	toggleAtWar(reputation: Reputation): void {
+		const data = this.currentFaction(reputation);
+		if (data?.canToggleAtWar && !data.isHeader)
+			C_Reputation.ToggleFactionAtWar(reputation.index);
+	}
+	toggleInactive(reputation: Reputation): void {
+		if (this.currentFaction(reputation)?.canSetInactive)
+			C_Reputation.SetFactionActive(
+				reputation.index,
+				!C_Reputation.IsFactionActive(reputation.index),
+			);
 	}
 	activate(reputation: Reputation): void {
 		if (reputation.seasonal) {

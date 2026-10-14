@@ -68,6 +68,7 @@ import { PetActionMenu } from "./modules/pets/pet-action-menu";
 import { BuiltInPets, PetsModule } from "./modules/pets/pets-module";
 import { PetsPanel } from "./modules/pets/pets-panel";
 import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
+import { ReputationActionMenu } from "./modules/reputation/reputation-action-menu";
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
 import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-module";
@@ -516,11 +517,23 @@ export function startSteamDeckUI(
 		builtInReputation.close();
 		ui.closePanel("left");
 	};
+	const reputationModal = new Modal(
+		"reputation-options",
+		pool,
+		navigation,
+		events,
+	);
+	const reputationMenu = new ReputationActionMenu(
+		reputationModal,
+		reputation,
+		() => reputationPanel.refresh(),
+	);
 	const reputationPanel = new ReputationPanel(
 		pool,
 		reputation,
 		closeCharacter,
 		scheduler,
+		reputationMenu,
 	);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(collectionsFeature.mountsPanel, "right");
@@ -593,6 +606,7 @@ export function startSteamDeckUI(
 			dialoguePanel.destroy();
 			itemModal.destroy();
 			currencyModal.destroy();
+			reputationModal.destroy();
 			dungeonQueueConfirmation.destroy();
 			collectionsFeature.toyModal.destroy();
 			collectionsFeature.petModal.destroy();

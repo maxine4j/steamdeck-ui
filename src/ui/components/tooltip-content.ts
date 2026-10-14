@@ -20,7 +20,14 @@ export type TooltipContent =
 	| { readonly item: string | number };
 
 export interface TooltipDataFrame {
-	SetText(text: string): void;
+	SetText(
+		text: string,
+		red?: number,
+		green?: number,
+		blue?: number,
+		alpha?: number,
+		wrap?: boolean,
+	): void;
 	SetHyperlink(link: string): void;
 	SetToyByItemID(id: number): boolean;
 	SetMountBySpellID(spell: number): void;
@@ -50,7 +57,7 @@ export function setTooltipContent(
 		return;
 	}
 	if (typeof content === "object" && "text" in content) {
-		frame.SetText(content.text);
+		frame.SetText(content.text, 1, 1, 1, 1, true);
 		return;
 	}
 	if (typeof content === "object" && "toy" in content) {

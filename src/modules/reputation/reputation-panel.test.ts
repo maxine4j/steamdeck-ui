@@ -9,6 +9,7 @@ const { setRows, construct } = vi.hoisted(() => ({
 	setRows: vi.fn(),
 	construct: vi.fn(),
 }));
+const menu = { open: vi.fn(), close: vi.fn() };
 const pending: (() => void)[] = [];
 const scheduler = {
 	nextFrame: (callback: () => void) => {
@@ -60,12 +61,15 @@ const render = (reputations: Reputation[]) => {
 	const client = {
 		getReputations: vi.fn(() => reputations),
 		activate: vi.fn(),
+		toggleAtWar: vi.fn(),
+		toggleInactive: vi.fn(),
 	};
 	const panel = new ReputationPanel(
 		{} as IFramePoolManager,
 		client,
 		vi.fn(),
 		scheduler,
+		menu,
 	);
 	panel.refresh();
 	panel.onMount({} as IUIComponent);
@@ -203,13 +207,32 @@ it("keeps capped tiles full without misleading numbers while retaining paragon p
 	]);
 });
 
+it("opens options via the row context action and closes them on unmount", () => {
+	menu.open.mockClear();
+	menu.close.mockClear();
+	const reputation = faction("Faction", 1);
+	const { rows, panel } = render([reputation]);
+	rows.at(0)?.context?.();
+	expect(menu.open).toHaveBeenCalledExactlyOnceWith(reputation);
+	panel.onUnmount();
+	expect(menu.close).toHaveBeenCalled();
+	rows.at(0)?.context?.();
+	expect(menu.open).toHaveBeenCalledOnce();
+});
+
 it("caches reopened data and coalesces changes while hidden", () => {
-	const client = { getReputations: vi.fn(() => []), activate: vi.fn() };
+	const client = {
+		getReputations: vi.fn(() => []),
+		activate: vi.fn(),
+		toggleAtWar: vi.fn(),
+		toggleInactive: vi.fn(),
+	};
 	const panel = new ReputationPanel(
 		{} as IFramePoolManager,
 		client,
 		vi.fn(),
 		scheduler,
+		menu,
 	);
 	panel.refresh();
 	flush();

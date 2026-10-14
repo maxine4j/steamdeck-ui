@@ -150,6 +150,11 @@ it.each([
 	["equipment-options", "Head options", "item:42"],
 	["mount-actions", "Mount actions", { mountSpell: 42 }],
 	["toy-actions", "Toy actions", { toy: 42 }],
+	[
+		"reputation-options",
+		"Faction options",
+		{ text: "Long faction description" },
+	],
 	["quest-options", "Quest options", undefined],
 	["currency-options", "Marks • 125 / 500", undefined],
 	["dungeon-queue-confirmation", "Leave Queue?", undefined],
@@ -193,6 +198,13 @@ it.each([
 			[{ id: "cancel", label: "Cancel", select: vi.fn() }],
 			item,
 		);
+		if (typeof item === "object" && "text" in item)
+			expect(Frame.prototype.showItemTooltip).toHaveBeenCalledWith(
+				expect.any(Frame),
+				item,
+				400,
+				704,
+			);
 		expect(Frame.prototype.layout).toHaveBeenCalledWith(
 			item === undefined ? 360 : 740,
 			item === undefined ? 144 : 340,

@@ -64,10 +64,15 @@ export class Modal implements IModal {
 		let optionWidth = 328;
 		if (tooltipItem !== undefined) {
 			const available = this.backdrop.getSize();
+			const textDetails =
+				typeof tooltipItem === "object" && "text" in tooltipItem;
 			const details = this.tooltip.showItemTooltip(
 				this.window,
 				tooltipItem,
-				Math.max(1, available.width - 380),
+				Math.max(
+					1,
+					Math.min(textDetails ? 400 : available.width, available.width - 380),
+				),
 				Math.max(1, available.height - 96),
 			);
 			width = details.width + 340;

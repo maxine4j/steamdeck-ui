@@ -8,6 +8,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
+import type { IReputationActionMenu } from "./reputation-action-menu";
 
 type Color = readonly [number, number, number];
 
@@ -18,11 +19,13 @@ export class ReputationPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
+	private mounted = false;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IReputationClient,
 		close: () => void,
 		scheduler: ITaskScheduler,
+		private readonly menu: IReputationActionMenu,
 	) {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
@@ -139,13 +142,19 @@ export class ReputationPanel implements IPanel {
 				this.client.activate(reputation);
 				this.refresh();
 			},
+			context: () => {
+				if (this.mounted && !reputation.locked) this.menu.open(reputation);
+			},
 		};
 	}
 	onMount(parent: IUIComponent): void {
+		this.mounted = true;
 		this.list.mount(parent);
 		this.update.setActive(true);
 	}
 	onUnmount(): void {
+		this.mounted = false;
+		this.menu.close();
 		this.update.setActive(false);
 		this.list.unmount();
 	}
@@ -156,6 +165,8 @@ export class ReputationPanel implements IPanel {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {
+		this.mounted = false;
+		this.menu.close();
 		this.update.setActive(false);
 		this.list.destroy();
 	}
