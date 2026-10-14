@@ -5,7 +5,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { CrossBarPreview } from "./cross-bar-preview";
 
 afterEach(() => vi.restoreAllMocks());
-it("stacks all four half-scale gameplay layouts below the modal, reads each modifier page and reuses the controls", () => {
+it("stacks all four gameplay layouts at 80% scale, reads each modifier page and reuses the controls", () => {
 	for (const method of [
 		"setParent",
 		"setModalLayer",
@@ -28,10 +28,12 @@ it("stacks all four half-scale gameplay layouts below the modal, reads each modi
 	} as unknown as IActionBarClient);
 	const parent = new Frame("backdrop", pool);
 	preview.show(parent, -123);
-	expect(Frame.prototype.setScale).toHaveBeenCalledWith(0.5);
+	expect(Frame.prototype.setScale).toHaveBeenCalledWith(0.8);
+	expect(preview.width).toBe(448);
+	expect(preview.height).toBeCloseTo(422.4);
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
-		280,
-		264,
+		448,
+		preview.height,
 		"CENTER",
 		parent,
 		0,

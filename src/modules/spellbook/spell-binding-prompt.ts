@@ -44,34 +44,33 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		this.backdrop.onClose(this.dismiss);
 		this.window.setParent(this.backdrop);
 		this.window.setModalLayer();
-		const gap = 16;
 		this.window.layout(
-			440,
-			230,
+			Math.max(440, this.preview.width + 40),
+			this.preview.height + 220,
 			"CENTER",
 			this.backdrop,
 			0,
-			(this.preview.height + gap) / 2,
+			0,
 		);
-		this.preview.show(this.backdrop, -(230 + gap) / 2);
+		this.preview.show(this.window, -60);
 		this.window.setWindowBackground();
 		this.window.setFocusBorder(true);
 		setWindowTitle(this.window, `Bind ${spell.name}`);
 		this.window.setLabel(
 			"instruction",
 			"Press the controller bind you want for this spell.\nHold LT and/or LB for a modifier chord.",
-			"CENTER",
+			"TOP",
 			0,
-			24,
+			-62,
 			14,
 			380,
 		);
 		this.window.setLabel(
 			"status",
 			"This replaces the spell in that action slot.",
-			"CENTER",
+			"TOP",
 			0,
-			-32,
+			-118,
 			12,
 			380,
 		);
@@ -94,8 +93,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 				return;
 			}
 			const error = this.client.bind(spell.id, key);
-			if (error)
-				this.window.setLabel("status", error, "CENTER", 0, -32, 12, 380);
+			if (error) this.window.setLabel("status", error, "TOP", 0, -118, 12, 380);
 			else this.cancelFinish = this.scheduler.nextFrame(this.dismiss);
 		});
 	}

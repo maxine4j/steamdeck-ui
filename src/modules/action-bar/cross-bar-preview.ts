@@ -4,13 +4,15 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { crossBarControls, crossBarPlaceholders } from "./cross-bar";
 
 export interface ICrossBarPreview {
+	readonly width: number;
 	readonly height: number;
 	show(parent: Frame, y: number): void;
 	hide(): void;
 	destroy(): void;
 }
 export class CrossBarPreview implements ICrossBarPreview {
-	readonly height = 264;
+	readonly width = 560 * 0.8;
+	readonly height = 528 * 0.8;
 	private readonly host: Frame;
 	private readonly content: Frame;
 	private readonly rows: Frame[] = [];
@@ -25,11 +27,11 @@ export class CrossBarPreview implements ICrossBarPreview {
 	show(parent: Frame, y: number): void {
 		this.host.setParent(parent);
 		this.host.setModalLayer();
-		this.host.layout(280, this.height, "CENTER", parent, 0, y);
+		this.host.layout(this.width, this.height, "CENTER", parent, 0, y);
 		this.content.setParent(this.host);
 		this.content.setModalLayer();
-		this.content.setScale(0.5);
-		this.content.layout(560, this.height * 2, "CENTER", this.host);
+		this.content.setScale(0.8);
+		this.content.layout(560, 528, "CENTER", this.host);
 		const modifiers = ["none", "shift", "ctrl", "ctrl-shift"] as const;
 		modifiers.forEach((modifier, index) => {
 			let row = this.rows.at(index);

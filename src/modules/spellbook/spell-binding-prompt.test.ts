@@ -43,7 +43,8 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 		delay: vi.fn(),
 	};
 	const preview = {
-		height: 264,
+		width: 448,
+		height: 422.4,
 		show: vi.fn(),
 		hide: vi.fn(),
 		destroy: vi.fn(),
@@ -59,16 +60,16 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 	);
 	prompt.open({ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 });
 	expect(preview.show).toHaveBeenCalledWith(
-		expect.objectContaining({ id: "spell-binding-backdrop" }),
-		-123,
+		expect.objectContaining({ id: "spell-binding-window" }),
+		-60,
 	);
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
-		440,
-		230,
+		488,
+		preview.height + 220,
 		"CENTER",
 		expect.objectContaining({ id: "spell-binding-backdrop" }),
 		0,
-		140,
+		0,
 	);
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"cancel",
@@ -91,9 +92,9 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"status",
 		"Reserved control",
-		"CENTER",
+		"TOP",
 		0,
-		-32,
+		-118,
 		12,
 		380,
 	);
