@@ -3,6 +3,35 @@ import { ActionBarClient } from "./action-bar-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("previews the four crossbar pages and utility controls using the gameplay slot mapping", () => {
+	vi.stubGlobal("C_ActionBar", {
+		HasVehicleActionBar: () => false,
+		HasOverrideActionBar: () => false,
+		HasTempShapeshiftActionBar: () => false,
+		GetBonusBarOffset: () => 0,
+		GetActionBarPage: () => 2,
+	});
+	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
+	const read = vi
+		.spyOn(client, "read")
+		.mockImplementation((slot) => ({ icon: slot }));
+	for (const [modifier, slot] of [
+		["none", 13],
+		["shift", 165],
+		["ctrl", 157],
+		["ctrl-shift", 173],
+	] as const) {
+		expect(client.readPreview(1, modifier)).toEqual({ icon: slot });
+		expect(client.readPreview(155, modifier, "FIXED")).toEqual({ icon: 155 });
+		expect(client.readPreview(156, modifier, "FIXED")).toEqual({ icon: 156 });
+	}
+	expect(client.readPreview(5, "none", "RING")).toEqual({ icon: -1 });
+	expect(client.readPreview(7, "none", "MOUNT")).toEqual({ icon: -3 });
+	expect(client.readPreview(4, "none", "JUMP")).toEqual({ icon: 0 });
+	expect(client.readPreview(5, "shift", "RING")).toEqual({ icon: 169 });
+	expect(read).toHaveBeenCalled();
+});
+
 it("keeps reserved bumper and trigger actions fixed across modifiers and main-bar paging", () => {
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	for (const slot of [155, 156]) {

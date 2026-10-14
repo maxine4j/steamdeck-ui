@@ -34,6 +34,7 @@ import { BuiltInAchievements } from "./modules/achievements/built-in-achievement
 import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
 import { CrossBar } from "./modules/action-bar/cross-bar";
+import { CrossBarPreview } from "./modules/action-bar/cross-bar-preview";
 import { registerAuctionHouse } from "./modules/auction-house/register-auction-house";
 import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
@@ -239,6 +240,7 @@ function registerPlayerSpells(
 	controller: IControllerInputClient,
 	scheduler: ITaskScheduler,
 	native: BuiltInTalents,
+	actions: IActionBarClient,
 ) {
 	const talentsPanel = new TalentsPanel(
 		pool,
@@ -272,6 +274,7 @@ function registerPlayerSpells(
 		controller,
 		spellbook,
 		scheduler,
+		new CrossBarPreview(pool, actions),
 	);
 	const spellbookPanel = new SpellbookPanel(pool, spellbook, prompt, () => {
 		if (native.isSpellbookOpen()) native.close();
@@ -633,6 +636,7 @@ export function startSteamDeckUI(
 		controller,
 		scheduler,
 		builtInTalents,
+		actions,
 	);
 	ui.registerPanel(achievementsPanel, "left");
 	ui.registerPanel(dungeonFinderPanel, "left");

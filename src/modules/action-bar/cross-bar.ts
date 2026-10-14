@@ -7,7 +7,7 @@ import {
 } from "../../ui/components/secure-slot-button";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 
-const controls: readonly {
+export const crossBarControls: readonly {
 	key: string;
 	label: string;
 	x: number;
@@ -77,7 +77,7 @@ const controls: readonly {
 		utility: "FIXED",
 	},
 ];
-const placeholders = [
+export const crossBarPlaceholders = [
 	{
 		key: "PADLTRIGGER",
 		label: "",
@@ -103,7 +103,7 @@ export class CrossBar {
 	) {}
 	initialize(): void {
 		if (this.buttons.length > 0) return;
-		for (const modifier of placeholders) {
+		for (const modifier of crossBarPlaceholders) {
 			const indicator = new Frame(`cross-bar-${modifier.key}`, this.pool);
 			indicator.layout(48, 48, "BOTTOM", undefined, modifier.x, modifier.y);
 			indicator.setColor(0.12, 0.18, 0.25, 0.9);
@@ -116,7 +116,7 @@ export class CrossBar {
 			this.indicators.push(indicator);
 		}
 		this.client.bind(
-			controls.map((control) => {
+			crossBarControls.map((control) => {
 				const button = new SecureSlotButton(this.pool);
 				this.buttons.push(button);
 				button.configure(

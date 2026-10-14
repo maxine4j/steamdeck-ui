@@ -42,6 +42,12 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 		},
 		delay: vi.fn(),
 	};
+	const preview = {
+		height: 264,
+		show: vi.fn(),
+		hide: vi.fn(),
+		destroy: vi.fn(),
+	};
 	const prompt = new SpellBindingPrompt(
 		{} as IFramePoolManager,
 		navigation,
@@ -49,8 +55,32 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 		controller,
 		client,
 		scheduler,
+		preview,
 	);
 	prompt.open({ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 });
+	expect(preview.show).toHaveBeenCalledWith(
+		expect.objectContaining({ id: "spell-binding-backdrop" }),
+		-123,
+	);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		440,
+		230,
+		"CENTER",
+		expect.objectContaining({ id: "spell-binding-backdrop" }),
+		0,
+		140,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"cancel",
+		"Start / Escape to cancel",
+		"BOTTOM",
+		0,
+		20,
+		12,
+	);
+	capture?.("PAD2");
+	expect(client.bind).toHaveBeenCalledWith(42, "PAD2");
+	expect(navigation.popModal).not.toHaveBeenCalled();
 	expect(navigation.pushModal).toHaveBeenCalledWith(
 		"spell-binding",
 		[],
@@ -73,6 +103,15 @@ it("captures a bind without selectable options, keeps invalid binds open, then r
 	expect(navigation.popModal).not.toHaveBeenCalled();
 	finish?.();
 	expect(navigation.popModal).toHaveBeenCalledWith("spell-binding");
+	expect(controller.setBindingCapture).toHaveBeenLastCalledWith();
+	prompt.open({ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 });
+	const calls = client.bind.mock.calls.length;
+	capture?.("PADFORWARD");
+	finish?.();
+	expect(client.bind).toHaveBeenCalledTimes(calls);
+	expect(preview.hide).toHaveBeenCalled();
+	prompt.open({ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 });
+	vi.mocked(Frame.prototype.onClose).mock.lastCall?.at(0)?.();
 	expect(controller.setBindingCapture).toHaveBeenLastCalledWith();
 	prompt.open({ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 });
 	events.emit("COMBAT_STARTED");

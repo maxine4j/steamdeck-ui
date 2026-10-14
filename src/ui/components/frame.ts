@@ -112,6 +112,7 @@ export class Frame implements IUIComponent {
 	private readonly heldGamePadButtons = new Map<string, number>();
 	private opacityChanged = false;
 	private backgroundOpacityChanged = false;
+	private scaleChanged = false;
 	private texture?: WowTexture;
 	private textureTinted = false;
 	private buttonSkinned = false;
@@ -705,6 +706,12 @@ export class Frame implements IUIComponent {
 			alpha,
 		);
 		this.opacityChanged = alpha !== 1;
+	}
+	setScale(scale: number): void {
+		(this.acquire() as WowFrame & { SetScale(value: number): void }).SetScale(
+			scale,
+		);
+		this.scaleChanged = scale !== 1;
 	}
 	setBackgroundOpacity(alpha: number): void {
 		this.acquire();
@@ -1318,6 +1325,7 @@ export class Frame implements IUIComponent {
 		if (this.opacityChanged) {
 			this.setOpacity(1);
 		}
+		if (this.scaleChanged) this.setScale(1);
 		if (this.focusBorder) {
 			this.focusBorder.SetFrameLevel(0);
 			this.pool.release("Frame", this.focusBorder);

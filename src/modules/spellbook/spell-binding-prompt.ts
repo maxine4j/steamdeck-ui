@@ -9,6 +9,7 @@ import { Frame } from "../../ui/components/frame";
 import type { IModalNavigation } from "../../ui/components/modal";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { ICrossBarPreview } from "../action-bar/cross-bar-preview";
 export interface ISpellBindingPrompt {
 	open(spell: BookSpell): void;
 	close(): void;
@@ -29,6 +30,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		>,
 		private readonly client: ISpellbookClient,
 		private readonly scheduler: ITaskScheduler,
+		private readonly preview: ICrossBarPreview,
 	) {
 		this.backdrop = new Frame("spell-binding-backdrop", pool);
 		this.window = new Frame("spell-binding-window", pool);
@@ -42,7 +44,16 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		this.backdrop.onClose(this.dismiss);
 		this.window.setParent(this.backdrop);
 		this.window.setModalLayer();
-		this.window.layout(440, 230, "CENTER", this.backdrop);
+		const gap = 16;
+		this.window.layout(
+			440,
+			230,
+			"CENTER",
+			this.backdrop,
+			0,
+			(this.preview.height + gap) / 2,
+		);
+		this.preview.show(this.backdrop, -(230 + gap) / 2);
 		this.window.setWindowBackground();
 		this.window.setFocusBorder(true);
 		setWindowTitle(this.window, `Bind ${spell.name}`);
@@ -66,7 +77,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		);
 		this.window.setLabel(
 			"cancel",
-			"Back / Escape to cancel",
+			"Start / Escape to cancel",
 			"BOTTOM",
 			0,
 			20,
@@ -78,7 +89,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		this.navigation.pushModal("spell-binding", [], this.dismiss);
 		this.controller.setBindingCapture((key) => {
 			if (!this.opened || this.cancelFinish) return;
-			if (key === "PADBACK") {
+			if (key.split("-").at(-1) === "PADFORWARD") {
 				this.cancelFinish = this.scheduler.nextFrame(this.dismiss);
 				return;
 			}
@@ -95,6 +106,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		this.cancelFinish = undefined;
 		this.controller.setBindingCapture();
 		this.window.setFocusBorder(false);
+		this.preview.hide();
 		this.backdrop.hide();
 		this.navigation.popModal("spell-binding");
 	}
@@ -102,6 +114,7 @@ export class SpellBindingPrompt implements ISpellBindingPrompt {
 		this.close();
 		this.events.unsubscribe("COMBAT_STARTED", this.dismiss);
 		this.window.destroy();
+		this.preview.destroy();
 		this.backdrop.destroy();
 	}
 }

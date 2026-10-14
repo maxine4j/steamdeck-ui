@@ -429,6 +429,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			disableBuiltIn: vi.fn(),
 			restore: vi.fn(),
 			read: vi.fn(),
+			readPreview: () => ({ icon: 1 }),
 			bind: vi.fn(),
 			getSlotDriver: vi.fn(),
 		},
@@ -1108,6 +1109,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_PANEL_NEXT");
 	expect(app.ui.getContainer("left").activePanelId).toBe("spellbook");
 	expect(labels.flat()).toContain("Heal");
+	expect(app.navigation.focusedId).toBe("spell-42");
+	events.emit("NAV_CONTEXT");
+	expect(labels.flat()).toContain("No modifier");
+	expect(labels.flat()).toContain("LT+LB");
+	events.emit("NAV_CANCEL");
 	expect(app.navigation.focusedId).toBe("spell-42");
 	events.emit("NAV_PANEL_NEXT");
 	flush();

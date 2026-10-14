@@ -70,6 +70,7 @@ declare global {
 	): void;
 }
 export type ActionRingKind = "abilities" | "class" | "utility";
+export type CrossBarModifier = "none" | "shift" | "ctrl" | "ctrl-shift";
 interface RingEntry extends RadialAction {
 	readonly icon?: number | string;
 }
@@ -90,10 +91,38 @@ export interface IActionBarClient {
 	getRingDriver(kind?: ActionRingKind): RadialDriver;
 	readRing(kind: ActionRingKind, slot: number): SlotVisual;
 	read(slot: number): SlotVisual;
+	readPreview(
+		slot: number,
+		modifier: CrossBarModifier,
+		utility?: "JUMP" | "RING" | "MOUNT" | "FIXED",
+	): SlotVisual;
 	bind(bindings: readonly ActionBinding[]): void;
 	restore(): void;
 }
 export class ActionBarClient implements IActionBarClient {
+	readPreview(
+		slot: number,
+		modifier: CrossBarModifier,
+		utility?: "JUMP" | "RING" | "MOUNT" | "FIXED",
+	): SlotVisual {
+		if (utility === "FIXED") return this.read(slot);
+		if (modifier === "ctrl-shift") return this.read(172 + slot);
+		if (modifier === "shift") return this.read(164 + slot);
+		if (modifier === "ctrl") return this.read(156 + slot);
+		if (utility === "RING") return this.read(-1);
+		if (utility === "MOUNT") return this.read(-3);
+		if (utility === "JUMP") return this.read(0);
+		const page = C_ActionBar.HasVehicleActionBar()
+			? C_ActionBar.GetVehicleBarIndex()
+			: C_ActionBar.HasOverrideActionBar()
+				? C_ActionBar.GetOverrideBarIndex()
+				: C_ActionBar.HasTempShapeshiftActionBar()
+					? C_ActionBar.GetTempShapeshiftBarIndex()
+					: C_ActionBar.GetBonusBarOffset() > 0
+						? C_ActionBar.GetBonusBarOffset() + 6
+						: C_ActionBar.GetActionBarPage();
+		return this.read((page - 1) * 12 + slot);
+	}
 	private suppressed = false;
 	private readonly owners: WowFrame[] = [];
 	private readonly ringEntries = new Map<
