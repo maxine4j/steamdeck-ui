@@ -58,6 +58,12 @@ export class TalentTreeClient implements ITalentTreeClient {
 		if (!this.hooked) {
 			// Hook the rebuild method, rather than adding an always-running OnUpdate script.
 			hooksecurefunc(tree, "OnUpdate", () => this.changed());
+			// Blizzard may already have stored the unhooked OnUpdate script.
+			// These methods are resolved when that script builds/positions nodes.
+			hooksecurefunc(tree, "LoadTalentTreeInternal", () => this.changed());
+			hooksecurefunc(tree, "UpdateAllTalentButtonPositions", () =>
+				this.changed(),
+			);
 			tree.SelectionChoiceFrame.HookScript("OnShow", this.changed);
 			tree.SelectionChoiceFrame.HookScript("OnHide", this.changed);
 			tree.heroSpecSelectionDialog.HookScript("OnShow", this.changed);

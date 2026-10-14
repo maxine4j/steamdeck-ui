@@ -106,6 +106,15 @@ it("mounts the fullscreen tree, defers refreshed navigation, dismisses choices w
 	expect(host?.hide).toHaveBeenCalledOnce();
 	panel.onMount(parent as unknown as IUIComponent);
 	expect(client.mount).toHaveBeenLastCalledWith(host);
+	// Reparenting can leave native node positions unavailable until the next
+	// frame, even when no talent data changed while the panel was hidden.
+	while (pending.length) pending.shift()?.();
+	changed.mockClear();
+	panel.onUnmount();
+	panel.onMount(parent as unknown as IUIComponent);
+	expect(pending).toHaveLength(1);
+	pending.shift()?.();
+	expect(changed).toHaveBeenCalledOnce();
 	panel.destroy();
 	expect(host?.destroy).toHaveBeenCalledOnce();
 });

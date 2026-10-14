@@ -3,6 +3,7 @@ import { createTestEventBus } from "../events/test-event-bus";
 import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
 import type { NativeNavigation } from "../ui/components/native-navigation";
+import { NavigationManager } from "../ui/navigation/navigation-manager";
 import { TalentTreeClient } from "./talent-tree-client";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -138,6 +139,7 @@ function setup() {
 		choices,
 		hooks,
 		changed,
+		events,
 		chrome,
 		apply,
 		heroSelector,
@@ -256,6 +258,36 @@ it("hosts and fits the native tree, includes visible class/spec/hero/apex nodes 
 	expect(native.close).toHaveBeenCalledOnce();
 	expect(client.navigation()).toEqual([]);
 });
+
+it.each(["LoadTalentTreeInternal", "UpdateAllTalentButtonPositions"])(
+	"focuses nodes without a mouse click when Blizzard finishes %s after mounting",
+	(method) => {
+		const { client, parent, tree, hooks, events, nodes, changed } = setup();
+		const enumerate = vi.spyOn(tree, "EnumerateAllTalentButtons");
+		enumerate.mockReturnValue([]);
+		const manager = new NavigationManager(events);
+		events.subscribe("TALENTS_CHANGED", () =>
+			manager.refreshGrid("fullscreen"),
+		);
+		client.mount(parent);
+		manager.registerGrid("fullscreen", () => client.navigation());
+		manager.setActiveGrid("fullscreen");
+		expect(manager.focusedId).toBeUndefined();
+		// The queued native OnUpdate script predates our OnUpdate hook; its
+		// dynamic build/position calls must still publish the ready nodes.
+		enumerate.mockReturnValue(nodes);
+		hooks.get(`method-${method}`)?.();
+		expect(manager.focusedId).toBe("talent-node-1");
+		events.emit("NAV_RIGHT");
+		events.emit("NAV_INTERACT");
+		expect(nodes.at(1)?.OnClick).toHaveBeenCalledWith("LeftButton");
+		client.unmount();
+		changed.mockClear();
+		hooks.get(`method-${method}`)?.();
+		expect(changed).not.toHaveBeenCalled();
+		manager.destroy();
+	},
+);
 
 it("opens choices with Y, navigates their tooltips and actions, and dismisses them before leaving the tree", () => {
 	const { client, parent, choices, nodes, tree, hooks, changed } = setup();

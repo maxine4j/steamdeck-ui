@@ -52,6 +52,7 @@ export class TalentTreePanel implements IPanel {
 		});
 		this.mounted = true;
 		this.client.mount(this.host);
+		this.update.invalidate();
 		this.update.setActive(true);
 	}
 	private layout(): void {
