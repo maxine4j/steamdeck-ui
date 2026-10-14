@@ -32,6 +32,7 @@ vi.mock("../../ui/components/frame", () => ({
 		clampScroll = vi.fn();
 		resetScroll = vi.fn();
 		revealVerticalRange = vi.fn();
+		scrollToEdge = vi.fn();
 		onClick = vi.fn();
 		show = vi.fn();
 		hide = vi.fn();
@@ -133,6 +134,12 @@ it.each(["random", "specific", "follower"] as const)(
 			modal,
 		);
 		const focus = (id: string) => {
+			expect(
+				panel
+					.getNavGrid()
+					.flat()
+					.map((node) => node.navId),
+			).toContain(id);
 			for (let steps = 0; steps < 30 && nav.focusedId !== id; steps++)
 				nav.moveDown();
 			expect(nav.focusedId).toBe(id);
@@ -141,6 +148,9 @@ it.each(["random", "specific", "follower"] as const)(
 		panel.onMount(new Frame("parent", pool));
 		nav.registerGrid(panel.id, () => panel.getNavGrid());
 		nav.setActiveGrid(panel.id);
+		while (callbacks.length) callbacks.shift()?.();
+		focus("page-dungeons");
+		nav.interact();
 		while (callbacks.length) callbacks.shift()?.();
 		if (queue !== "random") {
 			focus(`list-${queue}`);
@@ -157,7 +167,7 @@ it.each(["random", "specific", "follower"] as const)(
 				.getNavGrid()
 				.flat()
 				.map((node) => node.navId),
-		).toEqual(queue === "random" ? [action] : ["dungeon-back", action]);
+		).toEqual(["dungeon-back", action]);
 		nav.interact();
 		expect(nav.focusedId).toBe("confirm-cancel");
 		expect(queued).toBe(true);

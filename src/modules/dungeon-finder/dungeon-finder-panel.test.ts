@@ -96,7 +96,12 @@ vi.mock("../../ui/components/scroll-list", () => ({
 	},
 }));
 
-function setup(queued = false, canTank = true, canHeal = true) {
+function setup(
+	queued = false,
+	canTank = true,
+	canHeal = true,
+	page = "dungeons",
+) {
 	const callbacks: (() => void)[] = [];
 	let options: readonly ModalOption[] = [];
 	const modal = {
@@ -174,6 +179,14 @@ function setup(queued = false, canTank = true, canHeal = true) {
 	);
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	callbacks.shift()?.();
+	if (page !== "home") {
+		activate(
+			(setRows.mock.lastCall?.at(0) as ListRow[] | undefined)?.find(
+				(row) => row.id === `page-${page}`,
+			),
+		);
+		callbacks.shift()?.();
+	}
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	return { panel, client, rows, callbacks, modal, confirm, cancel };
 }
@@ -182,6 +195,53 @@ function activate(row?: ListRow): void {
 	if (row?.secondary?.onlyAction) row.secondary.activate();
 	else row?.activate();
 }
+
+it("opens four landing tiles and returns from each separate subpage", () => {
+	const { panel, callbacks, rows } = setup(false, true, true, "home");
+	for (const role of ["tank", "healer", "damage", "leader"]) {
+		expect(checkboxes.get(`role-${role}`)?.mount).not.toHaveBeenCalled();
+		expect(checkboxes.get(`role-${role}`)?.setChecked).not.toHaveBeenCalled();
+	}
+	expect(rows.map((row) => row.label)).toEqual([
+		"Dungeons",
+		"Raids",
+		"PvP",
+		"Premade Groups",
+	]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["page-dungeons", "page-raids", "page-pvp", "page-premades"]);
+	for (const page of ["dungeons", "raids", "pvp", "premades"]) {
+		activate(rows.find((row) => row.id === `page-${page}`));
+		callbacks.shift()?.();
+		const content = setRows.mock.lastCall?.at(0) as ListRow[];
+		if (page === "dungeons") {
+			expect(content.some((row) => row.id === "dungeon-3")).toBe(true);
+			expect(content.some((row) => row.id === "heading-raids")).toBe(false);
+		} else if (page === "raids") {
+			expect(content.some((row) => row.id === "empty-raids")).toBe(true);
+			expect(content.some((row) => row.id === "list-specific")).toBe(false);
+		} else {
+			expect(content).toEqual([]);
+			expect(
+				panel
+					.getNavGrid()
+					.flat()
+					.map((node) => node.navId),
+			).toEqual(["dungeon-back"]);
+		}
+		panel.onBack();
+		callbacks.shift()?.();
+		expect(
+			(setRows.mock.lastCall?.at(0) as ListRow[] | undefined)?.map(
+				(row) => row.id,
+			),
+		).toEqual(rows.map((row) => row.id));
+	}
+});
 
 it("widens queue tiles and limits queue actions to the inset red button", () => {
 	const { rows, client } = setup();
@@ -327,8 +387,6 @@ it("renders ordered sections and immediately joins available random dungeons", (
 		"heading-heroic",
 		"heading-normal",
 		"heading-specific-dungeons",
-		"heading-raids",
-		"empty-raids",
 	]);
 	expect(headings.at(1)?.label).toContain(
 		"|A:ui-hud-calendar-1-up:20:20|a Special events",
@@ -465,7 +523,7 @@ it("locks pinned roles while queued and offers Leave Queue", () => {
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["dungeon-3"]);
+	).toEqual(["dungeon-back", "dungeon-3"]);
 	expect(checkboxes.get("role-damage")?.setChecked).toHaveBeenCalledWith(
 		true,
 		false,
@@ -517,7 +575,12 @@ it.each(["specific", "follower"] as const)(
 );
 
 it("separates dungeons and raids, with independently queueable wings and leave actions at capacity", () => {
-	const { client, panel, callbacks, confirm } = setup(true);
+	const { client, panel, callbacks, confirm } = setup(
+		true,
+		true,
+		true,
+		"raids",
+	);
 	let capacity = true;
 	client.canQueueRaid = () => capacity;
 	client.getRaids = () => [
@@ -555,11 +618,6 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	panel.refresh();
 	callbacks.shift()?.();
 	let rows = setRows.mock.lastCall?.at(0) as ListRow[];
-	expect(rows.at(0)).toMatchObject({
-		id: "heading-dungeons",
-		label: "Dungeons",
-		marginTop: 16,
-	});
 	expect(rows.filter((row) => row.heading).slice(-2)).toMatchObject([
 		{
 			id: "heading-raids",
@@ -568,9 +626,7 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 		},
 		{ id: "raid-60", label: "New raid", fontSize: 18, indent: 24 },
 	]);
-	expect(rows.findIndex((row) => row.id === "heading-raids")).toBeGreaterThan(
-		rows.findIndex((row) => row.id === "list-specific"),
-	);
+	expect(rows.some((row) => row.id === "list-specific")).toBe(false);
 	activate(rows.find((row) => row.id === "wing-103"));
 	expect(rows.find((row) => row.id === "wing-103")).toMatchObject({
 		backgroundAtlas: "ui-journeys-renown-button",

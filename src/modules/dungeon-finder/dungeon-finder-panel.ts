@@ -14,6 +14,14 @@ import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
 
+const pages = [
+	{ id: "dungeons", label: "Dungeons" },
+	{ id: "raids", label: "Raids" },
+	{ id: "pvp", label: "PvP" },
+	{ id: "premades", label: "Premade Groups" },
+] as const;
+type FinderPage = (typeof pages)[number]["id"] | DungeonListId;
+
 const sections: readonly { id: DungeonSection; label: string; icon: string }[] =
 	[
 		{
@@ -124,7 +132,8 @@ export class DungeonFinderPanel implements IPanel {
 	private readonly back: Frame;
 	private readonly checkboxes: IconCheckbox[];
 	private mounted = false;
-	private page?: DungeonListId;
+	private page?: FinderPage;
+	private rolesMounted = false;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
 	private pendingLeave?: () => void;
@@ -140,7 +149,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.checkboxes = roleControls.map(
 			({ role, label, icon }) =>
 				new IconCheckbox(`role-${role}`, pool, label, icon, () => {
-					if (!this.mounted || this.client.isQueued()) return;
+					if (!this.mounted || !this.hasRoles() || this.client.isQueued())
+						return;
 					this.client.toggleRole(role);
 					this.refresh();
 				}),
@@ -195,7 +205,21 @@ export class DungeonFinderPanel implements IPanel {
 			() => this.client.isQueued() && this.client.getSelected() === id,
 		);
 	}
-	private overviewRows(): ListRow[] {
+	private landingRows(): ListRow[] {
+		return pages.map<ListRow>(({ id, label }) => ({
+			id: `page-${id}`,
+			label,
+			...queueTile(false),
+			marginBottom: 12,
+			activate: () => {
+				if (!this.mounted || this.page) return;
+				this.page = id;
+				this.list.resetScroll();
+				this.refresh();
+			},
+		}));
+	}
+	private dungeonRows(): ListRow[] {
 		const dungeons = this.client.getDungeons();
 		const selected = this.client.getSelected();
 		const queued = this.client.isQueued();
@@ -237,7 +261,7 @@ export class DungeonFinderPanel implements IPanel {
 							activate: () => {
 								if (
 									!this.mounted ||
-									this.page ||
+									this.page !== "dungeons" ||
 									(!this.client.isQueued() && !dungeon.available)
 								)
 									return;
@@ -285,7 +309,7 @@ export class DungeonFinderPanel implements IPanel {
 						activate: () => {
 							if (
 								!this.mounted ||
-								this.page ||
+								this.page !== "dungeons" ||
 								(this.client.isQueued() &&
 									this.client.getSelected() !== list.id)
 							)
@@ -305,16 +329,21 @@ export class DungeonFinderPanel implements IPanel {
 				),
 			);
 		}
-		rows.push({
-			id: "heading-raids",
-			label:
-				"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:22:22|t Raid Finder",
-			heading: true,
-			fontSize: 22,
-			marginTop: 20,
-			marginBottom: 16,
-			activate: () => {},
-		});
+		return rows;
+	}
+	private raidRows(): ListRow[] {
+		const rows: ListRow[] = [
+			{
+				id: "heading-raids",
+				label:
+					"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:22:22|t Raid Finder",
+				heading: true,
+				fontSize: 22,
+				marginTop: 20,
+				marginBottom: 16,
+				activate: () => {},
+			},
+		];
 		const raids = this.client.getRaids();
 		const capacity = this.client.canQueueRaid();
 		for (const raid of raids) {
@@ -343,7 +372,7 @@ export class DungeonFinderPanel implements IPanel {
 									: wing.name,
 							marginBottom: index === raid.wings.length - 1 ? 20 : 0,
 							activate: () => {
-								if (!this.mounted || this.page) return;
+								if (!this.mounted || this.page !== "raids") return;
 								const current = this.client
 									.getRaids()
 									.find((entry) => entry.id === raid.id)
@@ -476,30 +505,62 @@ export class DungeonFinderPanel implements IPanel {
 		);
 		return rows;
 	}
+	private hasRoles(): boolean {
+		return (
+			this.page === "dungeons" ||
+			this.page === "raids" ||
+			this.page === "specific" ||
+			this.page === "follower"
+		);
+	}
 	private render(): void {
 		if (this.page) this.back.show();
 		else this.back.hide();
-		const queued = this.client.isQueued();
-		const rows = this.page ? this.choiceRows(this.page) : this.overviewRows();
+		const rows =
+			this.page === undefined
+				? this.landingRows()
+				: this.page === "dungeons"
+					? this.dungeonRows()
+					: this.page === "raids"
+						? this.raidRows()
+						: this.page === "specific" || this.page === "follower"
+							? this.choiceRows(this.page)
+							: [];
 		this.list.setTitle(
 			this.page
 				? (this.client.getDungeonLists().find((list) => list.id === this.page)
-						?.label ?? this.title)
+						?.label ??
+						pages.find((page) => page.id === this.page)?.label ??
+						this.title)
 				: this.title,
 		);
-		const roles = this.client.getRoles();
-		const availableRoles = this.client.getAvailableRoles();
-		roleControls.forEach(({ role }, index) => {
-			this.checkboxes
-				.at(index)
-				?.setChecked(roles[role], !queued && availableRoles[role]);
-		});
+		if (this.hasRoles() !== this.rolesMounted) {
+			this.rolesMounted = this.hasRoles();
+			this.checkboxes.forEach((control, index) => {
+				if (this.rolesMounted)
+					control.mount(this.frame, 30 + index * 108, 70, false);
+				else control.unmount();
+			});
+		}
+		if (this.rolesMounted) {
+			const roles = this.client.getRoles();
+			const availableRoles = this.client.getAvailableRoles();
+			const queued = this.client.isQueued();
+			roleControls.forEach(({ role }, index) => {
+				this.checkboxes
+					.at(index)
+					?.setChecked(roles[role], !queued && availableRoles[role]);
+			});
+		}
 		this.list.setRows(rows);
 	}
 	onBack(): void {
 		if (!this.mounted || !this.page) return;
 		this.dismissLeave();
-		this.page = undefined;
+		this.page =
+			this.page === "specific" || this.page === "follower"
+				? "dungeons"
+				: undefined;
 		this.list.resetScroll();
 		this.refresh();
 	}
@@ -514,9 +575,6 @@ export class DungeonFinderPanel implements IPanel {
 		this.back.setButtonBackground();
 		this.back.setLabel("label", "‹ Back", "CENTER", 0, 0, 13);
 		this.back.onClick(() => this.onBack());
-		this.checkboxes.forEach((control, index) => {
-			control.mount(this.frame, 30 + index * 108, 70, false);
-		});
 		this.frame.show();
 		this.mounted = true;
 		this.update.setActive(true);
@@ -528,11 +586,12 @@ export class DungeonFinderPanel implements IPanel {
 		this.list.unmount();
 		this.back.hide();
 		for (const control of this.checkboxes) control.unmount();
+		this.rolesMounted = false;
 		this.frame.hide();
 	}
 	getNavGrid() {
 		const availableRoles =
-			this.mounted && !this.client.isQueued()
+			this.mounted && this.hasRoles() && !this.client.isQueued()
 				? this.client.getAvailableRoles()
 				: undefined;
 		return this.mounted
