@@ -3,6 +3,32 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("publishes spellbook updates for learned spells and specialization changes", () => {
+	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	expect(
+		frame.RegisterEvent.mock.calls.map((call) => call.at(0)),
+	).not.toContain("LEARNED_SPELL_IN_TAB");
+	const changed = vi.fn();
+	bus.subscribe("SPELLBOOK_CHANGED", changed);
+	for (const event of [
+		"SPELLS_CHANGED",
+		"SPELL_TEXT_UPDATE",
+		"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(changed).toHaveBeenCalledTimes(3);
+});
+
 it("publishes bag cooldown changes from native bag and spell cooldown events", () => {
 	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
 	const frame = {

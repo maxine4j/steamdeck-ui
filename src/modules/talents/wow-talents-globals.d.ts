@@ -41,6 +41,7 @@ declare global {
 				GetTab(): number;
 				readonly specTabID: number;
 				readonly talentTabID: number;
+				readonly spellBookTabID: number;
 				readonly TalentsFrame: LayoutFrame & {
 					RefreshLoadoutOptions(): void;
 					EnumerateAllTalentButtons(): LuaIterable<NativeTalentButton>;
@@ -84,6 +85,7 @@ declare global {
 		| undefined;
 	function PlayerSpellsFrame_LoadUI(this: void): void;
 	const PlayerSpellsUtil: {
+		OpenToSpellBookTab(this: void): void;
 		OpenToClassTalentsTab(this: void): void;
 		OpenToClassSpecializationsTab(this: void): void;
 	};

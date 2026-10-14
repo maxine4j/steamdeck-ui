@@ -26,6 +26,8 @@ vi.mock("./frame", () => ({
 		setLabel = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
+		setSpell = vi.fn();
+		clearTooltip = vi.fn();
 		onClick = vi.fn();
 		destroy = vi.fn();
 		inset = vi.fn();
@@ -86,6 +88,41 @@ it("lays out two columns under group headers, routes actions and reuses cells", 
 	expect(grid.getNavGrid()).toEqual([]);
 	grid.mount(new Frame("parent", pool));
 	expect(layouts.size).toBe(count);
+});
+
+it("offers secure spell icons, contextual binding and spell tooltips without insecure casting", () => {
+	const pool = {} as IFramePoolManager;
+	const grid = new ItemGrid("spells", pool, "No spells", { secureIcons: true });
+	const bind = vi.fn();
+	const activate = vi.fn();
+	grid.setGroups([
+		{
+			id: "class",
+			items: [
+				{
+					id: "spell-42",
+					name: "Heal",
+					icon: 1,
+					spell: 42,
+					hyperlink: "spell:42",
+					activate,
+					context: bind,
+				},
+			],
+		},
+	]);
+	grid.mount(new Frame("parent", pool));
+	const node = grid.getNavGrid().at(0)?.at(0);
+	expect(node?.secureActions?.().alternate?.id).toBe("spells-icon-0");
+	node?.onAlternate?.();
+	expect(activate).not.toHaveBeenCalled();
+	node?.onContext?.();
+	expect(bind).toHaveBeenCalledOnce();
+	expect(node?.tooltipItem?.()).toBe("spell:42");
+	grid.unmount();
+	expect(node?.secureActions?.().alternate).toBeUndefined();
+	node?.onContext?.();
+	expect(bind).toHaveBeenCalledOnce();
 });
 
 it("reveals focused tiles across vertically stacked groups and resolves their tooltips", () => {

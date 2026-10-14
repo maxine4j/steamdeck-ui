@@ -31,6 +31,7 @@ export interface IControllerInputClient {
 	initialize(): void;
 	setActive(active: boolean): void;
 	setSecureActions(actions?: SecureNavigationActions): void;
+	setBindingCapture(callback?: (this: void, key: string) => void): void;
 	shutdown(): void;
 }
 
@@ -97,6 +98,45 @@ export class ControllerInputClient implements IControllerInputClient {
 	private active = false;
 	private listening = false;
 	private secureActions?: SecureNavigationActions;
+	private capture?: (this: void, key: string) => void;
+	private readonly capturedKeys = new Map<string, string>();
+	private readonly captureModifiers = new Set<string>();
+	private readonly usedCaptureModifiers = new Set<string>();
+	setBindingCapture(callback?: (this: void, key: string) => void): void {
+		this.capture = callback;
+		this.capturedKeys.clear();
+		this.captureModifiers.clear();
+		this.usedCaptureModifiers.clear();
+		this.releaseDirections();
+		this.syncBindings();
+	}
+	private captureDown(button: string): boolean {
+		if (!this.capture || !this.active || InCombatLockdown()) return false;
+		if (button === "PADLTRIGGER" || button === "PADLSHOULDER") {
+			this.captureModifiers.add(button);
+			return true;
+		}
+		if (this.capturedKeys.has(button)) return true;
+		const ctrl = this.captureModifiers.has("PADLSHOULDER");
+		const shift = this.captureModifiers.has("PADLTRIGGER");
+		for (const modifier of this.captureModifiers)
+			this.usedCaptureModifiers.add(modifier);
+		this.capturedKeys.set(
+			button,
+			`${ctrl ? "CTRL-" : ""}${shift ? "SHIFT-" : ""}${button}`,
+		);
+		return true;
+	}
+	private captureUp(button: string): void {
+		if (!this.capture || !this.active || InCombatLockdown()) return;
+		if (this.captureModifiers.delete(button)) {
+			if (!this.usedCaptureModifiers.delete(button)) this.capture(button);
+			return;
+		}
+		const key = this.capturedKeys.get(button);
+		this.capturedKeys.delete(button);
+		if (key) this.capture(key);
+	}
 	private readonly heldDirections = new Set<NavDirection>();
 	private releaseDirections(): void {
 		for (const direction of this.heldDirections)
@@ -109,7 +149,7 @@ export class ControllerInputClient implements IControllerInputClient {
 	}
 	private syncBindings(): void {
 		const bindings: ClickBinding[] = [];
-		if (this.listening) {
+		if (this.listening && !this.capture) {
 			if (this.secureActions?.interact)
 				bindings.push({ key: "PAD1", target: this.secureActions.interact });
 			if (this.secureActions?.alternate) {
@@ -135,6 +175,10 @@ export class ControllerInputClient implements IControllerInputClient {
 			listening ? (button) => this.handleButtonDown(button) : undefined,
 			listening
 				? (button) => {
+						if (this.capture) {
+							this.captureUp(button);
+							return;
+						}
 						const direction = directions[button];
 						if (direction && this.heldDirections.delete(direction))
 							this.events.emit("NAV_DIRECTION_CHANGED", {
@@ -166,6 +210,7 @@ export class ControllerInputClient implements IControllerInputClient {
 		return this.active && !InCombatLockdown() && !IsModifierKeyDown();
 	}
 	private handleButtonDown(button: string): boolean {
+		if (this.capture) return this.captureDown(button);
 		if (!this.canHandleInput()) return false;
 		const event = buttons[button];
 		if (!event) return false;
@@ -216,6 +261,7 @@ export class ControllerInputClient implements IControllerInputClient {
 		this.sync();
 	}
 	shutdown(): void {
+		this.setBindingCapture();
 		this.configured = false;
 		this.events.unsubscribe("COMBAT_STARTED", this.sync);
 		this.events.unsubscribe("COMBAT_ENDED", this.sync);

@@ -1,6 +1,7 @@
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { Frame } from "./frame";
+import type { TooltipContent } from "./tooltip-content";
 
 export interface GridItem {
 	readonly id: string;
@@ -8,7 +9,10 @@ export interface GridItem {
 	readonly icon: number;
 	readonly detail?: string;
 	readonly hyperlink?: string;
+	readonly tooltip?: TooltipContent;
 	readonly selected?: boolean;
+	readonly spell?: number;
+	readonly context?: () => void;
 	readonly activate: () => void;
 	readonly secondary?: { readonly label: string; activate(): void };
 }
@@ -24,6 +28,12 @@ interface Cell {
 	readonly secondary: Frame;
 	readonly nav: INavigable;
 	readonly secondaryNav: INavigable;
+}
+export interface ItemGridOptions {
+	readonly secureIcons?: boolean;
+	readonly focusIcon?: boolean;
+	readonly backgroundAtlas?: string;
+	readonly outlineIcons?: boolean;
 }
 
 /** Generic grouped two-column item tiles, with pooled controls and a scroll viewport. */
@@ -41,6 +51,7 @@ export class ItemGrid {
 		private readonly id: string,
 		private readonly pool: IFramePoolManager,
 		private readonly emptyText = "No items match your filters",
+		private readonly options: ItemGridOptions = {},
 	) {
 		this.viewport = new Frame(`${id}-scroll`, pool, "ScrollFrame");
 		this.content = new Frame(`${id}-content`, pool);
@@ -94,20 +105,39 @@ export class ItemGrid {
 						this.pool,
 						"Button",
 					);
+					const icon = new Frame(
+						`${this.id}-icon-${index}`,
+						this.pool,
+						this.options.secureIcons ? "SecureButton" : "Frame",
+					);
+					const focus = this.options.focusIcon ? icon : frame;
 					cell = {
 						top: 0,
 						frame,
 						secondary,
-						icon: new Frame(`${this.id}-icon-${index}`, this.pool),
+						icon,
 						nav: {
 							navId: item.id,
 							navigationScroll: this.viewport,
 							onFocus: (refresh) => {
-								if (refresh) frame.setFocused(true, false, true);
-								else frame.setFocused(true);
+								if (refresh)
+									focus.setFocused(true, this.options.focusIcon ?? false, true);
+								else if (this.options.focusIcon) focus.setFocused(true, true);
+								else focus.setFocused(true);
 								if (!refresh) this.reveal(index);
 							},
-							tooltipItem: () => this.items.at(index)?.hyperlink,
+							tooltipItem: () =>
+								this.items.at(index)?.tooltip ??
+								this.items.at(index)?.hyperlink,
+							secureActions: () => ({
+								alternate:
+									this.mounted && this.items.at(index)?.spell
+										? icon
+										: undefined,
+							}),
+							onContext: () => {
+								if (this.mounted) this.items.at(index)?.context?.();
+							},
 							onBlur: () => this.style(index),
 							onInteract: () => {
 								if (this.mounted) this.items.at(index)?.activate();
@@ -144,6 +174,11 @@ export class ItemGrid {
 				cell.icon.setParent(cell.frame);
 				cell.icon.layout(44, 44, "TOPLEFT", cell.frame, 6, -8);
 				cell.icon.setIcon(item.icon);
+				if (this.options.outlineIcons) cell.icon.setIconOutline();
+				if (this.options.secureIcons) {
+					cell.icon.setSpell(item.spell);
+					cell.icon.setTooltip(item.name, item.hyperlink, false);
+				}
 				cell.icon.show();
 				const width = item.secondary ? 132 : 164;
 				cell.frame.setLabel("name", item.name, "TOPLEFT", 56, -8, 12, width);
@@ -156,7 +191,8 @@ export class ItemGrid {
 					11,
 					width,
 				);
-				cell.frame.setTooltip(item.name, item.hyperlink);
+				if (!this.options.secureIcons)
+					cell.frame.setTooltip(item.name, item.hyperlink);
 				cell.frame.onClick((button) => {
 					if (!this.mounted) return;
 					if (button === "LeftButton") this.items.at(index)?.activate();
@@ -213,9 +249,14 @@ export class ItemGrid {
 			);
 	}
 	private style(index: number): void {
-		const frame = this.cells.at(index)?.frame;
-		frame?.setFocused(false);
-		frame?.setButtonBackground(this.items.at(index)?.selected ?? false);
+		const cell = this.cells.at(index);
+		if (!cell) return;
+		if (this.options.focusIcon) cell.icon.setFocused(false, true);
+		else cell.frame.setFocused(false);
+		if (this.options.backgroundAtlas)
+			cell.frame.setAtlasBackground(this.options.backgroundAtlas);
+		else
+			cell.frame.setButtonBackground(this.items.at(index)?.selected ?? false);
 	}
 	unmount(): void {
 		this.mounted = false;

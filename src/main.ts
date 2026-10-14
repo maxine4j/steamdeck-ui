@@ -18,6 +18,7 @@ import { PetsClient } from "./clients/pets-client";
 import { PvpFinderClient } from "./clients/pvp-finder-client";
 import { ReputationClient } from "./clients/reputation-client";
 import { SlashCommandsClient } from "./clients/slash-commands-client";
+import { SpellbookClient } from "./clients/spellbook-client";
 import { TalentsClient } from "./clients/talents-client";
 import { TaskScheduler } from "./clients/task-scheduler";
 import { TitlesClient } from "./clients/titles-client";
@@ -89,5 +90,6 @@ startSteamDeckUI(
 	),
 	new PetsClient(scheduler, collectionCache),
 	new PvpFinderClient(),
+	new SpellbookClient(),
 	auctionHouse,
 );

@@ -19,6 +19,7 @@ import type { IPetsClient } from "./clients/pets-client";
 import type { IPvpFinderClient } from "./clients/pvp-finder-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ISlashCommandsClient } from "./clients/slash-commands-client";
+import type { ISpellbookClient } from "./clients/spellbook-client";
 import { TalentTreeClient } from "./clients/talent-tree-client";
 import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
@@ -74,6 +75,9 @@ import { ReputationActionMenu } from "./modules/reputation/reputation-action-men
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
 import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-module";
+import { SpellBindingPrompt } from "./modules/spellbook/spell-binding-prompt";
+import { SpellbookModule } from "./modules/spellbook/spellbook-module";
+import { SpellbookPanel } from "./modules/spellbook/spellbook-panel";
 import { BuiltInTalents } from "./modules/talents/built-in-talents";
 import { TalentTreePanel } from "./modules/talents/talent-tree-panel";
 import { TalentsModule } from "./modules/talents/talents-module";
@@ -224,6 +228,72 @@ function registerCollections(
 	return { toyModal, mountModal, petModal, toysPanel, mountsPanel, petsPanel };
 }
 
+function registerPlayerSpells(
+	pool: FramePoolManager,
+	navigation: NavigationManager,
+	events: IEventBus,
+	ui: UIOrchestrator,
+	modules: ModuleManager,
+	talents: ITalentsClient,
+	spellbook: ISpellbookClient,
+	controller: IControllerInputClient,
+	scheduler: ITaskScheduler,
+	native: BuiltInTalents,
+) {
+	const talentsPanel = new TalentsPanel(
+		pool,
+		talents,
+		() => {
+			native.close();
+			ui.closePanel("left", "talents");
+		},
+		scheduler,
+		() => {
+			if (native.isOpen()) native.close();
+		},
+		() => native.openFull(),
+	);
+	const talentTreePanel = new TalentTreePanel(
+		pool,
+		new TalentTreeClient(
+			native,
+			new NativeLayout(scheduler),
+			new NativeNavigation(pool),
+			events,
+			new NativeVisibility(),
+		),
+		scheduler,
+		() => ui.closePanel("fullscreen", "talent-tree"),
+	);
+	const prompt = new SpellBindingPrompt(
+		pool,
+		navigation,
+		events,
+		controller,
+		spellbook,
+		scheduler,
+	);
+	const spellbookPanel = new SpellbookPanel(pool, spellbook, prompt, () => {
+		if (native.isSpellbookOpen()) native.close();
+		ui.closePanel("left", "spellbook");
+	});
+	ui.registerPanel(talentTreePanel);
+	ui.registerPanel(talentsPanel, "left");
+	ui.registerPanel(spellbookPanel, "left");
+	modules.register(
+		new TalentsModule(ui, events, talentsPanel, native, talentTreePanel),
+	);
+	modules.register(new SpellbookModule(ui, events, spellbookPanel, native));
+	return {
+		destroy(): void {
+			prompt.destroy();
+			spellbookPanel.destroy();
+			talentsPanel.destroy();
+			talentTreePanel.destroy();
+		},
+	};
+}
+
 export function startSteamDeckUI(
 	factory: FrameFactory,
 	events: IEventBus,
@@ -250,6 +320,7 @@ export function startSteamDeckUI(
 	mail: IMailClient,
 	pets: IPetsClient,
 	pvpFinder: IPvpFinderClient,
+	spellbook: ISpellbookClient,
 	auctionHouse: IAuctionHouseClient,
 ) {
 	const pool = new FramePoolManager(factory);
@@ -286,10 +357,13 @@ export function startSteamDeckUI(
 					if (
 						position === "left" &&
 						selected.id !== "talents" &&
-						builtInTalents.isOpen()
+						selected.id !== "spellbook" &&
+						(builtInTalents.isOpen() || builtInTalents.isSpellbookOpen())
 					)
 						builtInTalents.close();
-					if (selected.id === "dungeon-finder") builtInDungeonFinder.open();
+					if (selected.id === "spellbook") builtInTalents.openSpellbook();
+					else if (selected.id === "dungeon-finder")
+						builtInDungeonFinder.open();
 					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
 					else if (selected.id === "currency") builtInCurrency.open();
@@ -306,8 +380,8 @@ export function startSteamDeckUI(
 					: position === "left"
 						? [
 								["paper-doll", "reputation"],
-								["talents", "dungeon-finder"],
-								["achievements"],
+								["talents", "spellbook"],
+								["achievements", "dungeon-finder"],
 							]
 						: position === "right"
 							? [
@@ -548,44 +622,20 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(reputationPanel, "left");
 	ui.registerPanel(collectionsFeature.mountsPanel, "right");
-	const talentsPanel = new TalentsPanel(
+	const playerSpells = registerPlayerSpells(
 		pool,
+		navigation,
+		events,
+		ui,
+		modules,
 		talents,
-		() => {
-			builtInTalents.close();
-			ui.closePanel("left", "talents");
-		},
+		spellbook,
+		controller,
 		scheduler,
-		() => {
-			if (builtInTalents.isOpen()) builtInTalents.close();
-		},
-		() => builtInTalents.openFull(),
+		builtInTalents,
 	);
-	const talentTreePanel = new TalentTreePanel(
-		pool,
-		new TalentTreeClient(
-			builtInTalents,
-			new NativeLayout(scheduler),
-			new NativeNavigation(pool),
-			events,
-			new NativeVisibility(),
-		),
-		scheduler,
-		() => ui.closePanel("fullscreen", "talent-tree"),
-	);
-	ui.registerPanel(talentTreePanel);
-	ui.registerPanel(talentsPanel, "left");
-	ui.registerPanel(dungeonFinderPanel, "left");
 	ui.registerPanel(achievementsPanel, "left");
-	modules.register(
-		new TalentsModule(
-			ui,
-			events,
-			talentsPanel,
-			builtInTalents,
-			talentTreePanel,
-		),
-	);
+	ui.registerPanel(dungeonFinderPanel, "left");
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
 	);
@@ -633,8 +683,7 @@ export function startSteamDeckUI(
 			collectionsFeature.mountsPanel.destroy();
 			collectionsFeature.toysPanel.destroy();
 			collectionsFeature.petsPanel.destroy();
-			talentsPanel.destroy();
-			talentTreePanel.destroy();
+			playerSpells.destroy();
 			transmogPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();

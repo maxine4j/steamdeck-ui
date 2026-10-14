@@ -16,6 +16,7 @@ export type TooltipContent =
 	| { readonly text: string; readonly anchor?: Frame }
 	| { readonly toy: number }
 	| { readonly mountSpell: number }
+	| { readonly spell: number }
 	| { readonly pet: PetTooltipContent }
 	| { readonly item: string | number };
 
@@ -45,6 +46,10 @@ export function setTooltipContent(
 	frame: TooltipDataFrame,
 	content: TooltipContent,
 ): void {
+	if (typeof content === "object" && "spell" in content) {
+		frame.SetHyperlink(`spell:${content.spell}`);
+		return;
+	}
 	if (typeof content === "object" && "pet" in content) {
 		const pet = content.pet;
 		if (pet.collected) frame.SetCompanionPet(pet.id);

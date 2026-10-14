@@ -103,6 +103,20 @@ it("renders mount collection details without equipment comparisons", () => {
 	expect(compare).not.toHaveBeenCalled();
 });
 
+it("centers spell details at the top without equipped-item comparisons", () => {
+	const { tooltip, frames, screen, compare } = setup();
+	tooltip.setItem({ spell: 42 });
+	expect(frames.at(0)?.SetHyperlink).toHaveBeenCalledWith("spell:42");
+	expect(frames.at(0)?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		screen,
+		"TOP",
+		-150,
+		-32,
+	);
+	expect(compare).not.toHaveBeenCalled();
+});
+
 it("centers pet collection tooltips at the top without learning-item links or comparisons", () => {
 	const { tooltip, frames, screen, compare } = setup();
 	tooltip.setItem({

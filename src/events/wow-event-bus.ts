@@ -192,6 +192,12 @@ const talentEvents = [
 	"STARTER_BUILD_ACTIVATION_FAILED",
 	"PLAYER_ENTERING_WORLD",
 ];
+const spellbookEvents = [
+	"SPELLS_CHANGED",
+	"SPELL_TEXT_UPDATE",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"PLAYER_ENTERING_WORLD",
+];
 const mountEvents = [
 	"COMPANION_LEARNED",
 	"COMPANION_UNLEARNED",
@@ -260,6 +266,7 @@ export class WowEventBus implements IEventBus {
 		this.frame.RegisterEvent("UNIT_PORTRAIT_UPDATE");
 		this.frame.RegisterEvent("PORTRAITS_UPDATED");
 		for (const event of actionBarEvents) this.frame.RegisterEvent(event);
+		for (const event of spellbookEvents) this.frame.RegisterEvent(event);
 		for (const event of actionRingEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("UNIT_PET");
 		for (const event of actionCursorEvents) this.frame.RegisterEvent(event);
@@ -350,6 +357,7 @@ export class WowEventBus implements IEventBus {
 			)
 				this.emit("CHARACTER_IDENTITY_CHANGED");
 			if (event === "PLAYER_REGEN_DISABLED") this.emit("COMBAT_STARTED");
+			if (spellbookEvents.includes(event)) this.emit("SPELLBOOK_CHANGED");
 			if (
 				actionBarEvents.includes(event) ||
 				(event === "UNIT_AURA" && unit === "player")

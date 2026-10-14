@@ -14,7 +14,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("TransmogFrame", undefined);
 	vi.stubGlobal("SearchBoxTemplate_OnTextChanged", vi.fn());
 	vi.stubGlobal("C_Texture", {
-		GetAtlasInfo: () => ({ width: 32, height: 128 }),
+		GetAtlasInfo: (atlas: string) => {
+			if (
+				atlas.startsWith("UI-HUD-MicroMenu-") &&
+				![
+					"UI-HUD-MicroMenu-SpecTalents-Up",
+					"UI-HUD-MicroMenu-SpellbookAbilities-Up",
+					"UI-HUD-MicroMenu-Groupfinder-Up",
+					"UI-HUD-MicroMenu-Achievements-Up",
+				].includes(atlas)
+			)
+				return undefined;
+			return { width: 32, height: 128 };
+		},
 	});
 	vi.stubGlobal("UISpecialFrames", []);
 	vi.stubGlobal("AchievementFrame_LoadUI", () => false);
@@ -287,6 +299,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		initialize: vi.fn(),
 		setActive: vi.fn(),
 		setSecureActions: vi.fn(),
+		setBindingCapture: vi.fn(),
 		shutdown: vi.fn(),
 	};
 	const toys = {
@@ -574,6 +587,19 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		mail,
 		pets,
 		undefined,
+		{
+			read: () => [
+				{
+					id: "class",
+					name: "Class",
+					spells: [
+						{ id: 42, name: "Heal", icon: 1, passive: false, bookIndex: 1 },
+					],
+				},
+			],
+			canModify: () => true,
+			bind: vi.fn(),
+		},
 		new AuctionHouseClient(events),
 	);
 	expect(frames).toHaveLength(6);
@@ -789,11 +815,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.Show).toHaveBeenCalled();
 	expect(frames.at(1)?.Hide).toHaveBeenCalledTimes(rightHides);
 	for (const [icon, dock, y] of [
-		["player", 0, 136], // Equipment
-		[236683, 0, 78], // Reputation
-		["UI-HUD-MicroMenu-SpecTalents-Up", 0, 0], // Talents
-		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -58], // Group finder
-		["UI-HUD-MicroMenu-Achievements-Up", 0, -136], // Achievements
+		["player", 0, 165], // Equipment
+		[236683, 0, 107], // Reputation
+		["UI-HUD-MicroMenu-SpecTalents-Up", 0, 29], // Talents
+		["UI-HUD-MicroMenu-SpellbookAbilities-Up", 0, -29], // Spellbook
+		["UI-HUD-MicroMenu-Achievements-Up", 0, -107], // Achievements
+		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -165], // Group finder
 		[133633, 1, 126], // Bags
 		[133784, 1, 68], // Currency
 		[132261, 1, -10], // Mounts
@@ -1020,8 +1047,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			EnumerateAllTalentButtons: () => [],
 			HideSelections: vi.fn(),
 			HookScript: vi.fn(),
-			HeroTalentsContainer: { SetCollapsed: vi.fn() },
+			HeroTalentsContainer: {
+				SetCollapsed: vi.fn(),
+				HeroSpecButton: { IsVisible: () => false },
+			},
+			ApplyButton: { IsVisible: () => false },
 			SelectionChoiceFrame: { IsShown: () => false, HookScript: vi.fn() },
+			heroSpecSelectionDialog: { IsShown: () => false, HookScript: vi.fn() },
 		},
 		GetParent: () => nativeParent,
 		SetParent: vi.fn(),
@@ -1029,6 +1061,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		IsInspecting: () => false,
 		GetTab: () => spellsTab,
 		talentTabID: 2,
+		spellBookTabID: 3,
 		specTabID: 1,
 		HookScript: vi.fn(),
 	};
@@ -1041,6 +1074,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			globalHooks.get("ShowUIPanel")?.();
 		},
 		OpenToClassSpecializationsTab: vi.fn(),
+		OpenToSpellBookTab: () => {
+			spellsShown = true;
+			spellsTab = 3;
+			globalHooks.get("ShowUIPanel")?.();
+		},
 	});
 	vi.stubGlobal("HideUIPanel", (target: unknown) => {
 		if (target === spellsFrame) spellsShown = false;
@@ -1066,6 +1104,18 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		expect(spellbookOpened).not.toHaveBeenCalled();
 		expect(spellsShown, `after selecting tab ${icon}`).toBe(false);
 	}
+	clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
+	events.emit("NAV_PANEL_NEXT");
+	expect(app.ui.getContainer("left").activePanelId).toBe("spellbook");
+	expect(labels.flat()).toContain("Heal");
+	expect(app.navigation.focusedId).toBe("spell-42");
+	events.emit("NAV_PANEL_NEXT");
+	flush();
+	expect(app.ui.getContainer("left").activePanelId).toBe("achievements");
+	expect(spellsShown).toBe(false);
+	events.emit("NAV_PANEL_NEXT");
+	flush();
+	expect(app.ui.getContainer("left").activePanelId).toBe("dungeon-finder");
 	clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
 	events.emit("NAV_PANEL_PREVIOUS");
 	expect(app.ui.getContainer("left").activePanelId).toBe("reputation");

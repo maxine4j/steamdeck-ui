@@ -8,6 +8,45 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("captures modifier chords on release, consuming navigation and disabling secure casts until capture ends", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("IsModifierKeyDown", () => false);
+	let down: ((key: string) => boolean) | undefined;
+	let up: ((key: string) => void) | undefined;
+	const surface = {
+		setClickBindings: vi.fn(),
+		setGamePadInput: vi.fn((d, u) => {
+			down = d;
+			up = u;
+		}),
+		destroy: vi.fn(),
+	};
+	const events = createTestEventBus();
+	const nav = vi.fn();
+	events.subscribe("NAV_CONTEXT", nav);
+	const client = new ControllerInputClient(events, surface);
+	client.setActive(true);
+	client.setSecureActions({
+		alternate: {} as import("../ui/components/frame").Frame,
+	});
+	const capture = vi.fn();
+	client.setBindingCapture(capture);
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([]);
+	expect(down?.("PADLTRIGGER")).toBe(true);
+	expect(down?.("PADLSHOULDER")).toBe(true);
+	expect(down?.("PAD4")).toBe(true);
+	expect(capture).not.toHaveBeenCalled();
+	up?.("PADLTRIGGER");
+	down?.("PAD4");
+	up?.("PAD4");
+	expect(capture).toHaveBeenCalledWith("CTRL-SHIFT-PAD4");
+	expect(nav).not.toHaveBeenCalled();
+	up?.("PADLSHOULDER");
+	client.setBindingCapture();
+	expect(down?.("PAD4")).toBe(true);
+	expect(nav).toHaveBeenCalledOnce();
+});
+
 it("propagates secure actions to hardware bindings without emitting addon navigation clicks", () => {
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("IsModifierKeyDown", () => false);
