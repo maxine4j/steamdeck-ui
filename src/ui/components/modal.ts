@@ -22,7 +22,12 @@ export interface IModal {
 	close(): void;
 }
 export interface IModalNavigation {
-	pushModal(id: string, grid: NavGrid, cancel: () => void): void;
+	pushModal(
+		id: string,
+		grid: NavGrid,
+		cancel: () => void,
+		focusId?: string,
+	): void;
 	popModal(id: string): void;
 }
 

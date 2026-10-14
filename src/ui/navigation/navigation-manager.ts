@@ -96,12 +96,18 @@ export class NavigationManager implements INavManager {
 		this.history.push(panelId);
 		this.refreshGrid(panelId);
 	}
-	pushModal(id: string, grid: NavGrid, cancel: () => void): void {
+	pushModal(
+		id: string,
+		grid: NavGrid,
+		cancel: () => void,
+		focusId?: string,
+	): void {
 		const previous = this.modal?.previous ?? this.active;
 		if (this.modal && this.modal.id !== id) this.popModal(this.modal.id);
 		this.modal = { id, previous, cancel };
 		this.registerGrid(id, grid);
 		this.setActiveGrid(id);
+		if (focusId !== undefined) this.refreshGrid(id, focusId);
 	}
 	popModal(id: string): void {
 		if (this.modal?.id !== id) return;

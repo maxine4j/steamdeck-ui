@@ -2,6 +2,8 @@
 
 The feature owns one transient fullscreen-hosted conversation panel. It does not register a permanent dock tab. Its narrow surface uses the standard dark WoW window background and shared metal border on the right, leaving the left side open for the NPC camera. Light text sits above bottom-anchored reusable choices and grouped quest rewards. Rewards and reward choices use two columns; headings and actions span the full width. The action viewport grows upward to fit its measured content before scrolling, reserving at least one third of the panel height for NPC text. Short prose does not pull actions upward. Code confirmation reserves input space between the reader and actions. There is no reading-percentage label. Its exclusive navigation grid restores the previous grid and focused identity on unmount. Item, currency and spell rewards expose full tooltips on controller focus and mouse hover.
 
+NPC prose is excluded from controller navigation. Opening a conversation, changing its page or entering/leaving a confirmation focuses the first option. Same-page refreshes preserve the focused option, including reward selection and delayed data updates. Controller hints describe option selection and cancellation only.
+
 ## Verified local API semantics
 
 - `C_GossipInfo.GetAvailableQuests` and `GetActiveQuests` return quest IDs. Options supply `gossipOptionID`; identifier-less options use their supplied `orderIndex` through `SelectOptionByIndex`, as Blizzard's shared gossip implementation does. Display row numbers are never API identifiers.

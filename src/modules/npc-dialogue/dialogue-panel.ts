@@ -31,6 +31,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private display?: DialogueDisplay;
 	private actions?: DialogueActions;
 	private mounted = false;
+	private focusFirst = true;
 	private code = "";
 	private readingWidth = 480;
 	private height = 620;
@@ -82,6 +83,13 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	}
 	show(display: DialogueDisplay): void {
 		const promptChanged = this.display?.confirmation !== display.confirmation;
+		if (
+			promptChanged ||
+			display.resetReading ||
+			this.display?.page.session !== display.page.session ||
+			this.display?.page.kind !== display.page.kind
+		)
+			this.focusFirst = true;
 		if (promptChanged && display.confirmation?.code) {
 			this.code = "";
 			if (this.mounted) this.input.clearInput();
@@ -97,6 +105,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.display = undefined;
 	}
 	onMount(parent: IUIComponent): void {
+		this.focusFirst = true;
 		if (!(parent instanceof Frame))
 			throw new Error("Dialogue requires a frame parent");
 		const available = parent.getSize();
@@ -158,7 +167,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			display.suspended
 				? "Dialogue paused during combat. Actions resume after combat."
 				: (display.feedback ??
-						`${controllerIcon("D-pad")} Focus · ${controllerIcon("A")} Select / Read · ${controllerIcon("Y")} Read up · ${controllerIcon("B")} Cancel / Close`),
+						`${controllerIcon("D-pad")} Focus · ${controllerIcon("A")} Select · ${controllerIcon("B")} Cancel / Close`),
 			"BOTTOMLEFT",
 			16,
 			4,
@@ -357,7 +366,8 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			display.confirmation?.text ?? page.text,
 			display.resetReading,
 		);
-		this.syncNavigation();
+		this.syncNavigation(this.focusFirst);
+		this.focusFirst = false;
 	}
 	private layoutBody(): void {
 		const display = this.display;
@@ -411,13 +421,16 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	}
 	getNavGrid(): NavGrid {
 		if (!this.mounted || !this.display) return [];
-		const choices = this.choices.getNavGrid();
-		return [[this.reading.node], ...choices];
+		return this.choices.getNavGrid();
 	}
-	private syncNavigation(): void {
+	private syncNavigation(focusFirst = false): void {
 		if (!this.mounted || !this.display) return;
-		this.navigation.pushModal(this.id, this.getNavGrid(), () =>
-			this.actions?.cancel(),
+		const grid = this.getNavGrid();
+		this.navigation.pushModal(
+			this.id,
+			grid,
+			() => this.actions?.cancel(),
+			focusFirst ? grid.at(0)?.at(0)?.navId : undefined,
 		);
 		this.navigationChanged?.();
 	}

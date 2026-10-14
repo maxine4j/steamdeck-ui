@@ -142,8 +142,46 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 it("shows controller graphics beside conversation actions", () => {
 	setup(display(page));
 	expect(records.labels.get("dialogue-surface")?.get("hint")).toContain(
-		"xbox_r_a.blp:18:18|t Select / Read",
+		"xbox_r_a.blp:18:18|t Select",
 	);
+	expect(records.labels.get("dialogue-surface")?.get("hint")).not.toContain(
+		"Read",
+	);
+});
+
+it("focuses the first option on each new page and confirmation without navigating prose", () => {
+	const nav = new NavigationManager(createTestEventBus());
+	const panel = new DialoguePanel({} as IFramePoolManager, nav);
+	const d = display({
+		...page,
+		kind: "gossip",
+		entries: [
+			{ id: "first", label: "First" },
+			{ id: "second", label: "Second" },
+		],
+	});
+	panel.show(d);
+	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("dialogue-reading");
+	expect(nav.focusedId).toBe("first");
+	nav.moveDown();
+	expect(nav.focusedId).toBe("second");
+	panel.show({ ...d, page: { ...d.page, revision: 2 } });
+	expect(nav.focusedId).toBe("first");
+	panel.show({ ...d, confirmation: { text: "Confirm?", code: false } });
+	expect(nav.focusedId).toBe("dialogue-confirm");
+	nav.moveDown();
+	panel.show(d);
+	expect(nav.focusedId).toBe("first");
+	nav.moveDown();
+	panel.onUnmount();
+	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
+	expect(nav.focusedId).toBe("first");
 });
 
 it("keeps prose, headings and options readable on a dark background", () => {
@@ -304,7 +342,6 @@ it("fits rewards in two columns and grows upward before scrolling, reserving a t
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
 	).toEqual([
-		["dialogue-reading"],
 		["reward:0", "reward:1"],
 		["dialogue-primary"],
 		["dialogue-cancel"],
@@ -346,7 +383,7 @@ it("keeps reward choices paired and confirmation actions full width", () => {
 	});
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
-	).toEqual([["dialogue-reading"], ["dialogue-confirm"], ["dialogue-cancel"]]);
+	).toEqual([["dialogue-confirm"], ["dialogue-cancel"]]);
 });
 
 it.each([
@@ -396,7 +433,7 @@ it("adds available and active quest markers to greeting options", () => {
 		"IncompleteQuest.png",
 	);
 });
-it("makes reward selection, claiming, reading and closing separate reachable controls", () => {
+it("makes reward selection, claiming and closing separate reachable controls", () => {
 	const d = display({ ...page, kind: "rewards" });
 	const { panel, actions } = setup(d);
 	const graph = new NavigationGrid(panel.getNavGrid());
@@ -416,7 +453,6 @@ it("makes reward selection, claiming, reading and closing separate reachable con
 	}
 	expect(visited).toEqual(
 		new Set([
-			"dialogue-reading",
 			"xp",
 			"choice:1",
 			"choice:2",
@@ -491,10 +527,14 @@ it("preserves focused reward identity through refresh and restores previous pane
 	panel.show(d);
 	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
 	nav.moveDown();
-	nav.moveDown();
 	nav.moveRight();
 	expect(nav.focusedId).toBe("choice:2");
-	panel.show({ ...d, resetReading: false, selected: 2 });
+	panel.show({
+		...d,
+		page: { ...d.page, revision: 2 },
+		resetReading: false,
+		selected: 2,
+	});
 	expect(nav.focusedId).toBe("choice:2");
 	panel.onUnmount();
 	expect(nav.focusedId).toBe("bags-item");
@@ -509,7 +549,6 @@ it("uses vertical navigation and aligns plain options inside their padded rows",
 		}),
 	);
 	expect(panel.getNavGrid().map((row) => row.map((n) => n.navId))).toEqual([
-		["dialogue-reading"],
 		["talk"],
 		["dialogue-cancel"],
 	]);
