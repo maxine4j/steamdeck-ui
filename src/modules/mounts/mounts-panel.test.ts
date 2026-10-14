@@ -90,7 +90,7 @@ it("keeps a warm mount view and summon actions unchanged until reopening after i
 		.flat()
 		.find((node) => node.navId === "mount-1");
 	vi.mocked(Frame.prototype.setIcon).mockClear();
-	for (let event = 0; event < 5; event++) panel.invalidate();
+	for (let event = 0; event < 5; event++) panel.onJournalSearchUpdated();
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
 	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
@@ -130,7 +130,11 @@ it("retains a focused mount across refreshes and reordered loading snapshots", (
 	nav.refreshGrid("mounts", "mount-21");
 	panel.refresh();
 	expect(nav.focusedId).toBe("mount-21");
-	vi.mocked(client.load).mock.calls.at(-1)?.at(1)?.(mounts.slice(10, 30));
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		mounts.slice(10, 30),
+		{ collected: 20, total: 20 },
+		false,
+	);
 	flush();
 	panel
 		.getNavGrid()
@@ -179,7 +183,7 @@ it("shows Blizzard's favourite star and clears it when a cell is reused", () => 
 	publish([mount(1)]);
 	expect(vi.mocked(Frame.prototype.hide).mock.contexts).toContain(star);
 	panel.destroy();
-	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).toContain(star);
+	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).not.toContain(star);
 });
 const mount = (id: number, favourite = false): Mount => ({
 	id,
@@ -299,7 +303,8 @@ function setup() {
 	const cancel = vi.fn();
 	const client: IMountsClient = {
 		prefetch: vi.fn(),
-		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshDisplay: vi.fn(),
 		stop: vi.fn(),
 		load: vi.fn(() => cancel),
 		getMounts: vi.fn(() => []),
@@ -344,6 +349,97 @@ function setup() {
 		dropdown,
 	};
 }
+
+it("renders the first cached controls immediately and only updates changed mount icons", () => {
+	const { panel, parent, client, flush } = setup();
+	const first = mount(1);
+	const second = mount(2);
+	vi.mocked(client.load).mockImplementation((done) => {
+		done([first, second], { collected: 2, total: 2 });
+		return () => {};
+	});
+	panel.onMount(parent);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-1"),
+	).toBe(true);
+	flush();
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	vi.mocked(client.load).mock.calls.at(-1)?.[0](
+		[first, { ...second, collected: false }],
+		{ collected: 1, total: 2 },
+	);
+	flush();
+	const icons = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
+	expect(icons.map((frame) => frame.id)).toEqual(["mounts-icon-1"]);
+});
+
+it("detaches cache observers while closed and resubscribes to the latest cache on reopening", () => {
+	const { panel, parent, client, publish, cancel, flush } = setup();
+	panel.onMount(parent);
+	publish([mount(1)]);
+	panel.onUnmount();
+	expect(cancel).toHaveBeenCalledOnce();
+	vi.mocked(client.load).mockImplementation((done) => {
+		done([mount(1), mount(2)], { collected: 2, total: 2 });
+		return cancel;
+	});
+	panel.onMount(parent);
+	flush();
+	expect(client.load).toHaveBeenCalledTimes(2);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-2"),
+	).toBe(true);
+});
+
+it("retains each mount's frames across filters and shutdown without releasing them to the pool", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([mount(1), mount(2)]);
+	const originals = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
+	panel.refresh();
+	publish([mount(3)]);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	panel.refresh();
+	publish([mount(1), mount(2)]);
+	const returned = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("mounts-icon-"));
+	expect(returned).toEqual(originals);
+	panel.destroy();
+	expect(
+		vi
+			.mocked(Frame.prototype.destroy)
+			.mock.contexts.some((frame) => frame.id.startsWith("mounts-")),
+	).toBe(false);
+});
+
+it("blocks clicks on filtered-out retained frames while their batched hiding is pending", () => {
+	const { panel, parent, client, publish } = setup();
+	panel.onMount(parent);
+	publish(Array.from({ length: 45 }, (_, index) => mount(index + 1)));
+	const clicks = vi.mocked(Frame.prototype.onClick);
+	const lastIcon = clicks.mock.contexts.findLastIndex(
+		(frame) => frame.id === "mounts-icon-44",
+	);
+	const click = clicks.mock.calls.at(lastIcon)?.at(0);
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
+		[],
+		{ collected: 0, total: 0 },
+		true,
+	);
+	click?.("LeftButton");
+	expect(client.summon).not.toHaveBeenCalled();
+});
 
 it("keeps native checkbox filters open and focused across collection refreshes", () => {
 	const { panel, parent, client, publish, dropdown } = setup();
@@ -470,7 +566,7 @@ it("optimistically changes both favourite copies without reloading, including du
 	panel.onMount(parent);
 	const load = vi.mocked(client.load).mock.calls.at(-1);
 	const mounts = Array.from({ length: 45 }, (_, i) => mount(i + 1));
-	load?.[1]?.(mounts.slice(0, 20));
+	load?.[0](mounts.slice(0, 20), { collected: 20, total: 20 }, false);
 	flush();
 	panel.toggleFavourite(1);
 	flush();
@@ -536,15 +632,15 @@ it("rolls back rejected favourite requests and reconciles server disagreement us
 	expect(client.load).toHaveBeenCalledOnce();
 });
 
-it("completes an active scan without visually replacing it for queued invalidations", () => {
+it("keeps a live cache subscription across journal event bursts", () => {
 	const { panel, parent, client, publish, flush } = setup();
 	panel.onMount(parent);
-	for (let i = 0; i < 10; i++) panel.invalidate();
+	for (let i = 0; i < 10; i++) panel.onJournalSearchUpdated();
 	expect(client.load).toHaveBeenCalledOnce();
 	publish([mount(1)]);
 	expect(client.load).toHaveBeenCalledOnce();
 	publish([mount(1)]);
-	for (let i = 0; i < 10; i++) panel.invalidate();
+	for (let i = 0; i < 10; i++) panel.onJournalSearchUpdated();
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
 });
@@ -553,14 +649,14 @@ it("keeps a first page usable, displays bottom progress, rejects stale loads and
 	const { panel, parent, client, pending, flush, publish, cancel } = setup();
 	panel.onMount(parent);
 	const initial = vi.mocked(client.load).mock.calls.at(-1);
-	initial?.[2]?.(20, 40);
+	initial?.[1]?.(20, 40);
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
 		35,
 		4,
 		"TOPLEFT",
 		expect.anything(),
 	);
-	initial?.[1]?.([mount(1)]);
+	initial?.[0]([mount(1)], { collected: 1, total: 1 }, false);
 	flush();
 	panel
 		.getNavGrid()
@@ -630,7 +726,7 @@ it("keeps a first page usable, displays bottom progress, rejects stale loads and
 	);
 	panel.onUnmount();
 	panel.onMount(parent);
-	expect(client.load).toHaveBeenCalledTimes(2);
+	expect(client.load).toHaveBeenCalledTimes(3);
 	panel
 		.getNavGrid()
 		.flat()

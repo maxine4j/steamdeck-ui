@@ -202,6 +202,7 @@ const mountEvents = [
 	"COMPANION_LEARNED",
 	"COMPANION_UNLEARNED",
 	"NEW_MOUNT_ADDED",
+	"MOUNT_JOURNAL_USABILITY_CHANGED",
 ];
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {

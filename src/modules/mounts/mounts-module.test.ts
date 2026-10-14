@@ -17,7 +17,8 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 	};
 	const module = new MountsModule(ui, events, view, native, {
 		prefetch: vi.fn(),
-		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshDisplay: vi.fn(),
 		stop: vi.fn(),
 	});
 	module.disableBuiltIn();
@@ -28,27 +29,31 @@ it("opens and closes mounts on the right, refreshes journal events and restores 
 	events.emit("MOUNTS_VISIBILITY_CHANGED");
 	expect(ui.closePanel).toHaveBeenCalledWith("right", "mounts");
 	events.emit("MOUNTS_CHANGED");
-	expect(view.invalidate).toHaveBeenCalledOnce();
+	expect(view.invalidate).not.toHaveBeenCalled();
 	events.emit("MOUNTS_SEARCH_CHANGED");
 	expect(view.onJournalSearchUpdated).toHaveBeenCalledOnce();
 	events.emit("MOUNTS_EQUIPMENT_CHANGED");
 	expect(view.refreshEquipment).toHaveBeenCalledOnce();
 	module.shutdown();
 	events.emit("MOUNTS_CHANGED");
-	expect(view.invalidate).toHaveBeenCalledOnce();
+	expect(view.invalidate).not.toHaveBeenCalled();
 	events.emit("MOUNTS_SEARCH_CHANGED");
 	expect(view.onJournalSearchUpdated).toHaveBeenCalledOnce();
 	expect(native.restore).toHaveBeenCalledOnce();
 });
 
-it("prefetches at initialization, invalidates journal data and stops on shutdown", () => {
+it("prefetches at login initialization, refreshes server events and stops on shutdown", () => {
 	const events = createTestEventBus();
-	const journal = { prefetch: vi.fn(), invalidate: vi.fn(), stop: vi.fn() };
+	const journal = {
+		prefetch: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshDisplay: vi.fn(),
+		stop: vi.fn(),
+	};
 	const module = new MountsModule(
 		{ openPanel: vi.fn(), closePanel: vi.fn() },
 		events,
 		{
-			invalidate: vi.fn(),
 			onJournalSearchUpdated: vi.fn(),
 			refreshEquipment: vi.fn(),
 		},
@@ -59,9 +64,10 @@ it("prefetches at initialization, invalidates journal data and stops on shutdown
 	expect(journal.prefetch).toHaveBeenCalledOnce();
 	events.emit("MOUNTS_CHANGED");
 	events.emit("MOUNTS_SEARCH_CHANGED");
-	expect(journal.invalidate).toHaveBeenCalledTimes(2);
+	expect(journal.refreshEntry).toHaveBeenCalledOnce();
+	expect(journal.refreshDisplay).toHaveBeenCalledOnce();
 	events.emit("MOUNTS_CHANGED", { id: 42 });
-	expect(journal.invalidate).toHaveBeenLastCalledWith(42);
+	expect(journal.refreshEntry).toHaveBeenLastCalledWith(42);
 	module.shutdown();
 	expect(journal.stop).toHaveBeenCalledOnce();
 });

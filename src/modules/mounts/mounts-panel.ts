@@ -20,6 +20,10 @@ const columns = 10;
 const spacing = 46;
 interface MountCell {
 	navId?: string;
+	mount?: Mount;
+	top?: number;
+	column?: number;
+	visible?: boolean;
 	readonly border: Frame;
 	readonly favourite: Frame;
 	readonly icon: Frame;
@@ -45,17 +49,15 @@ export class MountsPanel implements IPanel {
 	private readonly cells: MountCell[] = [];
 	private readonly headers: Frame[] = [];
 	private grid: NavGrid = [];
+	private visibleIds = new Set<string>();
 	private contentHeight = 1;
 	private mounted = false;
-	private dirty = true;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private loadGeneration = 0;
 	private renderGeneration = 0;
 	private mounts: readonly Mount[] = [];
 	private snapshotComplete = false;
-	private queuedRefresh = false;
-	private cancelRefresh?: () => void;
 	private cancelReconcile?: () => void;
 	private readonly favouriteOverrides = new Map<number, boolean>();
 	private readonly pendingFavourites = new Map<
@@ -112,15 +114,11 @@ export class MountsPanel implements IPanel {
 		this.loadingProgress = new Frame("mounts-loading-progress", pool);
 	}
 
-	refresh(retainCachedView = false): void {
+	refresh(): void {
 		const generation = ++this.loadGeneration;
 		this.renderGeneration++;
-		this.cancelRefresh?.();
-		this.cancelRefresh = undefined;
-		this.queuedRefresh = false;
 		this.snapshotComplete = false;
 		this.menu.close();
-		this.dirty = true;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
@@ -143,9 +141,8 @@ export class MountsPanel implements IPanel {
 		this.loadingTrack.show();
 		this.setLoadingProgress(0);
 		this.cancelLoad = this.client.load(
-			(mounts, count) => {
+			(mounts, count, complete = true) => {
 				if (!this.mounted || generation !== this.loadGeneration) return;
-				this.cancelLoad = undefined;
 				this.frame.setLabel(
 					"count",
 					`${count.collected} / ${count.total}`,
@@ -154,15 +151,9 @@ export class MountsPanel implements IPanel {
 					-44,
 					14,
 				);
-				this.snapshotComplete = true;
-				this.acceptSnapshot(mounts, true);
-				this.render(this.mounts, generation, true);
-			},
-			(mounts) => {
-				if (this.mounted && generation === this.loadGeneration) {
-					this.acceptSnapshot(mounts);
-					this.render(this.mounts, generation, false);
-				}
+				this.snapshotComplete = complete;
+				this.acceptSnapshot(mounts, complete);
+				this.render(this.mounts, generation, complete);
 			},
 			(completed, total) => {
 				if (this.mounted && generation === this.loadGeneration)
@@ -170,7 +161,6 @@ export class MountsPanel implements IPanel {
 						total === 0 ? 0.5 : (completed / total) * 0.5,
 					);
 			},
-			retainCachedView,
 		);
 		this.filters.setOptions(
 			this.client.getFilters().map((filter) => ({
@@ -192,25 +182,6 @@ export class MountsPanel implements IPanel {
 		this.equipment.setIcon(equipment.icon);
 		this.equipment.setTooltip(equipment.label, equipment.link);
 		this.flight.setSpell(this.client.getUtilitySpells().flight);
-	}
-
-	/** Event bursts must not repeatedly cancel an unfinished journal scan. */
-	invalidate(): void {
-		this.dirty = true;
-		if (!this.mounted) return;
-		if (this.snapshotComplete) {
-			this.queuedRefresh = true;
-			return;
-		}
-		if (this.cancelLoad || this.cancelRender) {
-			this.queuedRefresh = true;
-			return;
-		}
-		if (this.cancelRefresh) return;
-		this.cancelRefresh = this.scheduler.nextFrame(() => {
-			this.cancelRefresh = undefined;
-			if (this.mounted) this.refresh();
-		});
 	}
 
 	private acceptSnapshot(mounts: readonly Mount[], complete = false): void {
@@ -256,7 +227,6 @@ export class MountsPanel implements IPanel {
 		);
 		if (this.mounted)
 			this.render(this.mounts, this.loadGeneration, this.snapshotComplete);
-		else this.dirty = true;
 	}
 
 	onJournalSearchUpdated(): void {
@@ -264,7 +234,6 @@ export class MountsPanel implements IPanel {
 			this.pendingFavourites.size === 0 &&
 			this.favouriteOverrides.size === 0
 		) {
-			this.invalidate();
 			return;
 		}
 		if (this.cancelReconcile) return;
@@ -318,10 +287,10 @@ export class MountsPanel implements IPanel {
 				),
 			),
 		);
+		this.visibleIds = wanted;
 		const available = this.cells.filter(
-			(cell) => !cell.navId || !wanted.has(cell.navId),
+			(cell) => cell.visible && cell.navId && !wanted.has(cell.navId),
 		);
-		for (const cell of available) cell.navId = undefined;
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -353,12 +322,26 @@ export class MountsPanel implements IPanel {
 			group.mounts.forEach((mount, index) => {
 				const navId =
 					group.id === -1 ? `mount-favourite-${mount.id}` : `mount-${mount.id}`;
-				let cell = cellsById.get(navId) ?? available.pop();
+				let cell = cellsById.get(navId);
 				const row = firstRow + Math.floor(index / columns);
 				const previous = retained.get(navId);
 				if (previous)
 					grid.at(row)?.push({ ...previous, navColumn: index % columns });
 				const cellTop = top + 28 + Math.floor(index / columns) * spacing;
+				if (
+					cell?.visible &&
+					cell.top === cellTop &&
+					cell.column === index % columns &&
+					previous &&
+					cell.mount?.id === mount.id &&
+					cell.mount.icon === mount.icon &&
+					cell.mount.spell === mount.spell &&
+					cell.mount.name === mount.name &&
+					cell.mount.collected === mount.collected &&
+					cell.mount.favourite === mount.favourite &&
+					cell.mount.usable === mount.usable
+				)
+					return;
 				jobs.push(() => {
 					if (!cell) {
 						const slot = this.cells.length;
@@ -370,6 +353,10 @@ export class MountsPanel implements IPanel {
 						this.cells.push(cell);
 					}
 					cell.navId = navId;
+					cell.mount = mount;
+					cell.top = cellTop;
+					cell.column = index % columns;
+					cell.visible = true;
 					cell.border.setParent(this.content);
 					cell.border.layout(
 						42,
@@ -392,8 +379,10 @@ export class MountsPanel implements IPanel {
 					cell.icon.setOpacity(mount.collected ? 1 : 0.2);
 					const current = () =>
 						this.mounted &&
-						generation === this.loadGeneration &&
-						cell?.navId === navId;
+						this.visibleIds.has(navId) &&
+						cell?.visible &&
+						cell.navId === navId &&
+						cell.mount === mount;
 					cell.icon.setHoverTooltip(() =>
 						current() ? { mountSpell: mount.spell } : undefined,
 					);
@@ -450,7 +439,7 @@ export class MountsPanel implements IPanel {
 				cell.border.hide();
 				cell.icon.hide();
 				cell.favourite.hide();
-				cell.navId = undefined;
+				cell.visible = false;
 			});
 		}
 		for (let i = groups.length; i < this.headers.length; i++) {
@@ -477,16 +466,11 @@ export class MountsPanel implements IPanel {
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else if (complete) {
-				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 				this.loadingTrack.hide();
-				if (this.queuedRefresh) {
-					this.queuedRefresh = false;
-					this.invalidate();
-				}
 			}
 		};
-		this.cancelRender = this.scheduler.nextFrame(step);
+		step();
 	}
 
 	private layoutContent(): void {
@@ -574,8 +558,7 @@ export class MountsPanel implements IPanel {
 		this.frame.show();
 		this.mounted = true;
 		this.searchInput.resume();
-		if (this.dirty) this.refresh(true);
-		else this.layoutContent();
+		this.refresh();
 	}
 	onContainerClosed(): void {
 		this.close();
@@ -585,8 +568,6 @@ export class MountsPanel implements IPanel {
 		this.searchInput.cancel();
 		this.search.blurInput();
 		this.menu.close();
-		this.cancelRefresh?.();
-		this.cancelRefresh = undefined;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
 		this.filters.hide();
@@ -633,25 +614,7 @@ export class MountsPanel implements IPanel {
 		this.cancelReconcile = undefined;
 		this.pendingFavourites.clear();
 		this.favouriteOverrides.clear();
-		for (const cell of this.cells) {
-			cell.icon.destroy();
-			cell.favourite.destroy();
-			cell.border.destroy();
-		}
-		for (const header of this.headers) header.destroy();
-		this.filters.destroy();
-		for (const frame of [
-			this.viewport,
-			this.content,
-			this.loadingProgress,
-			this.loadingTrack,
-			this.search,
-			this.equipment,
-			this.favourite,
-			this.flight,
-			this.footer,
-			this.frame,
-		])
-			frame.destroy();
+		// Mount controls are session-lived. Hiding the root retains their native
+		// frames and stable entry identities; none return to the shared pool.
 	}
 }

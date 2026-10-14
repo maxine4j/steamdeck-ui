@@ -231,7 +231,10 @@ it("forwards native login events through the hidden event frame", () => {
 	dispatch(frame, "COMPANION_UPDATE", "MOUNT");
 	dispatch(frame, "MOUNT_JOURNAL_USABILITY_CHANGED");
 	dispatch(frame, "PLAYER_REGEN_ENABLED");
-	expect(mounts).toHaveBeenCalledOnce();
+	expect(mounts).toHaveBeenCalledTimes(2);
+	expect(frame.RegisterEvent).toHaveBeenCalledWith(
+		"MOUNT_JOURNAL_USABILITY_CHANGED",
+	);
 	expect(frame.Hide).toHaveBeenCalledOnce();
 	expect(frame.RegisterEvent).toHaveBeenCalledWith("PLAYER_LOGIN");
 	dispatch(frame, "OTHER_EVENT");

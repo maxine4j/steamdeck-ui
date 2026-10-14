@@ -1,5 +1,5 @@
+import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
-import type { TieredCache } from "./tiered-cache";
 
 export interface IJournalPrefetch {
 	prefetch(): void;
@@ -30,7 +30,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 			preview?: (value: P) => void,
 			progress?: (completed: number, total: number) => void,
 		) => () => void,
-		private readonly persisted?: TieredCache<T>,
+		private readonly persisted?: SavedVariableCache<T>,
 	) {}
 	prefetch(): void {
 		this.active = true;
@@ -106,7 +106,7 @@ export class JournalPrefetch<T, P = T> implements IJournalPrefetch {
 					this.start();
 					return;
 				}
-				this.value = value;
+				if (!this.persisted) this.value = value;
 				this.persisted?.put("snapshot", value);
 				this.dirty = false;
 				const observers = [...this.observers];

@@ -9,11 +9,7 @@ afterEach(() => vi.unstubAllGlobals());
 it("returns a complete warm catalog without native lookups and rejects partial caches", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});
 	const scheduler = { nextFrame: vi.fn(() => () => {}) };
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	const categories = [
 		{ id: 92, name: "General", parent: -1 },
 		{ id: 96, name: "Quests", parent: -1 },
@@ -83,11 +79,7 @@ it("hydrates a category immediately and refreshes its individual achievements wi
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	const row = {
 		id: 921,
 		name: "Saved",
@@ -137,11 +129,7 @@ it("backfills categories across frames at login and retains data after cancellat
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	const client = new AchievementsClient(scheduler, cache);
 	client.prefetch();
 	expect(
@@ -163,11 +151,7 @@ it("does not refresh unrelated cached categories while assembling the panel cata
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	const row = {
 		id: 921,
 		name: "Saved",
@@ -198,11 +182,7 @@ it("publishes changed criterion progress after serving cached criteria, without 
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	cache.create("achievements.criteria", true).put("921", [
 		{
 			name: "Progress",
@@ -247,11 +227,7 @@ it("uses cached achievement records for detail chains and selection before refre
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	const row = {
 		id: 921,
 		name: "Saved",
@@ -286,11 +262,7 @@ it("notifies the view when a cached summary's totals change", () => {
 		},
 	};
 	setup(scheduler);
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
+	const cache = new CollectionCache(scheduler, () => "player");
 	cache.create("achievements.summary", true).put("false", {
 		points: 0,
 		totals: { total: 10, completed: 0 },

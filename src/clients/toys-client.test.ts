@@ -243,13 +243,7 @@ function setup(count = 2, persistent = false) {
 		pending,
 		client: new ToysClient(
 			scheduler,
-			persistent
-				? new CollectionCache(
-						scheduler,
-						() => 100,
-						() => "player",
-					)
-				: undefined,
+			persistent ? new CollectionCache(scheduler, () => "player") : undefined,
 		),
 	};
 }
@@ -273,7 +267,7 @@ it("serves saved toys immediately and refreshes an event's item without enumerat
 	expect(info).toHaveBeenCalledExactlyOnceWith(1);
 });
 
-it("uses item TTLs to avoid rereading fresh toys for events without an item ID", () => {
+it("refreshes toys from context-free events without relying on expiry", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});
 	const { client, api, pending } = setup(45, true);
 	client.prefetch();
@@ -281,7 +275,7 @@ it("uses item TTLs to avoid rereading fresh toys for events without an item ID",
 	const info = vi.spyOn(api, "GetToyInfo");
 	client.invalidate();
 	while (pending.length) pending.shift()?.();
-	expect(info).not.toHaveBeenCalled();
+	expect(info).toHaveBeenCalledTimes(45);
 });
 
 it("retains newly discovered toys when another event arrives during a refresh", () => {

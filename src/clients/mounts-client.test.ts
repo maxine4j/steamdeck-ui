@@ -1,239 +1,384 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { CollectionCache } from "./collection-cache";
-import { MountsClient } from "./mounts-client";
+import { type Mount, MountsClient } from "./mounts-client";
 
-it.each([false, true])(
-	"shows saved mounts instantly and refreshes only the changed mount (fixed view: %s)",
-	(retainCachedView) => {
-		vi.stubGlobal("SteamDeckUIConfig", {});
-		const pending: (() => void)[] = [];
-		const scheduler = {
-			nextFrame: (callback: () => void) => {
-				pending.push(callback);
-				return () => {};
-			},
-		};
-		const cache = new CollectionCache(
-			scheduler,
-			() => 100,
-			() => "player",
-		);
-		const mount = {
-			id: 42,
-			index: 1,
-			name: "Old",
-			spell: 1,
-			icon: 2,
-			collected: false,
-			usable: false,
-			favourite: false,
-		};
-		cache
-			.create("mounts.snapshot")
-			.put("snapshot", { mounts: [mount], count: { collected: 0, total: 1 } });
-		cache.create("mounts.items").put("42", mount);
-		const info = vi.fn(() => [
-			"New",
-			1,
-			2,
-			false,
-			true,
-			0,
-			false,
-			false,
-			0,
-			false,
-			true,
-		]);
-		const ids = vi.fn(() => [42]);
-		vi.stubGlobal("C_MountJournal", {
-			GetMountInfoByID: info,
-			GetMountIDs: ids,
-			GetNumDisplayedMounts: () => 1,
-			GetDisplayedMountID: () => 42,
-		});
-		const client = new MountsClient(scheduler, cache);
-		client.invalidate(42);
-		const done = vi.fn();
-		client.load(done, undefined, undefined, retainCachedView);
-		expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe("Old");
-		expect(info).not.toHaveBeenCalled();
-		while (pending.length) pending.shift()?.();
-		expect(ids).not.toHaveBeenCalled();
-		expect(info).toHaveBeenCalledExactlyOnceWith(42);
-		expect(done.mock.lastCall?.at(0)?.at(0)?.name).toBe(
-			retainCachedView ? "Old" : "New",
-		);
-		if (retainCachedView) expect(done).toHaveBeenCalledOnce();
-		const reopened = vi.fn();
-		client.load(reopened, undefined, undefined, true);
-		expect(reopened.mock.lastCall?.at(0)?.at(0)?.name).toBe("New");
-		expect(reopened.mock.lastCall?.at(1)).toEqual({ collected: 1, total: 1 });
-	},
-);
-
-it("refreshes a changed mount outside the current filter and updates the account count", () => {
-	vi.stubGlobal("SteamDeckUIConfig", {});
-	const pending: (() => void)[] = [];
-	const scheduler = {
-		nextFrame: (callback: () => void) => {
-			pending.push(callback);
-			return () => {};
-		},
-	};
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
-	cache
-		.create("mounts.snapshot")
-		.put("snapshot", { mounts: [], count: { collected: 0, total: 1 } });
-	cache.create("mounts.items").put("42", {
-		id: 42,
-		index: 0,
-		name: "Old",
-		spell: 1,
-		icon: 2,
-		collected: false,
-		usable: false,
-		favourite: false,
-	});
-	const info = vi.fn(() => [
-		"New",
-		1,
-		2,
-		false,
-		true,
-		0,
-		false,
-		false,
-		0,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", {
-		GetMountInfoByID: info,
-		GetNumDisplayedMounts: () => 0,
-	});
-	const client = new MountsClient(scheduler, cache);
-	client.invalidate(42);
-	client.load(() => {});
-	while (pending.length) pending.shift()?.();
-	expect(info).toHaveBeenCalledExactlyOnceWith(42);
-	expect(client.getCount()).toEqual({ collected: 1, total: 1 });
-});
-
-it("does not reread fresh mount details on an event without an ID", () => {
-	vi.stubGlobal("SteamDeckUIConfig", {});
-	const pending: (() => void)[] = [];
-	const scheduler = {
-		nextFrame: (callback: () => void) => {
-			pending.push(callback);
-			return () => {};
-		},
-	};
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
-	const mount = {
-		id: 42,
-		index: 1,
-		name: "Saved",
-		spell: 1,
-		icon: 2,
-		collected: false,
-		usable: false,
-		favourite: false,
-	};
-	cache
-		.create("mounts.snapshot")
-		.put("snapshot", { mounts: [mount], count: { collected: 0, total: 1 } });
-	cache.create("mounts.items").put("42", mount);
-	const info = vi.fn(() => [
-		"Saved",
-		1,
-		2,
-		false,
-		true,
-		0,
-		false,
-		false,
-		0,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", {
-		GetMountInfoByID: info,
-		GetNumDisplayedMounts: () => 1,
-		GetDisplayedMountID: () => 42,
-	});
-	const client = new MountsClient(scheduler, cache);
-	client.invalidate();
-	client.load(() => {});
-	while (pending.length) pending.shift()?.();
-	expect(info).not.toHaveBeenCalled();
-});
-
-it("retains count changes when another mount event arrives during a refresh", () => {
-	vi.stubGlobal("SteamDeckUIConfig", {});
-	const pending: (() => void)[] = [];
-	const scheduler = {
-		nextFrame: (callback: () => void) => {
-			pending.push(callback);
-			return () => {};
-		},
-	};
-	const cache = new CollectionCache(
-		scheduler,
-		() => 100,
-		() => "player",
-	);
-	const mounts = [41, 42].map((id) => ({
+afterEach(() => vi.unstubAllGlobals());
+function mount(id: number, collected = false): Mount {
+	return {
 		id,
-		index: id - 40,
-		name: "Saved",
-		spell: 1,
-		icon: 2,
-		collected: false,
-		usable: false,
+		index: id,
+		name: `Mount ${id}`,
+		spell: id,
+		icon: id,
+		collected,
+		usable: true,
 		favourite: false,
-	}));
-	cache
-		.create("mounts.snapshot")
-		.put("snapshot", { mounts, count: { collected: 0, total: 2 } });
-	for (const mount of mounts)
-		cache.create("mounts.items").put(String(mount.id), mount);
-	const client = new MountsClient(scheduler, cache);
-	vi.stubGlobal("C_MountJournal", {
-		GetMountInfoByID: (id: number) => {
-			if (id === 41) client.invalidate(42);
-			return ["Updated", 1, 2, false, true, 0, false, false, 0, false, true];
+	};
+}
+function setup(size = 45) {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			let cancelled = false;
+			pending.push(() => {
+				if (!cancelled) callback();
+			});
+			return () => {
+				cancelled = true;
+			};
 		},
-		GetNumDisplayedMounts: () => 2,
-		GetDisplayedMountID: (index: number) => index + 40,
-	});
-	client.invalidate(41);
-	client.load(() => {});
-	while (pending.length) pending.shift()?.();
+	};
+	const cache = new CollectionCache(scheduler);
+	const saved = cache.create<Mount>("mounts.items");
+	const ids = Array.from({ length: size }, (_, i) => i + 1);
+	const info = vi.fn((id: number) => [
+		`Mount ${id}`,
+		id,
+		id,
+		false,
+		true,
+		1,
+		false,
+		false,
+		undefined,
+		false,
+		true,
+	]);
+	const api = {
+		GetMountIDs: vi.fn(() => ids),
+		GetMountInfoByID: info,
+		GetNumDisplayedMounts: vi.fn(() => ids.length),
+		GetDisplayedMountID: vi.fn((index: number) => ids.at(index - 1)),
+		GetDisplayedMountInfo: vi.fn((index: number) => [
+			...info(ids.at(index - 1) ?? 0),
+			ids.at(index - 1),
+		]),
+		GetIsFavorite: vi.fn(() => [false, true]),
+		SetIsFavorite: vi.fn(),
+		SetSearch: vi.fn(),
+		SummonByID: vi.fn(),
+		Pickup: vi.fn(),
+	};
+	vi.stubGlobal("C_MountJournal", api);
+	const client = new MountsClient(scheduler, cache);
+	const flush = () => {
+		let steps = 0;
+		while (pending.length) {
+			if (++steps > 1000) throw new Error("Scan never completed");
+			pending.shift()?.();
+		}
+	};
+	return { pending, scheduler, saved, cache, client, info, api, ids, flush };
+}
+
+it("renders saved mounts synchronously and never scans on warm opening or reopening", () => {
+	const { client, saved, info, api, pending } = setup();
+	saved.put("1", mount(1));
+	const done = vi.fn();
+	client.load(done);
+	expect(done).toHaveBeenCalledExactlyOnceWith(
+		[mount(1)],
+		{ collected: 0, total: 1 },
+		true,
+	);
+	expect(client.getMounts()).toEqual([mount(1)]);
+	expect(client.getCount()).toEqual({ collected: 0, total: 1 });
+	client.load(done);
+	expect(done).toHaveBeenCalledTimes(2);
+	expect(pending).toHaveLength(0);
+	expect(info).not.toHaveBeenCalled();
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+});
+
+it("warms a populated cache on login and publishes every bounded page before completion", () => {
+	const { client, saved, info, pending, flush } = setup();
+	saved.put("1", mount(1));
+	const changed = vi.fn();
+	saved.subscribe(changed);
+	const done = vi.fn();
+	client.load(done);
+	client.prefetch();
+	expect(info).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(20);
+	expect(saved.values()).toHaveLength(20);
+	expect(changed).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 20, total: 20 });
+	pending.shift()?.();
+	expect(info.mock.calls.length).toBeLessThanOrEqual(40);
+	flush();
+	expect(saved.values()).toHaveLength(45);
+	expect(client.getCount()).toEqual({ collected: 45, total: 45 });
+	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
+});
+
+it("starts one shared scan for a cold opening and keeps warming after the panel closes", () => {
+	const { client, pending, api, saved, flush } = setup();
+	const done = vi.fn();
+	const detach = client.load(done);
+	client.load(vi.fn())();
+	pending.shift()?.();
+	expect(saved.values()).toHaveLength(20);
+	expect(done).toHaveBeenCalled();
+	detach();
+	const calls = done.mock.calls.length;
+	flush();
+	expect(saved.values()).toHaveLength(45);
+	expect(api.GetMountIDs).toHaveBeenCalledOnce();
+	expect(done).toHaveBeenCalledTimes(calls);
+	const reopened = vi.fn();
+	client.load(reopened);
+	expect(reopened.mock.lastCall?.at(0)).toHaveLength(45);
+});
+
+it("refreshes just a supplied ID while hidden and publishes it to an open observer", () => {
+	const { client, saved, info, api, flush } = setup();
+	saved.put("1", mount(1));
+	saved.put("42", mount(42));
+	const done = vi.fn();
+	const detach = client.load(done);
+	client.refreshEntry(42);
+	flush();
+	expect(info).toHaveBeenCalledExactlyOnceWith(42);
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+	expect(saved.peek("42")?.collected).toBe(true);
+	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 1, total: 2 });
+	detach();
+	client.refreshEntry(1);
+	flush();
 	expect(client.getCount()).toEqual({ collected: 2, total: 2 });
 });
 
-const scheduler = { nextFrame: vi.fn(() => vi.fn()) };
+it("rescans fresh entries after a context-free event without opening the panel", () => {
+	const { client, saved, api, info, flush } = setup(2);
+	saved.put("1", mount(1));
+	saved.put("2", mount(2));
+	client.refreshEntry();
+	flush();
+	expect(api.GetMountIDs).toHaveBeenCalledOnce();
+	expect(info.mock.calls).toEqual([[1], [2]]);
+	expect(client.getCount()).toEqual({ collected: 2, total: 2 });
+});
 
-afterEach(() => vi.unstubAllGlobals());
-it("summons by journal ID and picks up the random favourite action", () => {
-	const summon = vi.fn();
-	const pickup = vi.fn();
-	vi.stubGlobal("C_MountJournal", { SummonByID: summon, Pickup: pickup });
-	const client = new MountsClient(scheduler);
+it("coalesces event bursts during scans and covers changes behind the scan cursor", () => {
+	const { client, saved, pending, api, info, flush } = setup();
+	client.prefetch();
+	pending.shift()?.();
+	info.mockImplementation((id) => [
+		`Mount ${id}`,
+		id,
+		id,
+		false,
+		true,
+		1,
+		id === 1,
+		false,
+		undefined,
+		false,
+		true,
+	]);
+	client.refreshEntry(1);
+	for (let i = 0; i < 10; i++) client.refreshEntry();
+	flush();
+	expect(api.GetMountIDs).toHaveBeenCalledTimes(2);
+	expect(saved.peek("1")?.favourite).toBe(true);
+	expect(saved.values()).toHaveLength(45);
+});
+
+it("cancels the latest scan continuation on shutdown and retains all completed pages", () => {
+	const { client, saved, pending, info, flush } = setup();
+	client.prefetch();
+	pending.shift()?.();
+	const calls = info.mock.calls.length;
+	client.stop();
+	flush();
+	expect(info).toHaveBeenCalledTimes(calls);
+	expect(saved.values()).toHaveLength(20);
+	client.prefetch();
+	flush();
+	expect(saved.values()).toHaveLength(45);
+});
+
+it("searches and projects Blizzard filters without rereading mount details or scanning the journal", () => {
+	const { client, saved, api, info, ids, flush } = setup(2);
+	saved.put("1", mount(1));
+	saved.put("2", mount(2));
+	const done = vi.fn();
+	client.load(done);
+	client.search("Mount 2");
+	ids.splice(0, 1);
+	client.refreshDisplay();
+	flush();
+	expect(api.SetSearch).toHaveBeenCalledExactlyOnceWith("Mount 2");
+	expect(done.mock.lastCall?.at(0)).toEqual([{ ...mount(2), index: 1 }]);
+	expect(info).not.toHaveBeenCalled();
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+	expect(client.getCount()).toEqual({ collected: 0, total: 2 });
+});
+
+it("retains unavailable details, excludes hidden mounts, and updates entries that become hidden", () => {
+	const { client, saved, info, flush } = setup(3);
+	saved.put("1", mount(1));
+	info.mockImplementation((id) => [
+		id === 1 ? undefined : `Mount ${id}`,
+		id,
+		id,
+		false,
+		true,
+		1,
+		false,
+		false,
+		undefined,
+		id === 2,
+		true,
+	]);
+	client.prefetch();
+	flush();
+	expect(saved.peek("1")).toEqual(mount(1));
+	expect(client.getMounts().map((row) => row.id)).toEqual([1, 3]);
+	expect(client.getCount()).toEqual({ collected: 1, total: 2 });
+	info.mockImplementation((id) => [
+		`Mount ${id}`,
+		id,
+		id,
+		false,
+		true,
+		1,
+		false,
+		false,
+		undefined,
+		true,
+		true,
+	]);
+	client.refreshEntry(3);
+	flush();
+	expect(client.getMounts().map((row) => row.id)).toEqual([1]);
+});
+
+it("persists pages for a new client without a duplicate snapshot", () => {
+	const { client, cache, scheduler, flush, api } = setup(2);
+	client.prefetch();
+	flush();
+	client.stop();
+	api.GetMountIDs.mockClear();
+	const next = new MountsClient(scheduler, cache);
+	const done = vi.fn();
+	next.load(done);
+	expect(done.mock.lastCall?.at(0)).toHaveLength(2);
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+	expect(
+		SteamDeckUIConfig?.collectionCache?.namespaces["mounts.snapshot"],
+	).toBeUndefined();
+});
+
+it("routes summon and random pickup and validates current eligibility by ID", () => {
+	const { client, api, info } = setup();
 	client.summon(42);
-	client.summon(0);
 	client.pickupRandom();
-	expect(summon.mock.calls).toEqual([[42], [0]]);
-	expect(pickup).toHaveBeenCalledExactlyOnceWith(0);
+	expect(api.SummonByID).toHaveBeenCalledExactlyOnceWith(42);
+	expect(api.Pickup).toHaveBeenCalledExactlyOnceWith(0);
+	expect(client.canUse(42)).toBe(true);
+	info.mockImplementation((id) => [
+		`Mount ${id}`,
+		id,
+		id,
+		false,
+		false,
+		1,
+		false,
+		false,
+		undefined,
+		false,
+		true,
+	]);
+	expect(client.canUse(42)).toBe(false);
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+});
+
+it("resolves reordered favourite indices with bounded ID-only lookups", () => {
+	const { client, saved, api, pending, info, flush } = setup();
+	saved.put("6", mount(6));
+	api.GetDisplayedMountID.mockImplementation((index) =>
+		index === 45 ? 6 : index + 100,
+	);
+	const done = vi.fn();
+	client.setFavourite(6, true, done);
+	expect(api.SetIsFavorite).not.toHaveBeenCalled();
+	pending.shift()?.();
+	expect(api.GetDisplayedMountID.mock.calls.length).toBeLessThanOrEqual(21);
+	expect(done).not.toHaveBeenCalled();
+	flush();
+	expect(api.SetIsFavorite).toHaveBeenCalledExactlyOnceWith(45, true);
+	expect(done).toHaveBeenCalledExactlyOnceWith(true);
+	expect(info).not.toHaveBeenCalled();
+	client.refreshDisplay();
+	flush();
+	expect(info).toHaveBeenCalledExactlyOnceWith(6);
+});
+
+it("cancels favourite index lookups on shutdown", () => {
+	const { client, api, flush } = setup();
+	const done = vi.fn();
+	client.setFavourite(999, true, done);
+	client.stop();
+	flush();
+	expect(api.SetIsFavorite).not.toHaveBeenCalled();
+	expect(done).not.toHaveBeenCalled();
+});
+
+it("detaches all old observers on shutdown, including across a restart", () => {
+	const { client, saved, flush } = setup(2);
+	saved.put("1", mount(1));
+	const done = vi.fn();
+	client.load(done);
+	client.stop();
+	client.prefetch();
+	flush();
+	expect(done).toHaveBeenCalledOnce();
+});
+
+it("persists the displayed projection in mount entries for immediate filtered reopening", () => {
+	const { client, saved, cache, scheduler, ids, flush, info } = setup(2);
+	saved.put("1", mount(1));
+	saved.put("2", mount(2));
+	ids.splice(0, 1);
+	client.refreshDisplay();
+	flush();
+	const next = new MountsClient(scheduler, cache);
+	expect(next.getMounts().map((row) => row.id)).toEqual([2]);
+	expect(next.getCount()).toEqual({ collected: 0, total: 2 });
+	expect(info).not.toHaveBeenCalled();
+});
+
+it("updates a collected-filter projection when a specific mount becomes collected", () => {
+	const { client, saved, ids, flush } = setup(2);
+	saved.put("1", mount(1, true));
+	saved.put("2", { ...mount(2), index: 0 });
+	ids.splice(1, 1);
+	client.refreshDisplay();
+	flush();
+	ids.push(2);
+	client.refreshEntry(2);
+	flush();
+	expect(client.getMounts().map((row) => row.id)).toEqual([1, 2]);
+});
+
+it("publishes incomplete scan pages and marks completion after the final page", () => {
+	const { client, pending, flush } = setup();
+	const done = vi.fn();
+	client.load(done);
+	pending.shift()?.();
+	expect(done.mock.lastCall?.at(2)).toBe(false);
+	flush();
+	expect(done.mock.lastCall?.at(2)).toBe(true);
+});
+
+it("coalesces events received before the first scan page into that scan", () => {
+	const { client, api, flush } = setup(2);
+	for (let event = 0; event < 10; event++) client.refreshEntry();
+	flush();
+	expect(api.GetMountIDs).toHaveBeenCalledOnce();
 });
 it("routes search and each filter group to the journal and retains the equipment confirmation flow", () => {
 	const collection = vi.fn();
@@ -252,7 +397,8 @@ it("routes search and each filter group to the journal and retains the equipment
 		SetSearch: search,
 	});
 	vi.stubGlobal("C_PetJournal", { GetNumPetSources: () => 12 });
-	const client = new MountsClient(scheduler);
+	const scheduler = { nextFrame: vi.fn(() => () => {}) };
+	const client = new MountsClient(scheduler, new CollectionCache(scheduler));
 	client.search("horse");
 	client.toggleFilter("collection:2");
 	client.toggleFilter("type:3");
@@ -273,437 +419,4 @@ it("routes search and each filter group to the journal and retains the equipment
 	vi.stubGlobal("C_Cursor", { GetCursorItem: () => ({ bag: 0, slot: 1 }) });
 	client.applyEquipment();
 	expect(apply).toHaveBeenCalledOnce();
-});
-it("uses displayed indices for favourites, preserves mount IDs and counts the full collection", () => {
-	const favourite = vi.fn();
-	const displayedCount = vi.fn(() => 1);
-	vi.stubGlobal("C_MountJournal", {
-		GetMountIDs: () => [10, 20, 30],
-		GetMountInfoByID: (id: number) => [
-			"Mount",
-			1,
-			2,
-			false,
-			true,
-			1,
-			false,
-			false,
-			null,
-			id === 30,
-			id === 10,
-		],
-		GetNumDisplayedMounts: displayedCount,
-		GetDisplayedMountID: () => 20,
-		GetDisplayedMountInfo: () => [
-			"Horse",
-			123,
-			456,
-			false,
-			true,
-			1,
-			true,
-			false,
-			null,
-			false,
-			true,
-			20,
-		],
-		GetIsFavorite: () => [true, true],
-		SetIsFavorite: favourite,
-	});
-	const client = new MountsClient(scheduler);
-	expect(client.getCount()).toEqual({ collected: 1, total: 2 });
-	expect(client.getMounts()).toEqual([
-		{
-			id: 20,
-			index: 1,
-			name: "Horse",
-			spell: 123,
-			icon: 456,
-			collected: true,
-			usable: true,
-			favourite: true,
-			expansionId: 0,
-		},
-	]);
-	const result = vi.fn();
-	client.setFavourite(20, false, result);
-	expect(favourite).toHaveBeenCalledWith(1, false);
-	expect(result).toHaveBeenCalledExactlyOnceWith(true);
-	client.setFavourite(999, true, result);
-	expect(favourite).toHaveBeenCalledTimes(1);
-	// Cached writes do not enumerate the journal; an unknown ID only queries size.
-	expect(displayedCount).toHaveBeenCalledTimes(2);
-});
-
-it("updates a cached favourite without rescanning mount details or collection counts", () => {
-	const details = vi.fn(() => [
-		"Horse",
-		123,
-		1,
-		false,
-		true,
-		1,
-		false,
-		false,
-		null,
-		false,
-		true,
-		6,
-	]);
-	const info = vi.fn(() => ["Horse", 123, 1, false, true, 1, true]);
-	const set = vi.fn();
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => 1,
-		GetDisplayedMountInfo: details,
-		GetDisplayedMountID: () => 6,
-		GetIsFavorite: () => [false, true],
-		SetIsFavorite: set,
-		GetMountInfoByID: info,
-	});
-	const client = new MountsClient(scheduler);
-	client.getMounts();
-	details.mockClear();
-	client.setFavourite(6, true, vi.fn());
-	expect(set).toHaveBeenCalledExactlyOnceWith(1, true);
-	expect(details).not.toHaveBeenCalled();
-	expect(info).not.toHaveBeenCalled();
-	expect(client.getFavourite(6)).toBe(true);
-	expect(info).toHaveBeenCalledExactlyOnceWith(6);
-});
-
-it("checks current summon eligibility by ID without enumerating the journal", () => {
-	const info = vi.fn(() => [
-		"Horse",
-		123,
-		1,
-		false,
-		true,
-		1,
-		false,
-		false,
-		null,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", { GetMountInfoByID: info });
-	const client = new MountsClient(scheduler);
-	expect(client.canUse(6)).toBe(true);
-	info.mockReturnValue([
-		"Horse",
-		123,
-		1,
-		false,
-		false,
-		1,
-		false,
-		false,
-		null,
-		false,
-		true,
-	]);
-	expect(client.canUse(6)).toBe(false);
-	expect(info.mock.calls).toEqual([[6], [6]]);
-});
-
-it("resolves reordered indices in bounded ID-only batches and never favourites the wrong mount", () => {
-	const pending: (() => void)[] = [];
-	const client = new MountsClient({
-		nextFrame: (step) => {
-			pending.push(step);
-			return vi.fn();
-		},
-	});
-	const displayedID = vi.fn((index: number) =>
-		index === 45 ? 6 : index + 100,
-	);
-	const set = vi.fn();
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => 45,
-		GetDisplayedMountInfo: (index: number) => [
-			"Horse",
-			123,
-			1,
-			false,
-			true,
-			1,
-			false,
-			false,
-			null,
-			false,
-			true,
-			index === 1 ? 6 : index + 100,
-		],
-		GetDisplayedMountID: displayedID,
-		GetIsFavorite: () => [false, true],
-		SetIsFavorite: set,
-	});
-	client.getMounts();
-	const done = vi.fn();
-	client.setFavourite(6, true, done);
-	expect(set).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(displayedID).toHaveBeenCalledTimes(21);
-	expect(done).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(set).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(set).toHaveBeenCalledExactlyOnceWith(45, true);
-	expect(done).toHaveBeenCalledExactlyOnceWith(true);
-});
-
-it("finishes the full scan without duplicate or skipped IDs when unfavouriting reorders the preview", () => {
-	const pending: (() => void)[] = [];
-	const client = new MountsClient({
-		nextFrame: (step) => {
-			pending.push(step);
-			return vi.fn();
-		},
-	});
-	const ids = Array.from({ length: 45 }, (_, i) => i + 1);
-	const info = (id: number) => [
-		`Mount ${id}`,
-		id,
-		1,
-		false,
-		true,
-		1,
-		id === 1,
-		false,
-		null,
-		false,
-		true,
-		id,
-	];
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => ids.length,
-		GetDisplayedMountID: (index: number) => ids.at(index - 1),
-		GetDisplayedMountInfo: (index: number) => info(ids.at(index - 1) ?? 0),
-		GetMountIDs: () => Array.from({ length: 45 }, (_, i) => i + 1),
-		GetMountInfoByID: info,
-		GetIsFavorite: () => [true, true],
-		SetIsFavorite: () => {
-			const first = ids.shift();
-			if (first !== undefined) ids.push(first);
-		},
-	});
-	const done = vi.fn();
-	let changed = false;
-	client.load(done, () => {
-		if (changed) return;
-		changed = true;
-		client.setFavourite(1, false, vi.fn());
-	});
-	while (pending.length) pending.shift()?.();
-	const result = done.mock.calls.at(0)?.at(0) as { id: number }[];
-	expect(result).toHaveLength(45);
-	expect(new Set(result.map((mount) => mount.id)).size).toBe(45);
-	expect(result.map((mount) => mount.id)).toContain(21);
-});
-
-it("prefetches bounded enumeration and counts, then serves cached mounts", () => {
-	const pending: (() => void)[] = [];
-	const displayed = vi.fn((id: number) => [
-		`Mount ${id}`,
-		id,
-		id,
-		false,
-		true,
-		1,
-		false,
-		false,
-		undefined,
-		false,
-		true,
-		id,
-	]);
-	const info = vi.fn(() => [
-		"Mount",
-		1,
-		1,
-		false,
-		true,
-		1,
-		false,
-		false,
-		undefined,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => 25,
-		GetDisplayedMountInfo: displayed,
-		GetMountIDs: () => Array.from({ length: 25 }, (_, i) => i + 1),
-		GetMountInfoByID: info,
-	});
-	const client = new MountsClient({
-		nextFrame: (callback) => {
-			pending.push(callback);
-			return () => {};
-		},
-	});
-	client.prefetch();
-	expect(displayed).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(20);
-	const done = vi.fn();
-	client.load(done);
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(25);
-	expect(info).toHaveBeenCalledTimes(15);
-	pending.shift()?.();
-	expect(done).toHaveBeenCalledWith(expect.any(Array), {
-		collected: 25,
-		total: 25,
-	});
-	client.load(done);
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(25);
-	expect(info).toHaveBeenCalledTimes(25);
-	expect(done).toHaveBeenCalledTimes(2);
-});
-
-it("loads the journal across frames and caches an obsolete load for reopening", () => {
-	const pending: (() => void)[] = [];
-	const nextFrame = (callback: () => void) => {
-		let cancelled = false;
-		pending.push(() => {
-			if (!cancelled) callback();
-		});
-		return () => {
-			cancelled = true;
-		};
-	};
-	const displayed = vi.fn((index: number) => [
-		`Mount ${index}`,
-		123,
-		456,
-		false,
-		true,
-		1,
-		false,
-		false,
-		null,
-		index === 2,
-		true,
-		index,
-	]);
-	const info = vi.fn(() => [
-		"Mount",
-		123,
-		456,
-		false,
-		true,
-		1,
-		false,
-		false,
-		null,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => 45,
-		GetDisplayedMountInfo: displayed,
-		GetMountIDs: () => [1, 2, 3],
-		GetMountInfoByID: info,
-	});
-	const client = new MountsClient({ nextFrame });
-	const done = vi.fn();
-	const progress = vi.fn();
-	client.load(done, undefined, progress);
-	expect(displayed).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(20);
-	expect(progress).toHaveBeenLastCalledWith(20, 48);
-	expect(done).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(40);
-	pending.shift()?.();
-	expect(done).toHaveBeenCalledOnce();
-	expect(done.mock.lastCall?.at(0)).toHaveLength(44);
-	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 3, total: 3 });
-	expect(progress).toHaveBeenLastCalledWith(48, 48);
-	client.invalidate();
-	const obsolete = vi.fn();
-	const cancel = client.load(obsolete);
-	pending.shift()?.();
-	cancel();
-	while (pending.length) pending.shift()?.();
-	expect(displayed).toHaveBeenCalledTimes(90);
-	expect(obsolete).not.toHaveBeenCalled();
-	client.load(done);
-	pending.shift()?.();
-	expect(done).toHaveBeenCalledTimes(2);
-	expect(displayed).toHaveBeenCalledTimes(90);
-	expect(info).toHaveBeenCalledTimes(6);
-});
-
-it("publishes a first page before enumeration and counting finish, without hidden mounts", () => {
-	const pending: (() => void)[] = [];
-	const nextFrame = (callback: () => void) => {
-		let cancelled = false;
-		pending.push(() => {
-			if (!cancelled) callback();
-		});
-		return () => {
-			cancelled = true;
-		};
-	};
-	const info = vi.fn(() => [
-		"Mount",
-		1,
-		2,
-		false,
-		true,
-		1,
-		false,
-		false,
-		null,
-		false,
-		true,
-	]);
-	vi.stubGlobal("C_MountJournal", {
-		GetNumDisplayedMounts: () => 65,
-		GetDisplayedMountInfo: (index: number) => [
-			`Mount ${index}`,
-			1,
-			2,
-			false,
-			true,
-			1,
-			false,
-			false,
-			null,
-			index <= 20,
-			true,
-			index,
-		],
-		GetMountIDs: () => Array.from({ length: 100 }, (_, index) => index + 1),
-		GetMountInfoByID: info,
-	});
-	const client = new MountsClient({ nextFrame });
-	const done = vi.fn();
-	const preview = vi.fn();
-	client.load(done, preview);
-	pending.shift()?.();
-	expect(preview).not.toHaveBeenCalled();
-	pending.shift()?.();
-	expect(preview).toHaveBeenCalledOnce();
-	const firstPage = preview.mock.lastCall?.at(0);
-	expect(firstPage).toHaveLength(20);
-	expect(firstPage.at(0)?.id).toBe(21);
-	expect(info).not.toHaveBeenCalled();
-	expect(done).not.toHaveBeenCalled();
-	while (pending.length) pending.shift()?.();
-	expect(firstPage).toHaveLength(20);
-	expect(preview).toHaveBeenCalledOnce();
-	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
-	expect(done.mock.lastCall?.at(1)).toEqual({ collected: 100, total: 100 });
-	// Closing from the preview detaches callbacks while the cache fills.
-	client.invalidate();
-	let cancel = () => {};
-	const obsolete = vi.fn();
-	cancel = client.load(obsolete, () => cancel());
-	while (pending.length) pending.shift()?.();
-	expect(obsolete).not.toHaveBeenCalled();
 });

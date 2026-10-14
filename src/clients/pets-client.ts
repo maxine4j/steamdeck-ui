@@ -2,8 +2,8 @@ import type { ICollectionCache } from "./collection-cache";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getPetExpansion } from "./pet-expansions";
+import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
-import type { TieredCache } from "./tiered-cache";
 
 // Legacy journal enumeration and GUID APIs are absent from the generated surface.
 declare global {
@@ -122,8 +122,8 @@ export class PetsClient implements IPetsClient {
 	private filtersInitialized = false;
 	private fullScan = true;
 	private readonly dirtyIds = new Set<string>();
-	private readonly items?: TieredCache<Pet>;
-	private readonly snapshots?: TieredCache<Pet[]>;
+	private readonly items?: SavedVariableCache<Pet>;
+	private readonly snapshots?: SavedVariableCache<Pet[]>;
 	private journal: JournalPrefetch<Pet[]>;
 	private querying = false;
 	private querySnapshot?: Pet[];
@@ -131,12 +131,12 @@ export class PetsClient implements IPetsClient {
 		private readonly scheduler: ITaskScheduler,
 		cache?: ICollectionCache,
 	) {
-		this.items = cache?.create("pets.items", false, 3600);
-		this.snapshots = cache?.create("pets.snapshot", false, 3600);
+		this.items = cache?.create("pets.items", false);
+		this.snapshots = cache?.create("pets.snapshot", false);
 		this.journal = this.createJournal(this.snapshots);
 	}
 	private createJournal(
-		persisted?: TieredCache<Pet[]>,
+		persisted?: SavedVariableCache<Pet[]>,
 	): JournalPrefetch<Pet[]> {
 		return new JournalPrefetch(
 			this.scheduler,
@@ -267,10 +267,7 @@ export class PetsClient implements IPetsClient {
 				let pet: Pet | undefined;
 				if (previous) {
 					pet = previous;
-					if (
-						previous.collected &&
-						(dirty.has(previous.id) || this.items?.isExpired(previous.id))
-					) {
+					if (previous.collected && dirty.has(previous.id)) {
 						const [
 							speciesId,
 							customName,
@@ -330,7 +327,6 @@ export class PetsClient implements IPetsClient {
 				if (pet && !seen.has(pet.id)) {
 					seen.add(pet.id);
 					pets.push(pet);
-					// Reusing an item must not renew its TTL without a native read.
 					if (pet !== previous) this.items?.put(pet.id, pet);
 				}
 			}

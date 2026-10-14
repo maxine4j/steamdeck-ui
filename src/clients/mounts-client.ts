@@ -1,13 +1,7 @@
 import type { ICollectionCache } from "./collection-cache";
-import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getMountExpansion } from "./mount-expansions";
+import type { CacheChange, SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
-import type { TieredCache } from "./tiered-cache";
-
-interface MountSnapshot {
-	mounts: Mount[];
-	count: { collected: number; total: number };
-}
 
 export interface Mount {
 	readonly id: number;
@@ -19,21 +13,27 @@ export interface Mount {
 	readonly usable: boolean;
 	readonly favourite: boolean;
 	readonly expansionId?: number;
+	readonly hidden?: boolean;
 }
 export interface MountFilter {
 	readonly id: string;
 	readonly label: string;
 	readonly checked: boolean;
 }
-export interface IMountsClient extends IJournalPrefetch {
+export interface IMountJournal {
+	prefetch(): void;
+	refreshEntry(id?: number): void;
+	refreshDisplay(): void;
+	stop(): void;
+}
+export interface IMountsClient extends IMountJournal {
 	load(
 		callback: (
 			mounts: Mount[],
 			count: { collected: number; total: number },
+			complete: boolean,
 		) => void,
-		onFirstPage?: (mounts: Mount[]) => void,
 		onProgress?: (completed: number, total: number) => void,
-		retainCachedView?: boolean,
 	): () => void;
 	summon(id: number): void;
 	canUse(id: number): boolean;
@@ -54,253 +54,224 @@ export interface IMountsClient extends IJournalPrefetch {
 	getUtilitySpells(): { favourite: number; flight: number };
 }
 export class MountsClient implements IMountsClient {
-	private readonly indices = new Map<number, number>();
-	private displayRevision = 0;
-	private readonly items?: TieredCache<Mount>;
-	private readonly snapshots?: TieredCache<MountSnapshot>;
-	private backfill = false;
-	private expiredOnly = false;
-	private readonly dirtyIds = new Set<number>();
-	private readonly journal: JournalPrefetch<
-		{
-			mounts: Mount[];
-			count: { collected: number; total: number };
-		},
-		Mount[]
-	>;
+	private readonly items: SavedVariableCache<Mount>;
+	private cancelScan?: () => void;
+	private scanStarted = false;
+	private rescan = false;
+	private cancelTargets?: () => void;
+	private readonly targets = new Set<number>();
+	private cancelDisplay?: () => void;
+	private displayGeneration = 0;
+	private generation = 0;
+	private readonly favouriteWrites = new Set<number>();
+	private readonly actions = new Set<() => void>();
+	private readonly observers = new Set<(this: void) => void>();
+	private readonly subscriptions = new Set<() => void>();
+	private readonly progress = new Set<
+		(this: void, completed: number, total: number) => void
+	>();
 	constructor(
 		private readonly scheduler: ITaskScheduler,
-		cache?: ICollectionCache,
+		cache: ICollectionCache,
 	) {
-		this.items = cache?.create("mounts.items", false, 3600);
-		this.snapshots = cache?.create("mounts.snapshot", false, 3600);
-		this.journal = new JournalPrefetch(
-			scheduler,
-			(done, preview, progress) =>
-				this.scan(
-					(mounts, count) => done({ mounts, count }),
-					preview,
-					progress,
-				),
-			this.snapshots,
-		);
+		this.items = cache.create<Mount>("mounts.items");
 	}
 	prefetch(): void {
-		this.backfill = true;
-		this.journal.prefetch();
+		this.startScan();
 	}
-	invalidate(id?: number): void {
-		if (id !== undefined && id > 0) this.dirtyIds.add(id);
-		else this.expiredOnly = true;
-		this.journal.invalidate();
+	refreshEntry(id?: number): void {
+		if (id === undefined || id <= 0) {
+			if (this.cancelScan) this.rescan = this.scanStarted;
+			else this.startScan();
+			return;
+		}
+		this.targets.add(id);
+		this.scheduleTargets();
 	}
-	stop(): void {
-		this.journal.stop();
-		this.items?.stop();
+	private scheduleTargets(): void {
+		if (this.cancelTargets) return;
+		const generation = this.generation;
+		this.cancelTargets = this.scheduler.nextFrame(() => {
+			if (generation !== this.generation) return;
+			this.cancelTargets = undefined;
+			const changes: CacheChange<Mount>[] = [];
+			let remaining = 20;
+			for (const id of this.targets) {
+				this.targets.delete(id);
+				const mount = this.readMount(id);
+				if (mount) changes.push({ key: String(id), value: mount });
+				if (--remaining === 0) break;
+			}
+			this.items.putMany(changes);
+			if (generation !== this.generation) return;
+			if (this.targets.size > 0) this.scheduleTargets();
+			this.refreshDisplay();
+		});
+	}
+	private startScan(): void {
+		if (this.cancelScan) return;
+		const generation = this.generation;
+		this.scanStarted = false;
+		let ids: number[] | undefined;
+		let index = 0;
+		const step = () => {
+			if (generation !== this.generation) return;
+			this.scanStarted = true;
+			ids ??= C_MountJournal.GetMountIDs() as unknown as number[];
+			const changes: CacheChange<Mount>[] = [];
+			const end = Math.min(ids.length, index + 20);
+			while (index < end) {
+				const id = ids.at(index++);
+				if (id !== undefined) {
+					const mount = this.readMount(id);
+					if (mount) changes.push({ key: String(id), value: mount });
+				}
+			}
+			this.items.putMany(changes);
+			if (generation !== this.generation) return;
+			for (const observer of this.progress) observer(index, ids.length);
+			if (index < ids.length) this.cancelScan = this.scheduler.nextFrame(step);
+			else {
+				this.cancelScan = undefined;
+				this.scanStarted = false;
+				if (this.rescan) {
+					this.rescan = false;
+					this.startScan();
+				} else this.refreshDisplay();
+			}
+		};
+		this.cancelScan = this.scheduler.nextFrame(step);
+	}
+	private readMount(id: number): Mount | undefined {
+		const previous = this.items.peek(String(id));
+		const [name, spell, icon, , usable, , favourite, , , hidden, collected] =
+			C_MountJournal.GetMountInfoByID(id);
+		if (!name) return previous;
+		return {
+			id,
+			index: previous?.index ?? id,
+			name,
+			spell,
+			icon,
+			usable,
+			collected,
+			favourite,
+			expansionId: getMountExpansion(id),
+			hidden,
+		};
+	}
+	/** Search/filter events change a projection, never the journal's cached details. */
+	refreshDisplay(): void {
+		for (const id of this.favouriteWrites) this.refreshEntry(id);
+		this.favouriteWrites.clear();
+		this.cancelDisplay?.();
+		const generation = this.generation;
+		const displayGeneration = ++this.displayGeneration;
+		let count: number | undefined;
+		let index = 1;
+		const indices = new Map<number, number>();
+		let cachedIds: number[] | undefined;
+		let cursor = 0;
+		const step = () => {
+			if (
+				generation !== this.generation ||
+				displayGeneration !== this.displayGeneration
+			)
+				return;
+			count ??= C_MountJournal.GetNumDisplayedMounts();
+			let remaining = 20;
+			while (index <= count && remaining > 0) {
+				const current = index++;
+				indices.set(C_MountJournal.GetDisplayedMountID(current), current);
+				remaining--;
+			}
+			const changes: CacheChange<Mount>[] = [];
+			if (index > count) {
+				cachedIds ??= this.items.values().map((mount) => mount.id);
+				while (cursor < cachedIds.length && remaining > 0) {
+					const id = cachedIds.at(cursor++);
+					const mount =
+						id !== undefined ? this.items.peek(String(id)) : undefined;
+					if (mount) {
+						const displayedIndex = indices.get(mount.id) ?? 0;
+						if (mount.index !== displayedIndex)
+							changes.push({
+								key: String(mount.id),
+								value: { ...mount, index: displayedIndex },
+							});
+					}
+					remaining--;
+				}
+			}
+			this.items.putMany(changes);
+			if (
+				generation !== this.generation ||
+				displayGeneration !== this.displayGeneration
+			)
+				return;
+			if (index <= count || (cachedIds && cursor < cachedIds.length))
+				this.cancelDisplay = this.scheduler.nextFrame(step);
+			else {
+				this.cancelDisplay = undefined;
+				for (const observer of [...this.observers]) observer();
+			}
+		};
+		this.cancelDisplay = this.scheduler.nextFrame(step);
 	}
 	load(
 		callback: (
 			mounts: Mount[],
 			count: { collected: number; total: number },
+			complete: boolean,
 		) => void,
-		onFirstPage?: (mounts: Mount[]) => void,
-		onProgress?: (completed: number, total: number) => void,
-		retainCachedView = false,
-	): () => void {
-		return this.journal.load(
-			({ mounts, count }) => callback(mounts, count),
-			onFirstPage,
-			onProgress,
-			retainCachedView,
-		);
-	}
-	private scan(
-		callback: (
-			mounts: Mount[],
-			count: { collected: number; total: number },
-		) => void,
-		onFirstPage?: (mounts: Mount[]) => void,
 		onProgress?: (completed: number, total: number) => void,
 	): () => void {
-		const mounts: Mount[] = [];
-		const saved = !this.backfill ? this.snapshots?.peek("snapshot") : undefined;
-		const targeted =
-			this.dirtyIds.size > 0 ? new Set(this.dirtyIds) : undefined;
-		const expiredOnly = this.expiredOnly;
-		this.expiredOnly = false;
-		const changedIds = saved && targeted ? [...targeted] : [];
-		let changedIndex = 0;
-		this.dirtyIds.clear();
-		const seen = new Set<number>();
-		let revision = this.displayRevision;
-		let ids: number[] | undefined;
-		let displayed = 0;
-		let index = 1;
-		let countIndex = 0;
-		let collected = saved?.count.collected ?? 0;
-		let total = saved?.count.total ?? 0;
-		let publishedFirstPage = false;
-		let cancelled = false;
-		const step = () => {
-			if (cancelled) return;
-			if (!ids) {
-				displayed = C_MountJournal.GetNumDisplayedMounts();
-				ids = saved
-					? []
-					: (C_MountJournal.GetMountIDs() as unknown as number[]);
-			}
-			if (revision !== this.displayRevision) {
-				// Removing a favourite can shift an unread mount behind the scan's
-				// cursor. Overlap one position per write and deduplicate by stable ID.
-				index = Math.max(1, index - (this.displayRevision - revision));
-				revision = this.displayRevision;
-			}
-			// Bound API work per frame, including the unfiltered collection count.
-			let remaining = 20;
-			while (changedIndex < changedIds.length && remaining > 0) {
-				const id = changedIds.at(changedIndex++);
-				if (id !== undefined) {
-					const previous = this.items?.peek(String(id));
-					const mount = this.readMount(id, previous?.index ?? 0);
-					if (mount) {
-						if (!previous) {
-							total++;
-							if (mount.collected) collected++;
-						} else if (previous.collected !== mount.collected)
-							collected += mount.collected ? 1 : -1;
-					}
-				}
-				remaining--;
-			}
-			while (index <= displayed && remaining > 0) {
-				const current = index++;
-				let mount: Mount | undefined;
-				if (saved && this.items) {
-					const id = C_MountJournal.GetDisplayedMountID(current);
-					const previous = this.items.peek(String(id));
-					mount =
-						previous &&
-						(targeted || (expiredOnly && !this.items.isExpired(String(id))))
-							? { ...previous, index: current }
-							: this.readMount(id, current);
-					if (mount) {
-						if (!previous) {
-							total++;
-							if (mount.collected) collected++;
-						} else if (previous.collected !== mount.collected)
-							collected += mount.collected ? 1 : -1;
-					}
-				} else mount = this.getDisplayedMount(current);
-				if (mount && !seen.has(mount.id)) {
-					seen.add(mount.id);
-					mounts.push(mount);
-				}
-				remaining--;
-			}
-			if (!publishedFirstPage && (mounts.length >= 20 || index > displayed)) {
-				publishedFirstPage = true;
-				// Publish a stable preview before the unfiltered count is available.
-				onFirstPage?.(mounts.slice(0, 20));
-				if (cancelled) return;
-			}
-			while (countIndex < ids.length && remaining > 0) {
-				const id = ids.at(countIndex++);
-				if (id !== undefined) {
-					const [name, spell, icon, , usable, , favourite, , , hidden, owned] =
-						C_MountJournal.GetMountInfoByID(id);
-					if (!hidden) {
-						if (name !== undefined && name !== "")
-							this.items?.put(String(id), {
-								id,
-								index: this.indices.get(id) ?? 0,
-								name,
-								spell,
-								icon,
-								usable,
-								favourite,
-								collected: owned,
-								expansionId: getMountExpansion(id),
-							});
-						total++;
-						if (owned) collected++;
-					}
-				}
-				remaining--;
-			}
-			onProgress?.(index - 1 + countIndex, displayed + ids.length);
-			if (cancelled) return;
-			if (
-				changedIndex < changedIds.length ||
-				index <= displayed ||
-				countIndex < ids.length
-			)
-				cancel = this.scheduler.nextFrame(step);
-			else {
-				this.backfill = false;
-				// A superseded scan still owns valid per-item and count updates.
-				this.snapshots?.put("snapshot", {
-					mounts,
-					count: { collected, total },
-				});
-				callback(mounts, { collected, total });
-			}
+		const publish = () => {
+			const values = this.items.values().filter((mount) => !mount.hidden);
+			callback(
+				this.visible(values),
+				{
+					collected: values.filter((mount) => mount.collected).length,
+					total: values.length,
+				},
+				!this.cancelScan,
+			);
 		};
-		let cancel = this.scheduler.nextFrame(step);
+		const detach = this.items.subscribe(publish);
+		this.subscriptions.add(detach);
+		this.observers.add(publish);
+		if (onProgress) this.progress.add(onProgress);
+		if (this.items.values().length > 0) publish();
+		else this.startScan();
 		return () => {
-			cancelled = true;
-			cancel();
+			detach();
+			this.subscriptions.delete(detach);
+			this.observers.delete(publish);
+			if (onProgress) this.progress.delete(onProgress);
 		};
 	}
-	private readMount(id: number, index: number): Mount | undefined {
-		const [name, spell, icon, , usable, , favourite, , , hidden, collected] =
-			C_MountJournal.GetMountInfoByID(id);
-		if (!name) return this.items?.peek(String(id));
-		if (hidden) return undefined;
-		const mount = {
-			id,
-			index,
-			name,
-			spell,
-			icon,
-			usable,
-			collected,
-			favourite,
-			expansionId: getMountExpansion(id),
-		};
-		this.indices.set(id, index);
-		this.items?.put(String(id), mount);
-		return mount;
+	private visible(values: Mount[]): Mount[] {
+		return values.filter((mount) => mount.index > 0);
 	}
-	private getDisplayedMount(index: number): Mount | undefined {
-		const [
-			name,
-			spell,
-			icon,
-			,
-			usable,
-			,
-			favourite,
-			,
-			,
-			hidden,
-			collected,
-			id,
-		] = C_MountJournal.GetDisplayedMountInfo(index);
-		if (hidden) return undefined;
-		this.indices.set(id, index);
-		const mount = {
-			id,
-			index,
-			name,
-			spell,
-			icon,
-			usable,
-			collected,
-			favourite,
-			expansionId: getMountExpansion(id),
-		};
-		this.items?.put(String(id), mount);
-		return mount;
+	stop(): void {
+		this.generation++;
+		this.cancelScan?.();
+		this.cancelScan = undefined;
+		this.scanStarted = false;
+		this.rescan = false;
+		this.cancelTargets?.();
+		this.cancelTargets = undefined;
+		this.targets.clear();
+		this.cancelDisplay?.();
+		this.cancelDisplay = undefined;
+		this.favouriteWrites.clear();
+		for (const cancel of this.actions) cancel();
+		this.actions.clear();
+		this.items.stop();
+		for (const detach of this.subscriptions) detach();
+		this.subscriptions.clear();
+		this.observers.clear();
+		this.progress.clear();
 	}
 	summon(id: number): void {
 		C_MountJournal.SummonByID(id);
@@ -314,38 +285,18 @@ export class MountsClient implements IMountsClient {
 		C_MountJournal.Pickup(0);
 	}
 	getMounts(): Mount[] {
-		const saved = this.snapshots?.peek("snapshot");
-		if (saved) {
-			this.load(() => {});
-			return saved.mounts;
-		}
-		const mounts: Mount[] = [];
-		const count = C_MountJournal.GetNumDisplayedMounts();
-		for (let index = 1; index <= count; index++) {
-			const mount = this.getDisplayedMount(index);
-			if (mount) mounts.push(mount);
-		}
-		return mounts;
+		const values = this.items.values();
+		if (values.length === 0) this.startScan();
+		return this.visible(values.filter((mount) => !mount.hidden));
 	}
 	getCount() {
-		const saved = this.snapshots?.peek("snapshot");
-		if (saved) return saved.count;
-		// The generated scalar annotation omits the API's returned Lua table.
-		const ids = C_MountJournal.GetMountIDs() as unknown as number[];
-		let total = 0;
-		let collected = 0;
-		for (const id of ids) {
-			const [, , , , , , , , , hidden, owned] =
-				C_MountJournal.GetMountInfoByID(id);
-			if (!hidden) {
-				total++;
-				if (owned) collected++;
-			}
-		}
-		return { collected, total };
+		const mounts = this.items.values().filter((mount) => !mount.hidden);
+		return {
+			collected: mounts.filter((mount) => mount.collected).length,
+			total: mounts.length,
+		};
 	}
 	search(text: string): void {
-		this.invalidate();
 		C_MountJournal.SetSearch(text);
 	}
 	getFilters(): MountFilter[] {
@@ -384,7 +335,6 @@ export class MountsClient implements IMountsClient {
 		const [kind, value] = id.split(":");
 		const index = Number(value);
 		if (!this.getFilters().some((filter) => filter.id === id)) return;
-		this.invalidate();
 		if (kind === "collection")
 			C_MountJournal.SetCollectedFilterSetting(
 				index,
@@ -406,13 +356,12 @@ export class MountsClient implements IMountsClient {
 		const apply = (index: number) => {
 			const [, allowed] = C_MountJournal.GetIsFavorite(index);
 			if (allowed) {
-				this.invalidate(id);
-				this.displayRevision++;
+				this.favouriteWrites.add(id);
 				C_MountJournal.SetIsFavorite(index, favourite);
 			}
 			onResult(allowed);
 		};
-		const cached = this.indices.get(id);
+		const cached = this.items.peek(String(id))?.index;
 		if (
 			cached !== undefined &&
 			C_MountJournal.GetDisplayedMountID(cached) === id
@@ -422,23 +371,31 @@ export class MountsClient implements IMountsClient {
 		}
 		// Favouriting can reorder Blizzard's displayed indices. Resolve IDs only,
 		// in bounded batches, rather than rebuilding mount data and collection counts.
+		const generation = this.generation;
 		const count = C_MountJournal.GetNumDisplayedMounts();
 		let index = 1;
 		const step = () => {
+			if (generation !== this.generation) return;
 			const end = Math.min(count, index + 19);
 			while (index <= end) {
 				const current = index++;
 				const displayedId = C_MountJournal.GetDisplayedMountID(current);
-				this.indices.set(displayedId, current);
 				if (displayedId === id) {
 					apply(current);
 					return;
 				}
 			}
-			if (index <= count) this.scheduler.nextFrame(step);
+			if (index <= count) this.scheduleAction(step);
 			else onResult(false);
 		};
-		this.scheduler.nextFrame(step);
+		this.scheduleAction(step);
+	}
+	private scheduleAction(step: () => void): void {
+		const cancel = this.scheduler.nextFrame(() => {
+			this.actions.delete(cancel);
+			step();
+		});
+		this.actions.add(cancel);
 	}
 	getFavourite(id: number): boolean {
 		const [, , , , , , favourite] = C_MountJournal.GetMountInfoByID(id);

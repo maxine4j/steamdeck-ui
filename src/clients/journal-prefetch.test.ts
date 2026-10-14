@@ -1,16 +1,11 @@
 import { expect, it, vi } from "vitest";
 import { JournalPrefetch } from "./journal-prefetch";
-import { TieredCache } from "./tiered-cache";
+import { SavedVariableCache } from "./saved-variable-cache";
 
 it("serves a fixed warm view while refreshing the persisted cache for the next opening", () => {
 	const scheduler = { nextFrame: () => () => {} };
 	const entries = { snapshot: { value: [1], expiresAt: 0 } };
-	const saved = new TieredCache<number[]>(
-		() => entries,
-		() => 10,
-		60,
-		scheduler,
-	);
+	const saved = new SavedVariableCache<number[]>(() => entries, scheduler);
 	const scan = vi.fn((_done: (value: number[]) => void) => () => {});
 	const journal = new JournalPrefetch(scheduler, scan, saved);
 	const done = vi.fn();
@@ -26,12 +21,8 @@ it("serves a fixed warm view while refreshing the persisted cache for the next o
 
 it("does not retain completed persisted loads as observers of later invalidations", () => {
 	const scheduler = { nextFrame: () => () => {} };
-	const saved = new TieredCache<number[]>(
-		() => ({}),
-		() => 10,
-		60,
-		scheduler,
-	);
+	const entries = {};
+	const saved = new SavedVariableCache<number[]>(() => entries, scheduler);
 	const scan = vi.fn((_done: (value: number[]) => void) => () => {});
 	const journal = new JournalPrefetch(scheduler, scan, saved);
 	journal.prefetch();
@@ -52,12 +43,8 @@ it("publishes saved data synchronously while sharing the bounded refresh", () =>
 			return () => {};
 		},
 	};
-	const saved = new TieredCache<number[]>(
-		() => ({ snapshot: { value: [1], expiresAt: 0 } }),
-		() => 10,
-		60,
-		scheduler,
-	);
+	const entries = { snapshot: { value: [1] } };
+	const saved = new SavedVariableCache<number[]>(() => entries, scheduler);
 	const scan = vi.fn(
 		(_done: (value: number[]) => void, _preview?: (value: number[]) => void) =>
 			() => {},

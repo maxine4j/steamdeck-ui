@@ -1,4 +1,4 @@
-import type { IJournalPrefetch } from "../../clients/journal-prefetch";
+import type { IMountJournal } from "../../clients/mounts-client";
 import type { IEventBus } from "../../events/types";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
@@ -6,11 +6,10 @@ import type { IBuiltInMounts } from "./built-in-mounts";
 export class MountsModule implements IModule {
 	readonly id = "mounts";
 	private readonly refresh = (payload?: { id: number }) => {
-		this.journal.invalidate(payload?.id);
-		this.view.invalidate();
+		this.journal.refreshEntry(payload?.id);
 	};
 	private readonly searchUpdated = () => {
-		this.journal.invalidate();
+		this.journal.refreshDisplay();
 		this.view.onJournalSearchUpdated();
 	};
 	private readonly equipmentChanged = () => this.view.refreshEquipment();
@@ -22,12 +21,11 @@ export class MountsModule implements IModule {
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
 		private readonly view: {
-			invalidate(): void;
 			onJournalSearchUpdated(): void;
 			refreshEquipment(): void;
 		},
 		private readonly native: IBuiltInMounts,
-		private readonly journal: IJournalPrefetch,
+		private readonly journal: IMountJournal,
 	) {}
 	disableBuiltIn(): void {
 		this.native.disable();

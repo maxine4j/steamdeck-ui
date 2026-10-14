@@ -105,7 +105,6 @@ it("exposes pet ownership, combat type, families and sources and toggles each na
 	expect(filters.SetPetSourceChecked).toHaveBeenCalledWith(1, true);
 });
 function setup(count = 45) {
-	let now = 100;
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -153,10 +152,7 @@ function setup(count = 45) {
 	vi.stubGlobal("C_PetJournal", api);
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("SteamDeckUIConfig", {});
-	const client = new PetsClient(
-		scheduler,
-		new CollectionCache(scheduler, () => now),
-	);
+	const client = new PetsClient(scheduler, new CollectionCache(scheduler));
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
 	};
@@ -165,31 +161,25 @@ function setup(count = 45) {
 		api,
 		pending,
 		flush,
-		setNow: (value: number) => {
-			now = value;
-		},
 	};
 }
 
-it("does not extend unrelated item TTLs during targeted refreshes", () => {
-	const { client, api, flush, setNow } = setup(2);
+it("only rereads the event's pet during repeated targeted refreshes", () => {
+	const { client, api, flush } = setup(2);
 	client.load(vi.fn());
 	flush();
-	setNow(3500);
 	client.invalidate("Pet-2");
 	client.load(vi.fn());
 	flush();
 	api.GetPetInfoByPetID.mockClear();
-	setNow(3800);
 	client.invalidate("Pet-2");
 	client.load(vi.fn());
 	flush();
-	expect(api.GetPetInfoByPetID).toHaveBeenCalledWith("Pet-1");
-	expect(api.GetPetInfoByPetID).toHaveBeenCalledTimes(2);
+	expect(api.GetPetInfoByPetID).toHaveBeenCalledExactlyOnceWith("Pet-2");
 });
 
 it("keeps unowned species cached without querying them as owned GUIDs", () => {
-	const { client, api, flush, setNow } = setup(2);
+	const { client, api, flush } = setup(2);
 	api.GetPetInfoByIndex.mockImplementation((index) => [
 		index === 1 ? undefined : "Pet-2",
 		40,
@@ -203,7 +193,6 @@ it("keeps unowned species cached without querying them as owned GUIDs", () => {
 	]);
 	client.load(vi.fn());
 	flush();
-	setNow(3800);
 	client.invalidate("Pet-2");
 	client.load(vi.fn());
 	flush();

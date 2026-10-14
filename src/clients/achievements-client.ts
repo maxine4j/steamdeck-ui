@@ -1,7 +1,7 @@
 import type { IEventBus } from "../events/types";
 import type { ICollectionCache } from "./collection-cache";
+import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
-import type { TieredCache } from "./tiered-cache";
 export interface AchievementTotals {
 	total: number;
 	completed: number;
@@ -66,11 +66,11 @@ export interface IAchievementsClient {
 	selection(id: number): number;
 }
 export class AchievementsClient implements IAchievementsClient {
-	private readonly items?: TieredCache<Achievement>;
-	private readonly categoryRows?: TieredCache<Achievement[]>;
-	private readonly categoryList?: TieredCache<AchievementCategory[]>;
-	private readonly summaries?: TieredCache<AchievementSummary>;
-	private readonly criterionRows?: TieredCache<AchievementCriterion[]>;
+	private readonly items?: SavedVariableCache<Achievement>;
+	private readonly categoryRows?: SavedVariableCache<Achievement[]>;
+	private readonly categoryList?: SavedVariableCache<AchievementCategory[]>;
+	private readonly summaries?: SavedVariableCache<AchievementSummary>;
+	private readonly criterionRows?: SavedVariableCache<AchievementCriterion[]>;
 	private cancelBackfill?: () => void;
 	private cancelNotification?: () => void;
 	private generation = 0;
@@ -79,15 +79,11 @@ export class AchievementsClient implements IAchievementsClient {
 		cache?: ICollectionCache,
 		private readonly events?: IEventBus,
 	) {
-		this.items = cache?.create("achievements.items", true, 300);
-		this.categoryRows = cache?.create("achievements.categories", true, 86400);
-		this.categoryList = cache?.create(
-			"achievements.category-list",
-			false,
-			86400,
-		);
-		this.summaries = cache?.create("achievements.summary", true, 300);
-		this.criterionRows = cache?.create("achievements.criteria", true, 60);
+		this.items = cache?.create("achievements.items", true);
+		this.categoryRows = cache?.create("achievements.categories", true);
+		this.categoryList = cache?.create("achievements.category-list", false);
+		this.summaries = cache?.create("achievements.summary", true);
+		this.criterionRows = cache?.create("achievements.criteria", true);
 	}
 	prefetch(): void {
 		if (!this.items || this.cancelBackfill) return;

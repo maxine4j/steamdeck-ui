@@ -1,8 +1,8 @@
 import type { ICollectionCache } from "./collection-cache";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
+import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
-import type { TieredCache } from "./tiered-cache";
 
 // Legacy toy APIs are absent from the generated Retail declarations.
 declare global {
@@ -63,21 +63,20 @@ export class ToysClient implements IToysClient {
 	private journal: JournalPrefetch<Toy[]>;
 	private querying = false;
 	private querySnapshot?: Toy[];
-	private readonly items?: TieredCache<Toy>;
-	private readonly snapshots?: TieredCache<Toy[]>;
+	private readonly items?: SavedVariableCache<Toy>;
+	private readonly snapshots?: SavedVariableCache<Toy[]>;
 	private backfill = false;
-	private expiredOnly = false;
 	private readonly dirtyIds = new Set<number>();
 	constructor(
 		private readonly scheduler: ITaskScheduler,
 		cache?: ICollectionCache,
 	) {
-		this.items = cache?.create("toys.items", false, 3600);
-		this.snapshots = cache?.create("toys.snapshot", false, 3600);
+		this.items = cache?.create("toys.items", false);
+		this.snapshots = cache?.create("toys.snapshot", false);
 		this.journal = this.createJournal(this.snapshots);
 	}
 	private createJournal(
-		persisted?: TieredCache<Toy[]>,
+		persisted?: SavedVariableCache<Toy[]>,
 	): JournalPrefetch<Toy[]> {
 		return new JournalPrefetch(
 			this.scheduler,
@@ -96,7 +95,6 @@ export class ToysClient implements IToysClient {
 		this.querying = true;
 		this.querySnapshot = undefined;
 		this.backfill = true;
-		this.expiredOnly = false;
 		this.dirtyIds.clear();
 		this.journal = this.createJournal();
 	}
@@ -150,7 +148,6 @@ export class ToysClient implements IToysClient {
 	invalidate(id?: number): void {
 		if (this.querying) this.backfill = true;
 		if (id !== undefined && id > 0) this.dirtyIds.add(id);
-		else this.expiredOnly = true;
 		this.journal.invalidate();
 	}
 	invalidateItem(id: number): boolean {
@@ -198,8 +195,6 @@ export class ToysClient implements IToysClient {
 		for (const id of this.dirtyIds) if (ids && !ids.includes(id)) ids.push(id);
 		const targeted =
 			this.dirtyIds.size > 0 ? new Set(this.dirtyIds) : undefined;
-		const expiredOnly = this.expiredOnly;
-		this.expiredOnly = false;
 		this.dirtyIds.clear();
 		let index = 1;
 		let count: number | undefined;
@@ -217,11 +212,7 @@ export class ToysClient implements IToysClient {
 				if (id <= 0) continue;
 				const cached = this.items?.peek(String(id));
 				const toy =
-					cached &&
-					((targeted && !targeted.has(id)) ||
-						(!targeted && expiredOnly && !this.items?.isExpired(String(id))))
-						? cached
-						: this.readToy(id);
+					cached && targeted && !targeted.has(id) ? cached : this.readToy(id);
 				if (toy) toys.push(toy);
 			}
 			onProgress?.(Math.min(count, index - 1), count);
