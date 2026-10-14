@@ -11,6 +11,19 @@ it("creates focus animation timers as plain native frames", () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("creates Blizzard's native search box including its icon and clear button", () => {
+	vi.stubGlobal("UIParent", {});
+	const create = vi.fn();
+	vi.stubGlobal("CreateFrame", create);
+	new WowFrameFactory().createFrame("SearchBox");
+	expect(create).toHaveBeenCalledExactlyOnceWith(
+		"EditBox",
+		undefined,
+		UIParent,
+		"SearchBoxTemplate",
+	);
+});
+
 it("creates the standard Blizzard filter dropdown intrinsic and skin", () => {
 	vi.stubGlobal("UIParent", {});
 	const create = vi.fn();

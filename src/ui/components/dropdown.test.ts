@@ -83,6 +83,7 @@ function setup() {
 		};
 	};
 	const root = {
+		SetScrollMode: vi.fn(),
 		CreateCheckbox: (
 			label: string,
 			checked: () => boolean,
@@ -97,6 +98,7 @@ function setup() {
 			create(label, undefined, respond),
 	};
 	const native = {
+		menu: { ScrollBox: { ScrollToNearest: vi.fn() } },
 		SetupMenu: vi.fn((generate: (button: object, root: object) => void) => {
 			entries.length = 0;
 			generate(native, root);
@@ -124,8 +126,28 @@ function setup() {
 	const changed = vi.fn();
 	const dropdown = new Dropdown("filters", pool, changed);
 	dropdown.mount(new Frame("parent", pool));
-	return { dropdown, native, pool, entries, changed };
+	return { dropdown, native, pool, entries, changed, root };
 }
+
+it("bounds long filter menus and scrolls controller focus to offscreen options", () => {
+	const { dropdown, native, root } = setup();
+	dropdown.setOptions(
+		Array.from({ length: 35 }, (_, index) => ({
+			id: `filter-${index}`,
+			label: `Filter ${index}`,
+			checked: true,
+			activate: vi.fn(),
+		})),
+	);
+	dropdown.getNavGrid().at(0)?.at(0)?.onInteract();
+	dropdown.getNavGrid().flat().at(-1)?.onFocus();
+	expect(root.SetScrollMode).toHaveBeenCalledWith(360);
+	expect(native.menu.ScrollBox.ScrollToNearest).toHaveBeenCalledWith(
+		35,
+		0,
+		true,
+	);
+});
 
 it("uses Blizzard's dropdown and exposes native checkbox focus and activation to navigation", () => {
 	const { dropdown, pool, entries, changed } = setup();

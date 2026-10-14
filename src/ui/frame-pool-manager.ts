@@ -17,6 +17,7 @@ export type FrameType =
 	| "SecureRingButton"
 	| "Cooldown"
 	| "EditBox"
+	| "SearchBox"
 	| "StatusBar"
 	| "ScrollFrame"
 	| "PlayerModel";

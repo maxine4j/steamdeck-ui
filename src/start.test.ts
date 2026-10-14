@@ -10,6 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	vi.stubGlobal("_G", {});
+	vi.stubGlobal("SearchBoxTemplate_OnTextChanged", vi.fn());
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 32, height: 128 }),
 	});
@@ -76,6 +77,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			};
 			let shown = false;
 			const frame = {
+				RegisterCallback: vi.fn(),
+				UnregisterCallback: vi.fn(),
+				SetupMenu: vi.fn(),
+				IsMenuOpen: () => false,
+				CloseMenu: vi.fn(),
+				ClearMenuState: vi.fn(),
 				CreateFontString: () => ({
 					SetText: vi.fn((text: string) => {
 						texts.push(text);
@@ -278,6 +285,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		shutdown: vi.fn(),
 	};
 	const toys = {
+		search: vi.fn(),
+		getFilters: () => [],
+		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
 		stop: vi.fn(),
@@ -328,6 +338,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		share: vi.fn(),
 	};
 	const pets = {
+		search: vi.fn(),
+		getFilters: () => [],
+		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
 		stop: vi.fn(),
@@ -585,6 +598,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	flush();
 	expect(app.ui.getContainer("right").activePanelId).toBe("toys");
 	expect(toys.load).toHaveBeenCalledOnce();
+	expect(app.navigation.focusedId).toBe("toys-search");
+	events.emit("NAV_DOWN");
+	events.emit("NAV_DOWN");
 	expect(app.navigation.focusedId).toBe("toy-favourite-9001");
 	const toyButton = frames.find((frame) =>
 		vi

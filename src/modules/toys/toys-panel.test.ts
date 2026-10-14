@@ -1,7 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { IToysClient, Toy } from "../../clients/toys-client";
 import { createTestEventBus } from "../../events/test-event-bus";
+import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
+import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
@@ -97,6 +99,10 @@ const toy = (id: number, expansionId = 10, favourite = false): Toy => ({
 });
 
 function setup() {
+	vi.spyOn(SearchFilters.prototype, "mount").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "setOptions").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "hide").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "destroy").mockImplementation(() => {});
 	for (const method of [
 		"fill",
 		"setWindowBackground",
@@ -123,6 +129,9 @@ function setup() {
 		"destroy",
 		"revealVerticalRange",
 		"scrollToEdge",
+		"configureInput",
+		"focusInput",
+		"blurInput",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
@@ -138,6 +147,9 @@ function setup() {
 		},
 	};
 	const client: IToysClient = {
+		search: vi.fn(),
+		getFilters: vi.fn(() => []),
+		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
 		stop: vi.fn(),
@@ -161,6 +173,45 @@ function setup() {
 	};
 	return { panel, parent, client, menu, flush, publish, pending, close };
 }
+
+it("searches toys and refreshes native checkbox filters through the header controls", () => {
+	const { panel, parent, client } = setup();
+	vi.mocked(SearchFilters.prototype.mount).mockRestore();
+	vi.spyOn(Dropdown.prototype, "mount").mockImplementation(() => {});
+	vi.mocked(client.getFilters).mockReturnValue([
+		{ id: "usable", label: "Usable only", checked: false },
+	]);
+	panel.onMount(parent);
+	const search = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "toys-search");
+	expect(search).toBeDefined();
+	search?.onInteract();
+	expect(Frame.prototype.focusInput).toHaveBeenCalled();
+	vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0)?.("train");
+	expect(client.search).toHaveBeenCalledWith("train");
+	expect(client.load).toHaveBeenCalledTimes(2);
+	const option = vi
+		.mocked(SearchFilters.prototype.setOptions)
+		.mock.lastCall?.at(0)
+		.at(0);
+	expect(option).toMatchObject({
+		id: "usable",
+		label: "Usable only",
+		checked: false,
+	});
+	option?.activate();
+	expect(client.toggleFilter).toHaveBeenCalledWith("usable");
+	expect(client.load).toHaveBeenCalledTimes(3);
+	expect(Frame.prototype.inset).toHaveBeenCalledWith(
+		expect.any(Frame),
+		16,
+		104,
+		16,
+		48,
+	);
+});
 
 it("closes the native journal only when the host closes, rather than during panel switches", () => {
 	const { panel, parent, publish, close } = setup();

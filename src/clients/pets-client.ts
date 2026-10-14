@@ -1,4 +1,5 @@
 import type { ICollectionCache } from "./collection-cache";
+import type { CollectionFilter, ICollectionQuery } from "./collection-query";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getPetExpansion } from "./pet-expansions";
 import type { ITaskScheduler } from "./task-scheduler";
@@ -54,7 +55,9 @@ export interface Pet {
 	readonly favourite: boolean;
 	readonly expansionId?: number;
 }
-export interface IPetsClient extends Omit<IJournalPrefetch, "invalidate"> {
+export interface IPetsClient
+	extends Omit<IJournalPrefetch, "invalidate">,
+		ICollectionQuery {
 	invalidate(id?: string): void;
 	load(
 		done: (pets: Pet[]) => void,
@@ -68,24 +71,127 @@ export interface IPetsClient extends Omit<IJournalPrefetch, "invalidate"> {
 	summonFavourite(): void;
 	toggleFavourite(id: string): void;
 }
+// Legacy filter APIs are not included in the generated documentation surface.
+interface PetFilterApi {
+	IsFilterChecked(this: void, filter: number): boolean;
+	SetFilterChecked(this: void, filter: number, checked: boolean): void;
+	GetNumPetTypes(this: void): number;
+	IsPetTypeChecked(this: void, index: number): boolean;
+	SetPetTypeFilter(this: void, index: number, checked: boolean): void;
+	GetNumPetSources(this: void): number;
+	IsPetSourceChecked(this: void, index: number): boolean;
+	SetPetSourceChecked(this: void, index: number, checked: boolean): void;
+}
+
+const petFilterKinds = [
+	{
+		id: "collected",
+		label: "Collected",
+		constant: "LE_PET_JOURNAL_FILTER_COLLECTED",
+	},
+	{
+		id: "uncollected",
+		label: "Not collected",
+		constant: "LE_PET_JOURNAL_FILTER_NOT_COLLECTED",
+	},
+	{
+		id: "battle",
+		label: "Battle pets",
+		constant: "LE_PET_JOURNAL_FILTER_TYPE_BATTLE_PETS",
+	},
+	{
+		id: "noncombat",
+		label: "Non-combat pets",
+		constant: "LE_PET_JOURNAL_FILTER_TYPE_NON_COMBAT_PETS",
+	},
+];
+
 export class PetsClient implements IPetsClient {
 	private filtersInitialized = false;
 	private fullScan = true;
 	private readonly dirtyIds = new Set<string>();
 	private readonly items?: TieredCache<Pet>;
 	private readonly snapshots?: TieredCache<Pet[]>;
-	private readonly journal: JournalPrefetch<Pet[]>;
+	private journal: JournalPrefetch<Pet[]>;
+	private querying = false;
+	private querySnapshot?: Pet[];
 	constructor(
 		private readonly scheduler: ITaskScheduler,
 		cache?: ICollectionCache,
 	) {
 		this.items = cache?.create("pets.items", false, 3600);
 		this.snapshots = cache?.create("pets.snapshot", false, 3600);
-		this.journal = new JournalPrefetch(
-			scheduler,
+		this.journal = this.createJournal(this.snapshots);
+	}
+	private createJournal(
+		persisted?: TieredCache<Pet[]>,
+	): JournalPrefetch<Pet[]> {
+		return new JournalPrefetch(
+			this.scheduler,
 			(done, preview, progress) => this.scan(done, progress, preview),
-			this.snapshots,
+			persisted,
 		);
+	}
+	private ensureFilters(): void {
+		if (this.filtersInitialized) return;
+		this.filtersInitialized = true;
+		C_PetJournal.SetDefaultFilters();
+		C_PetJournal.ClearSearchFilter();
+	}
+	private resetQuery(): void {
+		this.journal.stop();
+		this.querying = true;
+		this.querySnapshot = undefined;
+		this.fullScan = true;
+		this.dirtyIds.clear();
+		this.journal = this.createJournal();
+	}
+	search(text: string): void {
+		this.ensureFilters();
+		this.resetQuery();
+		C_PetJournal.SetSearchFilter(text);
+	}
+	getFilters(): CollectionFilter[] {
+		this.ensureFilters();
+		const api = C_PetJournal as unknown as PetFilterApi;
+		const globals = _G as unknown as Record<string, number>;
+		const labels = _G as unknown as Record<string, string>;
+		const filters: CollectionFilter[] = petFilterKinds.map((kind) => ({
+			id: kind.id,
+			label: kind.label,
+			checked: api.IsFilterChecked(globals[kind.constant]),
+		}));
+		for (let index = 1; index <= api.GetNumPetTypes(); index++)
+			filters.push({
+				id: `family:${index}`,
+				label: `Family: ${labels[`BATTLE_PET_NAME_${index}`]}`,
+				checked: api.IsPetTypeChecked(index),
+			});
+		for (let index = 1; index <= api.GetNumPetSources(); index++)
+			filters.push({
+				id: `source:${index}`,
+				label: `Source: ${labels[`BATTLE_PET_SOURCE_${index}`]}`,
+				checked: api.IsPetSourceChecked(index),
+			});
+		return filters;
+	}
+	toggleFilter(id: string): void {
+		const filter = this.getFilters().find((filter) => filter.id === id);
+		if (!filter) return;
+		const api = C_PetJournal as unknown as PetFilterApi;
+		this.resetQuery();
+		const kind = petFilterKinds.find((kind) => kind.id === id);
+		if (kind)
+			api.SetFilterChecked(
+				(_G as unknown as Record<string, number>)[kind.constant],
+				!filter.checked,
+			);
+		else {
+			const [group, value] = id.split(":");
+			if (group === "family")
+				api.SetPetTypeFilter(Number(value), !filter.checked);
+			else api.SetPetSourceChecked(Number(value), !filter.checked);
+		}
 	}
 	prefetch(): void {
 		this.fullScan = true;
@@ -101,6 +207,9 @@ export class PetsClient implements IPetsClient {
 		this.items?.stop();
 		this.filtersInitialized = false;
 		this.fullScan = true;
+		this.querying = false;
+		this.querySnapshot = undefined;
+		this.journal = this.createJournal(this.snapshots);
 	}
 	load(
 		done: (pets: Pet[]) => void,
@@ -115,7 +224,11 @@ export class PetsClient implements IPetsClient {
 		progress?: (completed: number, total: number) => void,
 		preview?: (pets: Pet[]) => void,
 	): () => void {
-		const saved = !this.fullScan ? this.snapshots?.peek("snapshot") : undefined;
+		const saved = !this.fullScan
+			? this.querying
+				? this.querySnapshot
+				: this.snapshots?.peek("snapshot")
+			: undefined;
 		const dirty = new Set(this.dirtyIds);
 		this.dirtyIds.clear();
 		this.fullScan = false;
@@ -127,11 +240,7 @@ export class PetsClient implements IPetsClient {
 			previewed = false;
 		const step = () => {
 			if (cancelled) return;
-			if (!this.filtersInitialized) {
-				this.filtersInitialized = true;
-				C_PetJournal.SetDefaultFilters();
-				C_PetJournal.ClearSearchFilter();
-			}
+			this.ensureFilters();
 			if (count === undefined) {
 				if (saved) count = saved.length;
 				else {
@@ -193,7 +302,8 @@ export class PetsClient implements IPetsClient {
 			if (cancelled) return;
 			if (index < count) cancel = this.scheduler.nextFrame(step);
 			else {
-				this.snapshots?.put("snapshot", pets);
+				if (this.querying) this.querySnapshot = pets;
+				else this.snapshots?.put("snapshot", pets);
 				done(pets);
 			}
 		};

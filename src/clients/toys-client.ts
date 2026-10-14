@@ -1,4 +1,5 @@
 import type { ICollectionCache } from "./collection-cache";
+import type { CollectionFilter, ICollectionQuery } from "./collection-query";
 import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import type { ITaskScheduler } from "./task-scheduler";
 import type { TieredCache } from "./tiered-cache";
@@ -30,7 +31,7 @@ export interface Toy {
 	readonly favourite: boolean;
 	readonly expansionId?: number;
 }
-export interface IToysClient extends IJournalPrefetch {
+export interface IToysClient extends IJournalPrefetch, ICollectionQuery {
 	invalidateItem?(id: number): boolean;
 	isInCombat(): boolean;
 	load(
@@ -44,10 +45,26 @@ export interface IToysClient extends IJournalPrefetch {
 	getCooldown(id: number): { start: number; duration: number };
 }
 
+// Legacy filter APIs are not included in the generated documentation surface.
+interface ToyFilterApi {
+	GetCollectedShown(this: void): boolean;
+	GetUncollectedShown(this: void): boolean;
+	GetUnusableShown(this: void): boolean;
+	SetCollectedShown(this: void, checked: boolean): void;
+	SetUncollectedShown(this: void, checked: boolean): void;
+	SetUnusableShown(this: void, checked: boolean): void;
+	IsSourceTypeFilterChecked(this: void, index: number): boolean;
+	SetSourceTypeFilter(this: void, index: number, checked: boolean): void;
+	IsExpansionTypeFilterChecked(this: void, index: number): boolean;
+	SetExpansionTypeFilter(this: void, index: number, checked: boolean): void;
+}
+
 export class ToysClient implements IToysClient {
 	private filtersInitialized = false;
 	private readonly requestedItems = new Set<number>();
-	private readonly journal: JournalPrefetch<Toy[]>;
+	private journal: JournalPrefetch<Toy[]>;
+	private querying = false;
+	private querySnapshot?: Toy[];
 	private readonly items?: TieredCache<Toy>;
 	private readonly snapshots?: TieredCache<Toy[]>;
 	private backfill = false;
@@ -59,17 +76,89 @@ export class ToysClient implements IToysClient {
 	) {
 		this.items = cache?.create("toys.items", false, 3600);
 		this.snapshots = cache?.create("toys.snapshot", false, 3600);
-		this.journal = new JournalPrefetch(
-			scheduler,
+		this.journal = this.createJournal(this.snapshots);
+	}
+	private createJournal(
+		persisted?: TieredCache<Toy[]>,
+	): JournalPrefetch<Toy[]> {
+		return new JournalPrefetch(
+			this.scheduler,
 			(done, preview, progress) => this.scan(done, progress, preview),
-			this.snapshots,
+			persisted,
 		);
+	}
+	private ensureFilters(): void {
+		if (this.filtersInitialized) return;
+		this.filtersInitialized = true;
+		C_ToyBoxInfo.SetDefaultFilters();
+		C_ToyBox.SetFilterString("");
+	}
+	private resetQuery(): void {
+		this.journal.stop();
+		this.querying = true;
+		this.querySnapshot = undefined;
+		this.backfill = true;
+		this.expiredOnly = false;
+		this.dirtyIds.clear();
+		this.journal = this.createJournal();
+	}
+	search(text: string): void {
+		this.ensureFilters();
+		this.resetQuery();
+		C_ToyBox.SetFilterString(text);
+	}
+	getFilters(): CollectionFilter[] {
+		this.ensureFilters();
+		const api = C_ToyBox as unknown as ToyFilterApi;
+		const filters: CollectionFilter[] = [
+			{ id: "collected", label: "Collected", checked: api.GetCollectedShown() },
+			{
+				id: "uncollected",
+				label: "Not collected",
+				checked: api.GetUncollectedShown(),
+			},
+			{ id: "usable", label: "Usable only", checked: !api.GetUnusableShown() },
+		];
+		const labels = _G as unknown as Record<string, string>;
+		const sources = (
+			C_PetJournal as unknown as { GetNumPetSources(this: void): number }
+		).GetNumPetSources();
+		for (let index = 1; index <= sources; index++)
+			if (C_ToyBoxInfo.IsToySourceValid(index))
+				filters.push({
+					id: `source:${index}`,
+					label: `Source: ${labels[`BATTLE_PET_SOURCE_${index}`]}`,
+					checked: api.IsSourceTypeFilterChecked(index),
+				});
+		for (let index = 1; index <= GetNumExpansions(); index++)
+			filters.push({
+				id: `expansion:${index}`,
+				label: `Expansion: ${labels[`EXPANSION_NAME${index - 1}`]}`,
+				checked: api.IsExpansionTypeFilterChecked(index),
+			});
+		return filters;
+	}
+	toggleFilter(id: string): void {
+		const filter = this.getFilters().find((filter) => filter.id === id);
+		if (!filter) return;
+		const api = C_ToyBox as unknown as ToyFilterApi;
+		this.resetQuery();
+		if (id === "collected") api.SetCollectedShown(!filter.checked);
+		else if (id === "uncollected") api.SetUncollectedShown(!filter.checked);
+		else if (id === "usable") api.SetUnusableShown(filter.checked);
+		else {
+			const [kind, value] = id.split(":");
+			if (kind === "source")
+				api.SetSourceTypeFilter(Number(value), !filter.checked);
+			else api.SetExpansionTypeFilter(Number(value), !filter.checked);
+		}
 	}
 	prefetch(): void {
 		this.backfill = true;
 		this.journal.prefetch();
 	}
 	invalidate(id?: number): void {
+		if (this.querying) this.backfill = true;
 		if (id !== undefined && id > 0) this.dirtyIds.add(id);
 		else this.expiredOnly = true;
 		this.journal.invalidate();
@@ -87,6 +176,9 @@ export class ToysClient implements IToysClient {
 		this.journal.stop();
 		this.items?.stop();
 		this.filtersInitialized = false;
+		this.querying = false;
+		this.querySnapshot = undefined;
+		this.journal = this.createJournal(this.snapshots);
 	}
 	load(
 		callback: (toys: Toy[]) => void,
@@ -107,7 +199,11 @@ export class ToysClient implements IToysClient {
 		onFirstPage?: (toys: Toy[]) => void,
 	): () => void {
 		const toys: Toy[] = [];
-		const saved = !this.backfill ? this.snapshots?.peek("snapshot") : undefined;
+		const saved = !this.backfill
+			? this.querying
+				? this.querySnapshot
+				: this.snapshots?.peek("snapshot")
+			: undefined;
 		const ids = saved?.map((toy) => toy.id);
 		for (const id of this.dirtyIds) if (ids && !ids.includes(id)) ids.push(id);
 		const targeted =
@@ -121,13 +217,7 @@ export class ToysClient implements IToysClient {
 		let previewed = false;
 		const step = () => {
 			if (cancelled) return;
-			if (!this.filtersInitialized) {
-				// The replacement has no native filter controls. Clear saved filters
-				// once before caching; filter writes can themselves emit TOYS_UPDATED.
-				this.filtersInitialized = true;
-				C_ToyBoxInfo.SetDefaultFilters();
-				C_ToyBox.SetFilterString("");
-			}
+			this.ensureFilters();
 			count ??= ids?.length ?? C_ToyBox.GetNumFilteredToys();
 			const end = Math.min(count, index + 19);
 			while (index <= end) {
@@ -154,7 +244,8 @@ export class ToysClient implements IToysClient {
 			else {
 				this.backfill = false;
 				// Retain completed work even if a newer event superseded publication.
-				this.snapshots?.put("snapshot", toys);
+				if (this.querying) this.querySnapshot = toys;
+				else this.snapshots?.put("snapshot", toys);
 				callback(toys);
 			}
 		};

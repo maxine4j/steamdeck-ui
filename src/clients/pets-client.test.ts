@@ -3,6 +3,78 @@ import { CollectionCache } from "./collection-cache";
 import { PetsClient } from "./pets-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("searches pets from the native journal and replaces a warm snapshot", () => {
+	const { client, api, flush } = setup(3);
+	client.load(vi.fn());
+	flush();
+	const search = vi.fn();
+	Object.assign(api, { SetSearchFilter: search });
+	api.GetNumPets.mockReturnValue([1, 1]);
+	api.GetPetInfoByIndex.mockImplementation(() => [
+		"Pet-9",
+		39,
+		true,
+		undefined,
+		1,
+		false,
+		false,
+		"Cat",
+		123,
+	]);
+	client.search("Cat");
+	const done = vi.fn();
+	client.load(done);
+	flush();
+	expect(search).toHaveBeenLastCalledWith("Cat");
+	expect(done).toHaveBeenCalledOnce();
+	expect(
+		done.mock.lastCall?.at(0).map((pet: { id: string }) => pet.id),
+	).toEqual(["Pet-9"]);
+	client.stop();
+	const reopened = vi.fn();
+	client.load(reopened, undefined, undefined, true);
+	expect(
+		reopened.mock.lastCall?.at(0).map((pet: { id: string }) => pet.id),
+	).toEqual(["Pet-1", "Pet-2", "Pet-3"]);
+});
+
+it("exposes pet ownership, combat type, families and sources and toggles each native filter", () => {
+	const { client, api } = setup();
+	const filters = Object.assign(api, {
+		IsFilterChecked: () => true,
+		SetFilterChecked: vi.fn(),
+		GetNumPetTypes: () => 1,
+		IsPetTypeChecked: () => true,
+		SetPetTypeFilter: vi.fn(),
+		GetNumPetSources: () => 1,
+		IsPetSourceChecked: () => false,
+		SetPetSourceChecked: vi.fn(),
+	});
+	vi.stubGlobal("_G", {
+		LE_PET_JOURNAL_FILTER_COLLECTED: 1,
+		LE_PET_JOURNAL_FILTER_NOT_COLLECTED: 2,
+		LE_PET_JOURNAL_FILTER_TYPE_BATTLE_PETS: 3,
+		LE_PET_JOURNAL_FILTER_TYPE_NON_COMBAT_PETS: 4,
+		BATTLE_PET_NAME_1: "Humanoid",
+		BATTLE_PET_SOURCE_1: "Drop",
+	});
+	expect(client.getFilters()).toEqual([
+		{ id: "collected", label: "Collected", checked: true },
+		{ id: "uncollected", label: "Not collected", checked: true },
+		{ id: "battle", label: "Battle pets", checked: true },
+		{ id: "noncombat", label: "Non-combat pets", checked: true },
+		{ id: "family:1", label: "Family: Humanoid", checked: true },
+		{ id: "source:1", label: "Source: Drop", checked: false },
+	]);
+	client.toggleFilter("collected");
+	client.toggleFilter("family:1");
+	client.toggleFilter("source:1");
+	client.toggleFilter("family:99");
+	expect(filters.SetFilterChecked).toHaveBeenCalledWith(1, false);
+	expect(filters.SetPetTypeFilter).toHaveBeenCalledExactlyOnceWith(1, false);
+	expect(filters.SetPetSourceChecked).toHaveBeenCalledWith(1, true);
+});
 function setup(count = 45) {
 	let now = 100;
 	const pending: (() => void)[] = [];

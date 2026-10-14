@@ -2,6 +2,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IToysClient, Toy } from "../../clients/toys-client";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -25,6 +26,7 @@ export class ToysPanel implements IPanel {
 	readonly title = "Toys";
 	readonly icon = 454046;
 	private readonly frame: Frame;
+	private readonly controls: SearchFilters;
 	private readonly viewport: Frame;
 	private readonly content: Frame;
 	private readonly loadingTrack: Frame;
@@ -49,7 +51,7 @@ export class ToysPanel implements IPanel {
 	private cancelRender?: () => void;
 	private grid: NavGrid = [];
 	private contentHeight = 1;
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.viewComplete && !this.cancelRender)
@@ -64,6 +66,17 @@ export class ToysPanel implements IPanel {
 		private readonly close: () => void,
 	) {
 		this.frame = new Frame("toys-root", pool);
+		this.controls = new SearchFilters(
+			"toys",
+			pool,
+			(text) => {
+				if (this.mounted && !this.client.isInCombat()) {
+					this.client.search(text);
+					this.refresh();
+				}
+			},
+			(focusId) => this.navigationChanged?.(focusId),
+		);
 		this.viewport = new Frame("toys-scroll", pool, "ScrollFrame");
 		this.content = new Frame("toys-content", pool);
 		this.loadingTrack = new Frame("toys-loading-track", pool);
@@ -88,7 +101,8 @@ export class ToysPanel implements IPanel {
 			12,
 		);
 		this.frame.show();
-		this.viewport.inset(this.frame, 16, 20, 16, 48);
+		this.controls.mount(this.frame);
+		this.viewport.inset(this.frame, 16, 104, 16, 48);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
@@ -131,6 +145,17 @@ export class ToysPanel implements IPanel {
 		// Existing action callbacks are invalidated by the load generation.
 		this.navigationChanged?.();
 		if (!this.mounted || this.client.isInCombat()) return;
+		this.controls.setOptions(
+			this.client.getFilters().map((filter) => ({
+				...filter,
+				activate: () => {
+					if (this.mounted && !this.client.isInCombat()) {
+						this.client.toggleFilter(filter.id);
+						this.refresh();
+					}
+				},
+			})),
+		);
 		this.frame.setLabel(
 			"loading",
 			"Loading toys...",
@@ -424,17 +449,23 @@ export class ToysPanel implements IPanel {
 		if (this.mountPending && this.parent) this.onMount(this.parent);
 		else if (this.dirty && !this.viewComplete) this.refresh(true);
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {
-		return this.mounted ? this.grid : [];
+		return this.mounted && !this.mountPending
+			? [
+					...this.controls.getNavGrid(),
+					...(this.controls.isOpen() ? [] : this.grid),
+				]
+			: [];
 	}
 	onContainerClosed(): void {
 		this.close();
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.controls.hide();
 		this.loading = false;
 		if (this.queuedRefresh) this.dirty = true;
 		this.cancelLoad?.();
@@ -446,6 +477,7 @@ export class ToysPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
+		this.controls.destroy();
 		for (const cell of this.cells) {
 			cell.cooldown.destroy();
 			cell.icon.destroy();

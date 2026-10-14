@@ -14,6 +14,23 @@ afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
+it("uses the native search box proportions without a custom inset background", () => {
+	const { panel, parent } = setup();
+	panel.onMount(parent);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		300,
+		20,
+		"TOPLEFT",
+		expect.any(Frame),
+		16,
+		-66,
+	);
+	expect(
+		vi
+			.mocked(Frame.prototype.setInsetBackground)
+			.mock.contexts.some((frame) => frame.id === "mounts-search"),
+	).toBe(false);
+});
 it("shows controller graphics beside summon action descriptions", () => {
 	const { panel, parent } = setup();
 	panel.onMount(parent);
@@ -160,6 +177,7 @@ function setup() {
 		},
 	});
 	const root = {
+		SetScrollMode: vi.fn(),
 		CreateCheckbox: checkbox,
 		CreateRadio: checkbox,
 		CreateButton: (label: string, respond: () => number) =>

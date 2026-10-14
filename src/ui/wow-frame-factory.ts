@@ -4,6 +4,8 @@ export class WowFrameFactory implements FrameFactory {
 	private nextSecureId = 0;
 	private nextTooltipId = 0;
 	createFrame(type: FrameType): WowFrame {
+		if (type === "SearchBox")
+			return CreateFrame("EditBox", undefined, UIParent, "SearchBoxTemplate");
 		if (type === "FilterDropdown")
 			return CreateFrame(
 				"DropdownButton",

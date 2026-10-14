@@ -55,7 +55,8 @@ export class Dropdown {
 	setOptions(options: DropdownOption[]): void {
 		this.options = options;
 		this.native?.SetupMenu((_button, root) => {
-			this.nodes = options.map((option): INavigable[] => {
+			root.SetScrollMode(360);
+			this.nodes = options.map((option, index): INavigable[] => {
 				const respond = () => {
 					option.activate();
 					return option.checked !== undefined
@@ -87,7 +88,14 @@ export class Dropdown {
 						navId: option.id,
 						onFocus: () => {
 							this.focusedId = option.id;
-							if (this.isOpen() && frame) description.HandleOnEnter(frame);
+							if (this.isOpen() && frame) {
+								this.native?.menu?.ScrollBox.ScrollToNearest(
+									index + 1,
+									0,
+									true,
+								);
+								description.HandleOnEnter(frame);
+							}
 						},
 						onBlur: () => {
 							this.focusedId = undefined;

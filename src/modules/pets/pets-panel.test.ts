@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { IPetsClient, Pet } from "../../clients/pets-client";
+import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
+import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { PetsPanel } from "./pets-panel";
 
@@ -15,6 +17,10 @@ const pet = (id: number, expansionId = 10, favourite = false): Pet => ({
 	expansionId,
 });
 function setup() {
+	vi.spyOn(SearchFilters.prototype, "mount").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "setOptions").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "hide").mockImplementation(() => {});
+	vi.spyOn(SearchFilters.prototype, "destroy").mockImplementation(() => {});
 	for (const method of [
 		"fill",
 		"setWindowBackground",
@@ -38,6 +44,9 @@ function setup() {
 		"onClick",
 		"revealVerticalRange",
 		"scrollToEdge",
+		"configureInput",
+		"focusInput",
+		"blurInput",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
@@ -53,6 +62,9 @@ function setup() {
 		},
 	};
 	const client: IPetsClient = {
+		search: vi.fn(),
+		getFilters: vi.fn(() => []),
+		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
 		stop: vi.fn(),
@@ -76,6 +88,47 @@ function setup() {
 	};
 	return { panel, parent, client, menu, pending, publish, flush };
 }
+
+it("searches pets and refreshes native family filters without removing the summon action", () => {
+	const { panel, parent, client } = setup();
+	vi.mocked(SearchFilters.prototype.mount).mockRestore();
+	vi.spyOn(Dropdown.prototype, "mount").mockImplementation(() => {});
+	vi.mocked(client.getFilters).mockReturnValue([
+		{ id: "family:1", label: "Family: Humanoid", checked: true },
+	]);
+	panel.onMount(parent);
+	const search = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "pets-search");
+	expect(search).toBeDefined();
+	search?.onInteract();
+	expect(Frame.prototype.focusInput).toHaveBeenCalled();
+	vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0)?.("cat");
+	expect(client.search).toHaveBeenCalledWith("cat");
+	expect(client.load).toHaveBeenCalledTimes(2);
+	const option = vi
+		.mocked(SearchFilters.prototype.setOptions)
+		.mock.lastCall?.at(0)
+		.at(0);
+	expect(option).toMatchObject({ id: "family:1", checked: true });
+	option?.activate();
+	expect(client.toggleFilter).toHaveBeenCalledWith("family:1");
+	expect(client.load).toHaveBeenCalledTimes(3);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "pets-summon-favourite"),
+	).toBe(true);
+	expect(Frame.prototype.inset).toHaveBeenCalledWith(
+		expect.any(Frame),
+		16,
+		140,
+		16,
+		48,
+	);
+});
 it("groups favourites and expansions in descending order and summons through X and the favourite button", () => {
 	const { panel, parent, client, menu, publish } = setup();
 	panel.onMount(parent);

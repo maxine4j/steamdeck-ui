@@ -8,6 +8,7 @@ export interface NativeMenuDescription {
 }
 
 export interface NativeMenuRoot {
+	SetScrollMode(maxHeight: number): void;
 	CreateCheckbox(
 		label: string,
 		checked: (this: void) => boolean,
@@ -25,6 +26,15 @@ export interface NativeMenuRoot {
 }
 
 export interface NativeDropdownButton extends WowFrame {
+	menu?: {
+		ScrollBox: {
+			ScrollToNearest(
+				index: number,
+				offset: number,
+				noInterpolation: boolean,
+			): void;
+		};
+	};
 	resizeToText: boolean;
 	SetupMenu(
 		generate: (

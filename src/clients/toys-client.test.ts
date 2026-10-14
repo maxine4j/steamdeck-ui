@@ -4,6 +4,81 @@ import { ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("searches the native toy journal instead of reusing a persisted unfiltered snapshot", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const { client, api, pending } = setup(3, true);
+	client.load(vi.fn());
+	while (pending.length) pending.shift()?.();
+	api.SetFilterString = vi.fn();
+	api.GetNumFilteredToys = () => 1;
+	api.GetToyFromIndex = () => 3;
+	client.search("Toy 3");
+	const done = vi.fn();
+	client.load(done);
+	while (pending.length) pending.shift()?.();
+	expect(api.SetFilterString).toHaveBeenLastCalledWith("Toy 3");
+	expect(done).toHaveBeenCalledOnce();
+	expect(
+		done.mock.lastCall?.at(0).map((toy: { id: number }) => toy.id),
+	).toEqual([3]);
+	client.invalidate(1);
+	const updated = vi.fn();
+	client.load(updated);
+	while (pending.length) pending.shift()?.();
+	expect(
+		updated.mock.lastCall?.at(0).map((toy: { id: number }) => toy.id),
+	).toEqual([3]);
+	client.stop();
+	const reopened = vi.fn();
+	client.load(reopened, undefined, undefined, true);
+	expect(
+		reopened.mock.lastCall?.at(0).map((toy: { id: number }) => toy.id),
+	).toEqual([1, 2, 3]);
+});
+
+it("exposes toy collection, usable-only, valid sources and expansions and toggles native settings", () => {
+	const { client, api } = setup();
+	const filters = Object.assign(api, {
+		GetCollectedShown: () => true,
+		GetUncollectedShown: () => false,
+		GetUnusableShown: () => true,
+		SetCollectedShown: vi.fn(),
+		SetUncollectedShown: vi.fn(),
+		SetUnusableShown: vi.fn(),
+		IsSourceTypeFilterChecked: () => true,
+		SetSourceTypeFilter: vi.fn(),
+		IsExpansionTypeFilterChecked: () => true,
+		SetExpansionTypeFilter: vi.fn(),
+	});
+	vi.stubGlobal("_G", {
+		BATTLE_PET_SOURCE_1: "Drop",
+		EXPANSION_NAME0: "Classic",
+	});
+	vi.stubGlobal("C_PetJournal", { GetNumPetSources: () => 2 });
+	vi.stubGlobal("GetNumExpansions", () => 1);
+	vi.stubGlobal("C_ToyBoxInfo", {
+		SetDefaultFilters: vi.fn(),
+		IsToySourceValid: (index: number) => index === 1,
+	});
+	expect(client.getFilters()).toEqual([
+		{ id: "collected", label: "Collected", checked: true },
+		{ id: "uncollected", label: "Not collected", checked: false },
+		{ id: "usable", label: "Usable only", checked: false },
+		{ id: "source:1", label: "Source: Drop", checked: true },
+		{ id: "expansion:1", label: "Expansion: Classic", checked: true },
+	]);
+	client.toggleFilter("usable");
+	client.toggleFilter("source:1");
+	client.toggleFilter("expansion:1");
+	client.toggleFilter("source:99");
+	expect(filters.SetUnusableShown).toHaveBeenCalledWith(false);
+	expect(filters.SetSourceTypeFilter).toHaveBeenCalledExactlyOnceWith(1, false);
+	expect(filters.SetExpansionTypeFilter).toHaveBeenCalledExactlyOnceWith(
+		1,
+		false,
+	);
+});
+
 it("keeps a warm toy snapshot fixed while refreshing cached metadata for reopening", () => {
 	const { client, api, pending } = setup(1);
 	client.load(vi.fn());

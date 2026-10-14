@@ -72,7 +72,7 @@ export class MountsPanel implements IPanel {
 		private readonly menu: IMountActionMenu,
 	) {
 		this.frame = new Frame("mounts-root", pool);
-		this.search = new Frame("mounts-search", pool, "EditBox");
+		this.search = new Frame("mounts-search", pool, "SearchBox");
 		this.searchNavigation = {
 			navId: this.search.id,
 			onFocus: (refresh) => {
@@ -512,8 +512,7 @@ export class MountsPanel implements IPanel {
 		this.viewport.show();
 		this.content.show();
 		this.search.setParent(this.frame);
-		this.search.layout(320, 32, "TOPLEFT", this.frame, 16, -66);
-		this.search.setInsetBackground();
+		this.search.layout(300, 20, "TOPLEFT", this.frame, 16, -66);
 		this.search.configureInput((text) => {
 			if (this.mounted) {
 				this.client.search(text);

@@ -21,6 +21,11 @@ import {
 } from "./tooltip-content";
 import type { IUIComponent } from "./types";
 
+declare function SearchBoxTemplate_OnTextChanged(
+	this: void,
+	frame: WowFrame,
+): void;
+
 type ItemTooltipFrame = WowFrame &
 	TooltipDataFrame & {
 		SetOwner(owner: WowFrame, anchor: string): void;
@@ -125,6 +130,7 @@ export class Frame implements IUIComponent {
 			| "SecureButton"
 			| "Cooldown"
 			| "EditBox"
+			| "SearchBox"
 			| "ScrollFrame"
 			| "PlayerModel" = "Frame",
 	) {}
@@ -996,7 +1002,7 @@ export class Frame implements IUIComponent {
 		native.SetCooldown(start, duration);
 	}
 	configureInput(change?: (this: void, text: string) => void): void {
-		if (this.frameType !== "EditBox")
+		if (this.frameType !== "EditBox" && this.frameType !== "SearchBox")
 			throw new Error("Input requires an edit box");
 		const native = this.acquire() as WowFrame & {
 			SetAutoFocus(value: boolean): void;
@@ -1014,11 +1020,20 @@ export class Frame implements IUIComponent {
 			SetScript(script: string, handler?: (this: void) => void): void;
 		};
 		native.SetAutoFocus(false);
-		native.SetFontObject("GameFontHighlight");
-		native.SetTextInsets(8, 8, 0, 0);
+		if (this.frameType !== "SearchBox") {
+			native.SetFontObject("GameFontHighlight");
+			native.SetTextInsets(8, 8, 0, 0);
+		}
 		native.SetScript(
 			"OnTextChanged",
-			change ? () => change(native.GetText()) : undefined,
+			this.frameType === "SearchBox"
+				? () => {
+						SearchBoxTemplate_OnTextChanged(native);
+						change?.(native.GetText());
+					}
+				: change
+					? () => change(native.GetText())
+					: undefined,
 		);
 		native.SetScript("OnEscapePressed", () => native.ClearFocus());
 		native.SetScript("OnEnterPressed", () => native.ClearFocus());
@@ -1245,7 +1260,7 @@ export class Frame implements IUIComponent {
 				undefined;
 			this.closeName = undefined;
 		}
-		if (this.frameType === "EditBox") {
+		if (this.frameType === "EditBox" || this.frameType === "SearchBox") {
 			this.configureInput();
 			const input = this.native as WowFrame & {
 				SetText(text: string): void;

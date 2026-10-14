@@ -2,6 +2,7 @@ import type { IPetsClient, Pet } from "../../clients/pets-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -26,6 +27,7 @@ export class PetsPanel implements IPanel {
 	private readonly summonButton: Frame;
 	private readonly summonNode: INavigable;
 	private readonly frame: Frame;
+	private readonly controls: SearchFilters;
 	private readonly viewport: Frame;
 	private readonly content: Frame;
 	private readonly loadingTrack: Frame;
@@ -48,7 +50,7 @@ export class PetsPanel implements IPanel {
 	private cancelRender?: () => void;
 	private grid: NavGrid = [];
 	private contentHeight = 1;
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.viewComplete && !this.cancelRender)
@@ -70,6 +72,17 @@ export class PetsPanel implements IPanel {
 			},
 		);
 		this.frame = new Frame("pets-root", pool);
+		this.controls = new SearchFilters(
+			"pets",
+			pool,
+			(text) => {
+				if (this.mounted && !this.client.isInCombat()) {
+					this.client.search(text);
+					this.refresh();
+				}
+			},
+			(focusId) => this.navigationChanged?.(focusId),
+		);
 		this.viewport = new Frame("pets-scroll", pool, "ScrollFrame");
 		this.content = new Frame("pets-content", pool);
 		this.loadingTrack = new Frame("pets-loading-track", pool);
@@ -95,14 +108,15 @@ export class PetsPanel implements IPanel {
 		);
 		this.frame.show();
 		this.summonButton.setParent(this.frame);
-		this.summonButton.layout(230, 28, "TOPLEFT", this.frame, 16, -20);
+		this.controls.mount(this.frame);
+		this.summonButton.layout(230, 28, "TOPLEFT", this.frame, 16, -100);
 		this.summonButton.setButtonBackground();
 		this.summonButton.setLabel("title", "Summon favourite pet", "CENTER");
 		this.summonButton.onClick(() => {
 			if (this.mounted) this.client.summonFavourite();
 		});
 		this.summonButton.show();
-		this.viewport.inset(this.frame, 16, 60, 16, 48);
+		this.viewport.inset(this.frame, 16, 140, 16, 48);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
@@ -144,6 +158,17 @@ export class PetsPanel implements IPanel {
 		// Existing action callbacks are invalidated by the load generation.
 		this.navigationChanged?.();
 		if (!this.mounted || this.client.isInCombat()) return;
+		this.controls.setOptions(
+			this.client.getFilters().map((filter) => ({
+				...filter,
+				activate: () => {
+					if (this.mounted && !this.client.isInCombat()) {
+						this.client.toggleFilter(filter.id);
+						this.refresh();
+					}
+				},
+			})),
+		);
 		this.frame.setLabel(
 			"loading",
 			"Loading pets...",
@@ -406,12 +431,15 @@ export class PetsPanel implements IPanel {
 		if (this.mountPending && this.parent) this.onMount(this.parent);
 		else if (this.dirty && !this.viewComplete) this.refresh(true);
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {
 		return this.mounted && !this.mountPending
-			? [[this.summonNode], ...this.grid]
+			? [
+					...this.controls.getNavGrid(),
+					...(this.controls.isOpen() ? [] : [[this.summonNode], ...this.grid]),
+				]
 			: [];
 	}
 	onContainerClosed(): void {
@@ -419,6 +447,7 @@ export class PetsPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.controls.hide();
 		this.loading = false;
 		if (this.queuedRefresh) this.dirty = true;
 		this.cancelLoad?.();
@@ -430,6 +459,7 @@ export class PetsPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
+		this.controls.destroy();
 		for (const cell of this.cells) {
 			cell.icon.destroy();
 			cell.favourite.destroy();
