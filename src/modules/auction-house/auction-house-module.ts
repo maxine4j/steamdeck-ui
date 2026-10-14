@@ -1,9 +1,6 @@
-import type {
-	AuctionUpdate,
-	IAuctionHouseClient,
-} from "../../clients/auction-house-client";
+import type { IAuctionHouseClient } from "../../clients/auction-house-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
-import type { IEventBus } from "../../events/types";
+import type { EventHandler, IEventBus } from "../../events/types";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 export class AuctionHouseModule implements IModule {
@@ -37,7 +34,9 @@ export class AuctionHouseModule implements IModule {
 			this.ui.openPanel("auction-sell", "left", "auction-house");
 		}
 	};
-	private readonly changed = (update: AuctionUpdate) => {
+	private readonly changed: EventHandler<"AUCTION_HOUSE_CHANGED"> = (
+		update,
+	) => {
 		if (this.open) {
 			this.client.update(update);
 			this.refresh();
