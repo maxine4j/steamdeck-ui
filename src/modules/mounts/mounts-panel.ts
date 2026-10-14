@@ -7,7 +7,11 @@ import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationScroll,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IMountActionMenu } from "./mount-action-menu";
 import { groupMounts } from "./mount-display";
@@ -59,7 +63,7 @@ export class MountsPanel implements IPanel {
 		{ previous: boolean; value: boolean; accepted: boolean }
 	>();
 	private navigationChanged?: (focusId?: string) => void;
-	private readonly navigationScroll = {
+	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.snapshotComplete && !this.cancelRender)
 				this.viewport.scrollToEdge(direction);

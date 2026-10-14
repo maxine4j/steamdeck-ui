@@ -1,3 +1,8 @@
+/** Explicitly type wrappers so TSTL preserves Frame's Lua self argument. */
+export interface NavigationScroll {
+	scrollToEdge(direction: "up" | "down"): void;
+}
+
 export interface INavigable {
 	/** Hardware bindings for protected actions; never dispatch these via Click(). */
 	secureActions?(): SecureNavigationActions;
@@ -9,7 +14,7 @@ export interface INavigable {
 	/** Refresh restores presentation without revealing an unchanged focus again. */
 	onFocus(refresh?: boolean): void;
 	/** Shared viewport identity and generic scrolling operations for this control. */
-	navigationScroll?: { scrollToEdge(direction: "up" | "down"): void };
+	navigationScroll?: NavigationScroll;
 	onBlur(): void;
 	onInteract(): void; // Maps to A button
 	onContext?(): void; // Maps to Y button

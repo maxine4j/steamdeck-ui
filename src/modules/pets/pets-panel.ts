@@ -6,7 +6,11 @@ import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationScroll,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IPetActionMenu } from "./pet-action-menu";
 import { groupPets } from "./pet-display";
@@ -52,7 +56,7 @@ export class PetsPanel implements IPanel {
 	private grid: NavGrid = [];
 	private contentHeight = 1;
 	private navigationChanged?: (focusId?: string) => void;
-	private readonly navigationScroll = {
+	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.viewComplete && !this.cancelRender)
 				this.viewport.scrollToEdge(direction);

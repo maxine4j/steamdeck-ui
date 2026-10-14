@@ -12,7 +12,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid } from "../../ui/navigation/types";
+import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import {
 	type AchievementPage,
@@ -76,7 +76,7 @@ export class AchievementsPanel implements IPanel {
 	private cancelScan?: () => void;
 	private cancelRender?: () => void;
 	private navigationChanged?: (focusId?: string) => void;
-	private readonly navigationScroll = {
+	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (!this.scanning && !this.renderDirty)
 				this.viewport.scrollToEdge(direction);
