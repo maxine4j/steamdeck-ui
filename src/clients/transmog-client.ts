@@ -4,7 +4,7 @@ import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
 import type { NativeNavigation } from "../ui/components/native-navigation";
 import type { NativeVisibility } from "../ui/components/native-visibility";
-import type { NavGrid } from "../ui/navigation/types";
+import type { INavigable, NavGrid } from "../ui/navigation/types";
 
 export interface ITransmogClient {
 	disable(): void;
@@ -29,6 +29,7 @@ export class TransmogClient implements ITransmogClient {
 	private size?: readonly [number, number];
 	private focused?: TransmogControl;
 	private readonly controls = new Map<TransmogControl, string>();
+	private readonly nodes = new Map<TransmogControl, INavigable>();
 	private readonly changed = () => {
 		if (this.parent) this.events.emit("TRANSMOG_CHANGED");
 	};
@@ -127,20 +128,22 @@ export class TransmogClient implements ITransmogClient {
 	}
 	private collect(frame: TransmogControl, result: TransmogControl[]): void {
 		if (!frame.IsVisible()) return;
-		if (!this.controls.has(frame)) {
-			this.controls.set(
-				frame,
-				`transmog-${frame.GetName() ?? this.controls.size + 1}`,
-			);
-			frame.HookScript("OnShow", this.changed);
-			frame.HookScript("OnHide", this.changed);
-		}
 		const actionable =
 			frame.IsObjectType("DropdownButton") ||
 			frame.IsObjectType("Button") ||
 			frame.IsObjectType("EditBox") ||
 			(frame.IsObjectType("DressUpModel") &&
 				frame.GetScript("OnMouseDown") !== undefined);
+		if (actionable && !this.controls.has(frame)) {
+			this.controls.set(
+				frame,
+				`transmog-${frame.GetName() ?? this.controls.size + 1}`,
+			);
+			// Focus outlines and animation frames are descendants too. Watching their
+			// visibility would make every focus refresh schedule another refresh.
+			frame.HookScript("OnShow", this.changed);
+			frame.HookScript("OnHide", this.changed);
+		}
 		if (actionable && !frame.IsProtected() && frame.IsEnabled?.() !== false)
 			result.push(frame);
 		for (const child of [...frame.GetChildren()]) this.collect(child, result);
@@ -155,6 +158,42 @@ export class TransmogClient implements ITransmogClient {
 		}
 		if (dismissed) this.changed();
 		return dismissed;
+	}
+	private navigationNode(frame: TransmogControl): INavigable {
+		const existing = this.nodes.get(frame);
+		if (existing) return existing;
+		const focus = this.focus.navigation(
+			frame,
+			undefined,
+			this.controls.get(frame) ?? "transmog",
+			() => {
+				if (frame.IsObjectType("EditBox")) frame.SetFocus?.();
+				else if (frame.OpenMenu) frame.OpenMenu();
+				else if (frame.IsObjectType("Button") && frame.GetScript("OnClick"))
+					frame.Click?.("LeftButton");
+				else {
+					frame.GetScript("OnMouseDown")?.(frame, "LeftButton");
+					frame.GetScript("OnMouseUp")?.(frame, "LeftButton");
+				}
+				this.changed();
+			},
+		);
+		const node: INavigable = {
+			...focus,
+			onFocus: (refresh) => {
+				focus.onFocus(refresh);
+				if (this.focused === frame) return;
+				this.leave();
+				this.focused = frame;
+				frame.GetScript("OnEnter")?.(frame);
+			},
+			onBlur: () => {
+				focus.onBlur();
+				if (this.focused === frame) this.leave();
+			},
+		};
+		this.nodes.set(frame, node);
+		return node;
 	}
 	navigation(): NavGrid {
 		if (!this.parent || !TransmogFrame) return [];
@@ -186,36 +225,9 @@ export class TransmogClient implements ITransmogClient {
 				grid.push([]);
 				rowY = y;
 			}
-			const node = this.focus.navigation(
-				frame,
-				undefined,
-				this.controls.get(frame) ?? "transmog",
-				() => {
-					if (frame.IsObjectType("EditBox")) frame.SetFocus?.();
-					else if (frame.OpenMenu) frame.OpenMenu();
-					else if (frame.IsObjectType("Button") && frame.GetScript("OnClick"))
-						frame.Click?.("LeftButton");
-					else {
-						frame.GetScript("OnMouseDown")?.(frame, "LeftButton");
-						frame.GetScript("OnMouseUp")?.(frame, "LeftButton");
-					}
-					this.changed();
-				},
-			);
-			grid.at(-1)?.push({
-				...node,
-				navColumn: x,
-				onFocus: (refresh) => {
-					node.onFocus(refresh);
-					this.leave();
-					this.focused = frame;
-					frame.GetScript("OnEnter")?.(frame);
-				},
-				onBlur: () => {
-					node.onBlur();
-					if (this.focused === frame) this.leave();
-				},
-			});
+			const node = this.navigationNode(frame);
+			node.navColumn = x;
+			grid.at(-1)?.push(node);
 		}
 		return grid;
 	}

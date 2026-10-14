@@ -3,6 +3,8 @@ import { createTestEventBus } from "../events/test-event-bus";
 import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
 import type { NativeNavigation } from "../ui/components/native-navigation";
+import { DeferredRefresh } from "../ui/deferred-refresh";
+import { NavigationManager } from "../ui/navigation/navigation-manager";
 import { TransmogClient } from "./transmog-client";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -88,6 +90,7 @@ function setup(loaded = true) {
 	const parent = { getSize: () => ({ width: 1400, height: 800 }) } as Frame;
 	return {
 		client,
+		events,
 		parent,
 		frame,
 		slot,
@@ -101,6 +104,78 @@ function setup(loaded = true) {
 		chrome,
 	};
 }
+
+it("does not rebuild navigation when focus decoration shows, hides or animates during D-pad movement", () => {
+	const { client, parent, frame, slot, model, save, focus, events } = setup();
+	const decoration = {
+		...slot,
+		GetName: () => "focus-outline",
+		IsObjectType: () => false,
+		HookScript: vi.fn<(script: string, callback: () => void) => void>(),
+	};
+	frame.GetChildren = () => [slot, model, save, decoration];
+	const visibility = (script: string) => {
+		for (const [name, callback] of decoration.HookScript.mock.calls)
+			if (name === script) callback();
+	};
+	focus.navigation.mockImplementation((_frame, _scroll, navId, onInteract) => ({
+		navId,
+		onInteract,
+		onFocus: vi.fn(() => visibility("OnShow")),
+		onBlur: vi.fn(() => visibility("OnHide")),
+	}));
+	const pending: (() => void)[] = [];
+	const manager = new NavigationManager(events);
+	const update = new DeferredRefresh(
+		{
+			nextFrame: (callback) => {
+				pending.push(callback);
+				return vi.fn();
+			},
+		},
+		() => manager.refreshGrid("transmog"),
+	);
+	events.subscribe("TRANSMOG_CHANGED", () => update.invalidate());
+	client.mount(parent);
+	manager.registerGrid("transmog", () => client.navigation());
+	manager.setActiveGrid("transmog");
+	update.setActive(true);
+	for (let count = 0; count < 4; count++) pending.shift()?.();
+	expect(pending).toHaveLength(0);
+	visibility("OnHide");
+	visibility("OnShow");
+	expect(pending).toHaveLength(0);
+	expect(manager.focusedId).toBe("transmog-slot");
+	for (let count = 0; count < 3; count++) {
+		manager.moveRight();
+		expect(manager.focusedId).toBe("transmog-appearance");
+		manager.moveLeft();
+		expect(manager.focusedId).toBe("transmog-slot");
+	}
+	expect(pending).toHaveLength(0);
+	manager.destroy();
+});
+
+it("keeps the focused native target and tooltip across content refreshes, then moves immediately with the D-pad", () => {
+	const { client, parent, slot, model, focus, events } = setup();
+	client.mount(parent);
+	const manager = new NavigationManager(events);
+	manager.registerGrid("transmog", () => client.navigation());
+	manager.setActiveGrid("transmog");
+	for (let count = 0; count < 3; count++) manager.refreshGrid("transmog");
+	expect(slot.scripts.OnEnter).toHaveBeenCalledOnce();
+	expect(slot.scripts.OnLeave).not.toHaveBeenCalled();
+	manager.moveRight();
+	expect(manager.focusedId).toBe("transmog-appearance");
+	manager.refreshGrid("transmog");
+	expect(manager.focusedId).toBe("transmog-appearance");
+	expect(model.scripts.OnEnter).toHaveBeenCalledOnce();
+	expect(model.scripts.OnLeave).not.toHaveBeenCalled();
+	expect(focus.navigation).toHaveBeenCalledTimes(3);
+	manager.moveDown();
+	expect(manager.focusedId).toBe("transmog-save");
+	manager.destroy();
+});
 
 it("fits and enlarges the native window, removes requested chrome and restores it on unmount", () => {
 	const { client, frame, parent, layout, chrome, focus } = setup();
