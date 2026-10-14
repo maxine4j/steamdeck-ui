@@ -5,13 +5,17 @@ import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { AuctionHousePanel } from "./auction-house-panel";
 
-const { rows, inputs, labels, instances, hides } = vi.hoisted(() => ({
-	rows: new Map<string, readonly ListRow[]>(),
-	inputs: new Map<string, (text: string) => void>(),
-	labels: new Map<string, string[]>(),
-	instances: [] as string[],
-	hides: new Map<string, number>(),
-}));
+const { rows, inputs, labels, instances, hides, skins, borders, widths } =
+	vi.hoisted(() => ({
+		rows: new Map<string, readonly ListRow[]>(),
+		inputs: new Map<string, (text: string) => void>(),
+		labels: new Map<string, string[]>(),
+		instances: [] as string[],
+		hides: new Map<string, number>(),
+		skins: new Map<string, string>(),
+		borders: new Map<string, readonly number[]>(),
+		widths: new Map<string, number>(),
+	}));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		constructor(readonly id: string) {
@@ -19,7 +23,9 @@ vi.mock("../../ui/components/frame", () => ({
 		}
 		fill() {}
 		setParent() {}
-		layout() {}
+		layout(width: number) {
+			widths.set(this.id, width);
+		}
 		show() {}
 		hide() {
 			hides.set(this.id, (hides.get(this.id) ?? 0) + 1);
@@ -27,8 +33,18 @@ vi.mock("../../ui/components/frame", () => ({
 		destroy() {}
 		blurInput() {}
 		setWindowBackground() {}
-		setButtonBackground() {}
-		setInsetBackground() {}
+		setButtonBackground() {
+			skins.set(this.id, "red");
+		}
+		setInsetBackground() {
+			skins.set(this.id, "inset");
+		}
+		setColor() {
+			skins.set(this.id, "plain");
+		}
+		setBorder(color: readonly number[]) {
+			borders.set(this.id, color);
+		}
 		setFocused() {}
 		focusInput() {}
 		onClick() {}
@@ -133,6 +149,32 @@ function setup(
 	panel.onMount(new Frame("parent", pool));
 	return { panel, client };
 }
+it("uses plain browse rows and navigation, neutral selectors, and compact primary actions", () => {
+	const { panel } = setup();
+	expect(
+		rows.get("auction-buy-list")?.every((row) => row.background === false),
+	).toBe(true);
+	expect(skins.get("auction-buy-more")).toBe("plain");
+	expect(skins.get("auction-buy-scroll--1")).toBe("plain");
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "auction-item-123-0-0-0")
+		?.onInteract();
+	expect(skins.get("auction-buy-amount-20")).toBe("inset");
+	expect(skins.get("auction-buy-back")).toBe("plain");
+	expect(skins.get("auction-buy-submit")).toBe("red");
+	expect(widths.get("auction-buy-submit")).toBeLessThanOrEqual(200);
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "auction-buy-amount-20")
+		?.onInteract();
+	expect(borders.get("auction-buy-amount-20")).toEqual([1, 0.82, 0, 1]);
+	setup("auction-sell");
+	expect(skins.get("auction-sell-duration-24")).toBe("inset");
+	expect(borders.get("auction-sell-duration-24")).toEqual([1, 0.82, 0, 1]);
+});
 it("lands on the token and favourites, opens item details, and buys only from the separate button", () => {
 	const { panel, client } = setup();
 	expect(rows.get("auction-buy-list")?.at(0)?.label).toBe("WoW Token");

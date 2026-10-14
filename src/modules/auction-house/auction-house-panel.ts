@@ -157,6 +157,7 @@ export class AuctionHousePanel implements IPanel {
 		x: number,
 		y: number,
 		width = 140,
+		selected = false,
 	): Control {
 		const control = this.controls.get(key);
 		if (!control) throw new Error(`Unknown auction control ${key}`);
@@ -165,8 +166,24 @@ export class AuctionHousePanel implements IPanel {
 		control.frame.onClick((mouse) => {
 			if (mouse === "LeftButton") control.nav.onInteract();
 		});
-		control.frame.setButtonBackground();
-		control.frame.setLabel("text", label, "CENTER", 0, 0, 13, width - 8);
+		const primary = key === "submit" || key === "confirm-post";
+		if (primary) control.frame.setButtonBackground();
+		else if (key.startsWith("amount-") || key.startsWith("duration-")) {
+			control.frame.setInsetBackground();
+			control.frame.setBorder(
+				selected ? [1, 0.82, 0, 1] : [0.45, 0.4, 0.3, 1],
+				1,
+			);
+		} else control.frame.setColor(0, 0, 0, 0);
+		control.frame.setLabel(
+			"text",
+			primary ? label : `|cffffd100${label}|r`,
+			"CENTER",
+			0,
+			0,
+			13,
+			width - 8,
+		);
 		control.frame.show();
 		return control;
 	}
@@ -261,6 +278,7 @@ export class AuctionHousePanel implements IPanel {
 				this.client.getBrowse().map((item) => ({
 					id: this.itemID(item),
 					label: item.name,
+					background: false,
 					icon: item.icon,
 					detail:
 						item.price > 0
@@ -292,6 +310,7 @@ export class AuctionHousePanel implements IPanel {
 						16 + index * 90,
 						88,
 						80,
+						purchase.quantity === quantity,
 					),
 				),
 			],
@@ -308,10 +327,10 @@ export class AuctionHousePanel implements IPanel {
 		this.visibleControls.push([
 			this.button(
 				"submit",
-				purchase.ready ? "Buy" : "Buy (waiting / unavailable)",
-				16,
+				purchase.ready ? "Buy" : "Buy (unavailable)",
+				284,
 				220,
-				448,
+				180,
 			),
 		]);
 		this.visibleControls.push([
@@ -372,7 +391,7 @@ export class AuctionHousePanel implements IPanel {
 				140,
 			);
 			this.visibleControls = [
-				[this.button("submit", "Sell WoW Token", 16, 184, 448)],
+				[this.button("submit", "Sell WoW Token", 284, 184, 180)],
 			];
 			this.list.setRows([]);
 			return;
@@ -392,10 +411,11 @@ export class AuctionHousePanel implements IPanel {
 			[12, 24, 48].map((hours, index) =>
 				this.button(
 					`duration-${hours}`,
-					`${this.duration === index + 1 ? "• " : ""}${hours} hours`,
+					`${hours} hours`,
 					16 + index * 152,
 					166,
 					144,
+					this.duration === index + 1,
 				),
 			),
 		);
@@ -406,9 +426,9 @@ export class AuctionHousePanel implements IPanel {
 			206,
 		);
 		this.visibleControls.push([
-			this.button("submit", "Post auction", 16, 246, 220),
+			this.button("submit", "Post auction", 16, 246, 180),
 			...(this.client.getPostConfirmation()
-				? [this.button("confirm-post", "Confirm warning", 244, 246, 220)]
+				? [this.button("confirm-post", "Confirm warning", 284, 246, 180)]
 				: []),
 		]);
 		this.list.setRows(this.priceRows(true));
