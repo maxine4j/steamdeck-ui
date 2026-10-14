@@ -31,9 +31,10 @@ export class Dropdown {
 	}
 	mount(parent: Frame): void {
 		this.button.setParent(parent);
-		this.button.layout(112, 32, "TOPRIGHT", parent, -16, -66);
+		this.button.layout(90, 18, "TOPRIGHT", parent, -16, -66);
 		if (!this.native) {
 			this.native = this.button.getDropdownButton();
+			this.native.resizeToText = false;
 			this.native.RegisterCallback(
 				"OnMenuOpen",
 				() => this.navigationChanged?.(this.nodes.at(0)?.at(0)?.navId),

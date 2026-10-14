@@ -25,6 +25,7 @@ export interface NativeMenuRoot {
 }
 
 export interface NativeDropdownButton extends WowFrame {
+	resizeToText: boolean;
 	SetupMenu(
 		generate: (
 			this: void,

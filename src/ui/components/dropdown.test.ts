@@ -23,6 +23,19 @@ it("preserves Blizzard's intrinsic hover scripts when returning a dropdown to th
 	expect(native.SetScript).not.toHaveBeenCalledWith("OnLeave", undefined);
 });
 
+it("matches the default Mount Journal filter button size without resizing to its label", () => {
+	const { native } = setup();
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		90,
+		18,
+		"TOPRIGHT",
+		expect.any(Frame),
+		-16,
+		-66,
+	);
+	expect(native).toHaveProperty("resizeToText", false);
+});
+
 function setup() {
 	for (const method of [
 		"setParent",
