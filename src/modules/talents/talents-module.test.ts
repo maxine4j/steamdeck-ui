@@ -10,6 +10,7 @@ it("opens on the left, refreshes through injected events and restores on shutdow
 		disable: vi.fn(),
 		restore: vi.fn(),
 		isOpen: vi.fn(() => false),
+		isFullOpen: vi.fn(() => false),
 	};
 	const module = new TalentsModule(ui, events, view, native);
 	module.disableBuiltIn();
@@ -28,4 +29,37 @@ it("opens on the left, refreshes through injected events and restores on shutdow
 	events.emit("TALENTS_CHANGED");
 	expect(view.refresh).toHaveBeenCalledTimes(2);
 	expect(native.restore).toHaveBeenCalledOnce();
+});
+
+it("hosts the full native editor in the fullscreen panel and refreshes it through application events", () => {
+	const events = createTestEventBus();
+	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
+	const view = { refresh: vi.fn() };
+	const tree = { refresh: vi.fn() };
+	const native = {
+		disable: vi.fn(),
+		restore: vi.fn(),
+		isOpen: () => false,
+		isFullOpen: vi.fn(() => false),
+	};
+	const module = new TalentsModule(ui, events, view, native, tree);
+	module.initialize();
+	native.isFullOpen.mockReturnValue(true);
+	events.emit("TALENTS_VISIBILITY_CHANGED");
+	events.emit("TALENTS_VISIBILITY_CHANGED");
+	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith(
+		"talent-tree",
+		"fullscreen",
+	);
+	events.emit("TALENTS_CHANGED");
+	expect(tree.refresh).toHaveBeenCalledOnce();
+	native.isFullOpen.mockReturnValue(false);
+	events.emit("TALENTS_VISIBILITY_CHANGED");
+	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith(
+		"fullscreen",
+		"talent-tree",
+	);
+	module.shutdown();
+	events.emit("TALENTS_CHANGED");
+	expect(tree.refresh).toHaveBeenCalledOnce();
 });

@@ -167,7 +167,7 @@ export class NativeLayout {
 		if (rule.parent) {
 			const insets = rule.insets ?? [0, 0, 0, 0];
 			if (rule.parent instanceof Frame)
-				rule.parent.anchorExisting(frame, insets, rule.reparent);
+				rule.parent.anchorExisting(frame, insets, rule.reparent, rule.anchors);
 			else {
 				if (rule.reparent) frame.SetParent(rule.parent);
 				frame.ClearAllPoints();

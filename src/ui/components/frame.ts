@@ -230,11 +230,17 @@ export class Frame implements IUIComponent {
 		native: WowFrame,
 		insets: readonly [number, number, number, number],
 		reparent = false,
+		anchors?: readonly (readonly [string, string, number, number])[],
 	): void {
 		const parent = this.acquire();
 		if (reparent) native.SetParent(parent);
 		const [left, top, right, bottom] = insets;
 		native.ClearAllPoints();
+		if (anchors) {
+			for (const [point, relativePoint, x, y] of anchors)
+				native.SetPoint(point, parent, relativePoint, x, y);
+			return;
+		}
 		native.SetPoint("TOPLEFT", parent, "TOPLEFT", left, top !== 0 ? -top : 0);
 		native.SetPoint(
 			"BOTTOMRIGHT",

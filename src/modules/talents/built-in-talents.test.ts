@@ -94,10 +94,13 @@ it("loads lazily, replaces only player talent/spec tabs and restores the full ed
 	inspecting = false;
 	hooks.get("SetTab")?.();
 	native.openFull();
+	expect(native.isFullOpen()).toBe(true);
+	native.openFull();
 	expect(nativeTreeShow).toHaveBeenCalledOnce();
 	expect(native.isOpen()).toBe(false);
 	expect(frames.restore).toHaveBeenCalled();
 	native.close();
+	expect(native.isFullOpen()).toBe(false);
 	native.open();
 	expect(native.isOpen()).toBe(true);
 	expect(nativeTreeShow).toHaveBeenCalledOnce();

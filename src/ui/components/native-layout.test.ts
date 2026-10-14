@@ -123,7 +123,19 @@ it("keeps an anchored native child above its host background without changing it
 		SetAlpha: vi.fn(),
 	} as unknown as LayoutFrame;
 	const layout = new NativeLayout(scheduling().scheduler);
-	layout.bind(native, { parent: host, levelOffset: 1, raised: true });
+	layout.bind(native, {
+		parent: host,
+		levelOffset: 1,
+		raised: true,
+		anchors: [["CENTER", "CENTER", 0, 0]],
+	});
+	expect(native.SetPoint).toHaveBeenCalledExactlyOnceWith(
+		"CENTER",
+		expect.anything(),
+		"CENTER",
+		0,
+		0,
+	);
 	expect(native.Raise).toHaveBeenCalledOnce();
 	expect(native.SetFrameLevel).toHaveBeenLastCalledWith(21);
 	expect(native.SetParent).not.toHaveBeenCalled();

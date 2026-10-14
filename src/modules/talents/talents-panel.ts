@@ -26,6 +26,7 @@ export class TalentsPanel implements IPanel {
 		close: () => void,
 		scheduler: ITaskScheduler,
 		private readonly onHidden?: () => void,
+		private readonly openTree?: () => void,
 	) {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
@@ -85,6 +86,14 @@ export class TalentsPanel implements IPanel {
 			activate: () => {},
 		});
 		if (specID !== undefined) {
+			rows.push({
+				...tileBackground,
+				id: "talents-full",
+				label: "Open talent tree",
+				fullWidth: true,
+				marginBottom: 24,
+				activate: () => this.openTree?.(),
+			});
 			rows.push({
 				id: "talents-loadouts-heading",
 				label: "Loadouts",

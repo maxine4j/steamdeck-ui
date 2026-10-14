@@ -16,6 +16,7 @@ import type { IMountsClient } from "./clients/mounts-client";
 import type { IPetsClient } from "./clients/pets-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ISlashCommandsClient } from "./clients/slash-commands-client";
+import { TalentTreeClient } from "./clients/talent-tree-client";
 import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
@@ -67,6 +68,7 @@ import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
 import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-module";
 import { BuiltInTalents } from "./modules/talents/built-in-talents";
+import { TalentTreePanel } from "./modules/talents/talent-tree-panel";
 import { TalentsModule } from "./modules/talents/talents-module";
 import { TalentsPanel } from "./modules/talents/talents-panel";
 import { BuiltInToys } from "./modules/toys/built-in-toys";
@@ -80,6 +82,8 @@ import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
 import { ItemTooltip } from "./ui/components/item-tooltip";
 import { Modal } from "./ui/components/modal";
+import { NativeLayout } from "./ui/components/native-layout";
+import { NativeNavigation } from "./ui/components/native-navigation";
 import { NativeScriptSuppression } from "./ui/components/native-script-suppression";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
@@ -490,11 +494,32 @@ export function startSteamDeckUI(
 		() => {
 			if (builtInTalents.isOpen()) builtInTalents.close();
 		},
+		() => builtInTalents.openFull(),
 	);
+	const talentTreePanel = new TalentTreePanel(
+		pool,
+		new TalentTreeClient(
+			builtInTalents,
+			new NativeLayout(scheduler),
+			new NativeNavigation(pool),
+			events,
+		),
+		scheduler,
+		() => ui.closePanel("fullscreen", "talent-tree"),
+	);
+	ui.registerPanel(talentTreePanel);
 	ui.registerPanel(talentsPanel, "left");
 	ui.registerPanel(dungeonFinderPanel, "left");
 	ui.registerPanel(achievementsPanel, "left");
-	modules.register(new TalentsModule(ui, events, talentsPanel, builtInTalents));
+	modules.register(
+		new TalentsModule(
+			ui,
+			events,
+			talentsPanel,
+			builtInTalents,
+			talentTreePanel,
+		),
+	);
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
 	);
@@ -540,6 +565,7 @@ export function startSteamDeckUI(
 			collectionsFeature.toysPanel.destroy();
 			collectionsFeature.petsPanel.destroy();
 			talentsPanel.destroy();
+			talentTreePanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();
 			buybackPanel.destroy();

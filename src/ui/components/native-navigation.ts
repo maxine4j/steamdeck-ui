@@ -26,7 +26,7 @@ export class NativeNavigation {
 	constructor(private readonly pool: IFramePoolManager) {}
 	navigation(
 		frame: NativeNavigationFrame,
-		scroll: NativeNavigationScroll,
+		scroll: NativeNavigationScroll | undefined,
 		navId: string,
 		onInteract: () => void,
 	): INavigable {
@@ -34,19 +34,21 @@ export class NativeNavigation {
 			navId,
 			onInteract: () => onInteract(),
 			onFocus: (refresh) => {
-				const delta =
-					frame.GetTop() > scroll.GetTop()
-						? scroll.GetTop() - frame.GetTop()
-						: Math.max(0, scroll.GetBottom() - frame.GetBottom());
-				scroll.SetVerticalScroll(
-					Math.max(
-						0,
-						Math.min(
-							scroll.GetVerticalScrollRange(),
-							scroll.GetVerticalScroll() + delta,
+				if (scroll) {
+					const delta =
+						frame.GetTop() > scroll.GetTop()
+							? scroll.GetTop() - frame.GetTop()
+							: Math.max(0, scroll.GetBottom() - frame.GetBottom());
+					scroll.SetVerticalScroll(
+						Math.max(
+							0,
+							Math.min(
+								scroll.GetVerticalScrollRange(),
+								scroll.GetVerticalScroll() + delta,
+							),
 						),
-					),
-				);
+					);
+				}
 				if (!this.outline) {
 					this.outline = this.pool.acquire("Frame") as FocusOutline;
 					const outline = this.outline;

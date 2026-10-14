@@ -76,3 +76,28 @@ it("reuses a pooled focus outline and scrolls the focused native row into view",
 	expect(outline.SetFrameLevel).toHaveBeenLastCalledWith(0);
 	expect(pool.release).toHaveBeenCalledWith("Frame", outline);
 });
+
+it("focuses a native control without requiring a scroll viewport", () => {
+	const outline = {
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetFrameLevel: vi.fn(),
+		EnableMouse: vi.fn(),
+		Show: vi.fn(),
+		Hide: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+	};
+	const pool = { acquire: vi.fn(() => outline), release: vi.fn() };
+	const control = new NativeNavigation(pool as unknown as IFramePoolManager);
+	const frame = { GetFrameLevel: () => 3 } as NativeNavigationFrame;
+	const node = control.navigation(frame, undefined, "talent", vi.fn());
+	node.onFocus();
+	expect(outline.SetParent).toHaveBeenCalledWith(frame);
+	expect(outline.Show).toHaveBeenCalled();
+	node.onBlur();
+	expect(outline.Hide).toHaveBeenCalled();
+	control.release();
+});

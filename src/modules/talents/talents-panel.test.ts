@@ -46,12 +46,20 @@ it.each([2, 3, 4])(
 			selectLoadout: vi.fn(),
 			selectStarter: vi.fn(),
 		};
-		const panel = new TalentsPanel({} as IFramePoolManager, client, vi.fn(), {
-			nextFrame: (callback) => {
-				pending.push(callback);
-				return vi.fn();
+		const openTree = vi.fn();
+		const panel = new TalentsPanel(
+			{} as IFramePoolManager,
+			client,
+			vi.fn(),
+			{
+				nextFrame: (callback) => {
+					pending.push(callback);
+					return vi.fn();
+				},
 			},
-		});
+			undefined,
+			openTree,
+		);
 		panel.refresh();
 		expect(listOptions).toHaveBeenLastCalledWith(
 			expect.objectContaining({
@@ -71,6 +79,13 @@ it.each([2, 3, 4])(
 			heading: true,
 		});
 		expect(rendered.at(count + 1)).toMatchObject({
+			id: "talents-full",
+			label: "Open talent tree",
+			fullWidth: true,
+		});
+		rendered.at(count + 1)?.activate();
+		expect(openTree).toHaveBeenCalledOnce();
+		expect(rendered.at(count + 2)).toMatchObject({
 			label: "Loadouts",
 			heading: true,
 		});
@@ -99,7 +114,6 @@ it.each([2, 3, 4])(
 		expect(client.selectSpec).toHaveBeenCalledWith(2);
 		pending.shift()?.();
 		expect(specs.at(count - 1)?.marginBottom).toBe(24);
-		expect(rendered.some((row) => row.id === "talents-full")).toBe(false);
 		expect(specs.map((row) => row.id)).toEqual(
 			Array.from({ length: count }, (_, i) => `talents-spec-${i + 1}`),
 		);

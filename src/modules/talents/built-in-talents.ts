@@ -5,6 +5,7 @@ export interface IBuiltInTalents {
 	disable(): void;
 	restore(): void;
 	isOpen(): boolean;
+	isFullOpen(): boolean;
 }
 /** Blizzard integration stays here; the module only receives application events. */
 export class BuiltInTalents implements IBuiltInTalents {
@@ -20,6 +21,16 @@ export class BuiltInTalents implements IBuiltInTalents {
 	isOpen(): boolean {
 		const frame = PlayerSpellsFrame;
 		return frame?.IsShown() === true && this.shouldReplace();
+	}
+	isFullOpen(): boolean {
+		const frame = PlayerSpellsFrame;
+		return (
+			this.enabled &&
+			this.full &&
+			frame?.IsShown() === true &&
+			!frame.IsInspecting() &&
+			frame.GetTab() === frame.talentTabID
+		);
 	}
 	private shouldReplace(): boolean {
 		const frame = PlayerSpellsFrame;
@@ -83,6 +94,7 @@ export class BuiltInTalents implements IBuiltInTalents {
 		this.sync();
 	}
 	openFull(): void {
+		if (this.isFullOpen()) return;
 		this.full = true;
 		// Restore before opening so the hidden parent cannot block Blizzard's OnShow setup.
 		this.syncing = true;

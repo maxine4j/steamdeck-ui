@@ -48,6 +48,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetAtlas: vi.fn((atlas: string) => textureIcons.set(texture, atlas)),
 				SetColorTexture: vi.fn(() => textureIcons.delete(texture)),
 				SetTexture: vi.fn((icon: number) => textureIcons.set(texture, icon)),
+				SetTextureSliceMargins: vi.fn(),
+				SetTextureSliceMode: vi.fn(),
+				ClearTextureSlice: vi.fn(),
 				AddMaskTexture: vi.fn(),
 				RemoveMaskTexture: vi.fn(),
 				SetTexCoord: vi.fn(),
@@ -373,6 +376,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		{
 			read: () => ({
 				specs: [],
+				specID: 1,
 				loadouts: [],
 				starterAvailable: false,
 				starterSelected: false,
@@ -925,6 +929,26 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	let spellsShown = false;
 	let spellsTab = 2;
 	const spellsFrame = {
+		GetNumPoints: () => 0,
+		GetSize: () => [1000, 600],
+		GetScale: () => 1,
+		GetFrameStrata: () => "HIGH",
+		GetFrameLevel: () => 1,
+		GetAlpha: () => 1,
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetSize: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetFrameLevel: vi.fn(),
+		SetAlpha: vi.fn(),
+		TalentsFrame: {
+			EnumerateAllTalentButtons: () => [],
+			HideSelections: vi.fn(),
+			HookScript: vi.fn(),
+			HeroTalentsContainer: { SetCollapsed: vi.fn() },
+			SelectionChoiceFrame: { IsShown: () => false, HookScript: vi.fn() },
+		},
 		GetParent: () => nativeParent,
 		SetParent: vi.fn(),
 		IsShown: () => spellsShown,
@@ -972,6 +996,23 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_PANEL_PREVIOUS");
 	expect(app.ui.getContainer("left").activePanelId).toBe("reputation");
 	expect(spellbookOpened).not.toHaveBeenCalled();
+	expect(spellsShown).toBe(false);
+	clickTab("UI-HUD-MicroMenu-SpecTalents-Up");
+	flush();
+	clickRow("Open talent tree")();
+	flush();
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("talent-tree");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	expect(spellsShown).toBe(true);
+	expect(spellsFrame.SetPoint).toHaveBeenCalledWith(
+		"CENTER",
+		expect.anything(),
+		"CENTER",
+		0,
+		0,
+	);
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
 	expect(spellsShown).toBe(false);
 	map.isOpen.mockReturnValue(true);
 	events.emit("MAP_VISIBILITY_CHANGED");
