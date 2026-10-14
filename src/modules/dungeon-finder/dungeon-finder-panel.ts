@@ -10,6 +10,7 @@ import { IconCheckbox } from "../../ui/components/icon-checkbox";
 import type { IModal } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
@@ -137,6 +138,7 @@ export class DungeonFinderPanel implements IPanel {
 	readonly iconAtlas = "UI-HUD-MicroMenu-Groupfinder-Up";
 	private readonly list: ScrollList;
 	private readonly frame: Frame;
+	private readonly container: Frame;
 	private readonly back: Frame;
 	private readonly checkboxes: IconCheckbox[];
 	private mounted = false;
@@ -153,6 +155,7 @@ export class DungeonFinderPanel implements IPanel {
 		private readonly confirmation: IModal,
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
+		this.container = new Frame(`${this.id}-container`, pool);
 		this.back = new Frame("dungeon-back", pool, "Button");
 		this.checkboxes = roleControls.map(
 			({ role, label, icon }) =>
@@ -164,7 +167,7 @@ export class DungeonFinderPanel implements IPanel {
 				}),
 		);
 		this.update = new DeferredRefresh(scheduler, () => this.render());
-		this.list = new ScrollList(this.id, pool, this.title, close, {
+		this.list = new ScrollList(this.id, pool, "", close, {
 			padding: 30,
 			contentPadding: { horizontal: 24, vertical: 10 },
 			centerSingleLine: true,
@@ -172,7 +175,7 @@ export class DungeonFinderPanel implements IPanel {
 			centerLabelsVertically: true,
 			centerContent: true,
 			buttonWidth: 420,
-			top: 180,
+			top: 52,
 			bottom: 30,
 			background: false,
 			scheduler,
@@ -247,6 +250,9 @@ export class DungeonFinderPanel implements IPanel {
 			{
 				id: "heading-dungeons",
 				label: "Dungeons",
+				icon: pages.at(0)?.icon,
+				iconSize: 32,
+				height: 40,
 				heading: true,
 				fontSize: 22,
 				marginTop: 16,
@@ -355,8 +361,10 @@ export class DungeonFinderPanel implements IPanel {
 		const rows: ListRow[] = [
 			{
 				id: "heading-raids",
-				label:
-					"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:22:22|t Raid Finder",
+				label: "Raid Finder",
+				icon: pages.at(1)?.icon,
+				iconSize: 32,
+				height: 40,
 				heading: true,
 				fontSize: 22,
 				marginTop: 20,
@@ -367,20 +375,28 @@ export class DungeonFinderPanel implements IPanel {
 		const raids = this.client.getRaids();
 		const capacity = this.client.canQueueRaid();
 		for (const raid of raids) {
+			const group = {
+				id: `raid-${raid.id}`,
+				texture:
+					raid.background ??
+					"Interface\\LFGFrame\\UI-LFG-BACKGROUND-QUESTPAPER",
+			};
 			rows.push({
 				id: `raid-${raid.id}`,
+				group,
 				label: raid.name,
 				indent: 24,
 				heading: true,
 				fontSize: 18,
+				marginTop: 16,
 				marginBottom: 8,
 				activate: () => {},
 			});
 			raid.wings.forEach((wing, index) => {
 				const progress = `${wing.bosses.filter((boss) => boss.killed).length}/${wing.bosses.length}`;
 				const bossTooltip = `${wing.name}\n\n${progress} bosses killed\n${wing.bosses.map((boss) => `${boss.name}${boss.killed ? " (killed)" : ""}`).join("\n")}`;
-				rows.push(
-					actionTile(
+				rows.push({
+					...actionTile(
 						{
 							id: `wing-${wing.id}`,
 							label: wing.name,
@@ -422,7 +438,12 @@ export class DungeonFinderPanel implements IPanel {
 						bossTooltip,
 						progress,
 					),
-				);
+					group,
+					backgroundAtlas: undefined,
+					backgroundSlice: undefined,
+					backgroundTint: undefined,
+					background: wing.queued ? [0.1, 0.3, 0.15] : false,
+				});
 			});
 		}
 		if (raids.length === 0)
@@ -547,7 +568,8 @@ export class DungeonFinderPanel implements IPanel {
 						: this.page === "specific" || this.page === "follower"
 							? this.choiceRows(this.page)
 							: [];
-		this.list.setTitle(
+		setWindowTitle(
+			this.frame,
 			this.page
 				? (this.client.getDungeonLists().find((list) => list.id === this.page)
 						?.label ??
@@ -590,9 +612,16 @@ export class DungeonFinderPanel implements IPanel {
 			throw new Error("Dungeon finder requires a frame parent");
 		this.frame.fill(parent);
 		this.frame.setWindowBackground();
-		this.list.mount(this.frame);
-		this.back.setParent(this.frame);
-		this.back.layout(96, 26, "TOPLEFT", this.frame, 16, -140);
+		this.container.inset(this.frame, 16, 180, 16, 16);
+		this.container.setInsetBackground();
+		this.container.show();
+		this.list.setWidth(this.container.getSize().width);
+		this.container.onSizeChanged(() => {
+			if (this.mounted) this.list.setWidth(this.container.getSize().width);
+		});
+		this.list.mount(this.container);
+		this.back.setParent(this.container);
+		this.back.layout(96, 26, "TOPLEFT", this.container, 12, -12);
 		this.back.setButtonBackground();
 		this.back.setLabel("label", "‹ Back", "CENTER", 0, 0, 13);
 		this.back.onClick(() => this.onBack());
@@ -610,6 +639,8 @@ export class DungeonFinderPanel implements IPanel {
 		for (const control of this.checkboxes) control.unmount();
 		this.rolesMounted = false;
 		this.frame.hide();
+		this.container.hide();
+		this.container.onSizeChanged(undefined);
 	}
 	getNavGrid() {
 		const availableRoles =
@@ -637,6 +668,7 @@ export class DungeonFinderPanel implements IPanel {
 		this.list.destroy();
 		for (const control of this.checkboxes) control.destroy();
 		this.frame.destroy();
+		this.container.destroy();
 		this.back.destroy();
 	}
 }

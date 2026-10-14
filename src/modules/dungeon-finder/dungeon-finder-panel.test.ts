@@ -6,32 +6,41 @@ import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { DungeonFinderPanel } from "./dungeon-finder-panel";
 
-const { setRows, frames, listOptions, checkboxes } = vi.hoisted(() => ({
-	setRows: vi.fn(),
-	frames: new Map<
-		string,
-		{
-			layout: ReturnType<typeof vi.fn>;
-			setLabel: ReturnType<typeof vi.fn>;
-			show: ReturnType<typeof vi.fn>;
-			hide: ReturnType<typeof vi.fn>;
-		}
-	>(),
-	listOptions: vi.fn(),
-	checkboxes: new Map<
-		string,
-		{
-			setChecked: ReturnType<typeof vi.fn>;
-			mount: ReturnType<typeof vi.fn>;
-			icon: string;
-		}
-	>(),
-}));
+const { setRows, setWidth, frames, listOptions, checkboxes } = vi.hoisted(
+	() => ({
+		setRows: vi.fn(),
+		setWidth: vi.fn(),
+		frames: new Map<
+			string,
+			{
+				layout: ReturnType<typeof vi.fn>;
+				setLabel: ReturnType<typeof vi.fn>;
+				show: ReturnType<typeof vi.fn>;
+				hide: ReturnType<typeof vi.fn>;
+				inset: ReturnType<typeof vi.fn>;
+				setParent: ReturnType<typeof vi.fn>;
+				setInsetBackground: ReturnType<typeof vi.fn>;
+			}
+		>(),
+		listOptions: vi.fn(),
+		checkboxes: new Map<
+			string,
+			{
+				setChecked: ReturnType<typeof vi.fn>;
+				mount: ReturnType<typeof vi.fn>;
+				icon: string;
+			}
+		>(),
+	}),
+);
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		layout = vi.fn();
 		setLabel = vi.fn();
 		fill = vi.fn();
+		inset = vi.fn();
+		getSize = () => ({ width: 448, height: 600 });
+		onSizeChanged = vi.fn();
 		setWindowBackground = vi.fn();
 		setButtonBackground = vi.fn();
 		setInsetBackground = vi.fn();
@@ -85,6 +94,7 @@ vi.mock("../../ui/components/scroll-list", () => ({
 		setRows = setRows;
 		setTitle = vi.fn();
 		resetScroll = vi.fn();
+		setWidth = setWidth;
 		getNavGrid = () => {
 			const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 			return rows
@@ -369,6 +379,50 @@ it("widens queue tiles and limits queue actions to the inset red button", () => 
 	expect(queued.client.leave).toHaveBeenCalledOnce();
 });
 
+it("hosts the list and Back in an inset content container below the square roles", () => {
+	setup();
+	const container = frames.get("dungeon-finder-container");
+	expect(container?.inset).toHaveBeenCalledWith(
+		frames.get("dungeon-finder-root"),
+		16,
+		180,
+		16,
+		16,
+	);
+	expect(container?.setInsetBackground).toHaveBeenCalled();
+	expect(frames.get("dungeon-back")?.setParent).toHaveBeenCalledWith(container);
+	expect(frames.get("dungeon-back")?.layout).toHaveBeenCalledWith(
+		96,
+		26,
+		"TOPLEFT",
+		container,
+		12,
+		-12,
+	);
+	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({ top: 52 });
+	expect(setWidth).toHaveBeenCalledWith(448);
+	expect(frames.get("dungeon-finder-root")?.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Dungeons",
+		"TOP",
+		0,
+		-6,
+		12,
+	);
+});
+
+it.each(["dungeons", "raids"])(
+	"shows the landing category icon in the %s content header",
+	(page) => {
+		const { rows } = setup(false, true, true, page);
+		expect(rows.at(0)?.icon).toBe(
+			page === "dungeons"
+				? "Interface\\Icons\\INV_Helmet_08"
+				: "Interface\\LFGFrame\\UI-LFR-PORTRAIT",
+		);
+	},
+);
+
 it.each(["follower", "specific"] as const)(
 	"opens %s checkboxes with pinned roles and returns via controller B",
 	(list) => {
@@ -591,7 +645,7 @@ it("pins four horizontal icon checkboxes above the scrolling dungeons", () => {
 it("removes the overview queue footer and compacts the role area", () => {
 	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
-		top: 180,
+		top: 52,
 		buttonWidth: 420,
 		centerText: false,
 		centerLabelsVertically: true,
@@ -679,6 +733,7 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 		{
 			id: 60,
 			name: "New raid",
+			background: "native-raid-background",
 			wings: [
 				{
 					id: 102,
@@ -713,15 +768,24 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	expect(rows.filter((row) => row.heading).slice(-2)).toMatchObject([
 		{
 			id: "heading-raids",
-			label: expect.stringMatching(/\|T.+:22:22\|t Raid Finder/),
+			label: "Raid Finder",
 			fontSize: 22,
 		},
 		{ id: "raid-60", label: "New raid", fontSize: 18, indent: 24 },
 	]);
 	expect(rows.some((row) => row.id === "list-specific")).toBe(false);
+	expect(
+		rows
+			.filter((row) => row.id === "raid-60" || row.id.startsWith("wing-"))
+			.every(
+				(row) =>
+					row.group?.id === "raid-60" &&
+					row.group.texture === "native-raid-background",
+			),
+	).toBe(true);
 	activate(rows.find((row) => row.id === "wing-103"));
 	expect(rows.find((row) => row.id === "wing-103")).toMatchObject({
-		backgroundAtlas: "ui-journeys-renown-button",
+		backgroundAtlas: undefined,
 		height: 60,
 		secondary: {
 			label: "Queue",
@@ -742,7 +806,7 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(rows.find((row) => row.id === "wing-103")?.enabled).toBe(false);
 	expect(rows.find((row) => row.id === "wing-102")).toMatchObject({
-		backgroundTint: [0.2, 0.8, 0.3],
+		background: [0.1, 0.3, 0.15],
 		label: "Wing one • 1/2",
 		detail: undefined,
 		enabled: true,

@@ -5,6 +5,55 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("contains each row group in its own artwork tile and reuses the containers", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("groups", pool, "", vi.fn());
+	const one = { id: "one", texture: "first-raid" };
+	const two = { id: "two", texture: "second-raid" };
+	list.setRows([
+		{
+			id: "heading",
+			label: "One",
+			heading: true,
+			group: one,
+			activate: vi.fn(),
+		},
+		{ id: "wing", label: "Wing", height: 60, group: one, activate: vi.fn() },
+		{
+			id: "second",
+			label: "Two",
+			heading: true,
+			marginTop: 16,
+			group: two,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("groups-group-0")?.setTextureBackground,
+	).toHaveBeenCalledWith("first-raid", [0, 1, 0, 1]);
+	expect(frames.get("groups-group-0")?.layout).toHaveBeenCalledWith(
+		456,
+		92,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-0,
+	);
+	expect(frames.get("groups-row-1")?.setParent).toHaveBeenCalledWith(
+		frames.get("groups-group-0"),
+	);
+	expect(
+		frames.get("groups-group-1")?.setTextureBackground,
+	).toHaveBeenCalledWith("second-raid", [0, 1, 0, 1]);
+	list.setRows([{ id: "plain", label: "Plain", activate: vi.fn() }]);
+	expect(frames.get("groups-group-0")?.hide).toHaveBeenCalled();
+	expect(frames.get("groups-group-1")?.hide).toHaveBeenCalled();
+	expect(frames.get("groups-row-0")?.setParent).toHaveBeenLastCalledWith(
+		frames.get("groups-content"),
+	);
+});
+
 it("renders textured rows with masked portrait rings and clears them when reusing a row", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("portrait-row", pool, "", vi.fn(), {

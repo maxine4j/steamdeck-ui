@@ -1090,6 +1090,7 @@ export class Frame implements IUIComponent {
 		this.setColor(0, 0, 0, 0);
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
+		this.texture?.SetTexCoord(0, 1, 0, 1);
 		this.texture?.SetAtlas(atlas, false);
 		if (slice !== undefined && this.texture) {
 			const texture = this.texture as SlicedTexture;

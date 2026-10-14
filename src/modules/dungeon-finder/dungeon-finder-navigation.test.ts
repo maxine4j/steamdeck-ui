@@ -14,6 +14,9 @@ vi.mock("../../ui/components/frame", () => ({
 		setWindowBackground = vi.fn();
 		setButtonBackground = vi.fn();
 		setAtlasBackground = vi.fn();
+		setInsetBackground = vi.fn();
+		getSize = () => ({ width: 448, height: 600 });
+		onSizeChanged = vi.fn();
 		setTextureBackground = vi.fn();
 		setIcon = vi.fn();
 		setIconRing = vi.fn();

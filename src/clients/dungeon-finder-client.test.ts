@@ -72,6 +72,18 @@ it("reads each raid wing's boss names and weekly killed status", () => {
 	]);
 });
 
+it("publishes each raid's native reward background texture", () => {
+	setupRaids();
+	vi.stubGlobal("GetLFGDungeonInfo", (id: number) => {
+		const info: (string | number)[] = [];
+		info[10] = id === 101 ? "old-raid-art" : "new-raid-art";
+		return info;
+	});
+	expect(
+		new DungeonFinderClient().getRaids().map((raid) => raid.background),
+	).toEqual(["new-raid-art", "old-raid-art"]);
+});
+
 it.each([undefined, "queued"])(
 	"excludes legacy raid wings even when joinable or already queued (%s)",
 	(mode) => {

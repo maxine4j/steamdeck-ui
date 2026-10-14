@@ -15,6 +15,8 @@ export interface ListRow {
 	readonly icon?: number | string;
 	readonly iconSize?: number;
 	readonly iconRing?: IconRing;
+	/** Shared artwork container for consecutive rows in a section. */
+	readonly group?: { readonly id: string; readonly texture: number | string };
 	readonly spell?: number;
 	readonly secondary?: {
 		label: string;
@@ -86,6 +88,7 @@ export class ScrollList {
 		bottom: number;
 	}[] = [];
 	private rows: readonly ListRow[] = [];
+	private readonly groups: Frame[] = [];
 	private mounted = false;
 	private dirty = true;
 	private cancelRender?: () => void;
@@ -283,6 +286,46 @@ export class ScrollList {
 		});
 		this.contentHeight = Math.max(1, top + lineHeight);
 		this.layoutContent();
+		const groupLayouts = new Map<
+			string,
+			{ top: number; bottom: number; texture: number | string }
+		>();
+		this.rows.forEach((row, index) => {
+			const position = positions.at(index);
+			if (!row.group || !position) return;
+			const existing = groupLayouts.get(row.group.id);
+			if (existing) existing.bottom = position.top + position.height;
+			else
+				groupLayouts.set(row.group.id, {
+					top: position.top,
+					bottom: position.top + position.height,
+					texture: row.group.texture,
+				});
+		});
+		const groupFrames = new Map<string, Frame>();
+		let groupIndex = 0;
+		for (const [id, layout] of groupLayouts) {
+			let frame = this.groups.at(groupIndex);
+			if (!frame) {
+				frame = new Frame(`${this.id}-group-${groupIndex}`, this.pool);
+				this.groups.push(frame);
+			}
+			frame.setParent(this.content);
+			frame.layout(
+				width,
+				layout.bottom - layout.top,
+				"TOPLEFT",
+				this.content,
+				0,
+				-layout.top,
+			);
+			frame.setTextureBackground(layout.texture, [0, 1, 0, 1]);
+			frame.setBorder([0.45, 0.4, 0.3, 1], 1);
+			frame.show();
+			groupFrames.set(id, frame);
+			groupIndex++;
+		}
+		for (const frame of this.groups.slice(groupIndex)) frame.hide();
 		const firstRow = this.rows.at(startRow);
 		let offset =
 			(positions.at(startRow)?.top ?? this.contentHeight) -
@@ -408,7 +451,11 @@ export class ScrollList {
 				)
 					button.frame.hideTooltip();
 				button.tooltipContent = row.tooltipContent;
-				button.frame.setParent(this.content);
+				button.frame.setParent(
+					row.group
+						? (groupFrames.get(row.group.id) ?? this.content)
+						: this.content,
+				);
 				const rowHeight =
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
 				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
@@ -938,6 +985,8 @@ export class ScrollList {
 			button.frame.destroy();
 		}
 		this.buttons.length = 0;
+		for (const group of this.groups) group.destroy();
+		this.groups.length = 0;
 		this.scroll.destroy();
 		this.content.destroy();
 		this.frame.destroy();

@@ -26,9 +26,16 @@ export class IconCheckbox implements INavigable {
 	}
 	mount(parent: Frame, x: number, top: number, showLabel = true): void {
 		this.button.setParent(parent);
-		this.button.layout(96, showLabel ? 100 : 64, "TOPLEFT", parent, x, -top);
+		this.button.layout(96, showLabel ? 100 : 96, "TOPLEFT", parent, x, -top);
 		this.artwork.setParent(this.button);
-		this.artwork.layout(48, 48, "TOP", this.button, 0, -8);
+		this.artwork.layout(
+			48,
+			48,
+			showLabel ? "TOP" : "CENTER",
+			this.button,
+			0,
+			showLabel ? -8 : 0,
+		);
 		this.artwork.setAtlasBackground(this.icon);
 		if (showLabel)
 			this.button.setLabel("label", this.label, "BOTTOM", 0, 0, 12, 96);

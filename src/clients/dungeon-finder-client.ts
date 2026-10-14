@@ -29,6 +29,7 @@ export interface FinderRaid {
 	readonly id: number;
 	readonly name: string;
 	readonly wings: RaidWing[];
+	readonly background?: string | number;
 }
 export interface IDungeonFinderClient {
 	getRaids(): FinderRaid[];
@@ -105,10 +106,12 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 			if (!queued && !available && !playerAvailable && hide) continue;
 			let raid = raids.find((entry) => entry.id === mapId);
 			if (!raid) {
+				const [, , , , , , , , , , background] = GetLFGDungeonInfo(id);
 				raid = {
 					id: mapId,
 					name: raidName,
 					wings: [],
+					background,
 					expansion,
 					newestWing: id,
 				};
@@ -126,7 +129,12 @@ export class DungeonFinderClient implements IDungeonFinderClient {
 		raids.sort(
 			(a, b) => b.expansion - a.expansion || b.newestWing - a.newestWing,
 		);
-		return raids.map(({ id, name, wings }) => ({ id, name, wings }));
+		return raids.map(({ id, name, wings, background }) => ({
+			id,
+			name,
+			wings,
+			background,
+		}));
 	}
 	canQueueRaid(): boolean {
 		const active = new Set<number>();

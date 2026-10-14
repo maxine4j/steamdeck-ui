@@ -81,7 +81,10 @@ it("tiles sliced atlas centers instead of stretching and clears slicing on reuse
 	expect(textures).toHaveLength(1);
 	const background = textures.at(0);
 	expect(background?.SetAtlas).toHaveBeenLastCalledWith("tile", false);
-	expect(background?.SetTexCoord).not.toHaveBeenCalled();
+	expect(background?.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
+	expect(background?.SetTexCoord.mock.invocationCallOrder.at(-1)).toBeLessThan(
+		background?.SetAtlas.mock.invocationCallOrder.at(-1) ?? 0,
+	);
 	expect(background?.SetTextureSliceMargins).toHaveBeenLastCalledWith(
 		16,
 		16,

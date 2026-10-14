@@ -54,13 +54,21 @@ it("supports icon-only controls with equal padding around the artwork", () => {
 	control.mount(new Frame("parent", pool), 30, 70, false);
 	expect(frames.get("icon-only")?.layout).toHaveBeenCalledWith(
 		96,
-		64,
+		96,
 		"TOPLEFT",
 		expect.anything(),
 		30,
 		-70,
 	);
 	expect(frames.get("icon-only")?.setLabel).not.toHaveBeenCalled();
+	expect(frames.get("icon-only-icon")?.layout).toHaveBeenCalledWith(
+		48,
+		48,
+		"CENTER",
+		expect.anything(),
+		0,
+		0,
+	);
 });
 
 it("uses Blizzard checkbox artwork over the icon's bottom-left corner", () => {
