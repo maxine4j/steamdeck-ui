@@ -96,6 +96,7 @@ interface NativeQuestScroll
 		IndicatorScroll {
 	ScrollBar: LayoutFrame;
 	SearchBox: LayoutFrame & { Clear(): void };
+	Contents: LayoutFrame & { Layout(): void };
 	SettingsDropdown: LayoutFrame;
 	titleFramePool: NativeQuestPool;
 	headerFramePool: NativeQuestPool;
@@ -295,8 +296,15 @@ export class MapClient implements IMapClient {
 			if (this.enabled && this.parent) this.events.emit("QUEST_LOG_UPDATE");
 		});
 		hooksecurefunc("QuestLogQuests_Update", () => {
-			if (this.enabled && this.parent) this.events.emit("QUEST_LOG_UPDATE");
+			this.navigationChanged();
 		});
+		// Layout can run again on OnUpdate after the initial pooled-row rebuild.
+		hooksecurefunc(
+			QuestMapFrame.QuestsFrame.ScrollFrame.Contents,
+			"Layout",
+			() => this.navigationChanged(),
+		);
+		hooksecurefunc("QuestMapFrame_UpdateAll", () => this.navigationChanged());
 		// ShowUIPanel continues positioning after OnShow; generic frame leases enforce those writes.
 		hooksecurefunc("QuestMapFrame_ShowQuestDetails", (id: number) => {
 			if (!this.enabled || !this.parent) return;
@@ -310,6 +318,9 @@ export class MapClient implements IMapClient {
 			this.applyQuestLayout();
 			this.events.emit("MAP_DETAILS_CHANGED", {});
 		});
+	}
+	private navigationChanged(): void {
+		if (this.enabled && this.parent) this.events.emit("MAP_NAVIGATION_CHANGED");
 	}
 	restore(): void {
 		this.enabled = false;

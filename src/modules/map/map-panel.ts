@@ -21,6 +21,7 @@ export class MapPanel implements IPanel {
 	private readonly pane: Frame;
 	private focus?: string;
 	private focusFallbacks: string[] = [];
+	private restoringQuestFocus = false;
 	private section: "map" | "quests" = "quests";
 	private rows: MapQuestNavigation[] = [];
 	private quests: MapQuest[] = [];
@@ -180,8 +181,13 @@ export class MapPanel implements IPanel {
 			[this.focus, ...this.focusFallbacks].find((id) =>
 				this.rows.some((row) => row.node.navId === id),
 			) ?? this.rows.at(0)?.node.navId;
-		if (focusId !== undefined) this.rememberQuestFocus(focusId);
-		this.navigationChanged?.(this.section === "map" ? "map-cursor" : focusId);
+		// A transient fallback must not replace the user's intended list target.
+		this.restoringQuestFocus = true;
+		try {
+			this.navigationChanged?.(this.section === "map" ? "map-cursor" : focusId);
+		} finally {
+			this.restoringQuestFocus = false;
+		}
 	}
 	private rememberQuestFocus(id: string): void {
 		this.focus = id;
@@ -223,7 +229,7 @@ export class MapPanel implements IPanel {
 			{
 				...node,
 				onFocus: (refresh) => {
-					this.rememberQuestFocus(node.navId);
+					if (!this.restoringQuestFocus) this.rememberQuestFocus(node.navId);
 					node.onFocus(refresh);
 				},
 				onInteract: () => {
@@ -233,7 +239,7 @@ export class MapPanel implements IPanel {
 					} else {
 						node.onInteract();
 						// Header changes rebuild native pools asynchronously. The module's
-						// deferred QUEST_LOG_UPDATE refresh restores focus after that rebuild.
+						// completed native layout refresh restores focus after that rebuild.
 					}
 				},
 				onAlternate:
@@ -260,7 +266,6 @@ export class MapPanel implements IPanel {
 				label: quest.tracked ? "Untrack quest" : "Track quest",
 				select: () => {
 					this.client.track(id);
-					this.refresh();
 				},
 			},
 			{
@@ -270,7 +275,6 @@ export class MapPanel implements IPanel {
 					: "Navigate to quest",
 				select: () => {
 					this.client.superTrack(id);
-					this.refresh();
 				},
 			},
 			{

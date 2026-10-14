@@ -23,16 +23,19 @@ it("opens only the fullscreen map, coalesces quest refreshes, forwards native de
 	module.disableBuiltIn();
 	module.initialize();
 	expect(client.disable).toHaveBeenCalledOnce();
-	events.emit("QUEST_LOG_UPDATE");
+	events.emit("MAP_NAVIGATION_CHANGED");
 	expect(pending).toHaveLength(0);
 	open = true;
 	events.emit("MAP_VISIBILITY_CHANGED");
 	expect(ui.openPanel).toHaveBeenCalledWith("map", "fullscreen");
-	events.emit("QUEST_LOG_UPDATE");
-	events.emit("QUEST_LOG_UPDATE");
+	events.emit("MAP_NAVIGATION_CHANGED");
+	events.emit("MAP_NAVIGATION_CHANGED");
 	expect(pending).toHaveLength(1);
 	pending.shift()?.();
 	expect(view.refresh).toHaveBeenCalledOnce();
+	// Raw quest events can precede Blizzard's pooled-row rebuild.
+	events.emit("QUEST_LOG_UPDATE");
+	expect(pending).toHaveLength(0);
 	events.emit("MAP_DETAILS_CHANGED", { id: 12 });
 	expect(view.showDetails).toHaveBeenCalledWith(12);
 	open = false;
@@ -45,6 +48,7 @@ it("opens only the fullscreen map, coalesces quest refreshes, forwards native de
 	open = true;
 	events.emit("MAP_VISIBILITY_CHANGED");
 	events.emit("MAP_DETAILS_CHANGED", { id: 13 });
+	events.emit("MAP_NAVIGATION_CHANGED");
 	expect(ui.openPanel).not.toHaveBeenCalled();
 	expect(view.showDetails).not.toHaveBeenCalled();
 });

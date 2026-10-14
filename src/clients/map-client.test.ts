@@ -55,6 +55,7 @@ function setup() {
 		ContentsAnchor: {},
 		QuestsFrame: {
 			ScrollFrame: {
+				Contents: { Layout: vi.fn() },
 				ScrollBar: {},
 				SearchBox: { Clear: vi.fn() },
 				SettingsDropdown: {},
@@ -734,12 +735,18 @@ it("navigates Blizzard's visible headers and quest rows in native layout order a
 		expect.any(Function),
 	);
 	const refreshed = vi.fn();
-	events.subscribe("QUEST_LOG_UPDATE", refreshed);
+	events.subscribe("MAP_NAVIGATION_CHANGED", refreshed);
 	hooks.get("QuestLogQuests_Update")?.();
 	expect(refreshed).toHaveBeenCalledOnce();
+	hooks.get("Layout")?.();
+	expect(refreshed).toHaveBeenCalledTimes(2);
+	hooks.get("QuestMapFrame_UpdateAll")?.();
+	expect(refreshed).toHaveBeenCalledTimes(3);
 	client.unmount();
 	hooks.get("QuestLogQuests_Update")?.();
-	expect(refreshed).toHaveBeenCalledOnce();
+	hooks.get("Layout")?.();
+	hooks.get("QuestMapFrame_UpdateAll")?.();
+	expect(refreshed).toHaveBeenCalledTimes(3);
 });
 it("keeps category navigation identity when log indices and display titles change after collapse", () => {
 	const { client, quests } = setup();

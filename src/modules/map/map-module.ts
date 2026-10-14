@@ -35,13 +35,13 @@ export class MapModule implements IModule {
 	initialize(): void {
 		this.events.subscribe("MAP_VISIBILITY_CHANGED", this.visibility);
 		this.events.subscribe("MAP_DETAILS_CHANGED", this.details);
-		this.events.subscribe("QUEST_LOG_UPDATE", this.refresh);
+		this.events.subscribe("MAP_NAVIGATION_CHANGED", this.refresh);
 		this.visibility();
 	}
 	shutdown(): void {
 		this.events.unsubscribe("MAP_VISIBILITY_CHANGED", this.visibility);
 		this.events.unsubscribe("MAP_DETAILS_CHANGED", this.details);
-		this.events.unsubscribe("QUEST_LOG_UPDATE", this.refresh);
+		this.events.unsubscribe("MAP_NAVIGATION_CHANGED", this.refresh);
 		this.update.setActive(false);
 		if (this.open) this.ui.closePanel("fullscreen", this.id);
 		this.open = false;

@@ -26,6 +26,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 		pressed: boolean;
 	};
 	MAP_DETAILS_CHANGED: { id?: number };
+	MAP_NAVIGATION_CHANGED: undefined;
 	ACHIEVEMENTS_SELECTED: { id: number };
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
 	MOUNTS_CHANGED: { id: number } | undefined;

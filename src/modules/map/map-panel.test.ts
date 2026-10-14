@@ -221,6 +221,38 @@ it("returns to the containing category when a focused quest is hidden by collaps
 	expect(changed).toHaveBeenLastCalledWith("map-header-later");
 });
 
+it("retains the intended quest through an intermediate rebuild and automatic fallback focus", () => {
+	const { panel, client, changed } = setup();
+	const original = client.navigation;
+	panel.getNavGrid().at(2)?.at(0)?.onFocus();
+	panel.setNavigationChanged((id) => {
+		changed(id);
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === id)
+			?.onFocus();
+	});
+	client.navigation = () => original().slice(0, 1);
+	panel.refresh();
+	client.navigation = original;
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-quest-2");
+});
+
+it("waits for native navigation completion after tracking actions", () => {
+	const { panel, client, modal, changed } = setup();
+	panel.getNavGrid().at(2)?.at(0)?.onContext?.();
+	const options = modal.open.mock.lastCall?.at(1) as ModalOption[];
+	changed.mockClear();
+	options.find((option) => option.id === "track")?.select();
+	expect(client.track).toHaveBeenCalledWith(2);
+	expect(changed).not.toHaveBeenCalled();
+	options.find((option) => option.id === "super-track")?.select();
+	expect(client.superTrack).toHaveBeenCalledWith(2);
+	expect(changed).not.toHaveBeenCalled();
+});
+
 it("updates the native viewport when the fullscreen container changes size", () => {
 	const { client } = setup();
 	const resize = state.frames
