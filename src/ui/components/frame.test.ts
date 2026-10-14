@@ -42,6 +42,46 @@ it("draws a cropped texture background and pooled masked portrait ring, then cle
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each([
+	[400, 100, [0, 1, 0.25, 0.75]],
+	[100, 200, [0.375, 0.625, 0, 1]],
+	[200, 100, [0, 1, 0, 1]],
+] as const)(
+	"covers a %sx%s background without changing its source aspect ratio",
+	(width, height, coords) => {
+		const texture = {
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			ClearAllPoints: vi.fn(),
+			SetAllPoints: vi.fn(),
+			SetColorTexture: vi.fn(),
+		};
+		const native = {
+			Hide: vi.fn(),
+			GetWidth: () => width,
+			GetHeight: () => height,
+			CreateTexture: () => texture,
+		} as unknown as WowFrame;
+		const frame = new Frame(
+			"cover",
+			new FramePoolManager({ createFrame: () => native }),
+		);
+		frame.setCoverTextureBackground("raid", { width: 200, height: 100 });
+		expect(texture.SetTexCoord).toHaveBeenLastCalledWith(...coords);
+		frame.setCoverTextureBackground("padded-raid", {
+			width: 200,
+			height: 100,
+			coords: [0, 0.5, 0, 1],
+		});
+		expect(texture.SetTexCoord).toHaveBeenLastCalledWith(
+			coords[0] / 2,
+			coords[1] / 2,
+			coords[2],
+			coords[3],
+		);
+	},
+);
+
 it("tiles sliced atlas centers instead of stretching and clears slicing on reuse", () => {
 	const texture = () => ({
 		SetAtlas: vi.fn(),

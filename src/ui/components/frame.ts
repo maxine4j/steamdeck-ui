@@ -50,6 +50,13 @@ export interface IconRing {
 	readonly size: number;
 	readonly maskAtlas: string;
 }
+
+export interface TextureRegion {
+	/** Pixel dimensions of the artwork region, excluding any padding. */
+	readonly width: number;
+	readonly height: number;
+	readonly coords?: readonly [number, number, number, number];
+}
 interface FlipbookAnimation {
 	SetDuration(seconds: number): void;
 	SetOrder(order: number): void;
@@ -1117,6 +1124,28 @@ export class Frame implements IUIComponent {
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
 		this.texture?.SetTexCoord(...coords);
+	}
+	/** Fill the frame with proportional artwork, cropping equally on opposite edges. */
+	setCoverTextureBackground(
+		file: number | string,
+		source: TextureRegion,
+	): void {
+		const target = this.getSize();
+		const scale = Math.max(
+			target.width / source.width,
+			target.height / source.height,
+		);
+		const visibleWidth = target.width / (source.width * scale);
+		const visibleHeight = target.height / (source.height * scale);
+		const [left, right, top, bottom] = source.coords ?? [0, 1, 0, 1];
+		const cropX = ((1 - visibleWidth) * (right - left)) / 2;
+		const cropY = ((1 - visibleHeight) * (bottom - top)) / 2;
+		this.setTextureBackground(file, [
+			left + cropX,
+			right - cropX,
+			top + cropY,
+			bottom - cropY,
+		]);
 	}
 	setSideTabBackground(
 		selected: boolean,

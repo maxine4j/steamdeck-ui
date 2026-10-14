@@ -1,7 +1,12 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
-import { type AnimatedAtlas, Frame, type IconRing } from "./frame";
+import {
+	type AnimatedAtlas,
+	Frame,
+	type IconRing,
+	type TextureRegion,
+} from "./frame";
 import type { TooltipContent } from "./tooltip-content";
 import type { IUIComponent } from "./types";
 import { setWindowTitle } from "./window-title";
@@ -16,7 +21,11 @@ export interface ListRow {
 	readonly iconSize?: number;
 	readonly iconRing?: IconRing;
 	/** Shared artwork container for consecutive rows in a section. */
-	readonly group?: { readonly id: string; readonly texture: number | string };
+	readonly group?: {
+		readonly id: string;
+		readonly texture: number | string;
+		readonly cover?: TextureRegion;
+	};
 	readonly spell?: number;
 	readonly secondary?: {
 		label: string;
@@ -288,7 +297,12 @@ export class ScrollList {
 		this.layoutContent();
 		const groupLayouts = new Map<
 			string,
-			{ top: number; bottom: number; texture: number | string }
+			{
+				top: number;
+				bottom: number;
+				texture: number | string;
+				cover?: TextureRegion;
+			}
 		>();
 		this.rows.forEach((row, index) => {
 			const position = positions.at(index);
@@ -300,6 +314,7 @@ export class ScrollList {
 					top: position.top,
 					bottom: position.top + position.height,
 					texture: row.group.texture,
+					cover: row.group.cover,
 				});
 		});
 		const groupFrames = new Map<string, Frame>();
@@ -319,7 +334,9 @@ export class ScrollList {
 				0,
 				-layout.top,
 			);
-			frame.setTextureBackground(layout.texture, [0, 1, 0, 1]);
+			if (layout.cover)
+				frame.setCoverTextureBackground(layout.texture, layout.cover);
+			else frame.setTextureBackground(layout.texture, [0, 1, 0, 1]);
 			frame.setBorder([0.45, 0.4, 0.3, 1], 1);
 			frame.show();
 			groupFrames.set(id, frame);

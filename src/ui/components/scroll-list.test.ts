@@ -8,7 +8,11 @@ import { ScrollList } from "./scroll-list";
 it("contains each row group in its own artwork tile and reuses the containers", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("groups", pool, "", vi.fn());
-	const one = { id: "one", texture: "first-raid" };
+	const one = {
+		id: "one",
+		texture: "first-raid",
+		cover: { width: 330, height: 256, coords: [0, 330 / 512, 0, 1] as const },
+	};
 	const two = { id: "two", texture: "second-raid" };
 	list.setRows([
 		{
@@ -30,8 +34,8 @@ it("contains each row group in its own artwork tile and reuses the containers", 
 	]);
 	list.mount(new Frame("parent", pool));
 	expect(
-		frames.get("groups-group-0")?.setTextureBackground,
-	).toHaveBeenCalledWith("first-raid", [0, 1, 0, 1]);
+		frames.get("groups-group-0")?.setCoverTextureBackground,
+	).toHaveBeenCalledWith("first-raid", one.cover);
 	expect(frames.get("groups-group-0")?.layout).toHaveBeenCalledWith(
 		456,
 		92,
@@ -1274,6 +1278,7 @@ vi.mock("./frame", () => ({
 		setIcon = vi.fn();
 		setIconRing = vi.fn();
 		setTextureBackground = vi.fn();
+		setCoverTextureBackground = vi.fn();
 		setTooltip = vi.fn();
 		clearTooltip = vi.fn();
 		setHoverTooltip = vi.fn();

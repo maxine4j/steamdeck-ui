@@ -780,7 +780,9 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 			.every(
 				(row) =>
 					row.group?.id === "raid-60" &&
-					row.group.texture === "native-raid-background",
+					row.group.texture === "native-raid-background" &&
+					row.group.cover?.width === 330 &&
+					row.group.cover.height === 256,
 			),
 	).toBe(true);
 	activate(rows.find((row) => row.id === "wing-103"));

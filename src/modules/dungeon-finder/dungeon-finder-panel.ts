@@ -377,6 +377,12 @@ export class DungeonFinderPanel implements IPanel {
 		for (const raid of raids) {
 			const group = {
 				id: `raid-${raid.id}`,
+				// LFG reward artwork uses the left 330px of a padded 512x256 canvas.
+				cover: {
+					width: 330,
+					height: 256,
+					coords: [0, 330 / 512, 0, 1] as const,
+				},
 				texture:
 					raid.background ??
 					"Interface\\LFGFrame\\UI-LFG-BACKGROUND-QUESTPAPER",
