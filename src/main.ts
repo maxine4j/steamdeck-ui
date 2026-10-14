@@ -26,6 +26,7 @@ import { WowEventBus } from "./events/wow-event-bus";
 import { startSteamDeckUI } from "./start";
 import { Frame } from "./ui/components/frame";
 import { FrameSuppression } from "./ui/components/frame-suppression";
+import { NativeAppearance } from "./ui/components/native-appearance";
 import { NativeCursor } from "./ui/components/native-cursor";
 import { NativeLayout } from "./ui/components/native-layout";
 import { NativeNavigation } from "./ui/components/native-navigation";
@@ -73,6 +74,7 @@ startSteamDeckUI(
 		new NativeNavigation(new FramePoolManager(frameFactory)),
 		new NativeCursor(new FramePoolManager(frameFactory)),
 		new NativeScrollIndicator(new FramePoolManager(frameFactory)),
+		new NativeAppearance(),
 	),
 	bank,
 	new MailClient(

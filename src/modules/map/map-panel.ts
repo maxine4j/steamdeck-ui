@@ -19,7 +19,6 @@ export class MapPanel implements IPanel {
 	private readonly frame: Frame;
 	private readonly mapSide: Frame;
 	private readonly pane: Frame;
-	private readonly reading: Frame[];
 	private focus?: string;
 	private section: "map" | "quests" = "quests";
 	private rows: MapQuestNavigation[] = [];
@@ -39,6 +38,16 @@ export class MapPanel implements IPanel {
 		onAlternate: () => this.client.clickMap("LeftButton"),
 		onContext: () => this.client.clickMap("RightButton"),
 	};
+	private readonly detailsNode: INavigable = {
+		navId: "map-details",
+		onFocus: () => {},
+		onBlur: () => {},
+		onInteract: () => {},
+		onMove: (direction, pressed) => {
+			if (pressed && (direction === "up" || direction === "down"))
+				this.client.scrollDetails(direction === "down" ? 1 : -1);
+		},
+	};
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IMapClient,
@@ -48,10 +57,6 @@ export class MapPanel implements IPanel {
 		this.frame = new Frame("map-frame", pool);
 		this.mapSide = new Frame("map-side", pool);
 		this.pane = new Frame("map-quests", pool);
-		this.reading = [
-			new Frame("map-details-down", pool, "Button"),
-			new Frame("map-details-up", pool, "Button"),
-		];
 	}
 	onMount(parent: IUIComponent): void {
 		if (!(parent instanceof Frame))
@@ -69,27 +74,6 @@ export class MapPanel implements IPanel {
 			this.client.resize();
 		});
 		this.pane.show();
-		this.reading.forEach((button, index) => {
-			button.setParent(this.pane);
-			const width = (MAP_QUEST_PANE_WIDTH - 32) / 2;
-			button.layout(
-				width,
-				32,
-				"BOTTOMLEFT",
-				this.pane,
-				12 + index * (width + 8),
-				8,
-			);
-			button.setButtonBackground();
-			button.setLabel(
-				"label",
-				index === 0 ? "A · Scroll down" : "A · Scroll up",
-			);
-			button.onClick((mouse) => {
-				if (mouse === "LeftButton")
-					this.client.scrollDetails(index === 0 ? 1 : -1);
-			});
-		});
 		this.mounted = true;
 		this.client.mount(this.frame, this.pane);
 		this.refresh();
@@ -162,24 +146,22 @@ export class MapPanel implements IPanel {
 	private render(): void {
 		this.updateOutline();
 		if (this.details !== undefined) {
-			for (const button of this.reading) button.show();
 			this.pane.setLabel(
 				"hint",
 				this.section === "map"
 					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-					: `Quests · ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+					: `Quests · ${controllerIcon("D-pad")} Scroll  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 				"BOTTOMLEFT",
 				12,
-				48,
+				14,
 				13,
 				MAP_QUEST_PANE_WIDTH - 24,
 			);
 			this.navigationChanged?.(
-				this.section === "map" ? "map-cursor" : "map-details-down",
+				this.section === "map" ? "map-cursor" : "map-details",
 			);
 			return;
 		}
-		for (const button of this.reading) button.hide();
 		this.rows = this.client.navigation();
 		this.pane.setLabel(
 			"hint",
@@ -223,13 +205,7 @@ export class MapPanel implements IPanel {
 	}
 	getNavGrid(): NavGrid {
 		if (this.section === "map") return [[this.cursorNode]];
-		if (this.details !== undefined)
-			return this.reading.map((button, index) => [
-				button.navigationNode(
-					index === 0 ? "map-details-down" : "map-details-up",
-					() => this.client.scrollDetails(index === 0 ? 1 : -1),
-				),
-			]);
+		if (this.details !== undefined) return [[this.detailsNode]];
 		return this.rows.map(({ node, questID }) => [
 			{
 				...node,
@@ -323,7 +299,6 @@ export class MapPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
-		for (const frame of [...this.reading, this.pane, this.mapSide, this.frame])
-			frame.destroy();
+		for (const frame of [this.pane, this.mapSide, this.frame]) frame.destroy();
 	}
 }

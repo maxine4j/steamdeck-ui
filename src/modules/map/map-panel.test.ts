@@ -311,7 +311,7 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	panel.onPanelCycle(1);
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	panel.showDetails(2);
-	expect(changed).toHaveBeenLastCalledWith("map-details-down");
+	expect(changed).toHaveBeenLastCalledWith("map-details");
 	panel.onPanelCycle(-1);
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	expect(
@@ -320,7 +320,7 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 		"xbox_s_lb.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t Quests",
 	);
 	panel.onPanelCycle(1);
-	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details-down");
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details");
 	panel.onUnmount();
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-header-1");
@@ -361,9 +361,18 @@ it("maps X to focus, A to native details, and B back to the previous list and se
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toContain("map-details-down");
-	panel.getNavGrid().at(0)?.at(0)?.onInteract();
+	).toEqual(["map-details"]);
+	const details = panel.getNavGrid().at(0)?.at(0);
+	expect(state.frames.has("map-details-down")).toBe(false);
+	expect(state.frames.has("map-details-up")).toBe(false);
+	details?.onInteract();
+	details?.onMove?.("down", false);
+	details?.onMove?.("left", true);
+	expect(client.scrollDetails).not.toHaveBeenCalled();
+	details?.onMove?.("down", true);
 	expect(client.scrollDetails).toHaveBeenCalledWith(1);
+	details?.onMove?.("up", true);
+	expect(client.scrollDetails).toHaveBeenCalledWith(-1);
 	panel.onBack();
 	expect(client.hideDetails).toHaveBeenCalled();
 	expect(changed).toHaveBeenLastCalledWith("map-quest-3");

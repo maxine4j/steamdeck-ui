@@ -1,6 +1,6 @@
 import type { IMapClient } from "../../clients/map-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
-import type { IEventBus } from "../../events/types";
+import type { EventHandler, IEventBus } from "../../events/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
@@ -9,7 +9,7 @@ export class MapModule implements IModule {
 	private open = false;
 	private readonly update: DeferredRefresh;
 	private readonly refresh = () => this.update.invalidate();
-	private readonly details = ({ id }: { id?: number }) =>
+	private readonly details: EventHandler<"MAP_DETAILS_CHANGED"> = ({ id }) =>
 		this.view.showDetails(id);
 	private readonly visibility = () => {
 		const open = this.client.isOpen();

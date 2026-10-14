@@ -60,7 +60,11 @@ function setup() {
 				SettingsDropdown: {},
 			},
 		},
-		DetailsFrame: { ScrollFrame: { ScrollBar: {} } },
+		DetailsFrame: {
+			Bg: {},
+			SealMaterialBG: {},
+			ScrollFrame: { ScrollBar: {}, Contents: {} },
+		},
 		QuestsTab: {},
 		EventsTab: {},
 		MapLegendTab: {},
@@ -119,6 +123,12 @@ function setup() {
 		hover: vi.fn(),
 	};
 	const indicator = { bind: vi.fn(), release: vi.fn() };
+	const appearance = {
+		background: vi.fn(),
+		lightText: vi.fn(),
+		hide: vi.fn(),
+		release: vi.fn(),
+	};
 	Object.assign(frame.ScrollContainer, {
 		NormalizeUIPosition: vi.fn(() => [0.25, 0.75]),
 		ShouldNavigateOnClick: () => false,
@@ -133,9 +143,43 @@ function setup() {
 		layout,
 		cursor,
 		indicator,
-		client: new MapClient(events, layout, layout, cursor, indicator),
+		appearance,
+		client: new MapClient(
+			events,
+			layout,
+			layout,
+			cursor,
+			indicator,
+			appearance,
+		),
 	};
 }
+it("fits dark quest details artwork, hides the parchment overlay and makes description text readable", () => {
+	const { client, hooks, quests, appearance, layout } = setup();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	hooks.get("QuestMapFrame_ShowQuestDetails")?.(7);
+	expect(appearance.background).toHaveBeenLastCalledWith(
+		quests.DetailsFrame.Bg,
+		quests.DetailsFrame,
+		"QuestDetailsBackgrounds-Accessibility_Dark",
+	);
+	expect(appearance.hide).toHaveBeenCalledWith([
+		quests.DetailsFrame.SealMaterialBG,
+	]);
+	expect(appearance.lightText).toHaveBeenCalledWith(
+		quests.DetailsFrame.ScrollFrame.Contents,
+	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		quests,
+		expect.objectContaining({ insets: [8, 20, 8, 40] }),
+	);
+	client.unmount();
+	expect(appearance.release).toHaveBeenCalled();
+});
 it("sizes the combined panel to map art, breadcrumbs and title bar and uses Blizzard's localized title", () => {
 	const { client } = setup();
 	expect(client.presentation({ width: 1200, height: 720 })).toEqual({
@@ -746,7 +790,7 @@ it("leaves the metal header exposed above breadcrumbs, quests and details", () =
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		quests,
-		expect.objectContaining({ insets: [8, 20, 8, 48] }),
+		expect.objectContaining({ insets: [8, 20, 8, 40] }),
 	);
 	expect(layout.bind).toHaveBeenCalledWith(
 		frame.NavBar,

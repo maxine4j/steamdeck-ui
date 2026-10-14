@@ -1,6 +1,11 @@
 import type { IEventBus } from "../events/types";
 import type { Frame } from "../ui/components/frame";
 import type {
+	NativeAppearance,
+	NativeBackground,
+	NativeTextContent,
+} from "../ui/components/native-appearance";
+import type {
 	CursorSurface,
 	CursorTarget,
 	NativeCursor,
@@ -11,6 +16,7 @@ import type {
 	NativeNavigationFrame,
 	NativeNavigationScroll,
 } from "../ui/components/native-navigation";
+import type { NativeVisibleRegion } from "../ui/components/native-visibility";
 import type {
 	IndicatorScroll,
 	NativeScrollIndicator,
@@ -155,8 +161,11 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestsFrame: LayoutFrame & { ScrollFrame: NativeQuestScroll };
 	DetailsFrame: LayoutFrame & {
 		questID?: number;
+		Bg: NativeBackground;
+		SealMaterialBG: NativeVisibleRegion;
 		ScrollFrame: {
 			ScrollBar: { ScrollStepInDirection(direction: number): void };
+			Contents: NativeTextContent;
 		};
 	};
 	QuestsTab: LayoutFrame;
@@ -253,6 +262,10 @@ export class MapClient implements IMapClient {
 			| "hover"
 		>,
 		private readonly indicator: Pick<NativeScrollIndicator, "bind" | "release">,
+		private readonly appearance: Pick<
+			NativeAppearance,
+			"background" | "lightText" | "hide" | "release"
+		>,
 	) {}
 	private readonly visibility = () => {
 		if (this.enabled) this.events.emit("MAP_VISIBILITY_CHANGED");
@@ -426,7 +439,7 @@ export class MapClient implements IMapClient {
 			raised: true,
 			// Anchoring alone retains the map's old level beneath our opaque pane.
 			levelOffset: 1,
-			insets: [8, CONTENT_TOP, 8, 48],
+			insets: [8, CONTENT_TOP, 8, 40],
 			// L/M toggles inspect this root's logical shown state.
 			visible: true,
 			alpha: 1,
@@ -444,6 +457,15 @@ export class MapClient implements IMapClient {
 			insets: [0, 0, 0, 0],
 			visible: this.details,
 		});
+		if (this.details) {
+			this.appearance.background(
+				quests.DetailsFrame.Bg,
+				quests.DetailsFrame,
+				"QuestDetailsBackgrounds-Accessibility_Dark",
+			);
+			this.appearance.hide([quests.DetailsFrame.SealMaterialBG]);
+			this.appearance.lightText(quests.DetailsFrame.ScrollFrame.Contents);
+		} else this.appearance.release();
 		this.layout.bind(quests.QuestsFrame.ScrollFrame, {
 			parent: quests.QuestsFrame,
 			insets: [0, 0, 0, 0],
@@ -473,6 +495,7 @@ export class MapClient implements IMapClient {
 		this.questPane = undefined;
 		this.details = false;
 		this.indicator.release();
+		this.appearance.release();
 		this.layout.release();
 		this.controls.release();
 	}
