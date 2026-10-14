@@ -445,7 +445,7 @@ it("removes the overview queue footer and compacts the role area", () => {
 		buttonWidth: 420,
 		centerText: false,
 		centerLabelsVertically: true,
-		contentPadding: { horizontal: 16, vertical: 10 },
+		contentPadding: { horizontal: 24, vertical: 10 },
 		centerSingleLine: true,
 		bottom: 30,
 		background: false,

@@ -148,7 +148,7 @@ export class DungeonFinderPanel implements IPanel {
 		this.update = new DeferredRefresh(scheduler, () => this.render());
 		this.list = new ScrollList(this.id, pool, this.title, close, {
 			padding: 30,
-			contentPadding: { horizontal: 16, vertical: 10 },
+			contentPadding: { horizontal: 24, vertical: 10 },
 			centerSingleLine: true,
 			centerText: false,
 			centerLabelsVertically: true,
