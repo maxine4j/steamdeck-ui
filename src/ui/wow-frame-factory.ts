@@ -4,6 +4,13 @@ export class WowFrameFactory implements FrameFactory {
 	private nextSecureId = 0;
 	private nextTooltipId = 0;
 	createFrame(type: FrameType): WowFrame {
+		if (type === "FilterDropdown")
+			return CreateFrame(
+				"DropdownButton",
+				undefined,
+				UIParent,
+				"WowStyle1FilterDropdownTemplate",
+			);
 		if (type === "FocusTimer") return CreateFrame("Frame");
 		if (type === "SecureFrame")
 			return CreateFrame(

@@ -56,7 +56,7 @@ export class MountsPanel implements IPanel {
 		number,
 		{ previous: boolean; value: boolean; accepted: boolean }
 	>();
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.snapshotComplete && !this.cancelRender)
@@ -87,7 +87,9 @@ export class MountsPanel implements IPanel {
 				if (this.mounted) this.search.focusInput();
 			},
 		};
-		this.filters = new Dropdown("mounts-filters", pool);
+		this.filters = new Dropdown("mounts-filters", pool, (focusId) =>
+			this.navigationChanged?.(focusId),
+		);
 		this.footer = new Frame("mounts-footer", pool);
 		this.equipment = new Frame("mounts-equipment", pool, "Button");
 		this.favourite = new Frame("mounts-random", pool, "Button");
@@ -161,7 +163,8 @@ export class MountsPanel implements IPanel {
 		this.filters.setOptions(
 			this.client.getFilters().map((filter) => ({
 				id: filter.id,
-				label: `${filter.checked ? "[x]" : "[ ]"} ${filter.label}`,
+				label: filter.label,
+				checked: filter.checked,
 				activate: () => {
 					this.client.toggleFilter(filter.id);
 					this.refresh();
@@ -483,7 +486,7 @@ export class MountsPanel implements IPanel {
 		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
 		this.viewport.clampScroll();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
 	}
 	onMount(parent: IUIComponent): void {

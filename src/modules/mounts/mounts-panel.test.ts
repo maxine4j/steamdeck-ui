@@ -2,11 +2,18 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
 import { createTestEventBus } from "../../events/test-event-bus";
 import { Frame } from "../../ui/components/frame";
+import type {
+	NativeDropdownButton,
+	NativeMenuRoot,
+} from "../../ui/components/native-menu";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { MountsPanel } from "./mounts-panel";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+});
 it("shows controller graphics beside summon action descriptions", () => {
 	const { panel, parent } = setup();
 	panel.onMount(parent);
@@ -133,6 +140,56 @@ const mount = (id: number, favourite = false): Mount => ({
 });
 
 function setup() {
+	vi.stubGlobal("MenuResponse", { Refresh: 2, Close: 3 });
+	vi.stubGlobal("MenuInputContext", { None: 1 });
+	const menuCallbacks = new Map<string, () => void>();
+	let menuOpen = false;
+	let generator:
+		| ((button: NativeDropdownButton, root: NativeMenuRoot) => void)
+		| undefined;
+	const checkbox = (
+		_label: string,
+		_checked: () => boolean,
+		respond: () => number,
+	) => ({
+		AddInitializer: vi.fn(),
+		HandleOnEnter: vi.fn(),
+		HandleOnLeave: vi.fn(),
+		Pick: () => {
+			if (respond() === 3) dropdown.CloseMenu();
+		},
+	});
+	const root = {
+		CreateCheckbox: checkbox,
+		CreateRadio: checkbox,
+		CreateButton: (label: string, respond: () => number) =>
+			checkbox(label, () => false, respond),
+	};
+	const dropdown = {
+		SetupMenu: (generate: typeof generator) => {
+			generator = generate;
+			generator?.(dropdown as unknown as NativeDropdownButton, root);
+		},
+		RegisterCallback: (event: string, callback: () => void) =>
+			menuCallbacks.set(event, callback),
+		UnregisterCallback: vi.fn(),
+		ClearMenuState: vi.fn(),
+		IsMenuOpen: () => menuOpen,
+		SetMenuOpen: (open: boolean) => {
+			menuOpen = open;
+			generator?.(dropdown as unknown as NativeDropdownButton, root);
+			menuCallbacks.get(open ? "OnMenuOpen" : "OnMenuClose")?.();
+		},
+		CloseMenu: () => {
+			if (menuOpen) {
+				menuOpen = false;
+				menuCallbacks.get("OnMenuClose")?.();
+			}
+		},
+	};
+	vi.spyOn(Frame.prototype, "getDropdownButton").mockReturnValue(
+		dropdown as unknown as NativeDropdownButton,
+	);
 	for (const method of [
 		"fill",
 		"setWindowBackground",
@@ -224,8 +281,50 @@ function setup() {
 		cancel,
 		close,
 		menu,
+		dropdown,
 	};
 }
+
+it("keeps native checkbox filters open and focused across collection refreshes", () => {
+	const { panel, parent, client, publish, dropdown } = setup();
+	let checked = false;
+	vi.mocked(client.getFilters).mockImplementation(() => [
+		{ id: "collected", label: "Collected", checked },
+	]);
+	vi.mocked(client.toggleFilter).mockImplementation(() => {
+		checked = !checked;
+	});
+	panel.onMount(parent);
+	publish([mount(1)]);
+	const nav = new NavigationManager(createTestEventBus());
+	nav.registerGrid(panel.id, () => panel.getNavGrid());
+	nav.setActiveGrid(panel.id);
+	panel.setNavigationChanged((focusId?: string) =>
+		nav.refreshGrid(panel.id, focusId),
+	);
+	dropdown.SetMenuOpen(true);
+	expect(nav.focusedId).toBe("collected");
+	nav.interact();
+	expect(checked).toBe(true);
+	expect(dropdown.IsMenuOpen()).toBe(true);
+	expect(nav.focusedId).toBe("collected");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-1"),
+	).toBe(false);
+	dropdown.CloseMenu();
+	expect(nav.focusedId).toBe("mounts-filters");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "mount-1"),
+	).toBe(true);
+	nav.destroy();
+	panel.destroy();
+});
 
 it("shows favourites first without removing them from the ten-column collection grid", () => {
 	const { panel, parent, publish } = setup();

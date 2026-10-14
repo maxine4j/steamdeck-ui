@@ -11,6 +11,19 @@ it("creates focus animation timers as plain native frames", () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("creates the standard Blizzard filter dropdown intrinsic and skin", () => {
+	vi.stubGlobal("UIParent", {});
+	const create = vi.fn();
+	vi.stubGlobal("CreateFrame", create);
+	new WowFrameFactory().createFrame("FilterDropdown");
+	expect(create).toHaveBeenCalledExactlyOnceWith(
+		"DropdownButton",
+		undefined,
+		UIParent,
+		"WowStyle1FilterDropdownTemplate",
+	);
+});
+
 it("gives pooled secure action buttons unique names for hardware click bindings", () => {
 	vi.stubGlobal("UIParent", {});
 	const create = vi.fn();

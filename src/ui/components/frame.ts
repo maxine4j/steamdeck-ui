@@ -5,6 +5,7 @@ import { type BorderColor, setBorder } from "./border";
 import { FocusArrival } from "./focus-arrival";
 import type { GamePadRepeatOptions } from "./gamepad-input";
 import { IconFocus } from "./icon-focus";
+import type { NativeDropdownButton } from "./native-menu";
 import { drawScrollIndicator } from "./scroll-indicator";
 import { ScrollPan } from "./scroll-pan";
 import {
@@ -111,6 +112,7 @@ export class Frame implements IUIComponent {
 		public readonly id: string,
 		private readonly pool: IFramePoolManager,
 		private readonly frameType:
+			| "FilterDropdown"
 			| "GameTooltip"
 			| "Frame"
 			| "Button"
@@ -120,6 +122,10 @@ export class Frame implements IUIComponent {
 			| "ScrollFrame"
 			| "PlayerModel" = "Frame",
 	) {}
+	/** Native menu access is restricted to the generic dropdown component. */
+	getDropdownButton(): NativeDropdownButton {
+		return this.acquire() as NativeDropdownButton;
+	}
 	private acquire(): WowFrame {
 		if (!this.native) {
 			this.native = this.pool.acquire(this.frameType);
@@ -1238,8 +1244,10 @@ export class Frame implements IUIComponent {
 		for (const label of this.labels.values()) label.SetText("");
 		this.labels.clear();
 		this.labelState.clear();
-		this.native.SetScript("OnEnter", undefined);
-		this.native.SetScript("OnLeave", undefined);
+		if (this.frameType !== "FilterDropdown") {
+			this.native.SetScript("OnEnter", undefined);
+			this.native.SetScript("OnLeave", undefined);
+		}
 		if (this.frameType === "Button") {
 			(
 				this.native as WowFrame & {

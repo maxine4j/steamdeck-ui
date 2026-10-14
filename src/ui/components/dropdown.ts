@@ -1,48 +1,109 @@
+import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { Frame } from "./frame";
-import { type ListRow, ScrollList } from "./scroll-list";
+import type { NativeDropdownButton } from "./native-menu";
+
+declare const MenuResponse: { Refresh: number; Close: number };
+declare const MenuInputContext: { None: number };
+
+export interface DropdownOption {
+	readonly id: string;
+	readonly label: string;
+	/** Defined for checkbox options, including unchecked options. */
+	readonly checked?: boolean;
+	readonly selected?: boolean;
+	activate(): void;
+}
+
 export class Dropdown {
 	readonly button: Frame;
-	private readonly popup: Frame;
-	private readonly list: ScrollList;
-	private open = false;
-	private parent?: Frame;
-	constructor(id: string, pool: IFramePoolManager) {
-		this.button = new Frame(id, pool, "Button");
-		this.popup = new Frame(`${id}-popup`, pool);
-		this.list = new ScrollList(`${id}-options`, pool, "Filters", () =>
-			this.hide(),
-		);
+	private native?: NativeDropdownButton;
+	private options: DropdownOption[] = [];
+	private nodes: INavigable[][] = [];
+	private focusedId?: string;
+	constructor(
+		id: string,
+		pool: IFramePoolManager,
+		private readonly navigationChanged?: (focusId?: string) => void,
+	) {
+		this.button = new Frame(id, pool, "FilterDropdown");
 	}
 	mount(parent: Frame): void {
-		this.parent = parent;
 		this.button.setParent(parent);
 		this.button.layout(112, 32, "TOPRIGHT", parent, -16, -66);
-		this.button.setButtonBackground();
-		this.button.setLabel("label", "Filters v");
-		this.button.onClick(() => this.toggle());
-		this.button.show();
-	}
-	setOptions(rows: ListRow[]): void {
-		this.list.setRows(rows);
-	}
-	private toggle(): void {
-		if (this.open) {
-			this.hide();
-			return;
+		if (!this.native) {
+			this.native = this.button.getDropdownButton();
+			this.native.RegisterCallback(
+				"OnMenuOpen",
+				() => this.navigationChanged?.(this.nodes.at(0)?.at(0)?.navId),
+				this,
+			);
+			this.native.RegisterCallback(
+				"OnMenuClose",
+				() => {
+					this.focusedId = undefined;
+					this.navigationChanged?.(this.button.id);
+				},
+				this,
+			);
 		}
-		if (!this.parent) return;
-		this.popup.setParent(this.parent);
-		this.popup.layout(456, 360, "TOPLEFT", this.parent, 12, -104);
-		this.popup.show();
-		this.list.mount(this.popup);
-		this.open = true;
+		this.button.show();
+		this.setOptions(this.options);
+	}
+	setOptions(options: DropdownOption[]): void {
+		this.options = options;
+		this.native?.SetupMenu((_button, root) => {
+			this.nodes = options.map((option): INavigable[] => {
+				const respond = () => {
+					option.activate();
+					return option.checked !== undefined
+						? MenuResponse.Refresh
+						: MenuResponse.Close;
+				};
+				const description =
+					option.checked !== undefined
+						? root.CreateCheckbox(
+								option.label,
+								() => option.checked === true,
+								respond,
+							)
+						: option.selected !== undefined
+							? root.CreateRadio(
+									option.label,
+									() => option.selected === true,
+									respond,
+								)
+							: root.CreateButton(option.label, respond);
+				let frame: WowFrame | undefined;
+				description.AddInitializer((native) => {
+					frame = native;
+					if (this.isOpen() && this.focusedId === option.id)
+						description.HandleOnEnter(native);
+				});
+				return [
+					{
+						navId: option.id,
+						onFocus: () => {
+							this.focusedId = option.id;
+							if (this.isOpen() && frame) description.HandleOnEnter(frame);
+						},
+						onBlur: () => {
+							this.focusedId = undefined;
+							if (this.isOpen() && frame) description.HandleOnLeave(frame);
+						},
+						onInteract: () => {
+							if (this.isOpen())
+								description.Pick(MenuInputContext.None, "LeftButton");
+						},
+					},
+				];
+			});
+		});
+		if (this.isOpen()) this.navigationChanged?.();
 	}
 	hide(): void {
-		this.list.unmount();
-		this.popup.hide();
-		this.open = false;
+		this.native?.CloseMenu();
 	}
 	getNavGrid(): INavigable[][] {
 		return [
@@ -54,18 +115,22 @@ export class Dropdown {
 						else this.button.setFocused(true);
 					},
 					onBlur: () => this.button.setFocused(false),
-					onInteract: () => this.toggle(),
+					onInteract: () => this.native?.SetMenuOpen(!this.isOpen()),
 				},
 			],
-			...(this.open ? this.list.getNavGrid() : []),
+			...(this.isOpen() ? this.nodes : []),
 		];
 	}
 	isOpen(): boolean {
-		return this.open;
+		return this.native?.IsMenuOpen() ?? false;
 	}
 	destroy(): void {
-		this.list.destroy();
-		this.popup.destroy();
+		this.hide();
+		this.native?.UnregisterCallback("OnMenuOpen", this);
+		this.native?.UnregisterCallback("OnMenuClose", this);
+		this.native?.ClearMenuState();
+		this.native = undefined;
+		this.nodes = [];
 		this.button.destroy();
 	}
 }
