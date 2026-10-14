@@ -242,11 +242,24 @@ it("forwards native login events through the hidden event frame", () => {
 		"LFG_LOCK_INFO_RECEIVED",
 		"LFG_COOLDOWNS_UPDATED",
 		"GROUP_ROSTER_UPDATE",
+		"UPDATE_BATTLEFIELD_STATUS",
+		"PVP_ROLE_UPDATE",
+		"PVP_TYPES_ENABLED",
+		"PVP_RATED_STATS_UPDATE",
+		"PVP_REWARDS_UPDATE",
+		"PVP_BRAWL_INFO_UPDATED",
+		"PLAYER_AVG_ITEM_LEVEL_UPDATE",
+		"GET_ITEM_INFO_RECEIVED",
+		"PVPQUEUE_ANYWHERE_UPDATE_AVAILABLE",
+		"PLAYER_LEVEL_UP",
+		"PLAYER_SPECIALIZATION_CHANGED",
+		"LFG_LIST_ACTIVE_ENTRY_UPDATE",
+		"LFG_LIST_SEARCH_RESULT_UPDATED",
 	]) {
 		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
 		dispatch(frame, event);
 	}
-	expect(finderUpdate).toHaveBeenCalledTimes(6);
+	expect(finderUpdate).toHaveBeenCalledTimes(19);
 	const opened = vi.fn();
 	const closed = vi.fn();
 	bus.subscribe("BAG_OPEN", opened);

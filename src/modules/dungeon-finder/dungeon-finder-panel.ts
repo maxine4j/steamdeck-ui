@@ -4,6 +4,10 @@ import type {
 	DungeonSection,
 	IDungeonFinderClient,
 } from "../../clients/dungeon-finder-client";
+import type {
+	IPvpFinderClient,
+	PvpActivity,
+} from "../../clients/pvp-finder-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
 import { IconCheckbox } from "../../ui/components/icon-checkbox";
@@ -29,7 +33,11 @@ const pages = [
 		icon: "Interface\\Icons\\Achievement_General_StayClassy",
 	},
 ] as const;
-type FinderPage = (typeof pages)[number]["id"] | DungeonListId;
+type FinderPage =
+	| (typeof pages)[number]["id"]
+	| DungeonListId
+	| "battlegrounds"
+	| "pvp-premades";
 
 const sections: readonly { id: DungeonSection; label: string; icon: string }[] =
 	[
@@ -146,6 +154,7 @@ export class DungeonFinderPanel implements IPanel {
 	private mounted = false;
 	private page?: FinderPage;
 	private rolesMounted = false;
+	private pvpRolesMounted = false;
 	private readonly update: DeferredRefresh;
 	private navigationChanged?: () => void;
 	private pendingLeave?: () => void;
@@ -155,6 +164,7 @@ export class DungeonFinderPanel implements IPanel {
 		close: () => void,
 		scheduler: ITaskScheduler,
 		private readonly confirmation: IModal,
+		private readonly pvp: IPvpFinderClient,
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
 		this.container = new Frame(`${this.id}-container`, pool);
@@ -164,9 +174,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.checkboxes = roleControls.map(
 			({ role, label, icon }) =>
 				new IconCheckbox(`role-${role}`, pool, label, icon, () => {
-					if (!this.mounted || !this.hasRoles() || this.client.isQueued())
-						return;
-					this.client.toggleRole(role);
+					if (!this.mounted || !this.hasRoles() || this.rolesLocked()) return;
+					this.roleClient().toggleRole(role);
 					this.refresh();
 				}),
 		);
@@ -177,6 +186,7 @@ export class DungeonFinderPanel implements IPanel {
 			centerSingleLine: true,
 			centerText: false,
 			centerLabelsVertically: true,
+			autoHeight: true,
 			centerContent: false,
 			buttonWidth: 420,
 			top: 72,
@@ -531,8 +541,155 @@ export class DungeonFinderPanel implements IPanel {
 		);
 		return rows;
 	}
+	private isPvp(): boolean {
+		return this.page === "pvp" || this.page === "battlegrounds";
+	}
+	private roleClient() {
+		return this.isPvp() ? this.pvp : this.client;
+	}
+	private rolesLocked(): boolean {
+		return this.isPvp()
+			? this.pvp.getQueues().length > 0
+			: this.client.isQueued();
+	}
+	private openPvpPage(page: "battlegrounds" | "pvp-premades"): void {
+		if (!this.mounted || this.page !== "pvp") return;
+		this.page = page;
+		this.list.resetScroll();
+		this.refresh();
+	}
+	private pvpActivityRow(activity: PvpActivity): ListRow {
+		const page = this.page;
+		const tooltip = [
+			activity.name,
+			activity.detail,
+			activity.description,
+			activity.reason,
+		]
+			.filter((part) => part !== undefined && part !== "")
+			.join("\n\n");
+		return {
+			...actionTile(
+				{
+					id: `pvp-${activity.id}`,
+					label: activity.name,
+					enabled: activity.available,
+					icon: activity.icon,
+					activate: () => {
+						if (!this.mounted || this.page !== page || !this.isPvp()) return;
+						this.pvp.join(activity.id);
+						this.refresh();
+					},
+				},
+				false,
+				"Queue",
+				tooltip,
+			),
+			detail: activity.detail,
+			tooltip,
+			// ScrollList grows wrapped details to fit without clipping.
+			height: 80,
+			marginBottom: 8,
+		};
+	}
+	private pvpRows(): ListRow[] {
+		const activities = this.pvp.getActivities();
+		if (this.page === "battlegrounds") {
+			const rows = activities
+				.filter((activity) => activity.section === "specific")
+				.map((activity) => this.pvpActivityRow(activity));
+			return rows.length > 0
+				? rows
+				: [
+						{
+							id: "empty-battlegrounds",
+							label: "No battlegrounds available",
+							heading: true,
+							activate: () => {},
+						},
+					];
+		}
+		const rows: ListRow[] = [];
+		for (const [section, label] of [
+			["quick", "Quick Match"],
+			["rated", "Rated"],
+			["training", "Training Grounds"],
+		] as const) {
+			rows.push({
+				id: `heading-pvp-${section}`,
+				label,
+				heading: true,
+				marginTop: section === "quick" ? 0 : 28,
+				marginBottom: 8,
+				activate: () => {},
+			});
+			rows.push(
+				...activities
+					.filter((activity) => activity.section === section)
+					.map((activity) => this.pvpActivityRow(activity)),
+			);
+			if (section === "quick")
+				rows.push(
+					actionTile(
+						{
+							id: "pvp-specific",
+							label: "Specific Battlegrounds",
+							activate: () => this.openPvpPage("battlegrounds"),
+						},
+						false,
+						"Choose",
+						"Choose a battleground",
+					),
+				);
+			if (section === "rated") {
+				const queues = this.pvp.getQueues();
+				for (const queue of queues) {
+					rows.push(
+						actionTile(
+							{
+								id: `pvp-queue-${queue.id}`,
+								label: queue.name,
+								enabled: queue.canLeave,
+								activate: () => {
+									if (!this.mounted || this.page !== "pvp") return;
+									this.confirmLeave(
+										() => this.pvp.leave(queue.id, queue.name),
+										() =>
+											this.pvp
+												.getQueues()
+												.some(
+													(current) =>
+														current.id === queue.id &&
+														current.name === queue.name &&
+														current.canLeave,
+												),
+									);
+								},
+							},
+							true,
+						),
+					);
+				}
+				rows.push({
+					...actionTile(
+						{
+							id: "pvp-premades",
+							label: "Premade Groups",
+							activate: () => this.openPvpPage("pvp-premades"),
+						},
+						false,
+						"Browse",
+						"Premade Groups — coming soon",
+					),
+					marginTop: 28,
+				});
+			}
+		}
+		return rows;
+	}
 	private hasRoles(): boolean {
 		return (
+			this.isPvp() ||
 			this.page === undefined ||
 			this.page === "dungeons" ||
 			this.page === "raids" ||
@@ -553,28 +710,51 @@ export class DungeonFinderPanel implements IPanel {
 						? this.raidRows()
 						: this.page === "specific" || this.page === "follower"
 							? this.choiceRows(this.page)
-							: [];
+							: this.isPvp()
+								? this.pvpRows()
+								: this.page === "pvp-premades"
+									? [
+											{
+												id: "premade-placeholder",
+												label: "Premade Groups — coming soon",
+												heading: true,
+												activate: () => {},
+											},
+										]
+									: [];
 		setWindowTitle(
 			this.frame,
 			this.page
-				? (this.client.getDungeonLists().find((list) => list.id === this.page)
-						?.label ??
-						pages.find((page) => page.id === this.page)?.label ??
-						this.title)
+				? this.page === "battlegrounds"
+					? "Specific Battlegrounds"
+					: this.page === "pvp-premades"
+						? "Premade Groups"
+						: (this.client
+								.getDungeonLists()
+								.find((list) => list.id === this.page)?.label ??
+							pages.find((page) => page.id === this.page)?.label ??
+							this.title)
 				: this.title,
 		);
-		if (this.hasRoles() !== this.rolesMounted) {
+		if (
+			this.hasRoles() !== this.rolesMounted ||
+			this.isPvp() !== this.pvpRolesMounted
+		) {
 			this.rolesMounted = this.hasRoles();
+			this.pvpRolesMounted = this.isPvp();
 			this.checkboxes.forEach((control, index) => {
-				if (this.rolesMounted)
+				if (
+					this.rolesMounted &&
+					!(this.pvpRolesMounted && roleControls.at(index)?.role === "leader")
+				)
 					control.mount(this.frame, 30 + index * 108, 70, false);
 				else control.unmount();
 			});
 		}
 		if (this.rolesMounted) {
-			const roles = this.client.getRoles();
-			const availableRoles = this.client.getAvailableRoles();
-			const queued = this.client.isQueued();
+			const roles = this.roleClient().getRoles();
+			const availableRoles = this.roleClient().getAvailableRoles();
+			const queued = this.rolesLocked();
 			roleControls.forEach(({ role }, index) => {
 				this.checkboxes
 					.at(index)
@@ -584,8 +764,14 @@ export class DungeonFinderPanel implements IPanel {
 		this.list.setRows(rows);
 	}
 	private renderHeader(): void {
-		const category = pages.find((page) => page.id === this.page);
-		if (category?.id !== "dungeons" && category?.id !== "raids") {
+		const category = pages.find(
+			(page) =>
+				page.id ===
+				(this.page === "battlegrounds" || this.page === "pvp-premades"
+					? "pvp"
+					: this.page),
+		);
+		if (!category || category.id === "premades") {
 			this.header.hide();
 			return;
 		}
@@ -603,7 +789,13 @@ export class DungeonFinderPanel implements IPanel {
 		this.headerIcon.setIcon(category.icon);
 		this.header.setLabel(
 			"label",
-			category.id === "raids" ? "Raid Finder" : category.label,
+			this.page === "battlegrounds"
+				? "Specific Battlegrounds"
+				: this.page === "pvp-premades"
+					? "Premade Groups"
+					: category.id === "raids"
+						? "Raid Finder"
+						: category.label,
 			"LEFT",
 			44,
 			0,
@@ -618,7 +810,9 @@ export class DungeonFinderPanel implements IPanel {
 		this.page =
 			this.page === "specific" || this.page === "follower"
 				? "dungeons"
-				: undefined;
+				: this.page === "battlegrounds" || this.page === "pvp-premades"
+					? "pvp"
+					: undefined;
 		this.list.resetScroll();
 		this.refresh();
 	}
@@ -663,8 +857,8 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	getNavGrid() {
 		const availableRoles =
-			this.mounted && this.hasRoles() && !this.client.isQueued()
-				? this.client.getAvailableRoles()
+			this.mounted && this.hasRoles() && !this.rolesLocked()
+				? this.roleClient().getAvailableRoles()
 				: undefined;
 		return this.mounted
 			? [

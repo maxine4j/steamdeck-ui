@@ -14,6 +14,7 @@ import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IPetsClient } from "./clients/pets-client";
+import type { IPvpFinderClient } from "./clients/pvp-finder-client";
 import type { IReputationClient } from "./clients/reputation-client";
 import type { ISlashCommandsClient } from "./clients/slash-commands-client";
 import { TalentTreeClient } from "./clients/talent-tree-client";
@@ -242,6 +243,7 @@ export function startSteamDeckUI(
 	map: IMapClient,
 	bank: IBankClient,
 	pets: IPetsClient,
+	pvpFinder: IPvpFinderClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -428,6 +430,7 @@ export function startSteamDeckUI(
 		},
 		scheduler,
 		dungeonQueueConfirmation,
+		pvpFinder,
 	);
 	modules.register(
 		new DungeonFinderModule(

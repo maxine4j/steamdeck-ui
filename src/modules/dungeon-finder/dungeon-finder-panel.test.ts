@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import type { IDungeonFinderClient } from "../../clients/dungeon-finder-client";
+import type { IPvpFinderClient } from "../../clients/pvp-finder-client";
 import { Frame } from "../../ui/components/frame";
 import type { ModalOption } from "../../ui/components/modal";
 import type { ListRow } from "../../ui/components/scroll-list";
@@ -29,6 +30,7 @@ const { setRows, setWidth, frames, listOptions, checkboxes } = vi.hoisted(
 			{
 				setChecked: ReturnType<typeof vi.fn>;
 				mount: ReturnType<typeof vi.fn>;
+				unmount: ReturnType<typeof vi.fn>;
 				icon: string;
 			}
 		>(),
@@ -182,6 +184,64 @@ function setup(
 		join: vi.fn(),
 		leave: vi.fn(),
 	};
+	const pvp: IPvpFinderClient = {
+		getActivities: () => [
+			...[
+				"RandomBGButton",
+				"RandomEpicBGButton",
+				"Arena1Button",
+				"BrawlButton",
+			].map((id) => ({
+				id,
+				name: id,
+				section: "quick" as const,
+				available: id !== "BrawlButton",
+				description: "Native description",
+				detail: "150 Honor",
+			})),
+			{
+				id: "RatedSoloShuffle",
+				name: "Solo Shuffle",
+				section: "rated",
+				available: true,
+				description: "Shuffle teams",
+				detail: "Rating: 1200",
+			},
+			{
+				id: "bg-2",
+				name: "Warsong Gulch",
+				section: "specific",
+				available: true,
+				description: "Capture three flags",
+				detail: "10 v 10 • Capture the Flag",
+				icon: 123,
+			},
+			{
+				id: "RandomTrainingGround",
+				name: "Training Battlegrounds",
+				section: "training",
+				available: true,
+				description: "Learn against AI",
+				detail: "Training",
+			},
+		],
+		join: vi.fn(),
+		leave: vi.fn(),
+		getQueues: () => [],
+		getRoles: () => ({
+			tank: false,
+			healer: true,
+			damage: false,
+			leader: false,
+		}),
+		getAvailableRoles: () => ({
+			tank: true,
+			healer: true,
+			damage: true,
+			leader: false,
+		}),
+		toggleRole: vi.fn(),
+	};
 	const panel = new DungeonFinderPanel(
 		{} as IFramePoolManager,
 		client,
@@ -193,6 +253,7 @@ function setup(
 			},
 		},
 		modal,
+		pvp,
 	);
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	callbacks.shift()?.();
@@ -205,12 +266,115 @@ function setup(
 		callbacks.shift()?.();
 	}
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
-	return { panel, client, rows, callbacks, modal, confirm, cancel };
+	return { panel, client, pvp, rows, callbacks, modal, confirm, cancel };
 }
+
+it("flattens PvP sections with exactly five Quick Match controls, native details and PvP roles", () => {
+	const { panel, rows, pvp, client } = setup(false, true, true, "pvp");
+	expect(rows.map((row) => row.id)).toEqual([
+		"heading-pvp-quick",
+		"pvp-RandomBGButton",
+		"pvp-RandomEpicBGButton",
+		"pvp-Arena1Button",
+		"pvp-BrawlButton",
+		"pvp-specific",
+		"heading-pvp-rated",
+		"pvp-RatedSoloShuffle",
+		"pvp-premades",
+		"heading-pvp-training",
+		"pvp-RandomTrainingGround",
+	]);
+	expect(rows.find((row) => row.id === "pvp-BrawlButton")?.enabled).toBe(false);
+	expect(rows.find((row) => row.id === "pvp-RandomBGButton")).toMatchObject({
+		detail: "150 Honor",
+		tooltip: expect.stringContaining("Native description"),
+	});
+	expect(
+		rows.find((row) => row.id === "pvp-RandomBGButton")?.secondary?.tooltip,
+	).toContain("Native description");
+	activate(rows.find((row) => row.id === "pvp-RandomBGButton"));
+	expect(pvp.join).toHaveBeenCalledWith("RandomBGButton");
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "role-healer")
+		?.onInteract();
+	expect(pvp.toggleRole).toHaveBeenCalledWith("healer");
+	expect(client.toggleRole).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("role-leader");
+});
+
+it("hides the PvP leader control, restores it on Back and sizes wrapped PvP details", () => {
+	const { panel, callbacks } = setup(false, true, true, "home");
+	checkboxes.get("role-leader")?.unmount.mockClear();
+	activate(currentRows().find((row) => row.id === "page-pvp"));
+	callbacks.shift()?.();
+	expect(checkboxes.get("role-leader")?.unmount).toHaveBeenCalledOnce();
+	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({ autoHeight: true });
+	checkboxes.get("role-leader")?.mount.mockClear();
+	panel.onBack();
+	callbacks.shift()?.();
+	expect(checkboxes.get("role-leader")?.mount).toHaveBeenCalledOnce();
+});
+
+it("opens specific battlegrounds and premade placeholder with nested Back and restored pinned headers", () => {
+	const { panel, rows, callbacks, pvp } = setup(false, true, true, "pvp");
+	activate(rows.find((row) => row.id === "pvp-specific"));
+	callbacks.shift()?.();
+	activate(rows.find((row) => row.id === "pvp-RandomBGButton"));
+	expect(pvp.join).not.toHaveBeenCalled();
+	let current = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(current.at(0)).toMatchObject({
+		label: "Warsong Gulch",
+		detail: "10 v 10 • Capture the Flag",
+		icon: 123,
+	});
+	activate(current.at(0));
+	callbacks.shift()?.();
+	expect(pvp.join).toHaveBeenCalledWith("bg-2");
+	panel.onUnmount();
+	panel.onMount(new Frame("parent", {} as IFramePoolManager));
+	callbacks.shift()?.();
+	expect(frames.get("dungeon-finder-header")?.show).toHaveBeenCalled();
+	panel.onBack();
+	callbacks.shift()?.();
+	current = setRows.mock.lastCall?.at(0) as ListRow[];
+	expect(current.at(0)?.label).toBe("Quick Match");
+	activate(current.find((row) => row.id === "pvp-premades"));
+	callbacks.shift()?.();
+	expect(currentRows().at(0)?.label).toContain("coming soon");
+	panel.onBack();
+	callbacks.shift()?.();
+	expect(currentRows().at(0)?.label).toBe("Quick Match");
+});
+
+it("confirms PvP queue departure and rechecks the queue before leaving", () => {
+	const { panel, pvp, callbacks, confirm } = setup(false, true, true, "pvp");
+	pvp.getQueues = () => [{ id: 1, name: "Warsong Gulch", canLeave: true }];
+	panel.refresh();
+	callbacks.shift()?.();
+	activate(currentRows().find((row) => row.id === "pvp-queue-1"));
+	expect(pvp.leave).not.toHaveBeenCalled();
+	confirm();
+	expect(pvp.leave).toHaveBeenCalledWith(1, "Warsong Gulch");
+	activate(currentRows().find((row) => row.id === "pvp-queue-1"));
+	pvp.getQueues = () => [];
+	confirm();
+	expect(pvp.leave).toHaveBeenCalledTimes(1);
+});
 
 function activate(row?: ListRow): void {
 	if (row?.secondary?.onlyAction) row.secondary.activate();
 	else row?.activate();
+}
+
+function currentRows(): ListRow[] {
+	return (setRows.mock.lastCall?.at(0) as ListRow[] | undefined) ?? [];
 }
 
 it("opens four landing tiles and returns from each separate subpage", () => {
@@ -258,6 +422,8 @@ it("opens four landing tiles and returns from each separate subpage", () => {
 		} else if (page === "raids") {
 			expect(content.some((row) => row.id === "empty-raids")).toBe(true);
 			expect(content.some((row) => row.id === "list-specific")).toBe(false);
+		} else if (page === "pvp") {
+			expect(content.some((row) => row.id === "heading-pvp-quick")).toBe(true);
 		} else {
 			expect(content).toEqual([]);
 			expect(

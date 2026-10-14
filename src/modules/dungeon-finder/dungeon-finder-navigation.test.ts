@@ -24,6 +24,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setFocused = vi.fn();
 		setLabel = vi.fn();
 		setLabelWordWrap = vi.fn();
+		labelHeight = () => 14;
 		setParent = vi.fn();
 		layout = vi.fn();
 		setColor = vi.fn();
@@ -49,18 +50,20 @@ vi.mock("../../ui/components/frame", () => ({
 	},
 }));
 
-it.each(["random", "specific", "follower"] as const)(
+it.each(["random", "specific", "follower", "pvp"] as const)(
 	"keeps focus on the pressed %s queue button throughout deferred refreshes",
 	(queue) => {
 		const callbacks: (() => void)[] = [];
-		const flush = () => {
+		const flush = (removed = false) => {
 			while (callbacks.length) {
 				callbacks.shift()?.();
-				expect(nav.focusedId).toBe(action);
+				if (removed && queue === "pvp")
+					expect([action, "pvp-premades"]).toContain(nav.focusedId);
+				else expect(nav.focusedId).toBe(action);
 			}
 		};
 		let queued = false;
-		const selected = queue === "random" ? 3 : queue;
+		const selected = queue === "random" || queue === "pvp" ? 3 : queue;
 		const client: IDungeonFinderClient = {
 			getRaids: () => [],
 			canQueueRaid: () => true,
@@ -138,6 +141,45 @@ it.each(["random", "specific", "follower"] as const)(
 				},
 			},
 			modal,
+			{
+				getActivities: () =>
+					[
+						"RandomBGButton",
+						"RandomEpicBGButton",
+						"Arena1Button",
+						"BrawlButton",
+					].map((id) => ({
+						id,
+						section: "quick" as const,
+						name: id,
+						detail: "150 Honor",
+						description: "Native description",
+						available: true,
+					})),
+				getQueues: () =>
+					queued
+						? [{ id: 1, name: "Random Battleground", canLeave: true }]
+						: [],
+				join: () => {
+					queued = true;
+				},
+				leave: () => {
+					queued = false;
+				},
+				getRoles: () => ({
+					tank: false,
+					healer: false,
+					damage: true,
+					leader: false,
+				}),
+				getAvailableRoles: () => ({
+					tank: true,
+					healer: true,
+					damage: true,
+					leader: false,
+				}),
+				toggleRole: vi.fn(),
+			},
 		);
 		const focus = (id: string) => {
 			expect(
@@ -155,25 +197,34 @@ it.each(["random", "specific", "follower"] as const)(
 		nav.registerGrid(panel.id, () => panel.getNavGrid());
 		nav.setActiveGrid(panel.id);
 		while (callbacks.length) callbacks.shift()?.();
-		focus("page-dungeons");
+		focus(queue === "pvp" ? "page-pvp" : "page-dungeons");
 		nav.interact();
 		while (callbacks.length) callbacks.shift()?.();
-		if (queue !== "random") {
+		if (queue !== "random" && queue !== "pvp") {
 			focus(`list-${queue}`);
 			nav.interact();
 			while (callbacks.length) callbacks.shift()?.();
 		}
-		const action = queue === "random" ? "dungeon-3" : "queue-action";
+		let action =
+			queue === "pvp"
+				? "pvp-RandomBGButton"
+				: queue === "random"
+					? "dungeon-3"
+					: "queue-action";
 		focus(action);
 		nav.interact();
 		flush();
 		expect(queued).toBe(true);
-		expect(
-			panel
-				.getNavGrid()
-				.flat()
-				.map((node) => node.navId),
-		).toEqual(["dungeon-back", action]);
+		if (queue === "pvp") {
+			action = "pvp-queue-1";
+			focus(action);
+		} else
+			expect(
+				panel
+					.getNavGrid()
+					.flat()
+					.map((node) => node.navId),
+			).toEqual(["dungeon-back", action]);
 		nav.interact();
 		expect(nav.focusedId).toBe("confirm-cancel");
 		expect(queued).toBe(true);
@@ -184,7 +235,9 @@ it.each(["random", "specific", "follower"] as const)(
 		expect(nav.focusedId).toBe("confirm-cancel");
 		nav.moveDown();
 		nav.interact();
-		flush();
+		// The separate active-queue row disappears after departure.
+		flush(true);
+		if (queue === "pvp") expect(nav.focusedId).toBe("pvp-premades");
 		expect(queued).toBe(false);
 	},
 );

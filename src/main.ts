@@ -13,6 +13,7 @@ import { InventoryClient } from "./clients/inventory-client";
 import { MapClient } from "./clients/map-client";
 import { MountsClient } from "./clients/mounts-client";
 import { PetsClient } from "./clients/pets-client";
+import { PvpFinderClient } from "./clients/pvp-finder-client";
 import { ReputationClient } from "./clients/reputation-client";
 import { SlashCommandsClient } from "./clients/slash-commands-client";
 import { TalentsClient } from "./clients/talents-client";
@@ -73,4 +74,5 @@ startSteamDeckUI(
 	),
 	bank,
 	new PetsClient(scheduler, collectionCache),
+	new PvpFinderClient(),
 );
