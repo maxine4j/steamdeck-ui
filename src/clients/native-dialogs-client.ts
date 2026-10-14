@@ -1,0 +1,141 @@
+import type { IEventBus } from "../events/types";
+import type {
+	NativeDialogFrame,
+	NativeDialogNavigation,
+} from "../ui/components/native-dialog-navigation";
+import type { NavGrid } from "../ui/navigation/types";
+import type { ITaskScheduler } from "./task-scheduler";
+
+export interface NativeDialog {
+	readonly id: string;
+	readonly grid: NavGrid;
+	cancel(): void;
+}
+export interface INativeDialogsClient {
+	initialize(): void;
+	getDialogs(): NativeDialog[];
+	shutdown(): void;
+}
+
+export class NativeDialogsClient implements INativeDialogsClient {
+	private readonly dialogs = new Map<
+		NativeDialogFrame,
+		{ id: string; menu: boolean; visible: boolean; order: number }
+	>();
+	private active = false;
+	private hooked = false;
+	private sequence = 0;
+	private cancelPending?: () => void;
+	constructor(
+		private readonly events: IEventBus,
+		private readonly controls: Pick<
+			NativeDialogNavigation,
+			"watch" | "grid" | "release"
+		>,
+		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
+	) {}
+	initialize(): void {
+		this.active = true;
+		this.discover();
+		if (!this.hooked) {
+			this.hooked = true;
+			const hook = hooksecurefunc as unknown as (
+				this: void,
+				name: string,
+				callback: (
+					this: void,
+					frame: NativeDialogFrame & { GetName(): string | undefined },
+				) => void,
+			) => void;
+			hook("StaticPopupSpecial_Show", (frame) => {
+				if (!this.active) return;
+				this.watch(frame, frame.GetName() ?? `special-${this.dialogs.size}`);
+				this.changed(frame);
+			});
+			for (const name of ["StaticPopup_Show", "GameMenuFrame_Show"])
+				hook(name, () => {
+					if (this.active) this.discover();
+				});
+		}
+	}
+	private discover(): void {
+		const globals = _G as unknown as Record<
+			string,
+			NativeDialogFrame | undefined
+		>;
+		for (const name of [
+			"GameMenuFrame",
+			"StaticPopup1",
+			"StaticPopup2",
+			"StaticPopup3",
+			"StaticPopup4",
+			"LFGDungeonReadyPopup",
+			"LFDRoleCheckPopup",
+			"LFGReadyCheckPopup",
+			"PVPRoleCheckPopup",
+			"ReadyCheckFrame",
+		]) {
+			const frame = globals[name];
+			if (frame) this.watch(frame, name);
+		}
+	}
+	private watch(frame: NativeDialogFrame, name: string): void {
+		if (this.dialogs.has(frame)) return;
+		this.dialogs.set(frame, {
+			id: `native-${name}`,
+			menu: name === "GameMenuFrame",
+			visible: false,
+			order: 0,
+		});
+		this.controls.watch(frame, () => this.changed(frame));
+		this.changed(frame);
+	}
+	private changed(frame: NativeDialogFrame): void {
+		if (!this.active) return;
+		const dialog = this.dialogs.get(frame);
+		if (dialog) {
+			const visible = frame.IsVisible();
+			if (visible && !dialog.visible) dialog.order = ++this.sequence;
+			dialog.visible = visible;
+		}
+		if (this.cancelPending) return;
+		this.cancelPending = this.scheduler.nextFrame(() => {
+			this.cancelPending = undefined;
+			if (this.active) this.events.emit("NATIVE_DIALOGS_CHANGED");
+		});
+	}
+	getDialogs(): NativeDialog[] {
+		return [...this.dialogs]
+			.filter(([frame]) => frame.IsVisible())
+			.sort(([, a], [, b]) => {
+				if (a.menu !== b.menu) return a.menu ? -1 : 1;
+				return a.order - b.order;
+			})
+			.map(
+				([frame, dialog]): NativeDialog => ({
+					id: dialog.id,
+					grid: this.controls.grid(dialog.id, frame, dialog.menu),
+					cancel: () => {
+						const globals = _G as unknown as {
+							GameMenuFrame_EscapePressed(this: void): void;
+							StaticPopup_EscapePressed(this: void): void;
+						};
+						if (!frame.IsVisible()) return;
+						if (dialog.menu) globals.GameMenuFrame_EscapePressed();
+						else if (
+							(frame as NativeDialogFrame & { hideOnEscape?: boolean })
+								.hideOnEscape
+						)
+							globals.StaticPopup_EscapePressed();
+					},
+				}),
+			);
+	}
+	shutdown(): void {
+		this.active = false;
+		this.cancelPending?.();
+		this.cancelPending = undefined;
+		this.dialogs.clear();
+		this.controls.release();
+	}
+}

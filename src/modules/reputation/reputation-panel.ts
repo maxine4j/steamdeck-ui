@@ -114,11 +114,21 @@ export class ReputationPanel implements IPanel {
 	private tile(reputation: Reputation, indent = 0): ListRow {
 		const capped =
 			reputation.maxed && !reputation.standing.startsWith("Paragon");
+		const backgroundTint = capped
+			? reputation.seasonal || reputation.standing.startsWith("Renown")
+				? ([0.15, 0.45, 0.95] as const)
+				: ([0.15, 0.7, 0.25] as const)
+			: reputation.reaction < 4
+				? ([0.8, 0.15, 0.15] as const)
+				: reputation.reaction === 4
+					? ([0.85, 0.65, 0.15] as const)
+					: undefined;
 		return {
 			id: `reputation-${reputation.index}`,
 			label: reputation.name,
 			height: 60,
 			backgroundAtlas: "ui-journeys-renown-button",
+			backgroundTint,
 			indent,
 			detail: `${reputation.standing}${!capped && reputation.progress ? ` ${reputation.progress}` : ""}${reputation.watched ? " • Watched" : ""}`,
 			tooltip: reputation.description,

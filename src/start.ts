@@ -79,6 +79,7 @@ import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-mod
 import { SpellBindingPrompt } from "./modules/spellbook/spell-binding-prompt";
 import { SpellbookModule } from "./modules/spellbook/spellbook-module";
 import { SpellbookPanel } from "./modules/spellbook/spellbook-panel";
+import { registerSystemDialogs } from "./modules/system-dialogs/register-system-dialogs";
 import { BuiltInTalents } from "./modules/talents/built-in-talents";
 import { TalentTreePanel } from "./modules/talents/talent-tree-panel";
 import { TalentsModule } from "./modules/talents/talents-module";
@@ -658,6 +659,7 @@ export function startSteamDeckUI(
 		),
 	);
 	registerTargeting(pool, modules);
+	registerSystemDialogs(pool, modules, events, navigation, scheduler);
 	const login = () => modules.start();
 	events.subscribe("PLAYER_LOGIN", login);
 	return {

@@ -207,6 +207,35 @@ it("keeps capped tiles full without misleading numbers while retaining paragon p
 	]);
 });
 
+it("tints the full tile by reputation type and standing", () => {
+	const { rows } = render([
+		faction("Renown", 1, {
+			maxed: true,
+			standing: "Renown 30",
+		}),
+		faction("Journey", -1, {
+			maxed: true,
+			seasonal: true,
+			standing: "Level 20 / 20",
+		}),
+		faction("Exalted", 2, { maxed: true, standing: "Exalted", reaction: 8 }),
+		faction("Neutral", 3, { standing: "Neutral", reaction: 4 }),
+		faction("Unfriendly", 4, { standing: "Unfriendly", reaction: 3 }),
+		faction("Hated", 5, { standing: "Hated", reaction: 1 }),
+	]);
+
+	expect(
+		rows.filter((row) => !row.heading).map((row) => row.backgroundTint),
+	).toEqual([
+		[0.15, 0.45, 0.95],
+		[0.15, 0.45, 0.95],
+		[0.15, 0.7, 0.25],
+		[0.85, 0.65, 0.15],
+		[0.8, 0.15, 0.15],
+		[0.8, 0.15, 0.15],
+	]);
+});
+
 it("opens options via the row context action and closes them on unmount", () => {
 	menu.open.mockClear();
 	menu.close.mockClear();

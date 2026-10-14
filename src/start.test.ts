@@ -204,7 +204,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		"hooksecurefunc",
 		vi.fn((...args: unknown[]) => {
 			const callback = args.at(-1) as () => void;
-			characterHooks.push(callback);
+			if (args.at(0) === CharacterFrame) characterHooks.push(callback);
 			if (typeof args.at(0) === "string")
 				globalHooks.set(args.at(0) as string, callback);
 		}),

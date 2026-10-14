@@ -12,6 +12,29 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("restores nested modal focus and safely removes a covered dialog", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	manager.registerGrid("bags", [[node("item")]]);
+	manager.setActiveGrid("bags");
+	const cancel = vi.fn();
+	manager.pushModal("options", [[node("option")]], cancel);
+	manager.pushModal("game-menu", [[node("settings"), node("logout")]], vi.fn());
+	manager.moveRight();
+	manager.pushModal("invite", [[node("accept")]], vi.fn());
+	manager.popModal("invite");
+	expect(manager.focusedId).toBe("logout");
+	manager.pushModal("release", [[node("spirit")]], vi.fn());
+	manager.popModal("game-menu");
+	expect(manager.focusedId).toBe("spirit");
+	manager.popModal("release");
+	expect(manager.focusedId).toBe("option");
+	events.emit("NAV_CANCEL");
+	expect(cancel).toHaveBeenCalledOnce();
+	manager.popModal("options");
+	expect(manager.focusedId).toBe("item");
+});
+
 it("does not pull a held D-pad boundary scroll back to the focused row on batch refresh", () => {
 	const focused = vi
 		.spyOn(Frame.prototype, "setFocused")
