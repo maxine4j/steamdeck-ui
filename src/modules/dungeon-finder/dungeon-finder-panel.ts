@@ -155,8 +155,10 @@ export class DungeonFinderPanel implements IPanel {
 	private page?: FinderPage;
 	private rolesMounted = false;
 	private pvpRolesMounted = false;
+	private initialFocusPending = true;
+	private initialRenderComplete = false;
 	private readonly update: DeferredRefresh;
-	private navigationChanged?: () => void;
+	private navigationChanged?: (focusId?: string) => void;
 	private pendingLeave?: () => void;
 	constructor(
 		pool: IFramePoolManager,
@@ -196,7 +198,9 @@ export class DungeonFinderPanel implements IPanel {
 			scheduler,
 			onChanged: (complete) => {
 				// Intermediate batches omit controls that are still being rebuilt.
-				if (complete) this.navigationChanged?.();
+				if (!complete) return;
+					this.initialRenderComplete = true;
+					this.notifyNavigationChanged();
 			},
 		});
 	}
@@ -860,24 +864,29 @@ export class DungeonFinderPanel implements IPanel {
 			this.mounted && this.hasRoles() && !this.rolesLocked()
 				? this.roleClient().getAvailableRoles()
 				: undefined;
-		const roles = this.checkboxes.filter((_control, index) => {
-			const role = roleControls.at(index)?.role;
-			return role !== undefined && availableRoles?.[role];
-		});
-		const content = this.list.getNavGrid();
 		return this.mounted
 			? [
-					...(this.page ? [roles] : []),
+					this.checkboxes.filter((_control, index) => {
+						const role = roleControls.at(index)?.role;
+						return role !== undefined && availableRoles?.[role];
+					}),
 					...(this.page
 						? [[this.back.navigationNode("dungeon-back", () => this.onBack())]]
 						: []),
-					...content,
-					...(!this.page ? [roles] : []),
+					...this.list.getNavGrid(),
 				]
 			: [];
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
+		if (this.initialRenderComplete) this.notifyNavigationChanged();
+	}
+	private notifyNavigationChanged(): void {
+		if (!this.navigationChanged) return;
+		if (this.initialFocusPending && !this.page) {
+			this.initialFocusPending = false;
+			this.navigationChanged("page-dungeons");
+		} else this.navigationChanged();
 	}
 	destroy(): void {
 		this.onUnmount();

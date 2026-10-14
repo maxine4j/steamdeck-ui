@@ -269,11 +269,6 @@ function setup(
 	return { panel, client, pvp, rows, callbacks, modal, confirm, cancel };
 }
 
-it("defaults navigation focus to the Dungeons landing button", () => {
-	const { panel } = setup(false, true, true, "home");
-	expect(panel.getNavGrid().flat()[0]?.navId).toBe("page-dungeons");
-});
-
 it("flattens PvP sections with exactly five Quick Match controls, native details and PvP roles", () => {
 	const { panel, rows, pvp, client } = setup(false, true, true, "pvp");
 	expect(rows.map((row) => row.id)).toEqual([
@@ -400,14 +395,14 @@ it("opens four landing tiles and returns from each separate subpage", () => {
 			.flat()
 			.map((node) => node.navId),
 	).toEqual([
-		"page-dungeons",
-		"page-raids",
-		"page-pvp",
-		"page-premades",
 		"role-tank",
 		"role-healer",
 		"role-damage",
 		"role-leader",
+		"page-dungeons",
+		"page-raids",
+		"page-pvp",
+		"page-premades",
 	]);
 	panel
 		.getNavGrid()

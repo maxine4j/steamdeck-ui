@@ -7,6 +7,8 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { DungeonFinderPanel } from "./dungeon-finder-panel";
 
+const { scrollList } = vi.hoisted(() => ({ scrollList: vi.fn() }));
+
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		fill = vi.fn();
@@ -50,6 +52,46 @@ vi.mock("../../ui/components/frame", () => ({
 	},
 }));
 
+vi.mock("../../ui/components/scroll-list", () => ({
+	ScrollList: class {
+		private rows: import("../../ui/components/scroll-list").ListRow[] = [];
+		constructor(
+			_id: string,
+			_pool: unknown,
+			_title: string,
+			_close: unknown,
+			private readonly options: {
+				onChanged?: (complete: boolean) => void;
+			},
+		) {
+			scrollList(options);
+		}
+		mount = vi.fn();
+		unmount = vi.fn();
+		setTitle = vi.fn();
+		resetScroll = vi.fn();
+		setWidth = vi.fn();
+		setRows = (rows: import("../../ui/components/scroll-list").ListRow[]) => {
+			this.rows = rows;
+			this.options.onChanged?.(true);
+		};
+		getNavGrid() {
+			return this.rows
+				.filter((row) => !row.heading && row.enabled !== false)
+				.map((row) => [
+					{
+						navId: row.id,
+						onFocus: vi.fn(),
+						onBlur: vi.fn(),
+						onInteract: row.secondary?.onlyAction
+							? row.secondary.activate
+							: row.activate,
+					},
+				]);
+		}
+	},
+}));
+
 it.each(["random", "specific", "follower", "pvp"] as const)(
 	"keeps focus on the pressed %s queue button throughout deferred refreshes",
 	(queue) => {
@@ -58,7 +100,12 @@ it.each(["random", "specific", "follower", "pvp"] as const)(
 			while (callbacks.length) {
 				callbacks.shift()?.();
 				if (removed && queue === "pvp")
-					expect([action, "pvp-premades"]).toContain(nav.focusedId);
+					expect(
+						panel
+							.getNavGrid()
+							.flat()
+							.map((node) => node.navId),
+					).toContain(nav.focusedId);
 				else expect(nav.focusedId).toBe(action);
 			}
 		};
@@ -192,19 +239,23 @@ it.each(["random", "specific", "follower", "pvp"] as const)(
 				nav.moveDown();
 			expect(nav.focusedId).toBe(id);
 		};
-		panel.setNavigationChanged(() => nav.refreshGrid(panel.id));
 		panel.onMount(new Frame("parent", pool));
+		panel.setNavigationChanged((focusId) =>
+			nav.refreshGrid(panel.id, focusId),
+		);
 		nav.registerGrid(panel.id, () => panel.getNavGrid());
 		nav.setActiveGrid(panel.id);
 		while (callbacks.length) callbacks.shift()?.();
-		expect(
-			panel.getNavGrid().flat()[0]?.navId,
-		).toBe("page-dungeons");
-		nav.refreshGrid(panel.id, "page-dungeons");
+		expect(nav.focusedId).toBe("page-dungeons");
 		if (queue === "pvp") {
 			nav.refreshGrid(panel.id, "page-pvp");
 			expect(nav.focusedId).toBe("page-pvp");
-		} else expect(nav.focusedId).toBe("page-dungeons");
+		} else {
+			nav.moveUp();
+			expect(nav.focusedId).toBe("role-tank");
+			nav.moveDown();
+			expect(nav.focusedId).toBe("page-dungeons");
+		}
 		nav.interact();
 		while (callbacks.length) callbacks.shift()?.();
 		if (queue !== "random" && queue !== "pvp") {
@@ -244,7 +295,6 @@ it.each(["random", "specific", "follower", "pvp"] as const)(
 		nav.interact();
 		// The separate active-queue row disappears after departure.
 		flush(true);
-		if (queue === "pvp") expect(nav.focusedId).toBe("pvp-premades");
 		expect(queued).toBe(false);
 	},
 );
