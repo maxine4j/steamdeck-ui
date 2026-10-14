@@ -115,6 +115,7 @@ export class ScrollList {
 			readonly width?: number;
 			readonly autoHeight?: boolean;
 			readonly padding?: number;
+			readonly viewportRight?: number;
 			readonly top?: number;
 			readonly bottom?: number;
 			readonly secure?: boolean;
@@ -208,7 +209,7 @@ export class ScrollList {
 			this.frame,
 			padding ?? 12,
 			this.options.top ?? (padding === undefined ? 52 : 40 + padding),
-			padding ?? 12,
+			this.options.viewportRight ?? padding ?? 12,
 			this.options.bottom ?? padding ?? 16,
 		);
 		this.content.setParent(this.scroll);

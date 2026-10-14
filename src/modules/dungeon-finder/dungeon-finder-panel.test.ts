@@ -20,6 +20,7 @@ const { setRows, setWidth, frames, listOptions, checkboxes } = vi.hoisted(
 				inset: ReturnType<typeof vi.fn>;
 				setParent: ReturnType<typeof vi.fn>;
 				setInsetBackground: ReturnType<typeof vi.fn>;
+				setIcon: ReturnType<typeof vi.fn>;
 			}
 		>(),
 		listOptions: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setCloseButtonBackground = vi.fn();
 		setParent = vi.fn();
 		setColor = vi.fn();
+		setIcon = vi.fn();
 		setFocused = vi.fn();
 		setBorder = vi.fn();
 		onClick = vi.fn();
@@ -396,10 +398,14 @@ it("hosts the list and Back in an inset content container below the square roles
 		26,
 		"TOPLEFT",
 		container,
-		12,
-		-12,
+		24,
+		-23,
 	);
-	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({ top: 52 });
+	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
+		top: 72,
+		viewportRight: 10,
+		centerContent: false,
+	});
 	expect(setWidth).toHaveBeenCalledWith(448);
 	expect(frames.get("dungeon-finder-root")?.setLabel).toHaveBeenCalledWith(
 		"window-title",
@@ -415,11 +421,22 @@ it.each(["dungeons", "raids"])(
 	"shows the landing category icon in the %s content header",
 	(page) => {
 		const { rows } = setup(false, true, true, page);
-		expect(rows.at(0)?.icon).toBe(
+		expect(
+			frames.get("dungeon-finder-header-icon")?.setIcon,
+		).toHaveBeenCalledWith(
 			page === "dungeons"
 				? "Interface\\Icons\\INV_Helmet_08"
 				: "Interface\\LFGFrame\\UI-LFR-PORTRAIT",
 		);
+		expect(frames.get("dungeon-finder-header")?.layout).toHaveBeenCalledWith(
+			292,
+			40,
+			"TOPLEFT",
+			frames.get("dungeon-finder-container"),
+			132,
+			-16,
+		);
+		expect(rows.some((row) => row.id === `heading-${page}`)).toBe(false);
 	},
 );
 
@@ -528,19 +545,18 @@ it("renders ordered sections and immediately joins available random dungeons", (
 	const { rows, client } = setup();
 	const headings = rows.filter((row) => row.heading);
 	expect(headings.map((row) => row.id)).toEqual([
-		"heading-dungeons",
 		"heading-special",
 		"heading-heroic",
 		"heading-normal",
 		"heading-specific-dungeons",
 	]);
-	expect(headings.at(1)?.label).toContain(
+	expect(headings.at(0)?.label).toContain(
 		"|A:ui-hud-calendar-1-up:20:20|a Special events",
 	);
-	expect(headings.at(2)?.label).toContain(
+	expect(headings.at(1)?.label).toContain(
 		"|TInterface\\LFGFrame\\UI-LFG-ICON-HEROIC:20:16:0:0:32:32:0:16:0:20|t Heroic random",
 	);
-	expect(headings.at(3)?.label).toContain(
+	expect(headings.at(2)?.label).toContain(
 		"|TInterface\\Icons\\Achievement_Dungeon_UlduarRaid_Archway_01:20:20|t Normal random",
 	);
 	expect(rows.find((row) => row.id === "dungeon-3")?.marginBottom).toBe(20);
@@ -645,7 +661,7 @@ it("pins four horizontal icon checkboxes above the scrolling dungeons", () => {
 it("removes the overview queue footer and compacts the role area", () => {
 	const { panel } = setup();
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
-		top: 52,
+		top: 72,
 		buttonWidth: 420,
 		centerText: false,
 		centerLabelsVertically: true,
@@ -765,18 +781,22 @@ it("separates dungeons and raids, with independently queueable wings and leave a
 	panel.refresh();
 	callbacks.shift()?.();
 	let rows = setRows.mock.lastCall?.at(0) as ListRow[];
-	expect(rows.filter((row) => row.heading).slice(-2)).toMatchObject([
-		{
-			id: "heading-raids",
-			label: "Raid Finder",
-			fontSize: 22,
-		},
-		{ id: "raid-60", label: "New raid", fontSize: 18, indent: 24 },
-	]);
+	expect(rows.at(0)).toMatchObject({
+		id: "raid-60",
+		label: "New raid",
+		heading: true,
+		indent: 0,
+	});
+	expect(rows.at(0)?.group).toBeUndefined();
+	expect(
+		rows
+			.filter((row) => row.id.startsWith("wing-"))
+			.every((row) => row.indent === 16),
+	).toBe(true);
 	expect(rows.some((row) => row.id === "list-specific")).toBe(false);
 	expect(
 		rows
-			.filter((row) => row.id === "raid-60" || row.id.startsWith("wing-"))
+			.filter((row) => row.id.startsWith("wing-"))
 			.every(
 				(row) =>
 					row.group?.id === "raid-60" &&

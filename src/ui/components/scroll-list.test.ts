@@ -5,6 +5,30 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("moves the viewport edge outwards while retaining the content gutter", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("gutter", pool, "", vi.fn(), {
+		width: 448,
+		padding: 30,
+		viewportRight: 10,
+	});
+	list.setRows([{ id: "row", label: "Row", activate: vi.fn() }]);
+	list.mount(new Frame("parent", pool));
+	expect(frames.get("gutter-scroll")?.inset).toHaveBeenCalledWith(
+		expect.anything(),
+		30,
+		70,
+		10,
+		30,
+	);
+	expect(frames.get("gutter-content")?.layout).toHaveBeenCalledWith(
+		388,
+		52,
+		"TOPLEFT",
+		expect.anything(),
+	);
+});
+
 it("contains each row group in its own artwork tile and reuses the containers", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("groups", pool, "", vi.fn());

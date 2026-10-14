@@ -139,6 +139,8 @@ export class DungeonFinderPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly frame: Frame;
 	private readonly container: Frame;
+	private readonly header: Frame;
+	private readonly headerIcon: Frame;
 	private readonly back: Frame;
 	private readonly checkboxes: IconCheckbox[];
 	private mounted = false;
@@ -156,6 +158,8 @@ export class DungeonFinderPanel implements IPanel {
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
 		this.container = new Frame(`${this.id}-container`, pool);
+		this.header = new Frame(`${this.id}-header`, pool);
+		this.headerIcon = new Frame(`${this.id}-header-icon`, pool);
 		this.back = new Frame("dungeon-back", pool, "Button");
 		this.checkboxes = roleControls.map(
 			({ role, label, icon }) =>
@@ -173,9 +177,10 @@ export class DungeonFinderPanel implements IPanel {
 			centerSingleLine: true,
 			centerText: false,
 			centerLabelsVertically: true,
-			centerContent: true,
+			centerContent: false,
 			buttonWidth: 420,
-			top: 52,
+			top: 72,
+			viewportRight: 10,
 			bottom: 30,
 			background: false,
 			scheduler,
@@ -246,20 +251,7 @@ export class DungeonFinderPanel implements IPanel {
 		const dungeons = this.client.getDungeons();
 		const selected = this.client.getSelected();
 		const queued = this.client.isQueued();
-		const rows: ListRow[] = [
-			{
-				id: "heading-dungeons",
-				label: "Dungeons",
-				icon: pages.at(0)?.icon,
-				iconSize: 32,
-				height: 40,
-				heading: true,
-				fontSize: 22,
-				marginTop: 16,
-				marginBottom: 16,
-				activate: () => {},
-			},
-		];
+		const rows: ListRow[] = [];
 		for (const section of sections) {
 			const entries = dungeons.filter(
 				(dungeon) => dungeon.section === section.id,
@@ -358,20 +350,7 @@ export class DungeonFinderPanel implements IPanel {
 		return rows;
 	}
 	private raidRows(): ListRow[] {
-		const rows: ListRow[] = [
-			{
-				id: "heading-raids",
-				label: "Raid Finder",
-				icon: pages.at(1)?.icon,
-				iconSize: 32,
-				height: 40,
-				heading: true,
-				fontSize: 22,
-				marginTop: 20,
-				marginBottom: 16,
-				activate: () => {},
-			},
-		];
+		const rows: ListRow[] = [];
 		const raids = this.client.getRaids();
 		const capacity = this.client.canQueueRaid();
 		for (const raid of raids) {
@@ -389,9 +368,8 @@ export class DungeonFinderPanel implements IPanel {
 			};
 			rows.push({
 				id: `raid-${raid.id}`,
-				group,
 				label: raid.name,
-				indent: 24,
+				indent: 0,
 				heading: true,
 				fontSize: 18,
 				marginTop: 16,
@@ -405,6 +383,7 @@ export class DungeonFinderPanel implements IPanel {
 					...actionTile(
 						{
 							id: `wing-${wing.id}`,
+							indent: 16,
 							label: wing.name,
 							enabled: wing.queued || (wing.available && capacity),
 							tooltip: wing.queued
@@ -562,6 +541,7 @@ export class DungeonFinderPanel implements IPanel {
 		);
 	}
 	private render(): void {
+		this.renderHeader();
 		if (this.page) this.back.show();
 		else this.back.hide();
 		const rows =
@@ -603,6 +583,35 @@ export class DungeonFinderPanel implements IPanel {
 		}
 		this.list.setRows(rows);
 	}
+	private renderHeader(): void {
+		const category = pages.find((page) => page.id === this.page);
+		if (category?.id !== "dungeons" && category?.id !== "raids") {
+			this.header.hide();
+			return;
+		}
+		this.header.setParent(this.container);
+		this.header.layout(
+			Math.max(1, this.container.getSize().width - 156),
+			40,
+			"TOPLEFT",
+			this.container,
+			132,
+			-16,
+		);
+		this.headerIcon.setParent(this.header);
+		this.headerIcon.layout(32, 32, "LEFT", this.header, 0, 0);
+		this.headerIcon.setIcon(category.icon);
+		this.header.setLabel(
+			"label",
+			category.id === "raids" ? "Raid Finder" : category.label,
+			"LEFT",
+			44,
+			0,
+			22,
+		);
+		this.headerIcon.show();
+		this.header.show();
+	}
 	onBack(): void {
 		if (!this.mounted || !this.page) return;
 		this.dismissLeave();
@@ -623,11 +632,14 @@ export class DungeonFinderPanel implements IPanel {
 		this.container.show();
 		this.list.setWidth(this.container.getSize().width);
 		this.container.onSizeChanged(() => {
-			if (this.mounted) this.list.setWidth(this.container.getSize().width);
+			if (this.mounted) {
+				this.list.setWidth(this.container.getSize().width);
+				this.renderHeader();
+			}
 		});
 		this.list.mount(this.container);
 		this.back.setParent(this.container);
-		this.back.layout(96, 26, "TOPLEFT", this.container, 12, -12);
+		this.back.layout(96, 26, "TOPLEFT", this.container, 24, -23);
 		this.back.setButtonBackground();
 		this.back.setLabel("label", "‹ Back", "CENTER", 0, 0, 13);
 		this.back.onClick(() => this.onBack());
@@ -642,6 +654,7 @@ export class DungeonFinderPanel implements IPanel {
 		this.update.setActive(false);
 		this.list.unmount();
 		this.back.hide();
+		this.header.hide();
 		for (const control of this.checkboxes) control.unmount();
 		this.rolesMounted = false;
 		this.frame.hide();
@@ -675,6 +688,8 @@ export class DungeonFinderPanel implements IPanel {
 		for (const control of this.checkboxes) control.destroy();
 		this.frame.destroy();
 		this.container.destroy();
+		this.headerIcon.destroy();
+		this.header.destroy();
 		this.back.destroy();
 	}
 }
