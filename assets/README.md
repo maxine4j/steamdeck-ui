@@ -15,8 +15,11 @@ Source: https://github.com/seblindfors/ConsolePort/tree/master/ConsolePort/Asset
 steam_c_system.blp is the Steam system button. Xbox A/B/X/Y and LB/RB/LT/RT,
 plus shared all_l_up/down/left/right icons, follow ConsolePort's Steam Deck layout.
 
-dialogue/Parchment.png and dialogue/Gossip.png are unmodified artwork from
+dialogue/ contains unmodified artwork from
 DialogueUI v1.0.6 by Raenore and Peterodox, copied from the bundled reference addon.
-Sources: DialogueUI/Art/Theme_Brown/Parchment.png and DialogueUI/Art/Icons/Gossip.png.
+Gossip.png, AvailableQuest.png, CompleteQuest.png and IncompleteQuest.png come from
+DialogueUI/Art/Icons/. CloseButton.png comes from
+DialogueUI/Art/Theme_Dark/Settings-CloseButton.png (the close symbol is sampled
+from its texture sheet).
 The bundled reference has no license file; this attribution does not grant
 redistribution rights.

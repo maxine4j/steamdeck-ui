@@ -21,7 +21,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	readonly id = "npc-dialogue";
 	readonly title = "Conversation";
 	private readonly window: Frame;
-	private readonly parchment: Frame;
+	private readonly surface: Frame;
 	private readonly divider: Frame;
 	private readonly readingHost: Frame;
 	private readonly choicesHost: Frame;
@@ -35,13 +35,15 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private readingWidth = 480;
 	private height = 620;
 	private navigationChanged?: () => void;
-	private readonly ink = [0.19, 0.17, 0.13] as const;
+	private readonly ink = [0.7, 0.7, 0.7] as const;
+	private readonly headingColor = [0.9, 0.9, 0.9] as const;
+	private readonly optionColor = [0.796, 0.784, 0.584] as const;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly navigation: IModalNavigation,
 	) {
 		this.window = new Frame("dialogue-window", pool);
-		this.parchment = new Frame("dialogue-parchment", pool);
+		this.surface = new Frame("dialogue-surface", pool);
 		this.divider = new Frame("dialogue-divider", pool);
 		this.readingHost = new Frame("dialogue-reading-host", pool);
 		this.choicesHost = new Frame("dialogue-choices-host", pool);
@@ -63,11 +65,14 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				gap: 6,
 				contentPadding: { horizontal: 12, vertical: 10 },
 				centerSingleLine: true,
-				textColor: this.ink,
+				textColor: this.optionColor,
 				background: false,
 				autoHeight: true,
 				onChanged: (complete) => {
-					if (complete) this.syncNavigation();
+					if (complete) {
+						this.layoutBody();
+						this.syncNavigation();
+					}
 				},
 			},
 		);
@@ -101,26 +106,16 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.window.setParent(parent);
 		this.window.layout(width, height, "RIGHT", parent, -32, 0);
 		this.window.setWindowBackground();
-		this.parchment.inset(this.window, 12, 12, 12, 12);
-		// Sample the high-resolution paper interior, keeping our shared metal chrome.
-		this.parchment.setTextureBackground(`${dialogueArt}Parchment.png`, [
-			0.15,
-			0.85,
-			256 / 2048,
-			896 / 2048,
-		]);
-		this.parchment.show();
-		this.divider.setParent(this.parchment);
-		this.divider.setTextureBackground(
-			`${dialogueArt}Parchment.png`,
-			[0, 0.71875, 0.72265625, 0.75390625],
-		);
+		this.surface.inset(this.window, 12, 12, 12, 12);
+		this.surface.show();
+		this.divider.setParent(this.surface);
+		this.divider.setColor(0.35, 0.35, 0.35, 1);
 		this.divider.show();
 		this.readingWidth = width - 56;
-		this.readingHost.setParent(this.parchment);
-		this.choicesHost.setParent(this.parchment);
+		this.readingHost.setParent(this.surface);
+		this.choicesHost.setParent(this.surface);
 		this.choices.setWidth(this.readingWidth);
-		this.input.setParent(this.parchment);
+		this.input.setParent(this.surface);
 		this.input.setInsetBackground();
 		this.input.setFocusBorder(true);
 		this.input.configureInput((text) => {
@@ -137,7 +132,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		const display = this.display;
 		if (!display || !this.mounted) return;
 		const page = display.page;
-		this.parchment.setLabel(
+		this.surface.setLabel(
 			"speaker",
 			page.speaker,
 			"TOPLEFT",
@@ -146,7 +141,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			16,
 			this.readingWidth,
 		);
-		this.parchment.setLabel(
+		this.surface.setLabel(
 			"title",
 			page.title,
 			"TOPLEFT",
@@ -155,26 +150,10 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			22,
 			this.readingWidth,
 		);
-		this.parchment.setLabelStyle("speaker", this.ink);
-		this.parchment.setLabelStyle("title", this.ink);
-		this.parchment.setLabelWordWrap("title", false);
-		const text = display.confirmation?.text ?? page.text;
-		// Keep a bottom action viewport; long options/rewards scroll independently.
-		const choicesHeight = Math.min(168, (this.height - 160) * 0.36);
-		const choicesTop = this.height - 64 - choicesHeight;
-		const readerHeight =
-			choicesTop - 96 - 24 - (display.confirmation?.code ? 52 : 0);
-		this.readingHost.layout(
-			this.readingWidth,
-			readerHeight,
-			"TOPLEFT",
-			this.window,
-			28,
-			-96,
-		);
-		this.reading.mount(this.readingHost, this.readingWidth, readerHeight);
-		this.reading.setText(text, display.resetReading);
-		this.parchment.setLabel(
+		this.surface.setLabelStyle("speaker", this.headingColor);
+		this.surface.setLabelStyle("title", this.headingColor);
+		this.surface.setLabelWordWrap("title", false);
+		this.surface.setLabel(
 			"hint",
 			display.suspended
 				? "Dialogue paused during combat. Actions resume after combat."
@@ -186,49 +165,59 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			12,
 			this.readingWidth,
 		);
-		this.parchment.setLabelStyle("hint", this.ink);
-		this.parchment.setLabelWordWrap("hint", true);
+		this.surface.setLabelStyle("hint", this.ink);
+		this.surface.setLabelWordWrap("hint", true);
 		const rows: ListRow[] = [];
 		const enabled = !display.suspended && !display.waiting;
-		this.choicesHost.layout(
-			this.readingWidth,
-			choicesHeight,
-			"BOTTOMLEFT",
-			this.window,
-			28,
-			64,
-		);
-		this.divider.layout(
-			this.readingWidth,
-			8,
-			"TOPLEFT",
-			this.window,
-			28,
-			-(choicesTop - 16),
-		);
-		this.input.layout(
-			this.readingWidth,
-			40,
-			"TOPLEFT",
-			this.window,
-			28,
-			-(choicesTop - 52),
-		);
 		const add = (
 			entry: DialogueEntry,
 			activate: () => void,
 			selected = false,
+			reward = false,
 		): void => {
 			const speech =
 				(page.kind === "gossip" || page.kind === "greeting") &&
 				(entry.icon === 132053 || entry.icon === 1019848);
+			let icon: number | string | undefined = speech
+				? `${dialogueArt}Gossip.png`
+				: entry.icon;
+			if (entry.id === "dialogue-confirm")
+				icon = `${dialogueArt}CompleteQuest.png`;
+			if (entry.id === "dialogue-primary") {
+				const marker =
+					page.kind === "offer" || page.kind === "shared"
+						? "AvailableQuest"
+						: page.kind === "progress" && !page.completable
+							? "IncompleteQuest"
+							: "CompleteQuest";
+				icon = `${dialogueArt}${marker}.png`;
+			}
+			if (page.kind === "gossip" || page.kind === "greeting") {
+				if (
+					entry.id.startsWith("available:") ||
+					entry.id.startsWith("greeting-available:")
+				)
+					icon = `${dialogueArt}AvailableQuest.png`;
+				if (
+					entry.id.startsWith("active:") ||
+					entry.id.startsWith("greeting-active:")
+				)
+					icon = `${dialogueArt}${entry.detail === "Complete" ? "CompleteQuest" : "IncompleteQuest"}.png`;
+			}
 			rows.push({
 				...entry,
-				icon: speech ? `${dialogueArt}Gossip.png` : entry.icon,
-				iconSize: speech ? 24 : undefined,
+				label:
+					entry.id === "dialogue-cancel"
+						? `|T${dialogueArt}CloseButton.png:24:24:0:0:256:128:16:48:80:112|t ${entry.label}`
+						: entry.label,
+				icon,
+				iconSize: typeof icon === "string" ? 24 : undefined,
+				fullWidth: !reward,
+				height: reward ? 70 : undefined,
+				wrapLabel: true,
 				selected,
 				fontSize: 17,
-				background: selected ? [0.67, 0.56, 0.36] : false,
+				background: selected ? [0.24, 0.22, 0.14] : false,
 				detail: entry.detail,
 				tooltipContent: entry.tooltipLink,
 				activate: () => {
@@ -287,6 +276,8 @@ export class DialoguePanel implements IPanel, IDialogueView {
 					add(
 						{ ...reward, detail: reward.detail ?? "Guaranteed reward" },
 						() => {},
+						false,
+						true,
 					);
 				if (page.choices.length > 0)
 					heading(
@@ -307,6 +298,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 								this.actions?.choose(page, choice.index);
 						},
 						choice.index === display.selected,
+						true,
 					);
 				add(
 					{
@@ -353,8 +345,69 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			},
 			() => this.actions?.cancel(),
 		);
+		this.choices.setColumns(
+			!display.confirmation &&
+				(page.kind === "offer" || page.kind === "rewards")
+				? 2
+				: 1,
+		);
 		this.choices.setRows(rows);
+		this.layoutBody();
+		this.reading.setText(
+			display.confirmation?.text ?? page.text,
+			display.resetReading,
+		);
 		this.syncNavigation();
+	}
+	private layoutBody(): void {
+		const display = this.display;
+		if (!this.mounted || !display) return;
+		const inputHeight = display.confirmation?.code ? 52 : 0;
+		const minimumReader = Math.ceil(this.height / 3);
+		const available = this.height - 96 - 64 - 24 - inputHeight;
+		const choicesHeight = Math.min(
+			this.choices.getContentHeight(),
+			available - minimumReader,
+		);
+		const readerHeight = available - choicesHeight;
+		const choicesTop = this.height - 64 - choicesHeight;
+		this.choicesHost.layout(
+			this.readingWidth,
+			choicesHeight,
+			"BOTTOMLEFT",
+			this.window,
+			28,
+			64,
+		);
+		this.readingHost.layout(
+			this.readingWidth,
+			readerHeight,
+			"TOPLEFT",
+			this.window,
+			28,
+			-96,
+		);
+		this.reading.mount(this.readingHost, this.readingWidth, readerHeight);
+		this.reading.setText(
+			display.confirmation?.text ?? display.page.text,
+			false,
+		);
+		this.divider.layout(
+			this.readingWidth,
+			1,
+			"TOPLEFT",
+			this.window,
+			28,
+			-(choicesTop - 16),
+		);
+		this.input.layout(
+			this.readingWidth,
+			40,
+			"TOPLEFT",
+			this.window,
+			28,
+			-(choicesTop - 52),
+		);
 	}
 	getNavGrid(): NavGrid {
 		if (!this.mounted || !this.display) return [];
@@ -388,7 +441,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.input.destroy();
 		this.readingHost.destroy();
 		this.choicesHost.destroy();
-		this.parchment.destroy();
+		this.surface.destroy();
 		this.window.destroy();
 	}
 }

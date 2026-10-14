@@ -17,6 +17,8 @@ const records = vi.hoisted(() => ({
 	textures: new Map<string, [number | string, readonly number[]]>(),
 	icons: new Map<string, number | string>(),
 	parents: new Map<string, string>(),
+	textColors: new Map<string, readonly number[]>(),
+	colors: new Map<string, readonly number[]>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
@@ -50,9 +52,13 @@ vi.mock("../../ui/components/frame", () => ({
 		}
 		setParent = (parent: { id: string }) =>
 			records.parents.set(this.id, parent.id);
-		setColor = () => records.skins.set(this.id, "flat");
+		setColor = (...color: number[]) => {
+			records.skins.set(this.id, "flat");
+			records.colors.set(this.id, color);
+		};
 		setAtlasBackground = (atlas: string) => records.skins.set(this.id, atlas);
-		setLabelStyle = vi.fn();
+		setLabelStyle = (key: string, color: readonly number[]) =>
+			records.textColors.set(`${this.id}:${key}`, color);
 		setCloseButtonBackground = vi.fn();
 		setButtonBackground = () => records.skins.set(this.id, "red-button");
 		setWindowBackground = () => records.skins.set(this.id, "metal-window");
@@ -93,6 +99,8 @@ beforeEach(() => {
 	records.textures.clear();
 	records.icons.clear();
 	records.parents.clear();
+	records.textColors.clear();
+	records.colors.clear();
 });
 
 const page = {
@@ -133,23 +141,53 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 
 it("shows controller graphics beside conversation actions", () => {
 	setup(display(page));
-	expect(records.labels.get("dialogue-parchment")?.get("hint")).toContain(
+	expect(records.labels.get("dialogue-surface")?.get("hint")).toContain(
 		"xbox_r_a.blp:18:18|t Select / Read",
 	);
 });
 
-it("hosts dialogue content above the parchment artwork", () => {
-	setup(display(page));
-	expect(records.labels.get("dialogue-parchment")?.get("speaker")).toBe(
-		"Keeper",
+it("keeps prose, headings and options readable on a dark background", () => {
+	setup(
+		display({
+			...page,
+			kind: "gossip",
+			entries: [{ id: "talk", label: "Talk" }],
+		}),
 	);
+	expect(records.textColors.get("dialogue-reading-content:text")).toEqual([
+		0.7, 0.7, 0.7,
+	]);
+	expect(records.textColors.get("dialogue-surface:title")).toEqual([
+		0.9, 0.9, 0.9,
+	]);
+	expect(records.textColors.get("dialogue-surface:speaker")).toEqual([
+		0.9, 0.9, 0.9,
+	]);
+	expect(records.textColors.get("dialogue-choices-row-0:label")).toEqual([
+		0.796, 0.784, 0.584,
+	]);
+	expect(records.textColors.get("dialogue-surface:hint")).toEqual([
+		0.7, 0.7, 0.7,
+	]);
+});
+
+it("keeps selected reward text legible against its highlight", () => {
+	setup({ ...display({ ...page, kind: "rewards" }), selected: 1 });
+	expect(records.colors.get("dialogue-choices-row-3")).toEqual([
+		0.24, 0.22, 0.14,
+	]);
+});
+
+it("hosts dialogue content inside the shared window", () => {
+	setup(display(page));
+	expect(records.labels.get("dialogue-surface")?.get("speaker")).toBe("Keeper");
 	for (const id of [
 		"dialogue-reading-host",
 		"dialogue-choices-host",
 		"dialogue-code",
 		"dialogue-divider",
 	])
-		expect(records.parents.get(id)).toBe("dialogue-parchment");
+		expect(records.parents.get(id)).toBe("dialogue-surface");
 });
 
 it.each([720, 800])(
@@ -183,12 +221,10 @@ it.each([720, 800])(
 			28,
 			64,
 		]);
-		expect(readingHeight).toBeGreaterThanOrEqual(260);
+		expect(readingHeight).toBeGreaterThanOrEqual(h / 3);
 		expect(records.skins.get("dialogue-window")).toBe("metal-window");
-		expect(records.textures.get("dialogue-parchment")).toEqual([
-			"Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\Parchment.png",
-			[0.15, 0.85, 256 / 2048, 896 / 2048],
-		]);
+		expect(records.textures.size).toBe(0);
+		expect(records.skins.get("dialogue-surface")).toBeUndefined();
 		expect([...records.skins.values()]).not.toContain("red-button");
 		expect(
 			[...records.labels.values()]
@@ -255,6 +291,110 @@ it("keeps confirmation input between prose and bottom options", () => {
 		620 - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
 	expect(inputTop).toBeGreaterThanOrEqual(readerBottom + 12);
 	expect(inputTop + 40).toBeLessThanOrEqual(choicesTop);
+});
+
+it("fits rewards in two columns and grows upward before scrolling, reserving a third for prose", () => {
+	const rewards = Array.from({ length: 2 }, (_, i) => ({
+		id: `reward:${i}`,
+		label: "Reward",
+		icon: 123,
+	}));
+	const d = display({ ...page, kind: "rewards", rewards, choices: [] });
+	const { panel } = setup(d);
+	expect(
+		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
+	).toEqual([
+		["dialogue-reading"],
+		["reward:0", "reward:1"],
+		["dialogue-primary"],
+		["dialogue-cancel"],
+	]);
+	const contentHeight =
+		records.layouts.get("dialogue-choices-content")?.at(1) ?? 0;
+	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBe(
+		contentHeight,
+	);
+	expect(records.layouts.get("dialogue-choices-row-1")?.at(0)).toBeLessThan(
+		250,
+	);
+	const shortReader = records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
+	panel.show(
+		display({
+			...d.page,
+			rewards: Array.from({ length: 20 }, (_, i) => ({
+				id: `reward:${i}`,
+				label: "Reward",
+			})),
+		}),
+	);
+	const tallReader = records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
+	expect(tallReader).toBeLessThan(shortReader);
+	expect(tallReader).toBeGreaterThanOrEqual(620 / 3);
+	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBeLessThan(
+		records.layouts.get("dialogue-choices-content")?.at(1) ?? 0,
+	);
+});
+
+it("keeps reward choices paired and confirmation actions full width", () => {
+	const { panel } = setup(display({ ...page, kind: "rewards" }));
+	expect(
+		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
+	).toContainEqual(["choice:1", "choice:2"]);
+	panel.show({
+		...display({ ...page, kind: "rewards" }),
+		confirmation: { text: "Claim?", code: false },
+	});
+	expect(
+		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
+	).toEqual([["dialogue-reading"], ["dialogue-confirm"], ["dialogue-cancel"]]);
+});
+
+it.each([
+	["offer", "AvailableQuest.png"],
+	["rewards", "CompleteQuest.png"],
+	["progress", "CompleteQuest.png"],
+] as const)("adds DialogueUI icons to %s actions", (kind, icon) => {
+	setup(
+		display({
+			...page,
+			kind,
+			rewards: [],
+			choices: [],
+			requirements: [],
+			completable: true,
+			autoAccepted: false,
+			pvp: false,
+		}),
+	);
+	expect(records.icons.get("dialogue-choices-icon-0")).toBe(
+		`Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\${icon}`,
+	);
+	expect(records.labels.get("dialogue-choices-row-1")?.get("label")).toContain(
+		"CloseButton.png:24:24:0:0:256:128:16:48:80:112",
+	);
+});
+
+it("adds available and active quest markers to greeting options", () => {
+	setup(
+		display({
+			...page,
+			kind: "greeting",
+			entries: [
+				{ id: "greeting-available:1", label: "Quest" },
+				{ id: "greeting-active:1", label: "Quest", detail: "Complete" },
+				{ id: "greeting-active:2", label: "Quest", detail: "Incomplete" },
+			],
+		}),
+	);
+	expect(records.icons.get("dialogue-choices-icon-0")).toContain(
+		"AvailableQuest.png",
+	);
+	expect(records.icons.get("dialogue-choices-icon-1")).toContain(
+		"CompleteQuest.png",
+	);
+	expect(records.icons.get("dialogue-choices-icon-2")).toContain(
+		"IncompleteQuest.png",
+	);
 });
 it("makes reward selection, claiming, reading and closing separate reachable controls", () => {
 	const d = display({ ...page, kind: "rewards" });
@@ -332,7 +472,7 @@ it("keeps unavailable and suspended actions readable without committing", () => 
 		.find((n) => n.navId === "dialogue-primary")
 		?.onInteract();
 	expect(actions.primary).not.toHaveBeenCalled();
-	expect(records.labels.get("dialogue-parchment")?.get("hint")).toContain(
+	expect(records.labels.get("dialogue-surface")?.get("hint")).toContain(
 		"combat",
 	);
 });
@@ -352,7 +492,7 @@ it("preserves focused reward identity through refresh and restores previous pane
 	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
 	nav.moveDown();
 	nav.moveDown();
-	nav.moveDown();
+	nav.moveRight();
 	expect(nav.focusedId).toBe("choice:2");
 	panel.show({ ...d, resetReading: false, selected: 2 });
 	expect(nav.focusedId).toBe("choice:2");

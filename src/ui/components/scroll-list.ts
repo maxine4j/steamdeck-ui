@@ -148,6 +148,10 @@ export class ScrollList {
 		this.dirty = true;
 		if (this.mounted) this.render();
 	}
+	/** Measured row content, independent of the visible scrolling viewport. */
+	getContentHeight(): number {
+		return this.contentHeight;
+	}
 	setTitle(title: string): void {
 		this.title = title;
 		if (this.mounted) setWindowTitle(this.frame, title);
