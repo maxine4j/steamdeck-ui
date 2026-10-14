@@ -1,7 +1,7 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
-import { type AnimatedAtlas, Frame } from "./frame";
+import { type AnimatedAtlas, Frame, type IconRing } from "./frame";
 import type { TooltipContent } from "./tooltip-content";
 import type { IUIComponent } from "./types";
 import { setWindowTitle } from "./window-title";
@@ -14,6 +14,7 @@ export interface ListRow {
 	readonly fullWidth?: boolean;
 	readonly icon?: number | string;
 	readonly iconSize?: number;
+	readonly iconRing?: IconRing;
 	readonly spell?: number;
 	readonly secondary?: {
 		label: string;
@@ -45,6 +46,10 @@ export interface ListRow {
 	readonly marginBottom?: number;
 	readonly background?: readonly [number, number, number] | false;
 	readonly backgroundAtlas?: string;
+	readonly backgroundTexture?: {
+		readonly file: number | string;
+		readonly coords: readonly [number, number, number, number];
+	};
 	readonly backgroundSlice?: number;
 	readonly backgroundTint?: readonly [number, number, number];
 	readonly progress?: {
@@ -62,6 +67,7 @@ export class ScrollList {
 	private readonly buttons: {
 		frame: Frame;
 		icon: Frame;
+		iconRing?: boolean;
 		track: Frame;
 		progress: Frame;
 		secondary: Frame;
@@ -454,6 +460,10 @@ export class ScrollList {
 					button.icon.setIcon(row.icon);
 					button.icon.show();
 				} else button.icon.hide();
+				if (row.iconRing || button.iconRing) {
+					button.icon.setIconRing(row.iconRing);
+					button.iconRing = row.iconRing !== undefined;
+				}
 				button.secondaryNav.navId = actionOnly ? row.id : `${row.id}-favourite`;
 				if (row.secondary) {
 					button.secondary.setParent(button.frame);
@@ -496,6 +506,7 @@ export class ScrollList {
 					row.icon === undefined
 						? horizontalPadding
 						: iconSize +
+							Math.max(0, ((row.iconRing?.size ?? iconSize) - iconSize) / 2) +
 							(this.options.contentPadding ? horizontalPadding + 8 : 12);
 				const textLeft = checkboxLeft + (row.checked === undefined ? 0 : 28);
 				if (row.checked !== undefined) {
@@ -775,7 +786,12 @@ export class ScrollList {
 			frame?.setColor(0, 0, 0, 0);
 			return;
 		}
-		if (row?.backgroundAtlas) {
+		if (row?.backgroundTexture) {
+			frame?.setTextureBackground(
+				row.backgroundTexture.file,
+				row.backgroundTexture.coords,
+			);
+		} else if (row?.backgroundAtlas) {
 			if (row.backgroundSlice !== undefined)
 				frame?.setAtlasBackground(
 					row.backgroundAtlas,

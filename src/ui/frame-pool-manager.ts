@@ -27,7 +27,11 @@ export interface IFramePoolManager {
 	acquire(type: FrameType): WowFrame;
 	release(type: FrameType, frame: WowFrame): void;
 	getBackground(frame: WowFrame): WowTexture;
-	setBackgroundMask(frame: WowFrame, atlas: string, outset?: number): void;
+	setBackgroundMask(
+		frame: WowFrame,
+		atlas: string | undefined,
+		outset?: number,
+	): void;
 	getDecoration(frame: WowFrame, key: string): WowTexture;
 	getLine(
 		frame: WowFrame,
@@ -76,8 +80,17 @@ export class FramePoolManager implements IFramePoolManager {
 		}
 		return texture;
 	}
-	setBackgroundMask(frame: WowFrame, atlas: string, outset = 0): void {
+	setBackgroundMask(
+		frame: WowFrame,
+		atlas: string | undefined,
+		outset = 0,
+	): void {
 		let mask = this.backgroundMasks.get(frame);
+		if (atlas === undefined) {
+			if (mask && this.maskedBackgrounds.delete(frame))
+				(this.getBackground(frame) as MaskableTexture).RemoveMaskTexture(mask);
+			return;
+		}
 		if (!mask) {
 			mask = (
 				frame as WowFrame & {

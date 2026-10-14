@@ -5,6 +5,46 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("renders textured rows with masked portrait rings and clears them when reusing a row", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("portrait-row", pool, "", vi.fn(), {
+		centerLabelsVertically: true,
+	});
+	const artwork = { file: "menu", coords: [0.1, 0.9, 0.2, 0.8] as const };
+	list.setRows([
+		{
+			id: "category",
+			label: "Category",
+			height: 80,
+			icon: "portrait",
+			iconSize: 66,
+			iconRing: { atlas: "ring", size: 95, maskAtlas: "circle" },
+			backgroundTexture: artwork,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("portrait-row-row-0")?.setTextureBackground,
+	).toHaveBeenCalledWith("menu", artwork.coords);
+	expect(frames.get("portrait-row-icon-0")?.setIconRing).toHaveBeenCalledWith({
+		atlas: "ring",
+		size: 95,
+		maskAtlas: "circle",
+	});
+	const labelX = frames
+		.get("portrait-row-row-0")
+		?.setLabel.mock.calls.find((call) => call.at(0) === "label")
+		?.at(3) as number;
+	expect(labelX).toBeGreaterThan(6 + 66 / 2 + 95 / 2);
+	list.setRows([
+		{ id: "plain", label: "Plain", icon: "square", activate: vi.fn() },
+	]);
+	expect(
+		frames.get("portrait-row-icon-0")?.setIconRing,
+	).toHaveBeenLastCalledWith(undefined);
+});
+
 it("centers tile icons beside centered labels and insets icons and actions by the content padding", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("padded-spec", pool, "", vi.fn(), {
@@ -1183,6 +1223,8 @@ vi.mock("./frame", () => ({
 		setLabel = vi.fn();
 		setLabelWordWrap = vi.fn();
 		setIcon = vi.fn();
+		setIconRing = vi.fn();
+		setTextureBackground = vi.fn();
 		setTooltip = vi.fn();
 		clearTooltip = vi.fn();
 		setHoverTooltip = vi.fn();

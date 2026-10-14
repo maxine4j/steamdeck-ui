@@ -15,10 +15,18 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IPanel } from "../../ui/panel/types";
 
 const pages = [
-	{ id: "dungeons", label: "Dungeons" },
-	{ id: "raids", label: "Raids" },
-	{ id: "pvp", label: "PvP" },
-	{ id: "premades", label: "Premade Groups" },
+	{
+		id: "dungeons",
+		label: "Dungeons",
+		icon: "Interface\\Icons\\INV_Helmet_08",
+	},
+	{ id: "raids", label: "Raids", icon: "Interface\\LFGFrame\\UI-LFR-PORTRAIT" },
+	{ id: "pvp", label: "PvP", icon: "Interface\\Icons\\achievement_bg_winwsg" },
+	{
+		id: "premades",
+		label: "Premade Groups",
+		icon: "Interface\\Icons\\Achievement_General_StayClassy",
+	},
 ] as const;
 type FinderPage = (typeof pages)[number]["id"] | DungeonListId;
 
@@ -206,11 +214,23 @@ export class DungeonFinderPanel implements IPanel {
 		);
 	}
 	private landingRows(): ListRow[] {
-		return pages.map<ListRow>(({ id, label }) => ({
+		return pages.map<ListRow>(({ id, label, icon }) => ({
 			id: `page-${id}`,
 			label,
-			...queueTile(false),
-			marginBottom: 12,
+			icon,
+			iconSize: 66,
+			iconRing: {
+				atlas: "bluemenu-Ring",
+				size: 95,
+				maskAtlas: "CircleMaskScalable",
+			},
+			backgroundTexture: {
+				file: "Interface\\Common\\bluemenu-main",
+				coords: [0.00390625, 0.87890625, 0.75195313, 0.83007813],
+			},
+			height: 96,
+			fontSize: 18,
+			marginBottom: 16,
 			activate: () => {
 				if (!this.mounted || this.page) return;
 				this.page = id;
@@ -507,6 +527,7 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	private hasRoles(): boolean {
 		return (
+			this.page === undefined ||
 			this.page === "dungeons" ||
 			this.page === "raids" ||
 			this.page === "specific" ||
@@ -577,6 +598,7 @@ export class DungeonFinderPanel implements IPanel {
 		this.back.onClick(() => this.onBack());
 		this.frame.show();
 		this.mounted = true;
+		this.refresh();
 		this.update.setActive(true);
 	}
 	onUnmount(): void {

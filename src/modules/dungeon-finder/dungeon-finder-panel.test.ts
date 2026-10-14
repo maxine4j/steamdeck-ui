@@ -10,7 +10,12 @@ const { setRows, frames, listOptions, checkboxes } = vi.hoisted(() => ({
 	setRows: vi.fn(),
 	frames: new Map<
 		string,
-		{ layout: ReturnType<typeof vi.fn>; setLabel: ReturnType<typeof vi.fn> }
+		{
+			layout: ReturnType<typeof vi.fn>;
+			setLabel: ReturnType<typeof vi.fn>;
+			show: ReturnType<typeof vi.fn>;
+			hide: ReturnType<typeof vi.fn>;
+		}
 	>(),
 	listOptions: vi.fn(),
 	checkboxes: new Map<
@@ -197,10 +202,10 @@ function activate(row?: ListRow): void {
 }
 
 it("opens four landing tiles and returns from each separate subpage", () => {
-	const { panel, callbacks, rows } = setup(false, true, true, "home");
+	const { panel, callbacks, rows, client } = setup(false, true, true, "home");
 	for (const role of ["tank", "healer", "damage", "leader"]) {
-		expect(checkboxes.get(`role-${role}`)?.mount).not.toHaveBeenCalled();
-		expect(checkboxes.get(`role-${role}`)?.setChecked).not.toHaveBeenCalled();
+		expect(checkboxes.get(`role-${role}`)?.mount).toHaveBeenCalled();
+		expect(checkboxes.get(`role-${role}`)?.setChecked).toHaveBeenCalled();
 	}
 	expect(rows.map((row) => row.label)).toEqual([
 		"Dungeons",
@@ -213,7 +218,24 @@ it("opens four landing tiles and returns from each separate subpage", () => {
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["page-dungeons", "page-raids", "page-pvp", "page-premades"]);
+	).toEqual([
+		"role-tank",
+		"role-healer",
+		"role-damage",
+		"role-leader",
+		"page-dungeons",
+		"page-raids",
+		"page-pvp",
+		"page-premades",
+	]);
+	panel.getNavGrid().at(0)?.at(0)?.onInteract();
+	expect(client.toggleRole).toHaveBeenCalledWith("tank");
+	expect(checkboxes.get("role-tank")?.mount).toHaveBeenCalledWith(
+		expect.anything(),
+		30,
+		70,
+		false,
+	);
 	for (const page of ["dungeons", "raids", "pvp", "premades"]) {
 		activate(rows.find((row) => row.id === `page-${page}`));
 		callbacks.shift()?.();
@@ -242,6 +264,76 @@ it("opens four landing tiles and returns from each separate subpage", () => {
 		).toEqual(rows.map((row) => row.id));
 	}
 });
+
+it("uses blue menu artwork and ringed category portraits on the landing page", () => {
+	const { rows } = setup(false, true, true, "home");
+	expect(rows.map((row) => row.icon)).toEqual([
+		"Interface\\Icons\\INV_Helmet_08",
+		"Interface\\LFGFrame\\UI-LFR-PORTRAIT",
+		"Interface\\Icons\\achievement_bg_winwsg",
+		"Interface\\Icons\\Achievement_General_StayClassy",
+	]);
+	for (const row of rows) {
+		expect(row.height).toBeGreaterThanOrEqual(95);
+		expect(row).toMatchObject({
+			backgroundTexture: {
+				file: "Interface\\Common\\bluemenu-main",
+				coords: [0.00390625, 0.87890625, 0.75195313, 0.83007813],
+			},
+			iconSize: 66,
+			iconRing: {
+				atlas: "bluemenu-Ring",
+				size: 95,
+				maskAtlas: "CircleMaskScalable",
+			},
+		});
+		expect(row.backgroundAtlas).toBeUndefined();
+	}
+});
+
+it.each(["dungeons", "raids", "specific", "follower", "pvp", "premades"])(
+	"restores Back and roles when remounting the retained %s page without game events",
+	(page) => {
+		const { panel, callbacks } = setup(
+			false,
+			true,
+			true,
+			page === "specific" || page === "follower" ? "dungeons" : page,
+		);
+		if (page === "specific" || page === "follower") {
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === `list-${page}`)
+				?.onInteract();
+			callbacks.shift()?.();
+		}
+		const back = frames.get("dungeon-back");
+		back?.show.mockClear();
+		checkboxes.get("role-tank")?.mount.mockClear();
+		panel.onUnmount();
+		panel.onMount(new Frame("another-parent", {} as IFramePoolManager));
+		while (callbacks.length) callbacks.shift()?.();
+		expect(back?.show).toHaveBeenCalled();
+		if (page !== "pvp" && page !== "premades")
+			expect(checkboxes.get("role-tank")?.mount).toHaveBeenCalled();
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "dungeon-back")
+			?.onInteract();
+		callbacks.shift()?.();
+		expect(
+			(setRows.mock.lastCall?.at(0) as ListRow[] | undefined)?.some(
+				(row) =>
+					row.id ===
+					(page === "specific" || page === "follower"
+						? "list-specific"
+						: "page-dungeons"),
+			),
+		).toBe(true);
+	},
+);
 
 it("widens queue tiles and limits queue actions to the inset red button", () => {
 	const { rows, client } = setup();

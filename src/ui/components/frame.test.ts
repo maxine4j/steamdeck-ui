@@ -3,6 +3,43 @@ import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 
+it("draws a cropped texture background and pooled masked portrait ring, then clears the ring", () => {
+	const texture = () => ({
+		SetTexture: vi.fn(),
+		SetTexCoord: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetAllPoints: vi.fn(),
+		SetAtlas: vi.fn(),
+		SetWidth: vi.fn(),
+		SetHeight: vi.fn(),
+		SetPoint: vi.fn(),
+		SetColorTexture: vi.fn(),
+		AddMaskTexture: vi.fn(),
+		RemoveMaskTexture: vi.fn(),
+	});
+	const background = texture();
+	const ring = texture();
+	const native = {
+		Hide: vi.fn(),
+		CreateTexture: () => background,
+		CreateMaskTexture: () => texture(),
+	} as unknown as WowFrame;
+	const pool = new FramePoolManager({ createFrame: () => native });
+	vi.spyOn(pool, "getDecoration").mockReturnValue(ring);
+	const frame = new Frame("portrait", pool);
+	frame.setTextureBackground("menu", [0.1, 0.9, 0.2, 0.8]);
+	expect(background.SetTexture).toHaveBeenLastCalledWith("menu");
+	expect(background.SetTexCoord).toHaveBeenLastCalledWith(0.1, 0.9, 0.2, 0.8);
+	frame.setIcon("portrait", false);
+	frame.setIconRing({ atlas: "ring", size: 95, maskAtlas: "circle" });
+	expect(ring.SetAtlas).toHaveBeenLastCalledWith("ring", false);
+	expect(ring.SetWidth).toHaveBeenLastCalledWith(95);
+	expect(background.AddMaskTexture).toHaveBeenCalledOnce();
+	frame.setIconRing(undefined);
+	expect(ring.SetTexture).toHaveBeenLastCalledWith(undefined);
+	expect(background.RemoveMaskTexture).toHaveBeenCalledOnce();
+});
+
 afterEach(() => vi.unstubAllGlobals());
 
 it("tiles sliced atlas centers instead of stretching and clears slicing on reuse", () => {

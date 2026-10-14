@@ -40,6 +40,11 @@ export interface AnimatedAtlas {
 	readonly frames: number;
 	readonly duration: number;
 }
+export interface IconRing {
+	readonly atlas: string;
+	readonly size: number;
+	readonly maskAtlas: string;
+}
 interface FlipbookAnimation {
 	SetDuration(seconds: number): void;
 	SetOrder(order: number): void;
@@ -95,6 +100,7 @@ export class Frame implements IUIComponent {
 	private texture?: WowTexture;
 	private textureTinted = false;
 	private buttonSkinned = false;
+	private iconRing = false;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
 	private readonly labelState = new Map<
@@ -594,6 +600,22 @@ export class Frame implements IUIComponent {
 		this.texture?.SetHeight(height);
 		this.texture?.SetPoint("CENTER", native, "CENTER", x, y);
 	}
+	setIconRing(style?: IconRing): void {
+		if (!style && !this.iconRing) return;
+		const native = this.acquire();
+		const ring = this.pool.getDecoration(native, "icon-ring");
+		this.pool.setBackgroundMask(native, style?.maskAtlas);
+		this.iconRing = style !== undefined;
+		if (!style) {
+			ring.SetTexture(undefined);
+			return;
+		}
+		ring.ClearAllPoints();
+		ring.SetPoint("CENTER", native, "CENTER", 0, 0);
+		ring.SetWidth(style.size);
+		ring.SetHeight(style.size);
+		ring.SetAtlas(style.atlas, false);
+	}
 	setIconOutline(): void {
 		applyIconOutline(this.pool, this.acquire());
 	}
@@ -1070,6 +1092,16 @@ export class Frame implements IUIComponent {
 			this.textureTinted = true;
 		}
 	}
+	setTextureBackground(
+		file: number | string,
+		coords: readonly [number, number, number, number],
+	): void {
+		this.setColor(0, 0, 0, 0);
+		this.setIcon(file, false);
+		this.texture?.ClearAllPoints();
+		this.texture?.SetAllPoints();
+		this.texture?.SetTexCoord(...coords);
+	}
 	setSideTabBackground(
 		selected: boolean,
 		mirrored = false,
@@ -1154,6 +1186,7 @@ export class Frame implements IUIComponent {
 		this.animatedAtlas = undefined;
 		if (this.buttonSkinned) this.texture?.SetHorizTile(false);
 		this.buttonSkinned = false;
+		this.iconRing = false;
 		this.atlasSliced = false;
 		this.hoverTooltip?.destroy();
 		this.hoverTooltip = undefined;
