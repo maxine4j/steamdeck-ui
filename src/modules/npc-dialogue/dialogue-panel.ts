@@ -5,6 +5,7 @@ import type { IModalNavigation } from "../../ui/components/modal";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -19,7 +20,9 @@ const dialogueArt = "Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\";
 /** Feature-owned transient content; the fullscreen host supplies lifecycle only. */
 export class DialoguePanel implements IPanel, IDialogueView {
 	readonly id = "npc-dialogue";
-	readonly title = "Conversation";
+	get title(): string {
+		return this.display?.page.speaker ?? "";
+	}
 	private readonly window: Frame;
 	private readonly surface: Frame;
 	private readonly divider: Frame;
@@ -141,25 +144,16 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		const display = this.display;
 		if (!display || !this.mounted) return;
 		const page = display.page;
-		this.surface.setLabel(
-			"speaker",
-			page.speaker,
-			"TOPLEFT",
-			16,
-			-6,
-			16,
-			this.readingWidth,
-		);
+		setWindowTitle(this.window, this.title);
 		this.surface.setLabel(
 			"title",
-			page.title,
+			this.pageTitle(),
 			"TOPLEFT",
 			16,
-			-32,
+			-24,
 			22,
 			this.readingWidth,
 		);
-		this.surface.setLabelStyle("speaker", this.headingColor);
 		this.surface.setLabelStyle("title", this.headingColor);
 		this.surface.setLabelWordWrap("title", false);
 		this.surface.setLabel(
@@ -369,12 +363,22 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.syncNavigation(this.focusFirst);
 		this.focusFirst = false;
 	}
+	private pageTitle(): string {
+		const page = this.display?.page;
+		return page &&
+			page.kind !== "gossip" &&
+			page.kind !== "greeting" &&
+			page.title !== "Conversation"
+			? page.title
+			: "";
+	}
 	private layoutBody(): void {
 		const display = this.display;
 		if (!this.mounted || !display) return;
 		const inputHeight = display.confirmation?.code ? 52 : 0;
+		const readingTop = this.pageTitle() !== "" ? 76 : 48;
 		const minimumReader = Math.ceil(this.height / 3);
-		const available = this.height - 96 - 64 - 24 - inputHeight;
+		const available = this.height - readingTop - 64 - 24 - inputHeight;
 		const choicesHeight = Math.min(
 			this.choices.getContentHeight(),
 			available - minimumReader,
@@ -395,7 +399,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			"TOPLEFT",
 			this.window,
 			28,
-			-96,
+			-readingTop,
 		);
 		this.reading.mount(this.readingHost, this.readingWidth, readerHeight);
 		this.reading.setText(

@@ -198,9 +198,6 @@ it("keeps prose, headings and options readable on a dark background", () => {
 	expect(records.textColors.get("dialogue-surface:title")).toEqual([
 		0.9, 0.9, 0.9,
 	]);
-	expect(records.textColors.get("dialogue-surface:speaker")).toEqual([
-		0.9, 0.9, 0.9,
-	]);
 	expect(records.textColors.get("dialogue-choices-row-0:label")).toEqual([
 		0.796, 0.784, 0.584,
 	]);
@@ -218,7 +215,9 @@ it("keeps selected reward text legible against its highlight", () => {
 
 it("hosts dialogue content inside the shared window", () => {
 	setup(display(page));
-	expect(records.labels.get("dialogue-surface")?.get("speaker")).toBe("Keeper");
+	expect(records.labels.get("dialogue-window")?.get("window-title")).toBe(
+		"Keeper",
+	);
 	for (const id of [
 		"dialogue-reading-host",
 		"dialogue-choices-host",
@@ -226,6 +225,55 @@ it("hosts dialogue content inside the shared window", () => {
 		"dialogue-divider",
 	])
 		expect(records.parents.get(id)).toBe("dialogue-surface");
+});
+
+it("puts the NPC in the title bar and balances gossip text padding without a Conversation heading", () => {
+	const d = display({
+		...page,
+		kind: "gossip",
+		title: "Conversation",
+		entries: [],
+	});
+	const { panel } = setup(d);
+	expect(records.labels.get("dialogue-window")?.get("window-title")).toBe(
+		"Keeper",
+	);
+	expect(records.labelAnchors.get("dialogue-window:window-title")).toBe("TOP");
+	expect(
+		records.labels.get("dialogue-surface")?.get("speaker"),
+	).toBeUndefined();
+	expect(records.labels.get("dialogue-surface")?.get("title")).toBe("");
+	// The reader adds 8px internally: 36px at the sides and below the 20px title bar.
+	expect(records.anchors.get("dialogue-reading-host")).toEqual([
+		"TOPLEFT",
+		28,
+		-48,
+	]);
+	panel.show({ ...d, page: { ...d.page, speaker: "Another NPC" } });
+	expect(records.labels.get("dialogue-window")?.get("window-title")).toBe(
+		"Another NPC",
+	);
+});
+
+it("retains real quest titles and clears them when returning to gossip", () => {
+	const { panel } = setup(
+		display({ ...page, kind: "offer", autoAccepted: false, pvp: false }),
+	);
+	expect(records.labels.get("dialogue-surface")?.get("title")).toBe("A quest");
+	expect(records.anchors.get("dialogue-reading-host")).toEqual([
+		"TOPLEFT",
+		28,
+		-76,
+	]);
+	panel.show(
+		display({ ...page, kind: "gossip", title: "Conversation", entries: [] }),
+	);
+	expect(records.labels.get("dialogue-surface")?.get("title")).toBe("");
+	expect(records.anchors.get("dialogue-reading-host")).toEqual([
+		"TOPLEFT",
+		28,
+		-48,
+	]);
 });
 
 it.each([720, 800])(
@@ -323,7 +371,8 @@ it("keeps confirmation input between prose and bottom options", () => {
 		confirmation: { text: "Code?", code: true },
 	});
 	const readerBottom =
-		96 + (records.layouts.get("dialogue-reading-host")?.at(1) ?? 0);
+		-(records.anchors.get("dialogue-reading-host")?.at(2) ?? 0) +
+		(records.layouts.get("dialogue-reading-host")?.at(1) ?? 0);
 	const inputTop = -(records.anchors.get("dialogue-code")?.at(2) ?? 0);
 	const choicesTop =
 		620 - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
