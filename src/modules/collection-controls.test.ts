@@ -24,6 +24,8 @@ it.each(["toys", "pets"])(
 			"fill",
 			"setWindowBackground",
 			"setButtonBackground",
+			"setInsetBackground",
+			"setTooltip",
 			"setParent",
 			"layout",
 			"setColor",

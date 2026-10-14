@@ -55,8 +55,6 @@ interface ToyFilterApi {
 	SetUnusableShown(this: void, checked: boolean): void;
 	IsSourceTypeFilterChecked(this: void, index: number): boolean;
 	SetSourceTypeFilter(this: void, index: number, checked: boolean): void;
-	IsExpansionTypeFilterChecked(this: void, index: number): boolean;
-	SetExpansionTypeFilter(this: void, index: number, checked: boolean): void;
 }
 
 export class ToysClient implements IToysClient {
@@ -130,12 +128,6 @@ export class ToysClient implements IToysClient {
 					label: `Source: ${labels[`BATTLE_PET_SOURCE_${index}`]}`,
 					checked: api.IsSourceTypeFilterChecked(index),
 				});
-		for (let index = 1; index <= GetNumExpansions(); index++)
-			filters.push({
-				id: `expansion:${index}`,
-				label: `Expansion: ${labels[`EXPANSION_NAME${index - 1}`]}`,
-				checked: api.IsExpansionTypeFilterChecked(index),
-			});
 		return filters;
 	}
 	toggleFilter(id: string): void {
@@ -147,10 +139,8 @@ export class ToysClient implements IToysClient {
 		else if (id === "uncollected") api.SetUncollectedShown(!filter.checked);
 		else if (id === "usable") api.SetUnusableShown(filter.checked);
 		else {
-			const [kind, value] = id.split(":");
-			if (kind === "source")
-				api.SetSourceTypeFilter(Number(value), !filter.checked);
-			else api.SetExpansionTypeFilter(Number(value), !filter.checked);
+			const [, value] = id.split(":");
+			api.SetSourceTypeFilter(Number(value), !filter.checked);
 		}
 	}
 	prefetch(): void {

@@ -28,6 +28,8 @@ function setup() {
 		"fill",
 		"setWindowBackground",
 		"setButtonBackground",
+		"setInsetBackground",
+		"setTooltip",
 		"setParent",
 		"layout",
 		"setColor",
@@ -136,10 +138,58 @@ it("searches pets and refreshes native family filters without removing the summo
 	expect(Frame.prototype.inset).toHaveBeenCalledWith(
 		expect.any(Frame),
 		16,
-		140,
+		112,
 		16,
-		48,
+		114,
 	);
+});
+
+it("hosts the random favourite pet action in a mounts-style bottom bar after the collection grid", () => {
+	const { panel, parent, client, publish } = setup();
+	panel.onMount(parent);
+	publish([pet(1)]);
+	const footer = vi
+		.mocked(Frame.prototype.setInsetBackground)
+		.mock.contexts.find((frame) => frame.id === "pets-footer");
+	expect(footer).toBeDefined();
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		456,
+		70,
+		"BOTTOMLEFT",
+		expect.any(Frame),
+		12,
+		32,
+	);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		38,
+		38,
+		"TOPLEFT",
+		footer,
+		12,
+		-26,
+	);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"random",
+		"Favourite pet",
+		"TOPLEFT",
+		12,
+		-8,
+		12,
+	);
+	expect(Frame.prototype.setTooltip).toHaveBeenCalledWith(
+		"Summon a random favourite pet",
+	);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).toEqual(["pet-Pet-1", "pets-summon-favourite"]);
+	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
+	expect(client.summonFavourite).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	panel.destroy();
+	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).toContain(footer);
 });
 it("groups favourites and expansions in descending order and summons through X and the favourite button", () => {
 	const { panel, parent, client, menu, publish } = setup();
@@ -148,18 +198,18 @@ it("groups favourites and expansions in descending order and summons through X a
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
 	).toEqual([
-		["pets-summon-favourite"],
 		["pet-favourite-Pet-1"],
 		["pet-Pet-2"],
 		["pet-Pet-1", "pet-Pet-3"],
+		["pets-summon-favourite"],
 	]);
-	const first = panel.getNavGrid().at(1)?.at(0);
+	const first = panel.getNavGrid().at(0)?.at(0);
 	first?.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledExactlyOnceWith("Pet-1");
 	first?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(pet(1, 0, true));
 	expect(first?.tooltipItem?.()).toEqual({ text: "Pet 01" });
-	panel.getNavGrid().at(0)?.at(0)?.onInteract();
+	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
 	expect(client.summonFavourite).toHaveBeenCalledOnce();
 	panel.refresh();
 	first?.onAlternate?.();
@@ -170,29 +220,32 @@ it("groups favourites and expansions in descending order and summons through X a
 it("renders at most ten jobs per frame and reuses the completed view on unchanged reopening", () => {
 	const { panel, parent, client, pending, flush } = setup();
 	panel.onMount(parent);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
 	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
 		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
 	);
 	pending.shift()?.();
 	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(9);
-	expect(panel.getNavGrid().slice(1).flat()).toHaveLength(9);
+	expect(panel.getNavGrid().slice(0, -1).flat()).toHaveLength(9);
 	flush();
 	expect(
 		panel
 			.getNavGrid()
-			.slice(1)
+			.slice(0, -1)
 			.map((row) => row.length),
 	).toEqual([10, 10, 5]);
-	const first = panel.getNavGrid().at(1)?.at(0);
-	const summon = panel.getNavGrid().at(0)?.at(0);
+	const first = panel.getNavGrid().at(0)?.at(0);
+	const summon = panel.getNavGrid().at(-1)?.at(0);
 	panel.onUnmount();
 	vi.mocked(Frame.prototype.setIcon).mockClear();
 	panel.onMount(parent);
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
-	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
-	expect(panel.getNavGrid().at(1)?.at(0)).toBe(first);
-	expect(panel.getNavGrid().at(0)?.at(0)).toBe(summon);
+	expect(
+		vi.mocked(Frame.prototype.setIcon).mock.contexts.map((frame) => frame.id),
+	).toEqual(["pets-summon-favourite"]);
+	expect(panel.getNavGrid().at(0)?.at(0)).toBe(first);
+	expect(panel.getNavGrid().at(-1)?.at(0)).toBe(summon);
 });
 it("defers hidden changes, retains warm actions during event bursts and refreshes on reopening", () => {
 	const { panel, parent, client, publish, flush } = setup();
@@ -203,7 +256,7 @@ it("defers hidden changes, retains warm actions during event bursts and refreshe
 	for (let i = 0; i < 5; i++) panel.invalidate();
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
-	panel.getNavGrid().at(1)?.at(0)?.onAlternate?.();
+	panel.getNavGrid().at(0)?.at(0)?.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledOnce();
 	panel.onUnmount();
 	panel.onMount(parent);
@@ -212,7 +265,7 @@ it("defers hidden changes, retains warm actions during event bursts and refreshe
 	expect(
 		panel
 			.getNavGrid()
-			.slice(1)
+			.slice(0, -1)
 			.flat()
 			.map((node) => node.navId),
 	).toEqual(["pet-Pet-2"]);
@@ -221,7 +274,7 @@ it("cancels partial rendering and excludes uncollected pets from summoning", () 
 	const { panel, parent, client, publish, pending, flush } = setup();
 	panel.onMount(parent);
 	publish([{ ...pet(1), collected: false }]);
-	panel.getNavGrid().at(1)?.at(0)?.onAlternate?.();
+	panel.getNavGrid().at(0)?.at(0)?.onAlternate?.();
 	expect(client.summon).not.toHaveBeenCalled();
 	panel.refresh();
 	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
@@ -234,7 +287,7 @@ it("cancels partial rendering and excludes uncollected pets from summoning", () 
 	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
 	panel.onMount(parent);
 	publish([pet(2)]);
-	expect(panel.getNavGrid().slice(1).flat()).toHaveLength(1);
+	expect(panel.getNavGrid().slice(0, -1).flat()).toHaveLength(1);
 });
 it("defers loading in combat, resumes afterwards and lays out resizing without rescans", () => {
 	const { panel, parent, client, publish } = setup();

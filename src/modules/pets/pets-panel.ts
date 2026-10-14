@@ -27,6 +27,7 @@ export class PetsPanel implements IPanel {
 	private readonly summonButton: Frame;
 	private readonly summonNode: INavigable;
 	private readonly frame: Frame;
+	private readonly footer: Frame;
 	private readonly controls: SearchFilters;
 	private readonly viewport: Frame;
 	private readonly content: Frame;
@@ -72,6 +73,7 @@ export class PetsPanel implements IPanel {
 			},
 		);
 		this.frame = new Frame("pets-root", pool);
+		this.footer = new Frame("pets-footer", pool);
 		this.controls = new SearchFilters(
 			"pets",
 			pool,
@@ -108,16 +110,22 @@ export class PetsPanel implements IPanel {
 			12,
 		);
 		this.frame.show();
-		this.summonButton.setParent(this.frame);
 		this.controls.mount(this.frame);
-		this.summonButton.layout(230, 28, "TOPLEFT", this.frame, 16, -100);
-		this.summonButton.setButtonBackground();
-		this.summonButton.setLabel("title", "Summon favourite pet", "CENTER");
-		this.summonButton.onClick(() => {
-			if (this.mounted) this.client.summonFavourite();
+		this.footer.setParent(this.frame);
+		this.footer.layout(456, 70, "BOTTOMLEFT", this.frame, 12, 32);
+		this.footer.setInsetBackground();
+		this.footer.setLabel("random", "Favourite pet", "TOPLEFT", 12, -8, 12);
+		this.summonButton.setParent(this.footer);
+		this.summonButton.layout(38, 38, "TOPLEFT", this.footer, 12, -26);
+		this.summonButton.setIcon(this.icon);
+		this.summonButton.setTooltip("Summon a random favourite pet");
+		this.summonButton.onClick((button) => {
+			if (this.mounted && button === "LeftButton")
+				this.client.summonFavourite();
 		});
 		this.summonButton.show();
-		this.viewport.inset(this.frame, 16, 140, 16, 48);
+		this.footer.show();
+		this.viewport.inset(this.frame, 16, 112, 16, 114);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) this.layoutContent();
 		});
@@ -439,7 +447,7 @@ export class PetsPanel implements IPanel {
 		return this.mounted && !this.mountPending
 			? [
 					...this.controls.getNavGrid(),
-					...(this.controls.isOpen() ? [] : [[this.summonNode], ...this.grid]),
+					...(this.controls.isOpen() ? [] : [...this.grid, [this.summonNode]]),
 				]
 			: [];
 	}
@@ -474,6 +482,7 @@ export class PetsPanel implements IPanel {
 		this.loadingProgress.destroy();
 		this.loadingTrack.destroy();
 		this.summonButton.destroy();
+		this.footer.destroy();
 		this.frame.destroy();
 	}
 }

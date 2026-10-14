@@ -36,7 +36,7 @@ it("searches the native toy journal instead of reusing a persisted unfiltered sn
 	).toEqual([1, 2, 3]);
 });
 
-it("exposes toy collection, usable-only, valid sources and expansions and toggles native settings", () => {
+it("exposes toy collection, usable-only and valid sources without redundant expansion filters", () => {
 	const { client, api } = setup();
 	const filters = Object.assign(api, {
 		GetCollectedShown: () => true,
@@ -65,7 +65,6 @@ it("exposes toy collection, usable-only, valid sources and expansions and toggle
 		{ id: "uncollected", label: "Not collected", checked: false },
 		{ id: "usable", label: "Usable only", checked: false },
 		{ id: "source:1", label: "Source: Drop", checked: true },
-		{ id: "expansion:1", label: "Expansion: Classic", checked: true },
 	]);
 	client.toggleFilter("usable");
 	client.toggleFilter("source:1");
@@ -73,10 +72,7 @@ it("exposes toy collection, usable-only, valid sources and expansions and toggle
 	client.toggleFilter("source:99");
 	expect(filters.SetUnusableShown).toHaveBeenCalledWith(false);
 	expect(filters.SetSourceTypeFilter).toHaveBeenCalledExactlyOnceWith(1, false);
-	expect(filters.SetExpansionTypeFilter).toHaveBeenCalledExactlyOnceWith(
-		1,
-		false,
-	);
+	expect(filters.SetExpansionTypeFilter).not.toHaveBeenCalled();
 });
 
 it("keeps a warm toy snapshot fixed while refreshing cached metadata for reopening", () => {
