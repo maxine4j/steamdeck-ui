@@ -27,4 +27,5 @@ import type { TooltipContent } from "../components/tooltip-content";
 export interface SecureNavigationActions {
 	interact?: Frame;
 	alternate?: Frame;
+	alternateButton?: "LeftButton" | "RightButton";
 }

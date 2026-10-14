@@ -23,12 +23,18 @@ export type InventorySlot = Pick<
 	InventoryItem,
 	"bagId" | "slotId" | "itemId" | "hyperlink"
 >;
+export interface ItemCooldown {
+	readonly start: number;
+	readonly duration: number;
+}
 export interface IInventoryActions {
 	useItem(item: InventorySlot): void;
 	pickupItem(item: InventorySlot): void;
 	destroyItem(item: InventorySlot): void;
 }
 export interface IInventoryClient extends IInventoryActions {
+	getCooldown?(item: InventorySlot): ItemCooldown;
+	getDepositBankType?(): number | undefined;
 	getItems(): InventoryItem[];
 	getMoney(): number;
 	isOpen(): boolean;
@@ -40,6 +46,16 @@ export class InventoryClient implements IInventoryClient {
 	// Retail backpack, four equipped bags, and reagent bag; excludes banks.
 	private readonly bagIds = [0, 1, 2, 3, 4, 5];
 	private readonly reader = new ContainerItemReader();
+	getCooldown(item: InventorySlot): ItemCooldown {
+		const [start, duration, enabled] = C_Container.GetContainerItemCooldown(
+			item.bagId,
+			item.slotId,
+		);
+		return enabled === 0 ? { start: 0, duration: 0 } : { start, duration };
+	}
+	getDepositBankType(): number | undefined {
+		return this.bankTarget?.getDepositBankType();
+	}
 	private isCurrentUnlockedSlot(item: InventorySlot): boolean {
 		if (!this.bagIds.includes(item.bagId) || item.slotId < 1) return false;
 		const current = C_Container.GetContainerItemInfo(item.bagId, item.slotId);

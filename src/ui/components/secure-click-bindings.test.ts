@@ -35,6 +35,12 @@ it("binds named hardware targets, replaces stale keys, guards combat and cleans 
 	expect(owner.SetAttribute).toHaveBeenCalledWith("key1", "PAD3");
 	expect(owner.SetAttribute).toHaveBeenCalledWith("target1", "ToyButton42");
 	expect(execute.mock.lastCall?.at(1)).toContain("self:SetBindingClick");
+	expect(owner.SetAttribute).toHaveBeenCalledWith("button1", "LeftButton");
+	bindings.set([{ key: "PAD3", target, button: "RightButton" }]);
+	expect(owner.SetAttribute).toHaveBeenCalledWith("button1", "RightButton");
+	expect(execute.mock.lastCall?.at(1)).toContain(
+		'self:GetAttribute("button"..i)',
+	);
 	combat = true;
 	execute.mockClear();
 	bindings.set([]);
@@ -45,6 +51,7 @@ it("binds named hardware targets, replaces stale keys, guards combat and cleans 
 	bindings.destroy();
 	expect(owner.SetAttribute).toHaveBeenCalledWith("key1", undefined);
 	expect(owner.SetAttribute).toHaveBeenCalledWith("target1", undefined);
+	expect(owner.SetAttribute).toHaveBeenCalledWith("button1", undefined);
 	expect(unregister).toHaveBeenCalledWith(owner, "combat");
 	expect(pool.release).toHaveBeenCalledWith("SecureFrame", owner);
 });

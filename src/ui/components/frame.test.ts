@@ -409,6 +409,50 @@ it("configures secure toy activation and clears toy attributes before pooling", 
 	expect(native.SetScript).toHaveBeenCalledWith("PostClick", undefined);
 });
 
+it("uses a physical bag slot through secure right clicks and resets pooled actions", () => {
+	let combat = false;
+	vi.stubGlobal("InCombatLockdown", () => combat);
+	const native = {
+		Hide: vi.fn(),
+		Show: vi.fn(),
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: vi.fn(),
+		CreateTexture: () => ({
+			SetAllPoints: vi.fn(),
+			SetTexture: vi.fn(),
+			SetTexCoord: vi.fn(),
+			SetColorTexture: vi.fn(),
+			ClearAllPoints: vi.fn(),
+		}),
+	};
+	const frame = new Frame(
+		"item",
+		new FramePoolManager({ createFrame: () => native }),
+		"SecureButton",
+	);
+	frame.setItem({ bagId: 0, slotId: 3 });
+	expect(native.SetAttribute).toHaveBeenCalledWith("type2", "item");
+	expect(native.SetAttribute).toHaveBeenCalledWith("item2", "0 3");
+	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", false);
+	expect(native.RegisterForClicks).toHaveBeenCalledWith("AnyUp");
+	expect(native.SetScript).not.toHaveBeenCalledWith(
+		"OnClick",
+		expect.anything(),
+	);
+	combat = true;
+	native.SetAttribute.mockClear();
+	frame.setItem({ bagId: 1, slotId: 2 });
+	expect(native.SetAttribute).not.toHaveBeenCalled();
+	combat = false;
+	frame.destroy();
+	expect(native.SetAttribute).toHaveBeenCalledWith("type2", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("item2", undefined);
+});
+
 it("shows toy hover details and clears handlers on pooled icon release", () => {
 	const scripts = new Map<string, (() => void) | undefined>();
 	const tooltip = {

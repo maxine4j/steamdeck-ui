@@ -99,6 +99,7 @@ export class Frame implements IUIComponent {
 	private parent?: Frame;
 	private cancelledSecureType?: string;
 	private cancelledSecureClick = false;
+	private dragRegistered = false;
 	private sizeChanged?: (this: void) => void;
 	private clickBindings?: SecureClickBindings;
 	private hoverTooltipConfigured = false;
@@ -906,6 +907,22 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("toy", toy);
 		if (toy) this.configurePanAction();
 	}
+	/** Leave item activation to the secure template's hardware right-click handler. */
+	setItem(slot?: { readonly bagId: number; readonly slotId: number }): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Item requires a secure button");
+		if (InCombatLockdown()) return;
+		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string | boolean): void;
+		};
+		native.RegisterForClicks("AnyUp");
+		native.SetAttribute("useOnKeyDown", slot ? false : undefined);
+		native.SetAttribute("type2", slot ? "item" : undefined);
+		native.SetAttribute(
+			"item2",
+			slot ? `${slot.bagId} ${slot.slotId}` : undefined,
+		);
+	}
 	/** Observe a secure action without replacing the template's OnClick handler. */
 	onPostClick(callback?: (this: void, button: string) => void): void {
 		if (this.frameType !== "SecureButton")
@@ -1062,10 +1079,11 @@ export class Frame implements IUIComponent {
 		input.SetText("");
 	}
 	onDragStart(callback: (this: void) => void): void {
-		if (this.frameType !== "Button")
+		if (this.frameType !== "Button" && this.frameType !== "SecureButton")
 			throw new Error("Drag handlers require a button");
 		const native = this.acquire();
 		native.RegisterForDrag("LeftButton");
+		this.dragRegistered = true;
 		native.SetScript("OnDragStart", () => {
 			if (!this.findScrollPan()) callback();
 		});
@@ -1310,7 +1328,12 @@ export class Frame implements IUIComponent {
 			).SetScript("PreClick", undefined);
 			this.setSpell();
 			this.setToy();
+			this.setItem();
 			this.onPostClick();
+			if (this.dragRegistered) {
+				this.native.SetScript("OnDragStart", undefined);
+				this.native.RegisterForDrag();
+			}
 		}
 		if (this.frameType === "Cooldown")
 			(this.native as WowFrame & { Clear(): void }).Clear();

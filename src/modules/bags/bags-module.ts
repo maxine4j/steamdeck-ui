@@ -8,6 +8,7 @@ import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 import type { IBuiltInBags } from "./built-in-bags";
 export interface BagsView {
+	refreshCooldowns(): void;
 	setItems(items: readonly InventoryItem[]): void;
 	setMoney(copper: number): void;
 	setVisibilityChanged(callback?: (visible: boolean) => void): void;
@@ -33,6 +34,9 @@ export class BagsModule implements IModule {
 	}
 	private readonly refreshMoney = () =>
 		this.view.setMoney(this.inventory.getMoney());
+	private readonly refreshCooldowns = () => {
+		if (this.visible) this.view.refreshCooldowns();
+	};
 	private readonly panelVisibilityChanged = (visible: boolean) => {
 		this.visible = visible;
 		if (visible) {
@@ -69,6 +73,7 @@ export class BagsModule implements IModule {
 	initialize(): void {
 		this.view.setVisibilityChanged(this.panelVisibilityChanged);
 		this.events.subscribe("BAG_UPDATE_DELAYED", this.refresh);
+		this.events.subscribe("BAG_COOLDOWNS_CHANGED", this.refreshCooldowns);
 		this.events.subscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.subscribe("PLAYER_MONEY", this.refreshMoney);
 		this.events.subscribe("BAG_VISIBILITY_CHANGED", this.syncVisibility);
@@ -84,6 +89,7 @@ export class BagsModule implements IModule {
 		this.cancelRefresh?.();
 		this.cancelRefresh = undefined;
 		this.events.unsubscribe("BAG_UPDATE_DELAYED", this.refresh);
+		this.events.unsubscribe("BAG_COOLDOWNS_CHANGED", this.refreshCooldowns);
 		this.events.unsubscribe("ITEM_DATA_LOAD_RESULT", this.refresh);
 		this.events.unsubscribe("PLAYER_MONEY", this.refreshMoney);
 		this.events.unsubscribe("BAG_VISIBILITY_CHANGED", this.syncVisibility);

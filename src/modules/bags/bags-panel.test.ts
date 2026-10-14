@@ -27,6 +27,10 @@ it.each(["category", "expansion"] as const)(
 			"clampScroll",
 			"setIcon",
 			"onDragStart",
+			"setItem",
+			"onPostClick",
+			"setHoverTooltip",
+			"setCooldown",
 		] as const) {
 			vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 		}
@@ -145,6 +149,7 @@ it.each(["category", "expansion"] as const)(
 );
 
 it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 32, height: 128 }),
 	});
@@ -209,6 +214,19 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 						click = () => handler(undefined, "LeftButton");
 				},
 				RegisterForClicks: vi.fn(),
+				SetAttribute: vi.fn(),
+				SetCooldown: vi.fn(),
+				Clear: vi.fn(),
+				SetHideCountdownNumbers: vi.fn(),
+				SetDrawEdge: vi.fn(),
+				SetOwner: vi.fn(),
+				SetFrameStrata: vi.fn(),
+				SetScale: vi.fn(),
+				NineSlice: { SetAlpha: vi.fn() },
+				TopOverlay: { SetAlpha: vi.fn() },
+				BottomOverlay: { SetAlpha: vi.fn() },
+				ClearLines: vi.fn(),
+				SetHyperlink: vi.fn(),
 				RegisterForDrag: vi.fn(),
 				EnableMouseWheel: vi.fn(),
 				EnableMouse: vi.fn(),
@@ -222,7 +240,10 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	};
 	const pool = new FramePoolManager(factory);
 	const parent = new Frame("parent", pool);
+	let bankType: number | undefined;
 	const actions = {
+		getCooldown: vi.fn(() => ({ start: 100, duration: 14400 })),
+		getDepositBankType: () => bankType,
 		useItem: vi.fn(),
 		pickupItem: vi.fn(),
 		destroyItem: vi.fn(),
@@ -283,13 +304,50 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	panel.onMount(parent);
 	expect(panel.getNavGrid()).toEqual([]);
 	flush();
+	expect(actions.getCooldown).toHaveBeenCalledWith(cloth);
+	const cooldownFrames = () =>
+		factory.createFrame.mock.results
+			.map(({ value }) => value)
+			.filter((native) => vi.mocked(native.SetCooldown).mock.calls.length > 0);
+	expect(cooldownFrames()).toHaveLength(2);
+	expect(cooldownFrames().at(1)?.SetCooldown).toHaveBeenLastCalledWith(
+		100,
+		14400,
+	);
+	const created = factory.createFrame.mock.calls.length;
+	actions.getCooldown.mockReturnValue({ start: 0, duration: 0 });
+	panel.refreshCooldowns();
+	expect(cooldownFrames().at(1)?.SetCooldown).toHaveBeenLastCalledWith(0, 0);
+	expect(factory.createFrame).toHaveBeenCalledTimes(created);
 	const itemScripts = handlers.filter((scripts) => scripts.has("OnDragStart"));
 	const reagentScripts = itemScripts.at(1);
-	reagentScripts?.get("OnClick")?.(undefined, "LeftButton");
+	reagentScripts?.get("OnEnter")?.(undefined, "");
+	const hover = factory.createFrame.mock.results.find(
+		({ value }) => vi.mocked(value.SetOwner).mock.calls.length > 0,
+	)?.value;
+	const reagentIcon = factory.createFrame.mock.results.find(({ value }) =>
+		vi
+			.mocked(value.SetAttribute)
+			.mock.calls.some(([key, value]) => key === "item2" && value === "0 1"),
+	)?.value;
+	expect(hover).toBeDefined();
+	expect(hover?.SetOwner).toHaveBeenLastCalledWith(reagentIcon, "ANCHOR_RIGHT");
+	expect(hover?.SetHyperlink).toHaveBeenLastCalledWith("item:42");
+	reagentScripts?.get("OnLeave")?.(undefined, "");
+	expect(hover?.Hide).toHaveBeenCalled();
+	reagentScripts?.get("PostClick")?.(undefined, "LeftButton");
 	expect(actions.useItem).not.toHaveBeenCalled();
-	reagentScripts?.get("OnClick")?.(undefined, "RightButton");
+	reagentScripts?.get("PostClick")?.(undefined, "RightButton");
 	reagentScripts?.get("OnDragStart")?.(undefined, "LeftButton");
-	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
+	expect(actions.useItem).not.toHaveBeenCalled();
+	expect(reagentScripts?.has("OnClick")).toBe(false);
+	expect(
+		factory.createFrame.mock.results.some(({ value }) =>
+			vi
+				.mocked(value.SetAttribute)
+				.mock.calls.some(([key, value]) => key === "item2" && value === "0 1"),
+		),
+	).toBe(true);
 	expect(actions.pickupItem).not.toHaveBeenCalled();
 	const texts = () => labels.map((label) => label.text).filter(Boolean);
 	expect(
@@ -331,21 +389,29 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	reagent?.navigationScroll?.scrollToEdge("down");
 	expect(edge).toHaveBeenLastCalledWith("down");
 	reagent?.onInteract();
-	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith(cloth);
+	expect(actions.useItem).not.toHaveBeenCalled();
 	reagent?.onAlternate?.();
-	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	expect(actions.useItem).not.toHaveBeenCalled();
+	expect(reagent?.secureActions?.()).toEqual({
+		alternate: expect.objectContaining({ id: "bags-icon-0" }),
+		alternateButton: "RightButton",
+	});
 	reagent?.onContext?.();
 	expect(menu.open).toHaveBeenCalledExactlyOnceWith(cloth);
 	reagent?.onBlur();
 	expect(focus).toHaveBeenLastCalledWith(false, true);
 	const focusCalls = focus.mock.calls.length;
 	panel.onUnmount();
+	actions.getCooldown.mockClear();
+	panel.refreshCooldowns();
+	expect(actions.getCooldown).not.toHaveBeenCalled();
 	expect(focus.mock.calls.length).toBeGreaterThan(focusCalls);
 	expect(focus).toHaveBeenLastCalledWith(false, true);
 	expect(panel.getNavGrid()).toEqual([]);
 	reagent?.onInteract();
 	reagent?.onAlternate?.();
-	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	expect(actions.useItem).not.toHaveBeenCalled();
+	expect(reagent?.secureActions?.().alternate).toBeUndefined();
 	reagent?.onContext?.();
 	expect(menu.open).toHaveBeenCalledOnce();
 	panel.onMount(parent);
@@ -359,10 +425,32 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		layout.mock.contexts.some((frame) => frame.id.startsWith("bags-border-")),
 	).toBe(false);
 	panel.setItems([{ ...cloth, count: 1 }]);
+	const firstIcon = factory.createFrame.mock.results.find(({ value }) =>
+		vi.mocked(value.SetAttribute).mock.calls.some(([key]) => key === "item2"),
+	)?.value;
+	expect(firstIcon?.SetAttribute).toHaveBeenLastCalledWith("item2", undefined);
 	flush();
-	itemScripts.at(0)?.get("OnClick")?.(undefined, "RightButton");
-	expect(actions.useItem).toHaveBeenLastCalledWith({ ...cloth, count: 1 });
+	itemScripts.at(0)?.get("PostClick")?.(undefined, "RightButton");
+	expect(actions.useItem).not.toHaveBeenCalled();
+	expect(reagent?.secureActions?.().alternate).toBeUndefined();
 	expect(texts()).not.toContain("453");
+	bankType = 2;
+	panel.setItems([{ ...cloth, count: 1 }]);
+	flush();
+	expect(firstIcon?.SetAttribute).toHaveBeenLastCalledWith("item2", undefined);
+	const bankingNode = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId.includes("item-42"));
+	expect(bankingNode?.secureActions?.().alternate).toBeUndefined();
+	bankingNode?.onAlternate?.();
+	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith({
+		...cloth,
+		count: 1,
+	});
+	itemScripts.at(0)?.get("PostClick")?.(undefined, "RightButton");
+	expect(actions.useItem).toHaveBeenLastCalledWith({ ...cloth, count: 1 });
+	bankType = undefined;
 	click?.();
 	flush();
 	layout.mockClear();

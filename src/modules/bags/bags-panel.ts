@@ -1,6 +1,7 @@
 import type {
-	IInventoryActions,
+	IInventoryClient,
 	InventoryItem,
+	InventorySlot,
 } from "../../clients/inventory-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
@@ -19,6 +20,7 @@ export interface BagsPanelPresentation {
 	readonly hint?: string;
 	readonly emptyText?: string;
 	readonly showMoney?: boolean;
+	readonly itemInteraction?: "use" | "transfer";
 }
 
 const qualityColors: readonly (readonly [number, number, number])[] = [
@@ -38,7 +40,12 @@ const categoryWidth = 226;
 const categorySpacing = 234;
 export class BagsPanel implements IPanel {
 	readonly icon = 133633;
-	private readonly icons: { border: Frame; icon: Frame }[] = [];
+	private readonly icons: {
+		border: Frame;
+		icon: Frame;
+		cooldown: Frame;
+		source?: InventorySlot;
+	}[] = [];
 	private readonly headers: Frame[] = [];
 	private readonly toggle: Frame;
 	private readonly viewport: Frame;
@@ -50,6 +57,7 @@ export class BagsPanel implements IPanel {
 	private dirty = true;
 	private contentHeight = 1;
 	private rendering = false;
+	private renderGeneration = 0;
 	private cancelRender?: () => void;
 	private navGrid: NavGrid = [];
 	private navigationChanged?: () => void;
@@ -59,7 +67,10 @@ export class BagsPanel implements IPanel {
 		public readonly title: string,
 		private readonly frame: Frame,
 		private readonly pool: IFramePoolManager,
-		private readonly actions: Pick<IInventoryActions, "useItem" | "pickupItem">,
+		private readonly actions: Pick<
+			IInventoryClient,
+			"useItem" | "pickupItem" | "getDepositBankType" | "getCooldown"
+		>,
 		private readonly menu: IItemActionMenu,
 		private readonly scheduler: ITaskScheduler,
 		private readonly grouping: ItemGrouping = new ItemGrouping(),
@@ -132,6 +143,7 @@ export class BagsPanel implements IPanel {
 		this.mounted = true;
 		if (this.dirty) this.render();
 		else this.layoutContent();
+		this.refreshCooldowns();
 		this.renderMoney();
 	}
 	private renderMoney(): void {
@@ -146,10 +158,16 @@ export class BagsPanel implements IPanel {
 		);
 	}
 	private render(): void {
+		const generation = ++this.renderGeneration;
 		this.cancelRender?.();
 		this.dirty = true;
 		this.rendering = true;
+		for (const cell of this.icons) {
+			cell.icon.setItem();
+			cell.icon.hideTooltip();
+		}
 		const jobs: (() => void)[] = [];
+		const secureItems: (() => void)[] = [];
 		const grid: NavGrid = [
 			[
 				this.toggle.navigationNode(`${this.id}-group-toggle`, () =>
@@ -195,7 +213,12 @@ export class BagsPanel implements IPanel {
 							icon: new Frame(
 								`${this.id}-icon-${cellIndex}`,
 								this.pool,
-								"Button",
+								"SecureButton",
+							),
+							cooldown: new Frame(
+								`${this.id}-cooldown-${cellIndex}`,
+								this.pool,
+								"Cooldown",
 							),
 						};
 						this.icons.push(cell);
@@ -215,6 +238,23 @@ export class BagsPanel implements IPanel {
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(item.iconFileId);
 					const source = item.sources.at(0);
+					cell.source = source;
+					cell.cooldown.fill(cell.icon);
+					const usesSecureItem = () =>
+						source !== undefined &&
+						this.presentation.itemInteraction !== "transfer" &&
+						this.actions.getDepositBankType?.() === undefined;
+					const icon = cell.icon;
+					const current = () =>
+						this.mounted &&
+						!this.rendering &&
+						generation === this.renderGeneration;
+					icon.setHoverTooltip(() =>
+						current() ? (source?.hyperlink ?? item.itemId) : undefined,
+					);
+					secureItems.push(() =>
+						icon.setItem(usesSecureItem() ? source : undefined),
+					);
 					const top =
 						groupTop + 28 + Math.floor(itemIndex / itemsPerRow) * itemSpacing;
 					const row = 1 + Math.floor(top / itemSpacing);
@@ -235,33 +275,33 @@ export class BagsPanel implements IPanel {
 					);
 					cells.push({
 						...node,
+						secureActions: () => ({
+							alternate: current() && usesSecureItem() ? icon : undefined,
+							alternateButton: "RightButton",
+						}),
 						navigationScroll: this.viewport,
 						tooltipItem: () =>
-							this.mounted && !this.rendering
-								? (source?.hyperlink ?? item.itemId)
-								: undefined,
+							current() ? (source?.hyperlink ?? item.itemId) : undefined,
 						onAlternate: () => {
-							if (this.mounted && !this.rendering && source)
+							if (current() && source && !usesSecureItem())
 								this.actions.useItem(source);
 						},
 						onContext: () => {
-							if (this.mounted && !this.rendering && source)
-								this.menu.open(source);
+							if (current() && source) this.menu.open(source);
 						},
 						navColumn: column * itemsPerRow + (itemIndex % itemsPerRow),
 					});
-					cell.icon.onClick((button) => {
+					cell.icon.onPostClick((button) => {
 						if (
-							this.mounted &&
-							!this.rendering &&
+							current() &&
 							source &&
+							!usesSecureItem() &&
 							button === "RightButton"
 						)
 							this.actions.useItem(source);
 					});
 					cell.icon.onDragStart(() => {
-						if (this.mounted && !this.rendering && source)
-							this.actions.pickupItem(source);
+						if (current() && source) this.actions.pickupItem(source);
 					});
 					cell.icon.setLabel(
 						"count",
@@ -281,6 +321,7 @@ export class BagsPanel implements IPanel {
 					);
 					cell.border.show();
 					cell.icon.show();
+					cell.cooldown.show();
 				});
 			});
 			columnBottoms[column] =
@@ -305,6 +346,8 @@ export class BagsPanel implements IPanel {
 			jobs.push(() => {
 				cell?.border.hide();
 				cell?.icon.hide();
+				cell?.cooldown.hide();
+				if (cell) cell.source = undefined;
 			});
 		}
 		for (let i = groups.length; i < this.headers.length; i++) {
@@ -323,6 +366,8 @@ export class BagsPanel implements IPanel {
 			this.navGrid = grid;
 			this.dirty = false;
 			this.rendering = false;
+			for (const configure of secureItems) configure();
+			this.refreshCooldowns();
 			this.navigationChanged?.();
 		};
 		this.cancelRender = this.scheduler.nextFrame(step);
@@ -334,6 +379,14 @@ export class BagsPanel implements IPanel {
 			this.viewport,
 		);
 		this.viewport.clampScroll();
+	}
+	refreshCooldowns(): void {
+		if (!this.mounted || this.rendering) return;
+		for (const cell of this.icons) {
+			if (!cell.source) continue;
+			const cooldown = this.actions.getCooldown?.(cell.source);
+			cell.cooldown.setCooldown(cooldown?.start ?? 0, cooldown?.duration ?? 0);
+		}
 	}
 	private toggleGrouping(): void {
 		if (!this.mounted) return;
@@ -358,6 +411,7 @@ export class BagsPanel implements IPanel {
 		this.unsubscribeGrouping();
 		this.onUnmount();
 		for (const cell of this.icons) {
+			cell.cooldown.destroy();
 			cell.icon.destroy();
 			cell.border.destroy();
 		}

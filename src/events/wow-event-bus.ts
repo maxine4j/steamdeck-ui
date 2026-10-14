@@ -230,6 +230,7 @@ export class WowEventBus implements IEventBus {
 		for (const event of petEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
+		this.frame.RegisterEvent("BAG_UPDATE_COOLDOWN");
 		this.frame.RegisterEvent("BAG_OPEN");
 		this.frame.RegisterEvent("BAG_CLOSED");
 		this.frame.RegisterEvent("PLAYER_MONEY");
@@ -374,6 +375,8 @@ export class WowEventBus implements IEventBus {
 						: undefined,
 				);
 			if (event === "SPELL_UPDATE_COOLDOWN") this.emit("TOYS_COOLDOWN_CHANGED");
+			if (event === "BAG_UPDATE_COOLDOWN" || event === "SPELL_UPDATE_COOLDOWN")
+				this.emit("BAG_COOLDOWNS_CHANGED");
 			if (dungeonFinderEvents.includes(event))
 				this.emit("DUNGEON_FINDER_CHANGED");
 			if (reputationEvents.includes(event)) this.emit("REPUTATION_CHANGED");

@@ -70,6 +70,7 @@ export class BankPanel implements IPanel {
 			{
 				bottomInset: 112,
 				showMoney: false,
+				itemInteraction: "transfer",
 				hint: "",
 				emptyText: "This bank is empty or unavailable",
 			},

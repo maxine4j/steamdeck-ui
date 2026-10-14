@@ -3,6 +3,25 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("publishes bag cooldown changes from native bag and spell cooldown events", () => {
+	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const changed = vi.fn();
+	bus.subscribe("BAG_COOLDOWNS_CHANGED", changed);
+	for (const event of ["BAG_UPDATE_COOLDOWN", "SPELL_UPDATE_COOLDOWN"]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event);
+	}
+	expect(changed).toHaveBeenCalledTimes(2);
+});
+
 it("registers and delivers native bank lifecycle, tab and warband money updates", () => {
 	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
 	const frame = {

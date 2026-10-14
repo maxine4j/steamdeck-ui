@@ -3,6 +3,30 @@ import { InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reads the physical slot cooldown, including multi-hour durations and disabled cooldowns", () => {
+	const cooldown = vi.fn(() => [100, 14400, 1]);
+	vi.stubGlobal("C_Container", { GetContainerItemCooldown: cooldown });
+	const client = new InventoryClient();
+	const item = { bagId: 2, slotId: 7, itemId: 49040 };
+	expect(client.getCooldown(item)).toEqual({ start: 100, duration: 14400 });
+	expect(cooldown).toHaveBeenCalledExactlyOnceWith(2, 7);
+	cooldown.mockReturnValue([0, 0, 1]);
+	expect(client.getCooldown(item)).toEqual({ start: 0, duration: 0 });
+	cooldown.mockReturnValue([100, 14400, 0]);
+	expect(client.getCooldown(item)).toEqual({ start: 0, duration: 0 });
+});
+
+it("exposes the current deposit target so secure item use can be disabled while banking", () => {
+	let type: number | undefined = 2;
+	const client = new InventoryClient({ getDepositBankType: () => type });
+	expect(client.getDepositBankType()).toBe(2);
+	type = 0;
+	expect(client.getDepositBankType()).toBe(0);
+	type = undefined;
+	expect(client.getDepositBankType()).toBeUndefined();
+	expect(new InventoryClient().getDepositBankType()).toBeUndefined();
+});
+
 it("deposits carried stacks into the selected bank type and returns to normal use when banking ends", () => {
 	let type: number | undefined = 2;
 	let usable = true;

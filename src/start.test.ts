@@ -662,7 +662,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_INTERACT");
 	expect(inventory.useItem).not.toHaveBeenCalled();
 	events.emit("NAV_ALTERNATE");
-	expect(inventory.useItem).toHaveBeenCalledOnce();
+	expect(inventory.useItem).not.toHaveBeenCalled();
+	expect(controller.setSecureActions).toHaveBeenLastCalledWith({
+		alternate: expect.objectContaining({ id: "bags-icon-0" }),
+		alternateButton: "RightButton",
+	});
 	events.emit("NAV_CONTEXT");
 	expect(app.navigation.focusedId).toBe("item-actions-use");
 	expect(focusedTooltip.Hide).toHaveBeenCalled();
@@ -689,7 +693,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	);
 	expect(detailWindow).toBeDefined();
 	events.emit("NAV_ALTERNATE");
-	expect(inventory.useItem).toHaveBeenCalledOnce();
+	expect(inventory.useItem).not.toHaveBeenCalled();
 	const overlay = frames.find((frame) =>
 		vi
 			.mocked(frame.SetFrameStrata)
@@ -729,7 +733,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	events.emit("NAV_INTERACT");
 	events.emit("NAV_CONTEXT");
 	events.emit("COMBAT_STARTED");
-	expect(inventory.useItem).toHaveBeenCalledTimes(2);
+	expect(inventory.useItem).toHaveBeenCalledOnce();
 	expect(app.navigation.focusedId).toContain("bags-item-42");
 	expect(frames).toHaveLength(modalCount);
 	const rightFrame = frames.at(1);

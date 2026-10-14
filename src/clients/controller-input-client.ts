@@ -112,8 +112,15 @@ export class ControllerInputClient implements IControllerInputClient {
 		if (this.listening) {
 			if (this.secureActions?.interact)
 				bindings.push({ key: "PAD1", target: this.secureActions.interact });
-			if (this.secureActions?.alternate)
-				bindings.push({ key: "PAD3", target: this.secureActions.alternate });
+			if (this.secureActions?.alternate) {
+				const binding: ClickBinding = {
+					key: "PAD3",
+					target: this.secureActions.alternate,
+				};
+				if (this.secureActions.alternateButton)
+					binding.button = this.secureActions.alternateButton;
+				bindings.push(binding);
+			}
 		}
 		this.surface.setClickBindings(bindings);
 	}

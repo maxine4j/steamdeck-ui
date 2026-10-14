@@ -20,6 +20,7 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	};
 	let visibilityChanged: ((visible: boolean) => void) | undefined;
 	const view = {
+		refreshCooldowns: vi.fn(),
 		setItems: vi.fn(),
 		setMoney: vi.fn(),
 		setVisibilityChanged: (callback?: (visible: boolean) => void) => {
@@ -61,7 +62,13 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	visibilityChanged?.(true);
 	expect(inventory.getItems).toHaveBeenCalledOnce();
 	expect(ui.openPanel).not.toHaveBeenCalled();
+	events.emit("BAG_COOLDOWNS_CHANGED");
+	expect(view.refreshCooldowns).toHaveBeenCalledOnce();
+	expect(inventory.getItems).toHaveBeenCalledOnce();
+	view.refreshCooldowns.mockClear();
 	visibilityChanged?.(false);
+	events.emit("BAG_COOLDOWNS_CHANGED");
+	expect(view.refreshCooldowns).not.toHaveBeenCalled();
 	visibilityChanged?.(true);
 	expect(inventory.getItems).toHaveBeenCalledOnce();
 	events.emit("BAG_UPDATE_DELAYED");
@@ -99,6 +106,8 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	events.emit("BAG_UPDATE_DELAYED");
 	module.shutdown();
+	events.emit("BAG_COOLDOWNS_CHANGED");
+	expect(view.refreshCooldowns).not.toHaveBeenCalled();
 	pending.shift()?.();
 	expect(inventory.getItems).toHaveBeenCalledTimes(3);
 	expect(builtIn.restore).toHaveBeenCalledOnce();

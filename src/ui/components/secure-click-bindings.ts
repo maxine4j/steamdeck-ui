@@ -5,6 +5,7 @@ import type { Frame } from "./frame";
 export interface ClickBinding {
 	key: string;
 	target: Frame;
+	button?: "LeftButton" | "RightButton";
 }
 
 type BindingFrame = WowFrame & {
@@ -14,7 +15,7 @@ type BindingFrame = WowFrame & {
 const APPLY_BINDINGS = `
 self:ClearBindings()
 for i = 1, self:GetAttribute("count") or 0 do
-	self:SetBindingClick(true, self:GetAttribute("key"..i), self:GetAttribute("target"..i), "LeftButton")
+	self:SetBindingClick(true, self:GetAttribute("key"..i), self:GetAttribute("target"..i), self:GetAttribute("button"..i))
 end
 `;
 
@@ -35,6 +36,10 @@ export class SecureClickBindings {
 			RegisterStateDriver(this.frame, "combat", "[combat] combat; peace");
 		}
 		bindings.forEach((binding, index) => {
+			this.frame?.SetAttribute(
+				`button${index + 1}`,
+				binding.button ?? "LeftButton",
+			);
 			this.frame?.SetAttribute(`key${index + 1}`, binding.key);
 			this.frame?.SetAttribute(
 				`target${index + 1}`,
@@ -44,6 +49,7 @@ export class SecureClickBindings {
 		for (let index = bindings.length; index < this.count; index++) {
 			this.frame.SetAttribute(`key${index + 1}`, undefined);
 			this.frame.SetAttribute(`target${index + 1}`, undefined);
+			this.frame.SetAttribute(`button${index + 1}`, undefined);
 		}
 		this.count = bindings.length;
 		this.frame.SetAttribute("count", this.count);

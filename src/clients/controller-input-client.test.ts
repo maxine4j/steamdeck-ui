@@ -31,6 +31,15 @@ it("propagates secure actions to hardware bindings without emitting addon naviga
 	]);
 	expect(handle?.("PAD3")).toBe(false);
 	expect(alternate).not.toHaveBeenCalled();
+	client.setSecureActions({
+		alternate: target,
+		alternateButton: "RightButton",
+	});
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([
+		{ key: "PAD3", target, button: "RightButton" },
+	]);
+	expect(handle?.("PAD3")).toBe(false);
+	expect(alternate).not.toHaveBeenCalled();
 	client.setSecureActions();
 	expect(surface.setClickBindings).toHaveBeenLastCalledWith([]);
 	expect(handle?.("PAD3")).toBe(true);
