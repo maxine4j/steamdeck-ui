@@ -11,6 +11,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	vi.stubGlobal("_G", {});
+	vi.stubGlobal("C_CVar", { GetCVar: () => "0.6" });
 	vi.stubGlobal("TransmogFrame", undefined);
 	vi.stubGlobal("SearchBoxTemplate_OnTextChanged", vi.fn());
 	vi.stubGlobal("C_Texture", {
@@ -640,7 +641,16 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(7);
+	expect(frames).toHaveLength(8);
+	const reticle = frames.at(7);
+	expect(reticle?.SetFrameStrata).toHaveBeenCalledWith("BACKGROUND");
+	expect(reticle?.SetPoint).toHaveBeenCalledWith(
+		"CENTER",
+		nativeParent,
+		"BOTTOM",
+		0,
+		648,
+	);
 	for (const frame of builtIns)
 		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(6));
 	inventory.isOpen.mockReturnValue(true);

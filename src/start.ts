@@ -83,6 +83,7 @@ import { BuiltInTalents } from "./modules/talents/built-in-talents";
 import { TalentTreePanel } from "./modules/talents/talent-tree-panel";
 import { TalentsModule } from "./modules/talents/talents-module";
 import { TalentsPanel } from "./modules/talents/talents-panel";
+import { registerTargeting } from "./modules/targeting/register-targeting";
 import { BuiltInToys } from "./modules/toys/built-in-toys";
 import { ToyActionMenu } from "./modules/toys/toy-action-menu";
 import { ToysModule } from "./modules/toys/toys-module";
@@ -656,6 +657,7 @@ export function startSteamDeckUI(
 			scheduler,
 		),
 	);
+	registerTargeting(pool, modules);
 	const login = () => modules.start();
 	events.subscribe("PLAYER_LOGIN", login);
 	return {
