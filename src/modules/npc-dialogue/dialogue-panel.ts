@@ -14,11 +14,15 @@ import type {
 	IDialogueView,
 } from "./dialogue-module";
 
+const dialogueArt = "Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\";
+
 /** Feature-owned transient content; the fullscreen host supplies lifecycle only. */
 export class DialoguePanel implements IPanel, IDialogueView {
 	readonly id = "npc-dialogue";
 	readonly title = "Conversation";
 	private readonly window: Frame;
+	private readonly parchment: Frame;
+	private readonly divider: Frame;
 	private readonly readingHost: Frame;
 	private readonly choicesHost: Frame;
 	private readonly input: Frame;
@@ -29,7 +33,6 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private mounted = false;
 	private code = "";
 	private readingWidth = 480;
-	private readingHeight = 430;
 	private height = 620;
 	private navigationChanged?: () => void;
 	private readonly ink = [0.19, 0.17, 0.13] as const;
@@ -38,6 +41,8 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		private readonly navigation: IModalNavigation,
 	) {
 		this.window = new Frame("dialogue-window", pool);
+		this.parchment = new Frame("dialogue-parchment", pool);
+		this.divider = new Frame("dialogue-divider", pool);
 		this.readingHost = new Frame("dialogue-reading-host", pool);
 		this.choicesHost = new Frame("dialogue-choices-host", pool);
 		this.input = new Frame("dialogue-code", pool, "EditBox");
@@ -95,21 +100,27 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.height = height;
 		this.window.setParent(parent);
 		this.window.layout(width, height, "RIGHT", parent, -32, 0);
-		this.window.setAtlasBackground("QuestBG-Parchment");
-		this.readingWidth = width - 56;
-		this.readingHeight = Math.floor((height - 180) * 0.45);
-		this.readingHost.setParent(this.window);
-		this.readingHost.layout(
-			this.readingWidth,
-			this.readingHeight,
-			"TOPLEFT",
-			this.window,
-			28,
-			-96,
+		this.window.setWindowBackground();
+		this.parchment.inset(this.window, 12, 12, 12, 12);
+		// Sample the high-resolution paper interior, keeping our shared metal chrome.
+		this.parchment.setTextureBackground(`${dialogueArt}Parchment.png`, [
+			0.15,
+			0.85,
+			256 / 2048,
+			896 / 2048,
+		]);
+		this.parchment.show();
+		this.divider.setParent(this.parchment);
+		this.divider.setTextureBackground(
+			`${dialogueArt}Parchment.png`,
+			[0, 0.71875, 0.72265625, 0.75390625],
 		);
-		this.choicesHost.setParent(this.window);
+		this.divider.show();
+		this.readingWidth = width - 56;
+		this.readingHost.setParent(this.parchment);
+		this.choicesHost.setParent(this.parchment);
 		this.choices.setWidth(this.readingWidth);
-		this.input.setParent(this.window);
+		this.input.setParent(this.parchment);
 		this.input.setInsetBackground();
 		this.input.setFocusBorder(true);
 		this.input.configureInput((text) => {
@@ -119,7 +130,6 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.choicesHost.show();
 		this.window.show();
 		this.mounted = true;
-		this.reading.mount(this.readingHost, this.readingWidth, this.readingHeight);
 		this.choices.mount(this.choicesHost);
 		this.render();
 	}
@@ -127,34 +137,33 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		const display = this.display;
 		if (!display || !this.mounted) return;
 		const page = display.page;
-		this.window.setLabel(
+		this.parchment.setLabel(
 			"speaker",
 			page.speaker,
 			"TOPLEFT",
-			28,
-			-18,
+			16,
+			-6,
 			16,
 			this.readingWidth,
 		);
-		this.window.setLabel(
+		this.parchment.setLabel(
 			"title",
 			page.title,
 			"TOPLEFT",
-			28,
-			-44,
+			16,
+			-32,
 			22,
 			this.readingWidth,
 		);
-		this.window.setLabelStyle("speaker", this.ink);
-		this.window.setLabelStyle("title", this.ink);
-		this.window.setLabelWordWrap("title", false);
+		this.parchment.setLabelStyle("speaker", this.ink);
+		this.parchment.setLabelStyle("title", this.ink);
+		this.parchment.setLabelWordWrap("title", false);
 		const text = display.confirmation?.text ?? page.text;
-		this.reading.setText(text, display.resetReading);
-		// Short conversations leave more room for choices; long prose keeps its own reader.
-		const readerHeight = Math.min(
-			this.readingHeight,
-			Math.max(48, this.reading.getTextHeight()),
-		);
+		// Keep a bottom action viewport; long options/rewards scroll independently.
+		const choicesHeight = Math.min(168, (this.height - 160) * 0.36);
+		const choicesTop = this.height - 64 - choicesHeight;
+		const readerHeight =
+			choicesTop - 96 - 24 - (display.confirmation?.code ? 52 : 0);
 		this.readingHost.layout(
 			this.readingWidth,
 			readerHeight,
@@ -164,32 +173,38 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			-96,
 		);
 		this.reading.mount(this.readingHost, this.readingWidth, readerHeight);
-		this.reading.setText(text, false);
-		this.window.setLabel(
+		this.reading.setText(text, display.resetReading);
+		this.parchment.setLabel(
 			"hint",
 			display.suspended
 				? "Dialogue paused during combat. Actions resume after combat."
 				: (display.feedback ??
 						`${controllerIcon("D-pad")} Focus · ${controllerIcon("A")} Select / Read · ${controllerIcon("Y")} Read up · ${controllerIcon("B")} Cancel / Close`),
 			"BOTTOMLEFT",
-			28,
 			16,
+			4,
 			12,
 			this.readingWidth,
 		);
-		this.window.setLabelStyle("hint", this.ink);
-		this.window.setLabelWordWrap("hint", true);
+		this.parchment.setLabelStyle("hint", this.ink);
+		this.parchment.setLabelWordWrap("hint", true);
 		const rows: ListRow[] = [];
 		const enabled = !display.suspended && !display.waiting;
-		const choicesTop =
-			96 + readerHeight + 16 + (display.confirmation?.code ? 52 : 0);
 		this.choicesHost.layout(
 			this.readingWidth,
-			this.height - choicesTop - 64,
+			choicesHeight,
+			"BOTTOMLEFT",
+			this.window,
+			28,
+			64,
+		);
+		this.divider.layout(
+			this.readingWidth,
+			8,
 			"TOPLEFT",
 			this.window,
 			28,
-			-choicesTop,
+			-(choicesTop - 16),
 		);
 		this.input.layout(
 			this.readingWidth,
@@ -204,8 +219,13 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			activate: () => void,
 			selected = false,
 		): void => {
+			const speech =
+				(page.kind === "gossip" || page.kind === "greeting") &&
+				(entry.icon === 132053 || entry.icon === 1019848);
 			rows.push({
 				...entry,
+				icon: speech ? `${dialogueArt}Gossip.png` : entry.icon,
+				iconSize: speech ? 24 : undefined,
 				selected,
 				fontSize: 17,
 				background: selected ? [0.67, 0.56, 0.36] : false,
@@ -364,9 +384,11 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		if (this.mounted) this.onUnmount();
 		this.reading.destroy();
 		this.choices.destroy();
+		this.divider.destroy();
 		this.input.destroy();
 		this.readingHost.destroy();
 		this.choicesHost.destroy();
+		this.parchment.destroy();
 		this.window.destroy();
 	}
 }

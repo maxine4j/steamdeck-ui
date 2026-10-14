@@ -14,6 +14,9 @@ const records = vi.hoisted(() => ({
 	anchors: new Map<string, [string, number, number]>(),
 	skins: new Map<string, string>(),
 	labelAnchors: new Map<string, string>(),
+	textures: new Map<string, [number | string, readonly number[]]>(),
+	icons: new Map<string, number | string>(),
+	parents: new Map<string, string>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
@@ -45,13 +48,16 @@ vi.mock("../../ui/components/frame", () => ({
 				22
 			);
 		}
-		setParent = vi.fn();
+		setParent = (parent: { id: string }) =>
+			records.parents.set(this.id, parent.id);
 		setColor = () => records.skins.set(this.id, "flat");
 		setAtlasBackground = (atlas: string) => records.skins.set(this.id, atlas);
 		setLabelStyle = vi.fn();
 		setCloseButtonBackground = vi.fn();
 		setButtonBackground = () => records.skins.set(this.id, "red-button");
-		setWindowBackground = vi.fn();
+		setWindowBackground = () => records.skins.set(this.id, "metal-window");
+		setTextureBackground = (file: string, coords: readonly number[]) =>
+			records.textures.set(this.id, [file, coords]);
 		setInsetBackground = vi.fn();
 		setFocusBorder = vi.fn();
 		setFocused = vi.fn();
@@ -59,7 +65,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setHoverTooltip = vi.fn();
 		showTooltip = vi.fn();
 		hideTooltip = vi.fn();
-		setIcon = vi.fn();
+		setIcon = (icon: number | string) => records.icons.set(this.id, icon);
 		setLabelWordWrap = vi.fn();
 		show = vi.fn();
 		hide = vi.fn();
@@ -84,6 +90,9 @@ beforeEach(() => {
 	records.anchors.clear();
 	records.skins.clear();
 	records.labelAnchors.clear();
+	records.textures.clear();
+	records.icons.clear();
+	records.parents.clear();
 });
 
 const page = {
@@ -124,9 +133,23 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 
 it("shows controller graphics beside conversation actions", () => {
 	setup(display(page));
-	expect(records.labels.get("dialogue-window")?.get("hint")).toContain(
+	expect(records.labels.get("dialogue-parchment")?.get("hint")).toContain(
 		"xbox_r_a.blp:18:18|t Select / Read",
 	);
+});
+
+it("hosts dialogue content above the parchment artwork", () => {
+	setup(display(page));
+	expect(records.labels.get("dialogue-parchment")?.get("speaker")).toBe(
+		"Keeper",
+	);
+	for (const id of [
+		"dialogue-reading-host",
+		"dialogue-choices-host",
+		"dialogue-code",
+		"dialogue-divider",
+	])
+		expect(records.parents.get(id)).toBe("dialogue-parchment");
 });
 
 it.each([720, 800])(
@@ -152,11 +175,20 @@ it.each([720, 800])(
 		);
 		const readingHeight =
 			records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
-		const choicesTop = -(
-			records.anchors.get("dialogue-choices-host")?.at(2) ?? 0
-		);
+		const choicesTop =
+			h - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
 		expect(choicesTop).toBeGreaterThanOrEqual(readingTop + readingHeight);
-		expect(records.skins.get("dialogue-window")).toBe("QuestBG-Parchment");
+		expect(records.anchors.get("dialogue-choices-host")).toEqual([
+			"BOTTOMLEFT",
+			28,
+			64,
+		]);
+		expect(readingHeight).toBeGreaterThanOrEqual(260);
+		expect(records.skins.get("dialogue-window")).toBe("metal-window");
+		expect(records.textures.get("dialogue-parchment")).toEqual([
+			"Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\Parchment.png",
+			[0.15, 0.85, 256 / 2048, 896 / 2048],
+		]);
 		expect([...records.skins.values()]).not.toContain("red-button");
 		expect(
 			[...records.labels.values()]
@@ -170,6 +202,60 @@ it.each([720, 800])(
 		expect(records.created).toBe(count + 1);
 	},
 );
+it("keeps options at the bottom and the reader spacious when prose is short", () => {
+	const d = display({
+		...page,
+		kind: "gossip",
+		entries: [{ id: "talk", label: "Talk" }],
+	});
+	const { panel } = setup(d);
+	const reading = records.layouts.get("dialogue-reading-host");
+	const options = records.anchors.get("dialogue-choices-host");
+	panel.show({ ...d, page: { ...d.page, text: "Hello." }, resetReading: true });
+	expect(records.layouts.get("dialogue-reading-host")).toEqual(reading);
+	expect(records.anchors.get("dialogue-choices-host")).toEqual(options);
+	expect(options).toEqual(["BOTTOMLEFT", 28, 64]);
+});
+
+it("uses crisp speech artwork while preserving service and reward icons", () => {
+	const { panel } = setup(
+		display({
+			...page,
+			kind: "gossip",
+			entries: [
+				{ id: "talk", label: "Talk", icon: 132053 },
+				{ id: "vendor", label: "Shop", icon: 132060 },
+			],
+		}),
+	);
+	expect(records.icons.get("dialogue-choices-icon-0")).toBe(
+		"Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\Gossip.png",
+	);
+	expect(records.layouts.get("dialogue-choices-icon-0")).toEqual([24, 24]);
+	expect(records.icons.get("dialogue-choices-icon-1")).toBe(132060);
+	panel.show(
+		display({
+			...page,
+			kind: "rewards",
+			rewards: [{ id: "item", label: "Reward", icon: 132053 }],
+		}),
+	);
+	expect(records.icons.get("dialogue-choices-icon-1")).toBe(132053);
+});
+
+it("keeps confirmation input between prose and bottom options", () => {
+	setup({
+		...display({ ...page, kind: "gossip", entries: [] }),
+		confirmation: { text: "Code?", code: true },
+	});
+	const readerBottom =
+		96 + (records.layouts.get("dialogue-reading-host")?.at(1) ?? 0);
+	const inputTop = -(records.anchors.get("dialogue-code")?.at(2) ?? 0);
+	const choicesTop =
+		620 - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
+	expect(inputTop).toBeGreaterThanOrEqual(readerBottom + 12);
+	expect(inputTop + 40).toBeLessThanOrEqual(choicesTop);
+});
 it("makes reward selection, claiming, reading and closing separate reachable controls", () => {
 	const d = display({ ...page, kind: "rewards" });
 	const { panel, actions } = setup(d);
@@ -246,7 +332,7 @@ it("keeps unavailable and suspended actions readable without committing", () => 
 		.find((n) => n.navId === "dialogue-primary")
 		?.onInteract();
 	expect(actions.primary).not.toHaveBeenCalled();
-	expect(records.labels.get("dialogue-window")?.get("hint")).toContain(
+	expect(records.labels.get("dialogue-parchment")?.get("hint")).toContain(
 		"combat",
 	);
 });

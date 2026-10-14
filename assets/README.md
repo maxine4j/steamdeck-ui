@@ -14,3 +14,9 @@ Sebastian Lindfors, under the same Artistic License 2.0 (ConsolePort-LICENSE.md)
 Source: https://github.com/seblindfors/ConsolePort/tree/master/ConsolePort/Assets/Icons/64
 steam_c_system.blp is the Steam system button. Xbox A/B/X/Y and LB/RB/LT/RT,
 plus shared all_l_up/down/left/right icons, follow ConsolePort's Steam Deck layout.
+
+dialogue/Parchment.png and dialogue/Gossip.png are unmodified artwork from
+DialogueUI v1.0.6 by Raenore and Peterodox, copied from the bundled reference addon.
+Sources: DialogueUI/Art/Theme_Brown/Parchment.png and DialogueUI/Art/Icons/Gossip.png.
+The bundled reference has no license file; this attribution does not grant
+redistribution rights.
