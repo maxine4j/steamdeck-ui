@@ -66,6 +66,7 @@ export class TalentsPanel implements IPanel {
 				selected: spec.selected,
 				checked: spec.selected ? true : undefined,
 				checkAtlas: "groupfinder-icon-greencheckmark",
+				checkPlacement: "secondary",
 				activate: () => {},
 				secondary: {
 					enabled: !spec.selected,

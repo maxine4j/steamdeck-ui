@@ -50,6 +50,7 @@ export interface ListRow {
 	readonly animatedIconOnDetail?: boolean;
 	readonly checked?: boolean;
 	readonly checkAtlas?: string;
+	readonly checkPlacement?: "label" | "secondary";
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
 	readonly wrapLabel?: boolean;
@@ -492,8 +493,13 @@ export class ScrollList {
 				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
 				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
 				const actionOnly = row.secondary?.onlyAction === true;
+				const checkByAction =
+					row.checkPlacement === "secondary" && row.secondary !== undefined;
+				const checkSpace = checkByAction && row.checked !== undefined ? 29 : 0;
 				const secondarySpace = row.secondary
-					? (row.secondary.width ?? 44) + (actionOnly ? horizontalPadding : 4)
+					? (row.secondary.width ?? 44) +
+						(actionOnly ? horizontalPadding : 4) +
+						checkSpace
 					: 0;
 				if (row.animatedIcon) {
 					button.animation ??= new Frame(
@@ -590,7 +596,8 @@ export class ScrollList {
 						: iconSize +
 							Math.max(0, ((row.iconRing?.size ?? iconSize) - iconSize) / 2) +
 							(this.options.contentPadding ? horizontalPadding + 8 : 12);
-				const textLeft = checkboxLeft + (row.checked === undefined ? 0 : 28);
+				const textLeft =
+					checkboxLeft + (row.checked === undefined || checkByAction ? 0 : 28);
 				if (row.checked !== undefined) {
 					if (!button.checkbox || !button.check) {
 						button.checkbox = new Frame(
@@ -600,15 +607,27 @@ export class ScrollList {
 						button.check = new Frame(`${this.id}-check-${index}`, this.pool);
 					}
 					button.checkbox.setParent(button.frame);
-					button.checkbox.layout(
-						21,
-						20.3,
-						"TOPLEFT",
-						button.frame,
-						checkboxLeft,
-						-(rowHeight - 20.3) / 2,
-					);
-					button.checkbox.setAtlasBackground("checkbox-minimal");
+					if (checkByAction) {
+						button.checkbox.layout(
+							21,
+							20.3,
+							"RIGHT",
+							button.secondary,
+							-((row.secondary?.width ?? 44) + 8),
+							0,
+						);
+						button.checkbox.setColor(0, 0, 0, 0);
+					} else {
+						button.checkbox.layout(
+							21,
+							20.3,
+							"TOPLEFT",
+							button.frame,
+							checkboxLeft,
+							-(rowHeight - 20.3) / 2,
+						);
+						button.checkbox.setAtlasBackground("checkbox-minimal");
+					}
 					button.check.fill(button.checkbox);
 					button.check.setAtlasBackground(
 						row.checkAtlas ?? "checkmark-minimal",

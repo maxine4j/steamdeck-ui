@@ -1370,6 +1370,7 @@ it.each([1, 2])(
 			label: "Active",
 			checked: true,
 			checkAtlas: "groupfinder-icon-greencheckmark",
+			checkPlacement: "secondary" as const,
 			backgroundAtlas: "ui-journeys-renown-button",
 			secondary: {
 				label: "Switch Spec",
@@ -1387,6 +1388,22 @@ it.each([1, 2])(
 		expect(
 			frames.get("active-tile-check-0")?.setAtlasBackground,
 		).toHaveBeenLastCalledWith(tile.checkAtlas);
+		expect(
+			frames.get("active-tile-checkbox-0")?.layout,
+		).toHaveBeenLastCalledWith(
+			21,
+			20.3,
+			"RIGHT",
+			frames.get("active-tile-secondary-0"),
+			-52,
+			0,
+		);
+		expect(
+			frames.get("active-tile-checkbox-0")?.setParent,
+		).toHaveBeenLastCalledWith(frames.get("active-tile-row-0"));
+		expect(
+			frames.get("active-tile-checkbox-0")?.setColor,
+		).toHaveBeenLastCalledWith(0, 0, 0, 0);
 		expect(
 			frames.get("active-tile-row-0")?.setOpacity,
 		).not.toHaveBeenCalledWith(0.35);

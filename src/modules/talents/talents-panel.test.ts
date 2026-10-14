@@ -111,6 +111,7 @@ it.each([2, 3, 4])(
 		expect(specs.at(0)).toMatchObject({
 			checked: true,
 			checkAtlas: "groupfinder-icon-greencheckmark",
+			checkPlacement: "secondary",
 			secondary: { enabled: false },
 		});
 		expect(specs.at(0)?.enabled).not.toBe(false);
