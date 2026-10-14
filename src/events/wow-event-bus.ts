@@ -49,6 +49,18 @@ const bankEvents = [
 	"BANK_TABS_CHANGED",
 	"ACCOUNT_MONEY",
 ] as const;
+const mailEvents = [
+	"MAIL_SHOW",
+	"MAIL_CLOSED",
+	"MAIL_INBOX_UPDATE",
+	"MAIL_SEND_INFO_UPDATE",
+	"MAIL_SEND_SUCCESS",
+	"MAIL_FAILED",
+	"MAIL_SUCCESS",
+	"MAIL_LOCK_SEND_ITEMS",
+	"MAIL_UNLOCK_SEND_ITEMS",
+	"CLOSE_INBOX_ITEM",
+] as const;
 const bankContentEvents = [
 	"BAG_UPDATE",
 	"PLAYERBANKSLOTS_CHANGED",
@@ -224,6 +236,7 @@ export class WowEventBus implements IEventBus {
 		this.frame.Hide();
 		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
 		for (const event of bankEvents) this.frame.RegisterEvent(event);
+		for (const event of mailEvents) this.frame.RegisterEvent(event);
 		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
@@ -262,6 +275,8 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			if ((mailEvents as readonly string[]).includes(event))
+				this.emit(event as (typeof mailEvents)[number]);
 			if (bankContentEvents.includes(event)) this.emit("BANK_CONTENTS_CHANGED");
 			if ((bankEvents as readonly string[]).includes(event))
 				this.emit(event as (typeof bankEvents)[number]);

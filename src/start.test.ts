@@ -99,6 +99,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				}),
 				SetScript: vi.fn(),
 				SetAutoFocus: vi.fn(),
+				SetMultiLine: vi.fn(),
+				SetMaxLetters: vi.fn(),
 				SetFontObject: vi.fn(),
 				SetTextInsets: vi.fn(),
 				ClearFocus: vi.fn(),
@@ -353,6 +355,36 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		summonFavourite: vi.fn(),
 		toggleFavourite: vi.fn(),
 	};
+	const mail = {
+		report: vi.fn(),
+		invalidateInbox: vi.fn(),
+		setOpen: vi.fn(),
+		disableBuiltIn: vi.fn(),
+		restoreBuiltIn: vi.fn(),
+		getInbox: () => ({ messages: [], total: 0 }),
+		read: vi.fn(),
+		takeMoney: vi.fn(),
+		takeItem: vi.fn(),
+		copyLetter: vi.fn(),
+		delete: vi.fn(),
+		return: vi.fn(),
+		collectNext: () => false,
+		getSendState: () => ({
+			attachments: [],
+			postage: 30,
+			money: 10000,
+			available: true,
+			busy: false,
+		}),
+		setComposing: vi.fn(),
+		attach: vi.fn(),
+		removeAttachment: vi.fn(),
+		send: () => false,
+		completeSend: vi.fn(),
+		setLocked: vi.fn(),
+		checkInbox: vi.fn(),
+		close: vi.fn(),
+	};
 	const app = startSteamDeckUI(
 		factory,
 		events,
@@ -538,9 +570,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			useItem: vi.fn(),
 			pickupItem: vi.fn(),
 		},
+		mail,
 		pets,
 	);
-	expect(frames).toHaveLength(4);
+	expect(frames).toHaveLength(5);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -577,9 +610,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(5);
+	expect(frames).toHaveLength(6);
 	for (const frame of builtIns)
-		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(4));
+		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(5));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();
@@ -1078,6 +1111,25 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("left", "bank").activePanelId).toBe("bank");
 	events.emit("BANKFRAME_CLOSED");
 	expect(app.ui.getContainer("left", "bank").activePanelId).toBeUndefined();
+	app.ui.openPanel("paper-doll", "left");
+	events.emit("MAIL_SHOW");
+	expect(app.ui.getContainer("left").activePanelId).toBeUndefined();
+	expect(app.ui.getContainer("left", "mail").activePanelId).toBe("mail-inbox");
+	expect(app.ui.getContainer("right").activePanelId).toBe("bags");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(app.navigation.focusedId).not.toContain("mail");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(app.navigation.focusedId).toBe("mail-collect-all");
+	app.ui.openPanel("mail-send", "left", "mail");
+	expect(mail.setComposing).toHaveBeenLastCalledWith(true);
+	const mailFrames = frames.length;
+	app.ui.openPanel("mail-inbox", "left", "mail");
+	app.ui.openPanel("mail-send", "left", "mail");
+	expect(frames).toHaveLength(mailFrames);
+	app.ui.openPanel("paper-doll", "left");
+	expect(mail.close).toHaveBeenCalled();
+	events.emit("MAIL_CLOSED");
+	expect(app.ui.getContainer("left").activePanelId).toBe("paper-doll");
 	app.ui.openPanel("pets", "right");
 	expect(app.ui.getContainer("right").activePanelId).toBe("pets");
 	expect(pets.load).toHaveBeenCalledOnce();

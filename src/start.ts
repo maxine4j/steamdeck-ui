@@ -11,6 +11,7 @@ import type { IDialogueCamera } from "./clients/dialogue-camera";
 import type { IDialogueClient } from "./clients/dialogue-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
 import type { IInventoryClient } from "./clients/inventory-client";
+import type { IMailClient } from "./clients/mail-client";
 import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
 import type { IPetsClient } from "./clients/pets-client";
@@ -47,6 +48,7 @@ import { CurrencyPanel } from "./modules/currency/currency-panel";
 import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
 import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
+import { registerMail } from "./modules/mail/register-mail";
 import { MapModule } from "./modules/map/map-module";
 import { MapPanel } from "./modules/map/map-panel";
 import { ModuleManager } from "./modules/module-manager";
@@ -242,6 +244,7 @@ export function startSteamDeckUI(
 	config: IAddonConfigClient,
 	map: IMapClient,
 	bank: IBankClient,
+	mail: IMailClient,
 	pets: IPetsClient,
 	pvpFinder: IPvpFinderClient,
 ) {
@@ -352,6 +355,15 @@ export function startSteamDeckUI(
 		bank,
 		scheduler,
 		grouping,
+	);
+	const mailFeature = registerMail(
+		pool,
+		navigation,
+		events,
+		ui,
+		modules,
+		mail,
+		scheduler,
 	);
 	const mapFeature = registerMap(
 		pool,
@@ -575,6 +587,7 @@ export function startSteamDeckUI(
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
 			bankFeature.destroy();
+			mailFeature.destroy();
 			mapFeature.panel.destroy();
 			mapFeature.modal.destroy();
 			dialoguePanel.destroy();

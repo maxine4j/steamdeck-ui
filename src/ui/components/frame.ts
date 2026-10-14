@@ -108,6 +108,7 @@ export class Frame implements IUIComponent {
 	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
+	private textInputConfigured = false;
 	private readonly heldGamePadButtons = new Map<string, number>();
 	private opacityChanged = false;
 	private texture?: WowTexture;
@@ -1065,6 +1066,46 @@ export class Frame implements IUIComponent {
 	focusInput(): void {
 		(this.acquire() as WowFrame & { SetFocus(): void }).SetFocus();
 	}
+	configureTextInput(
+		change: (this: void, text: string) => void,
+		multiline = false,
+		maxLetters = 255,
+		viewport?: Frame,
+	): void {
+		this.configureInput(change);
+		const native = this.acquire() as WowFrame & {
+			SetMultiLine(value: boolean): void;
+			SetMaxLetters(value: number): void;
+			GetHeight(): number;
+			SetScript(
+				script: string,
+				handler?: (
+					this: void,
+					frame: WowFrame,
+					x: number,
+					y: number,
+					width: number,
+					height: number,
+				) => void,
+			): void;
+		};
+		native.SetMultiLine(multiline);
+		native.SetMaxLetters(maxLetters);
+		this.textInputConfigured = true;
+		if (multiline) native.SetScript("OnEnterPressed", undefined);
+		native.SetScript(
+			"OnCursorChanged",
+			viewport
+				? (_frame, _x, y, _width, height) =>
+						viewport.revealVerticalRange(-y, -y + height, native.GetHeight())
+				: undefined,
+		);
+	}
+	setInputText(text: string): void {
+		(this.acquire() as WowFrame & { SetText(value: string): void }).SetText(
+			text,
+		);
+	}
 	blurInput(): void {
 		(
 			this.native as (WowFrame & { ClearFocus(): void }) | undefined
@@ -1319,6 +1360,16 @@ export class Frame implements IUIComponent {
 			input.ClearFocus();
 			input.SetScript("OnEscapePressed", undefined);
 			input.SetScript("OnEnterPressed", undefined);
+			if (this.textInputConfigured) {
+				const textInput = input as typeof input & {
+					SetMultiLine(value: boolean): void;
+					SetMaxLetters(value: number): void;
+				};
+				textInput.SetMultiLine(false);
+				textInput.SetMaxLetters(0);
+				input.SetScript("OnCursorChanged", undefined);
+				this.textInputConfigured = false;
+			}
 		}
 		if (this.frameType === "SecureButton") {
 			(

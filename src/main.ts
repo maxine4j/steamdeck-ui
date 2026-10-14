@@ -10,6 +10,7 @@ import { DialogueCamera } from "./clients/dialogue-camera";
 import { DialogueClient } from "./clients/dialogue-client";
 import { DungeonFinderClient } from "./clients/dungeon-finder-client";
 import { InventoryClient } from "./clients/inventory-client";
+import { MailClient } from "./clients/mail-client";
 import { MapClient } from "./clients/map-client";
 import { MountsClient } from "./clients/mounts-client";
 import { PetsClient } from "./clients/pets-client";
@@ -28,6 +29,7 @@ import { FrameSuppression } from "./ui/components/frame-suppression";
 import { NativeCursor } from "./ui/components/native-cursor";
 import { NativeLayout } from "./ui/components/native-layout";
 import { NativeNavigation } from "./ui/components/native-navigation";
+import { NativeScriptSuppression } from "./ui/components/native-script-suppression";
 import { NativeScrollIndicator } from "./ui/components/scroll-indicator";
 import { FramePoolManager } from "./ui/frame-pool-manager";
 import { WowFrameFactory } from "./ui/wow-frame-factory";
@@ -73,6 +75,10 @@ startSteamDeckUI(
 		new NativeScrollIndicator(new FramePoolManager(frameFactory)),
 	),
 	bank,
+	new MailClient(
+		new FrameSuppression(new FramePoolManager(frameFactory)),
+		new NativeScriptSuppression(),
+	),
 	new PetsClient(scheduler, collectionCache),
 	new PvpFinderClient(),
 );

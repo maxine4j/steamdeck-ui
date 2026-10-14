@@ -34,6 +34,16 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "MAIL_SHOW"
+	| "MAIL_CLOSED"
+	| "MAIL_INBOX_UPDATE"
+	| "MAIL_SEND_INFO_UPDATE"
+	| "MAIL_SEND_SUCCESS"
+	| "MAIL_FAILED"
+	| "MAIL_SUCCESS"
+	| "MAIL_LOCK_SEND_ITEMS"
+	| "MAIL_UNLOCK_SEND_ITEMS"
+	| "CLOSE_INBOX_ITEM"
 	| "BANKFRAME_OPENED"
 	| "BANK_CONTENTS_CHANGED"
 	| "BANKFRAME_CLOSED"
