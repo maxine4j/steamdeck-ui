@@ -197,7 +197,14 @@ it.each(["random", "specific", "follower", "pvp"] as const)(
 		nav.registerGrid(panel.id, () => panel.getNavGrid());
 		nav.setActiveGrid(panel.id);
 		while (callbacks.length) callbacks.shift()?.();
-		focus(queue === "pvp" ? "page-pvp" : "page-dungeons");
+		expect(
+			panel.getNavGrid().flat()[0]?.navId,
+		).toBe("page-dungeons");
+		nav.refreshGrid(panel.id, "page-dungeons");
+		if (queue === "pvp") {
+			nav.refreshGrid(panel.id, "page-pvp");
+			expect(nav.focusedId).toBe("page-pvp");
+		} else expect(nav.focusedId).toBe("page-dungeons");
 		nav.interact();
 		while (callbacks.length) callbacks.shift()?.();
 		if (queue !== "random" && queue !== "pvp") {

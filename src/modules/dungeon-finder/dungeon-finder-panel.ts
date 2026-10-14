@@ -860,16 +860,19 @@ export class DungeonFinderPanel implements IPanel {
 			this.mounted && this.hasRoles() && !this.rolesLocked()
 				? this.roleClient().getAvailableRoles()
 				: undefined;
+		const roles = this.checkboxes.filter((_control, index) => {
+			const role = roleControls.at(index)?.role;
+			return role !== undefined && availableRoles?.[role];
+		});
+		const content = this.list.getNavGrid();
 		return this.mounted
 			? [
-					this.checkboxes.filter((_control, index) => {
-						const role = roleControls.at(index)?.role;
-						return role !== undefined && availableRoles?.[role];
-					}),
+					...(this.page ? [roles] : []),
 					...(this.page
 						? [[this.back.navigationNode("dungeon-back", () => this.onBack())]]
 						: []),
-					...this.list.getNavGrid(),
+					...content,
+					...(!this.page ? [roles] : []),
 				]
 			: [];
 	}
