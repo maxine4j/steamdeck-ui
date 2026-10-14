@@ -62,7 +62,9 @@ export class UIOrchestrator implements IUIOrchestrator {
 		for (const container of this.containers.values()) {
 			if (
 				container !== target &&
-				(position === "fullscreen" || container.position === position)
+				(position === "fullscreen" ||
+					container.position === "fullscreen" ||
+					container.position === position)
 			)
 				while (container.activePanelId !== undefined) container.popPanel();
 		}

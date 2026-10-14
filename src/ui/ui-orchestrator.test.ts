@@ -1,6 +1,91 @@
 import { expect, it, vi } from "vitest";
-import type { PanelContainer } from "./panel/panel-container";
+import type { Frame } from "./components/frame";
+import { PanelContainer } from "./panel/panel-container";
 import { UIOrchestrator } from "./ui-orchestrator";
+
+function createPanel(id: string) {
+	return {
+		id,
+		title: id,
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		onContainerClosed: vi.fn(),
+		getNavGrid: () => [],
+	};
+}
+
+function createUI() {
+	return new UIOrchestrator(
+		(position, id = position) =>
+			new PanelContainer(id, position, {
+				dock: vi.fn(),
+				onClose: vi.fn(),
+				show: vi.fn(),
+				hide: vi.fn(),
+			} as unknown as Frame),
+	);
+}
+
+it.each(["left", "right"] as const)(
+	"opening a %s panel closes the entire fullscreen stack before mounting",
+	(position) => {
+		const ui = createUI();
+		const map = createPanel("map");
+		const talents = createPanel("talents");
+		const side = createPanel("side");
+		ui.registerPanel(map);
+		ui.registerPanel(side);
+		ui.openPanel(map.id, "fullscreen", "editor");
+		const fullscreen = ui.getContainer("fullscreen", "editor");
+		fullscreen.pushPanel(talents);
+		side.onMount.mockImplementation(() => {
+			expect(fullscreen.activePanelId).toBeUndefined();
+		});
+
+		ui.openPanel(side.id, position);
+
+		expect(ui.getContainer(position).activePanelId).toBe(side.id);
+		expect(fullscreen.activePanelId).toBeUndefined();
+		expect(talents.onUnmount).toHaveBeenCalledOnce();
+		expect(map.onContainerClosed).toHaveBeenCalledOnce();
+		ui.closePanel(position);
+		expect(fullscreen.activePanelId).toBeUndefined();
+	},
+);
+
+it.each([["left"], ["right"], ["left", "right"]] as const)(
+	"opening fullscreen closes side panels at %j",
+	(...positions) => {
+		const ui = createUI();
+		const fullscreen = createPanel("map");
+		ui.registerPanel(fullscreen);
+		const panels = positions.map((position) => {
+			const panel = createPanel(position);
+			ui.registerPanel(panel);
+			ui.openPanel(panel.id, position, `${position}-feature`);
+			return panel;
+		});
+		fullscreen.onMount.mockImplementation(() => {
+			for (const position of positions)
+				expect(
+					ui.getContainer(position, `${position}-feature`).activePanelId,
+				).toBeUndefined();
+		});
+
+		ui.openPanel(fullscreen.id, "fullscreen");
+
+		expect(ui.getContainer("fullscreen").activePanelId).toBe(fullscreen.id);
+		for (const panel of panels) {
+			expect(panel.onUnmount).toHaveBeenCalledOnce();
+			expect(panel.onContainerClosed).toHaveBeenCalledOnce();
+		}
+		ui.closePanel("fullscreen");
+		for (const position of positions)
+			expect(
+				ui.getContainer(position, `${position}-feature`).activePanelId,
+			).toBeUndefined();
+	},
+);
 
 it("opening fullscreen drains both docked stacks before mounting its panel", () => {
 	const order: string[] = [];
