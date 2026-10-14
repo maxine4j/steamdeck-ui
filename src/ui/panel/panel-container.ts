@@ -76,12 +76,7 @@ export class PanelContainer implements IPanelContainer {
 		);
 		this.focus();
 	}
-	private renderTabs(): void {
-		const createTab = this.createTab;
-		if (!createTab || this.position === "fullscreen") return;
-		const edge = this.position === "left" ? "RIGHT" : "LEFT";
-		const mirrored = this.position === "right";
-		const x = mirrored ? -41 : 43;
+	private getPanelGroups(): IPanel[][] {
 		const grouped = new Set<string>();
 		const groups: IPanel[][] = [];
 		for (const ids of this.tabGroups) {
@@ -97,6 +92,15 @@ export class PanelContainer implements IPanelContainer {
 		}
 		const ungrouped = this.panels.filter((panel) => !grouped.has(panel.id));
 		if (ungrouped.length > 0) groups.push(ungrouped);
+		return groups;
+	}
+	private renderTabs(): void {
+		const createTab = this.createTab;
+		if (!createTab || this.position === "fullscreen") return;
+		const edge = this.position === "left" ? "RIGHT" : "LEFT";
+		const mirrored = this.position === "right";
+		const x = mirrored ? -41 : 43;
+		const groups = this.getPanelGroups();
 		const offsets = new Map<string, number>();
 		let offset = ((this.panels.length - 1) * 58 + (groups.length - 1) * 20) / 2;
 		for (const group of groups) {
@@ -182,10 +186,11 @@ export class PanelContainer implements IPanelContainer {
 			active.onPanelCycle(direction);
 			return;
 		}
-		if (!active || this.panels.length < 2) return;
-		const index = this.panels.indexOf(active);
-		const panel = this.panels.at(
-			(index + direction + this.panels.length) % this.panels.length,
+		const orderedPanels = this.getPanelGroups().flat();
+		if (!active || orderedPanels.length < 2) return;
+		const index = orderedPanels.indexOf(active);
+		const panel = orderedPanels.at(
+			(index + direction + orderedPanels.length) % orderedPanels.length,
 		);
 		if (!panel) return;
 		this.onTabSelected?.(panel);

@@ -66,7 +66,7 @@ it("refreshes visible portrait tabs on appearance updates and releases the subsc
 });
 
 it.each(["left", "right"] as const)(
-	"centers distinct %s tab groups without changing bumper cycling or recreating tabs",
+	"centers distinct %s tab groups, cycles in visual order, and reuses tabs",
 	(position) => {
 		const events = createTestEventBus();
 		const navigation = new NavigationManager(events);
@@ -130,7 +130,7 @@ it.each(["left", "right"] as const)(
 				y,
 			);
 		}
-		for (const id of ["third", "second", "fourth", "first"]) {
+		for (const id of ["second", "third", "fourth", "first"]) {
 			events.emit("NAV_PANEL_NEXT");
 			expect(container.activePanelId).toBe(id);
 		}
@@ -139,6 +139,46 @@ it.each(["left", "right"] as const)(
 		expect(createTab).toHaveBeenCalledTimes(8);
 	},
 );
+
+it("cycles grouped panels in their visual order even when registered differently", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"right",
+		"right",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+		undefined,
+		[["bags", "currency"], ["mounts", "toys", "pets"]],
+		events,
+	);
+	const panels = ["bags", "currency", "pets", "toys", "mounts"].map(
+		(id) => ({
+			id,
+			title: id,
+			onMount: vi.fn(),
+			onUnmount: vi.fn(),
+			getNavGrid: () => [],
+		}),
+	);
+	for (const panel of panels) container.registerPanel(panel);
+	const bags = panels[0];
+	if (!bags) throw new Error("Missing bags panel");
+	container.swapPanel(bags);
+
+	for (const id of ["currency", "mounts", "toys", "pets", "bags"]) {
+		events.emit("NAV_PANEL_NEXT");
+		expect(container.activePanelId).toBe(id);
+	}
+});
 
 it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
 	const events = createTestEventBus();
