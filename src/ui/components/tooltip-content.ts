@@ -1,4 +1,14 @@
 import type { Frame } from "./frame";
+
+declare const NOT_COLLECTED: string;
+
+export interface PetTooltipContent {
+	readonly id: string;
+	readonly name: string;
+	readonly collected: boolean;
+	readonly source?: string;
+	readonly description?: string;
+}
 /** Plain links/IDs include equipped comparisons; wrapped items show details only. */
 export type TooltipContent =
 	| string
@@ -6,6 +16,7 @@ export type TooltipContent =
 	| { readonly text: string; readonly anchor?: Frame }
 	| { readonly toy: number }
 	| { readonly mountSpell: number }
+	| { readonly pet: PetTooltipContent }
 	| { readonly item: string | number };
 
 export interface TooltipDataFrame {
@@ -13,12 +24,31 @@ export interface TooltipDataFrame {
 	SetHyperlink(link: string): void;
 	SetToyByItemID(id: number): boolean;
 	SetMountBySpellID(spell: number): void;
+	SetCompanionPet(guid: string): void;
+	AddLine(
+		text: string,
+		red: number,
+		green: number,
+		blue: number,
+		wrap: boolean,
+	): void;
 }
 
 export function setTooltipContent(
 	frame: TooltipDataFrame,
 	content: TooltipContent,
 ): void {
+	if (typeof content === "object" && "pet" in content) {
+		const pet = content.pet;
+		if (pet.collected) frame.SetCompanionPet(pet.id);
+		else {
+			frame.SetText(pet.name);
+			if (pet.description) frame.AddLine(pet.description, 1, 1, 1, true);
+		}
+		if (pet.source) frame.AddLine(pet.source, 1, 1, 1, true);
+		if (!pet.collected) frame.AddLine(NOT_COLLECTED, 1, 0.82, 0, true);
+		return;
+	}
 	if (typeof content === "object" && "text" in content) {
 		frame.SetText(content.text);
 		return;

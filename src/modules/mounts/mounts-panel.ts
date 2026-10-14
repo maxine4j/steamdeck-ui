@@ -386,18 +386,13 @@ export class MountsPanel implements IPanel {
 					if (mount.collected && mount.favourite) cell.favourite.show();
 					else cell.favourite.hide();
 					cell.icon.setOpacity(mount.collected ? 1 : 0.2);
-					cell.icon.setTooltip(
-						mount.name,
-						!mount.collected
-							? "Not collected"
-							: !mount.usable
-								? "Unavailable here"
-								: `${controllerIcon("Y")} Actions`,
-					);
 					const current = () =>
 						this.mounted &&
 						generation === this.loadGeneration &&
 						cell?.navId === navId;
+					cell.icon.setHoverTooltip(() =>
+						current() ? { mountSpell: mount.spell } : undefined,
+					);
 					const summon = () => {
 						if (current() && mount.collected && this.client.canUse(mount.id))
 							this.client.summon(mount.id);

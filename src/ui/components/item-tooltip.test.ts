@@ -30,6 +30,8 @@ function setup() {
 			getText: () => text,
 			SetToyByItemID: vi.fn(),
 			SetMountBySpellID: vi.fn(),
+			SetCompanionPet: vi.fn(),
+			AddLine: vi.fn(),
 			ClearLines: vi.fn(),
 			SetScale: vi.fn(),
 			SetParent: vi.fn(),
@@ -99,6 +101,23 @@ it("renders mount collection details without equipment comparisons", () => {
 	expect(frames.at(0)?.SetMountBySpellID).toHaveBeenCalledExactlyOnceWith(123);
 	expect(frames.at(0)?.SetHyperlink).not.toHaveBeenCalled();
 	expect(compare).not.toHaveBeenCalled();
+});
+
+it("centers pet collection tooltips at the top without learning-item links or comparisons", () => {
+	const { tooltip, frames, screen, compare } = setup();
+	tooltip.setItem({
+		pet: { id: "Pet-1", name: "Cat", collected: true, source: "Vendor" },
+	});
+	expect(frames.at(0)?.SetCompanionPet).toHaveBeenCalledWith("Pet-1");
+	expect(frames.at(0)?.SetHyperlink).not.toHaveBeenCalled();
+	expect(compare).not.toHaveBeenCalled();
+	expect(frames.at(0)?.SetPoint).toHaveBeenLastCalledWith(
+		"TOPLEFT",
+		screen,
+		"TOP",
+		-150,
+		-32,
+	);
 });
 
 it("renders and refreshes toy details without item links or equipment comparisons", () => {

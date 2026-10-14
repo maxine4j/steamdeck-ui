@@ -21,6 +21,9 @@ it("offers summon and favourite for owned pets and only cancel for unowned pets"
 		collected: true,
 	};
 	menu.open(pet);
+	expect(modal.open).toHaveBeenCalledWith("Pet actions", expect.any(Array), {
+		pet,
+	});
 	const options = vi.mocked(modal.open).mock.lastCall?.at(1) as ModalOption[];
 	expect(options.map((option) => option.id)).toEqual([
 		"summon",

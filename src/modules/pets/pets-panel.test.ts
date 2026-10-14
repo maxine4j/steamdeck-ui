@@ -6,6 +6,54 @@ import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { PetsPanel } from "./pets-panel";
 
+it("renders one tile per pet species with a duplicate count, clears reused badges and supplies collection tooltips", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	const first = {
+		...pet(1),
+		source: "Vendor",
+		description: "A cat.",
+		ownedCount: 2,
+	};
+	publish([first, { ...first, id: "Pet-2" }]);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => node.navId.startsWith("pet-")),
+	).toHaveLength(1);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"copies",
+		"2/3",
+		"BOTTOMRIGHT",
+		-1,
+		1,
+		10,
+	);
+	const hover = vi.mocked(Frame.prototype.setHoverTooltip).mock.lastCall?.at(0);
+	expect(hover?.()).toMatchObject({
+		pet: { id: "Pet-1", source: "Vendor", collected: true },
+	});
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "pet-Pet-1")
+			?.tooltipItem?.(),
+	).toMatchObject({ pet: { id: "Pet-1", source: "Vendor" } });
+	panel.refresh();
+	vi.mocked(Frame.prototype.setLabel).mockClear();
+	publish([{ ...first, ownedCount: 1 }]);
+	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
+		"copies",
+		"",
+		"BOTTOMRIGHT",
+		-1,
+		1,
+		10,
+	);
+});
+
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.useRealTimers();
@@ -207,8 +255,13 @@ it("groups favourites and expansions in descending order and summons through X a
 	first?.onAlternate?.();
 	expect(client.summon).toHaveBeenCalledExactlyOnceWith("Pet-1");
 	first?.onContext?.();
-	expect(menu.open).toHaveBeenCalledExactlyOnceWith(pet(1, 0, true));
-	expect(first?.tooltipItem?.()).toEqual({ text: "Pet 01" });
+	expect(menu.open).toHaveBeenCalledExactlyOnceWith({
+		...pet(1, 0, true),
+		ownedCount: 1,
+	});
+	expect(first?.tooltipItem?.()).toEqual({
+		pet: { ...pet(1, 0, true), ownedCount: 1 },
+	});
 	panel.getNavGrid().at(-1)?.at(0)?.onInteract();
 	expect(client.summonFavourite).toHaveBeenCalledOnce();
 	panel.refresh();

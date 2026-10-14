@@ -322,6 +322,16 @@ export class PetsPanel implements IPanel {
 					cell.icon.setParent(cell.border);
 					cell.icon.layout(38, 38, "CENTER", cell.border);
 					cell.icon.setIcon(pet.icon);
+					cell.icon.setLabel(
+						"copies",
+						pet.ownedCount > 1
+							? `${pet.ownedCount}/${pet.collectionLimit ?? 3}`
+							: "",
+						"BOTTOMRIGHT",
+						-1,
+						1,
+						10,
+					);
 					cell.favourite.setParent(cell.icon);
 					cell.favourite.layout(20, 20, "TOPLEFT", cell.icon, -6, 6);
 					cell.favourite.setAtlasBackground("collections-icon-favorites");
@@ -340,9 +350,7 @@ export class PetsPanel implements IPanel {
 					control.onClick(() => {
 						if (current() && pet.collected) this.client.summon(pet.id);
 					});
-					control.setHoverTooltip(() =>
-						current() ? { text: pet.name } : undefined,
-					);
+					control.setHoverTooltip(() => (current() ? { pet } : undefined));
 					const node = control.navigationNode(
 						navId,
 						() => {},
@@ -361,7 +369,7 @@ export class PetsPanel implements IPanel {
 						...node,
 						navigationScroll: this.navigationScroll,
 						navColumn: index % columns,
-						tooltipItem: () => (current() ? { text: pet.name } : undefined),
+						tooltipItem: () => (current() ? { pet } : undefined),
 						onAlternate: () => {
 							if (current() && pet.collected) this.client.summon(pet.id);
 						},

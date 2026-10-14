@@ -10,6 +10,23 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { MountsPanel } from "./mounts-panel";
 
+it("uses mount journal tooltip data for mouse hover and controller focus, including uncollected mounts", () => {
+	const { panel, parent, publish } = setup();
+	panel.onMount(parent);
+	publish([{ ...mount(1), collected: false }]);
+	const hover = vi.mocked(Frame.prototype.setHoverTooltip).mock.lastCall?.at(0);
+	expect(hover?.()).toEqual({ mountSpell: 1 });
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "mount-1")
+			?.tooltipItem?.(),
+	).toEqual({ mountSpell: 1 });
+	panel.onUnmount();
+	expect(hover?.()).toBeUndefined();
+});
+
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -245,6 +262,7 @@ function setup() {
 		"setAtlasBackground",
 		"setOpacity",
 		"setTooltip",
+		"setHoverTooltip",
 		"setLabel",
 		"show",
 		"hide",

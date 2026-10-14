@@ -3,6 +3,46 @@ import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 
+it.each([
+	{ mountSpell: 42 },
+	{ pet: { id: "Pet-1", name: "Cat", collected: true, source: "Vendor" } },
+])(
+	"anchors collection hover details to the icon without learning-item hyperlinks: %j",
+	(content) => {
+		const scripts = new Map<string, (() => void) | undefined>();
+		const icon = {
+			SetScript: (script: string, callback?: () => void) =>
+				scripts.set(script, callback),
+		};
+		const tooltip = {
+			SetOwner: vi.fn(),
+			SetFrameStrata: vi.fn(),
+			ClearLines: vi.fn(),
+			Show: vi.fn(),
+			Hide: vi.fn(),
+			SetText: vi.fn(),
+			SetHyperlink: vi.fn(),
+			SetMountBySpellID: vi.fn(),
+			SetCompanionPet: vi.fn(),
+			AddLine: vi.fn(),
+		};
+		const pool = {
+			acquire: (type: string) => (type === "GameTooltip" ? tooltip : icon),
+			getBackground: () => ({}),
+		} as unknown as import("../frame-pool-manager").IFramePoolManager;
+		const frame = new Frame("collection-icon", pool, "Button");
+		frame.setHoverTooltip(() => content);
+		scripts.get("OnEnter")?.();
+		expect(tooltip.SetOwner).toHaveBeenCalledWith(icon, "ANCHOR_RIGHT");
+		if ("mountSpell" in content)
+			expect(tooltip.SetMountBySpellID).toHaveBeenCalledWith(42);
+		else expect(tooltip.SetCompanionPet).toHaveBeenCalledWith("Pet-1");
+		expect(tooltip.SetHyperlink).not.toHaveBeenCalled();
+		scripts.get("OnLeave")?.();
+		expect(tooltip.Hide).toHaveBeenCalledOnce();
+	},
+);
+
 it("draws a cropped texture background and pooled masked portrait ring, then clears the ring", () => {
 	const texture = () => ({
 		SetTexture: vi.fn(),

@@ -4,6 +4,35 @@ import { PetsClient } from "./pets-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("loads journal source and description plus the total owned count independently of filtered copies", () => {
+	const { client, api, flush } = setup(1);
+	api.GetNumCollectedInfo.mockReturnValue([3, 3]);
+	api.GetPetInfoByIndex.mockReturnValue([
+		"Pet-1",
+		39,
+		true,
+		undefined,
+		1,
+		false,
+		false,
+		"Cat",
+		123,
+		1,
+		1,
+		"Vendor: Cat Merchant",
+		"A friendly cat.",
+	]);
+	const done = vi.fn();
+	client.load(done);
+	flush();
+	expect(done.mock.lastCall?.at(0).at(0)).toMatchObject({
+		source: "Vendor: Cat Merchant",
+		description: "A friendly cat.",
+		ownedCount: 3,
+		collectionLimit: 3,
+	});
+});
+
 it("searches pets from the native journal and replaces a warm snapshot", () => {
 	const { client, api, flush } = setup(3);
 	client.load(vi.fn());
@@ -90,6 +119,7 @@ function setup(count = 45) {
 		},
 	};
 	const api = {
+		GetNumCollectedInfo: vi.fn(() => [1, 3]),
 		SetDefaultFilters: vi.fn(),
 		ClearSearchFilter: vi.fn(),
 		GetNumPets: vi.fn(() => [count, count]),

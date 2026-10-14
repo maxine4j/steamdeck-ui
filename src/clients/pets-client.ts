@@ -23,6 +23,10 @@ declare global {
 				boolean,
 				string,
 				number,
+				number | undefined,
+				number | undefined,
+				string | undefined,
+				string | undefined,
 			]
 		>;
 		function GetPetInfoByPetID(
@@ -39,6 +43,10 @@ declare global {
 				boolean,
 				string,
 				number,
+				number | undefined,
+				number | undefined,
+				string | undefined,
+				string | undefined,
 			]
 		>;
 		function SummonPetByGUID(this: void, id: string): void;
@@ -54,6 +62,10 @@ export interface Pet {
 	readonly collected: boolean;
 	readonly favourite: boolean;
 	readonly expansionId?: number;
+	readonly source?: string;
+	readonly description?: string;
+	readonly ownedCount?: number;
+	readonly collectionLimit?: number;
 }
 export interface IPetsClient
 	extends Omit<IJournalPrefetch, "invalidate">,
@@ -259,10 +271,31 @@ export class PetsClient implements IPetsClient {
 						previous.collected &&
 						(dirty.has(previous.id) || this.items?.isExpired(previous.id))
 					) {
-						const [speciesId, customName, , , , , favourite, name, icon] =
-							C_PetJournal.GetPetInfoByPetID(previous.id);
+						const [
+							speciesId,
+							customName,
+							,
+							,
+							,
+							,
+							favourite,
+							name,
+							icon,
+							,
+							,
+							source,
+							description,
+						] = C_PetJournal.GetPetInfoByPetID(previous.id);
 						if (speciesId)
-							pet = { ...previous, name: customName || name, icon, favourite };
+							pet = {
+								...previous,
+								name: customName || name,
+								icon,
+								favourite,
+								source: source ?? previous.source,
+								description: description ?? previous.description,
+								...this.collectionCount(speciesId),
+							};
 					}
 				} else {
 					const [
@@ -275,6 +308,10 @@ export class PetsClient implements IPetsClient {
 						revoked,
 						name,
 						icon,
+						,
+						,
+						source,
+						description,
 					] = C_PetJournal.GetPetInfoByIndex(index);
 					if (speciesId && !revoked)
 						pet = {
@@ -285,6 +322,9 @@ export class PetsClient implements IPetsClient {
 							collected: collected && !!guid,
 							favourite: collected && favourite,
 							expansionId: getPetExpansion(speciesId),
+							source,
+							description,
+							...this.collectionCount(speciesId),
 						};
 				}
 				if (pet && !seen.has(pet.id)) {
@@ -312,6 +352,20 @@ export class PetsClient implements IPetsClient {
 			cancelled = true;
 			cancel();
 		};
+	}
+	private collectionCount(speciesId: number): {
+		ownedCount: number;
+		collectionLimit: number;
+	} {
+		const [ownedCount, collectionLimit] = (
+			C_PetJournal as unknown as {
+				GetNumCollectedInfo(
+					this: void,
+					speciesId: number,
+				): LuaMultiReturn<[number, number]>;
+			}
+		).GetNumCollectedInfo(speciesId);
+		return { ownedCount, collectionLimit };
 	}
 	isInCombat(): boolean {
 		return InCombatLockdown();

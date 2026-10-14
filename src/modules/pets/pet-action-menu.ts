@@ -39,7 +39,7 @@ export class PetActionMenu implements IPetActionMenu {
 			label: `${menuIcons.cancel} Cancel`,
 			select: () => this.close(),
 		});
-		this.modal.open("Pet actions", options, { text: pet.name });
+		this.modal.open("Pet actions", options, { pet });
 	}
 	close(): void {
 		this.modal.close();
