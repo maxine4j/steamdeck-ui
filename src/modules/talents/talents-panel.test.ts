@@ -99,7 +99,6 @@ it.each([2, 3, 4])(
 				fullWidth: true,
 				icon: 10,
 				backgroundAtlas: "ui-journeys-renown-button",
-				backgroundSlice: 16,
 				secondary: {
 					label: "Switch Spec",
 					width: 110,
@@ -109,6 +108,15 @@ it.each([2, 3, 4])(
 			});
 		}
 		expect(specs.at(0)?.detail).toBe("Active specialization");
+		expect(specs.at(0)).toMatchObject({
+			checked: true,
+			checkAtlas: "groupfinder-icon-greencheckmark",
+			secondary: { enabled: false },
+		});
+		expect(specs.at(0)?.enabled).not.toBe(false);
+		specs.at(0)?.secondary?.activate();
+		expect(client.selectSpec).not.toHaveBeenCalled();
+		expect(specs.at(1)?.secondary).toMatchObject({ enabled: true });
 		expect(specs.at(1)?.detail).toBeUndefined();
 		specs.at(1)?.secondary?.activate();
 		expect(client.selectSpec).toHaveBeenCalledWith(2);
@@ -120,12 +128,13 @@ it.each([2, 3, 4])(
 		const loadout = rendered.find((row) => row.id === "talents-loadout-40");
 		expect(loadout).toMatchObject({
 			backgroundAtlas: "ui-journeys-renown-button",
-			backgroundSlice: 16,
 		});
 		expect(rendered.find((row) => row.id === "talents-starter")).toMatchObject({
 			backgroundAtlas: "ui-journeys-renown-button",
-			backgroundSlice: 16,
 		});
+		expect(rendered.every((row) => row.backgroundSlice === undefined)).toBe(
+			true,
+		);
 		expect(loadout?.detail).toBe("Active loadout");
 		expect(
 			rendered.find((row) => row.id === "talents-loadout-41")?.detail,

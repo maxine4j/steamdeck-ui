@@ -31,6 +31,7 @@ export interface ListRow {
 		label: string;
 		width?: number;
 		height?: number;
+		enabled?: boolean;
 		/** Use this button as the row's sole mouse and controller action. */
 		onlyAction?: boolean;
 		tooltip?: string;
@@ -48,6 +49,7 @@ export interface ListRow {
 	readonly animatedIcon?: AnimatedAtlas;
 	readonly animatedIconOnDetail?: boolean;
 	readonly checked?: boolean;
+	readonly checkAtlas?: string;
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
 	readonly wrapLabel?: boolean;
@@ -185,6 +187,7 @@ export class ScrollList {
 					(next.progress !== undefined) === (row.progress !== undefined) &&
 					next.indent === row.indent &&
 					next.enabled === row.enabled &&
+					next.secondary?.enabled === row.secondary?.enabled &&
 					(next.secondary !== undefined) === (row.secondary !== undefined) &&
 					next.secondary?.onlyAction === row.secondary?.onlyAction
 				);
@@ -414,7 +417,10 @@ export class ScrollList {
 								secondary.hideTooltip();
 							},
 							onInteract: () => {
-								if (this.isReady(index))
+								if (
+									this.isReady(index) &&
+									this.rows.at(index)?.secondary?.enabled !== false
+								)
 									this.rows.at(index)?.secondary?.activate();
 							},
 						},
@@ -548,6 +554,9 @@ export class ScrollList {
 						actionOnly ? 0 : -4,
 					);
 					button.secondary.setButtonBackground();
+					button.secondary.setOpacity(
+						row.secondary.enabled === false ? 0.35 : 1,
+					);
 					button.secondary.setLabel("label", row.secondary.label);
 					if (
 						row.secondary.onlyAction &&
@@ -562,6 +571,7 @@ export class ScrollList {
 					button.secondary.onClick((mouse) => {
 						if (
 							this.isReady(index) &&
+							this.rows.at(index)?.secondary?.enabled !== false &&
 							(!this.rows.at(index)?.secondary?.onlyAction ||
 								mouse === "LeftButton")
 						)
@@ -600,7 +610,9 @@ export class ScrollList {
 					);
 					button.checkbox.setAtlasBackground("checkbox-minimal");
 					button.check.fill(button.checkbox);
-					button.check.setAtlasBackground("checkmark-minimal");
+					button.check.setAtlasBackground(
+						row.checkAtlas ?? "checkmark-minimal",
+					);
 					button.checkbox.show();
 					if (row.checked) button.check.show();
 					else button.check.hide();
@@ -852,7 +864,9 @@ export class ScrollList {
 		frame?.setFocused(false);
 		if (
 			row?.heading ||
-			row?.checked !== undefined ||
+			(row?.checked !== undefined &&
+				!row.backgroundAtlas &&
+				!row.backgroundTexture) ||
 			row?.background === false
 		) {
 			frame?.setColor(0, 0, 0, 0);
@@ -955,7 +969,11 @@ export class ScrollList {
 					column = 0;
 				}
 				const button = this.buttons.at(index);
-				if (button && row?.enabled !== false) {
+				if (
+					button &&
+					row?.enabled !== false &&
+					!(row?.secondary?.onlyAction && row.secondary.enabled === false)
+				) {
 					const nav = row?.secondary?.onlyAction
 						? button.secondaryNav
 						: button.nav;
@@ -985,13 +1003,17 @@ export class ScrollList {
 					.slice(0, this.renderedRows)
 					.flatMap((button, index) =>
 						this.rows.at(index)?.heading ||
-						this.rows.at(index)?.enabled === false
+						this.rows.at(index)?.enabled === false ||
+						(this.rows.at(index)?.secondary?.onlyAction &&
+							this.rows.at(index)?.secondary?.enabled === false)
 							? []
 							: [
 									this.rows.at(index)?.secondary?.onlyAction
 										? [button.secondaryNav]
 										: this.rows.at(index)?.secondary
-											? [button.nav, button.secondaryNav]
+											? this.rows.at(index)?.secondary?.enabled === false
+												? [button.nav]
+												: [button.nav, button.secondaryNav]
 											: [button.nav],
 								],
 					)

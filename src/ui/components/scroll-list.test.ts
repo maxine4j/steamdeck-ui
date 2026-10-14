@@ -1359,6 +1359,56 @@ it("renders a trailing animation, preserves row color on focus and stops it on r
 	]);
 });
 
+it.each([1, 2])(
+	"preserves checked tile artwork and dims only a disabled secondary action (%i columns)",
+	(columns) => {
+		const pool = {} as IFramePoolManager;
+		const list = new ScrollList("active-tile", pool, "", vi.fn(), { columns });
+		const activate = vi.fn();
+		const tile = {
+			id: "active",
+			label: "Active",
+			checked: true,
+			checkAtlas: "groupfinder-icon-greencheckmark",
+			backgroundAtlas: "ui-journeys-renown-button",
+			secondary: {
+				label: "Switch Spec",
+				onlyAction: true,
+				enabled: false,
+				activate,
+			},
+			activate: vi.fn(),
+		};
+		list.setRows([tile]);
+		list.mount(new Frame("parent", pool));
+		expect(
+			frames.get("active-tile-row-0")?.setAtlasBackground,
+		).toHaveBeenLastCalledWith(tile.backgroundAtlas);
+		expect(
+			frames.get("active-tile-check-0")?.setAtlasBackground,
+		).toHaveBeenLastCalledWith(tile.checkAtlas);
+		expect(
+			frames.get("active-tile-row-0")?.setOpacity,
+		).not.toHaveBeenCalledWith(0.35);
+		expect(
+			frames.get("active-tile-secondary-0")?.setOpacity,
+		).toHaveBeenLastCalledWith(0.35);
+		frames.get("active-tile-secondary-0")?.onClick.mock.lastCall?.at(0)(
+			"LeftButton",
+		);
+		expect(activate).not.toHaveBeenCalled();
+		expect(list.getNavGrid()).toEqual([]);
+		list.updateRows([
+			{ ...tile, secondary: { ...tile.secondary, enabled: true } },
+		]);
+		expect(
+			frames.get("active-tile-secondary-0")?.setOpacity,
+		).toHaveBeenLastCalledWith(1);
+		list.getNavGrid().at(0)?.at(0)?.onInteract();
+		expect(activate).toHaveBeenCalledOnce();
+	},
+);
+
 it("renders checkbox rows and excludes disabled choices while reusing rows for ordinary buttons", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("checkbox", pool, "Test", vi.fn());

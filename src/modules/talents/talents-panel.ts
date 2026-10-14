@@ -8,7 +8,6 @@ import type { IPanel } from "../../ui/panel/types";
 
 const tileBackground = {
 	backgroundAtlas: "ui-journeys-renown-button",
-	backgroundSlice: 16,
 	height: 64,
 };
 
@@ -65,16 +64,21 @@ export class TalentsPanel implements IPanel {
 						? 24
 						: undefined,
 				selected: spec.selected,
+				checked: spec.selected ? true : undefined,
+				checkAtlas: "groupfinder-icon-greencheckmark",
 				activate: () => {},
 				secondary: {
+					enabled: !spec.selected,
 					label: "Switch Spec",
 					width: 110,
 					height: 32,
 					onlyAction: true,
-					activate: () =>
+					activate: () => {
+						if (spec.selected) return;
 						this.activate(`talents-spec-${spec.id}`, () =>
 							this.client.selectSpec(spec.id),
-						),
+						);
+					},
 				},
 			}),
 		);
