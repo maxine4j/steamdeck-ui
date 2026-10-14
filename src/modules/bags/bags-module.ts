@@ -8,6 +8,7 @@ import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
 import type { IBuiltInBags } from "./built-in-bags";
 export interface BagsView {
+	refreshInteractions?(): void;
 	refreshCooldowns(): void;
 	setItems(items: readonly InventoryItem[]): void;
 	setMoney(copper: number): void;
@@ -37,6 +38,8 @@ export class BagsModule implements IModule {
 	private readonly refreshCooldowns = () => {
 		if (this.visible) this.view.refreshCooldowns();
 	};
+	private readonly refreshInteractions = () =>
+		this.view.refreshInteractions?.();
 	private readonly panelVisibilityChanged = (visible: boolean) => {
 		this.visible = visible;
 		if (visible) {
@@ -71,6 +74,10 @@ export class BagsModule implements IModule {
 		this.builtIn.disable();
 	}
 	initialize(): void {
+		this.events.subscribe(
+			"INVENTORY_ITEM_USE_TARGET_CHANGED",
+			this.refreshInteractions,
+		);
 		this.view.setVisibilityChanged(this.panelVisibilityChanged);
 		this.events.subscribe("BAG_UPDATE_DELAYED", this.refresh);
 		this.events.subscribe("BAG_COOLDOWNS_CHANGED", this.refreshCooldowns);
@@ -84,6 +91,10 @@ export class BagsModule implements IModule {
 		this.syncVisibility();
 	}
 	shutdown(): void {
+		this.events.unsubscribe(
+			"INVENTORY_ITEM_USE_TARGET_CHANGED",
+			this.refreshInteractions,
+		);
 		this.view.setVisibilityChanged();
 		this.visible = false;
 		this.cancelRefresh?.();

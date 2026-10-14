@@ -1,4 +1,5 @@
 import type { WowEventFrame } from "../types";
+import { auctionUpdate, auctionUpdateEvents } from "./auction-house-events";
 import type {
 	ApplicationEvent,
 	EventHandler,
@@ -234,6 +235,12 @@ export class WowEventBus implements IEventBus {
 	constructor(factory: EventFrameFactory) {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
+		for (const event of [
+			...auctionUpdateEvents,
+			"AUCTION_HOUSE_SHOW",
+			"AUCTION_HOUSE_CLOSED",
+		])
+			this.frame.RegisterEvent(event);
 		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
 		for (const event of bankEvents) this.frame.RegisterEvent(event);
 		for (const event of mailEvents) this.frame.RegisterEvent(event);
@@ -275,6 +282,10 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			if (event === "AUCTION_HOUSE_SHOW" || event === "AUCTION_HOUSE_CLOSED")
+				this.emit(event);
+			if ((auctionUpdateEvents as readonly string[]).includes(event))
+				this.emit("AUCTION_HOUSE_CHANGED", auctionUpdate(event, args));
 			if ((mailEvents as readonly string[]).includes(event))
 				this.emit(event as (typeof mailEvents)[number]);
 			if (bankContentEvents.includes(event)) this.emit("BANK_CONTENTS_CHANGED");

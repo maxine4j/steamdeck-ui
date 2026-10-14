@@ -1,6 +1,7 @@
 import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { AddonConfigClient } from "./clients/addon-config-client";
+import { AuctionHouseClient } from "./clients/auction-house-client";
 import { BankClient } from "./clients/bank-client";
 import { CharacterClient } from "./clients/character-client";
 import { CollectionCache } from "./clients/collection-cache";
@@ -38,7 +39,12 @@ import { WowFrameFactory } from "./ui/wow-frame-factory";
 const frameFactory = new WowFrameFactory();
 const events = new WowEventBus(frameFactory);
 const bank = new BankClient();
-const inventory = new InventoryClient(bank);
+const auctionHouse = new AuctionHouseClient(
+	events,
+	new FrameSuppression(new FramePoolManager(frameFactory)),
+	new NativeScriptSuppression(),
+);
+const inventory = new InventoryClient(bank, auctionHouse);
 const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
@@ -83,4 +89,5 @@ startSteamDeckUI(
 	),
 	new PetsClient(scheduler, collectionCache),
 	new PvpFinderClient(),
+	auctionHouse,
 );

@@ -155,6 +155,9 @@ export class ScrollList {
 	resetScroll(): void {
 		this.scroll.resetScroll();
 	}
+	scrollBy(delta: number): void {
+		this.scroll.scrollBy(delta);
+	}
 	setRows(rows: readonly ListRow[]): void {
 		this.pendingUpdate = false;
 		const preserve =

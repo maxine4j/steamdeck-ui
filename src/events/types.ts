@@ -20,6 +20,7 @@ export interface DialogueEventPayloads {
 	DIALOGUE_ERROR: { message: string };
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
+	AUCTION_HOUSE_CHANGED: import("../clients/auction-house-client").AuctionUpdate;
 	NAV_DIRECTION_CHANGED: {
 		direction: "up" | "down" | "left" | "right";
 		pressed: boolean;
@@ -34,6 +35,10 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "AUCTION_HOUSE_SHOW"
+	| "AUCTION_HOUSE_CLOSED"
+	| "AUCTION_SELL_ITEM_SELECTED"
+	| "INVENTORY_ITEM_USE_TARGET_CHANGED"
 	| "MAIL_SHOW"
 	| "MAIL_CLOSED"
 	| "MAIL_INBOX_UPDATE"

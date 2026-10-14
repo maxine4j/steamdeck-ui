@@ -1,6 +1,7 @@
 import type { IAchievementsClient } from "./clients/achievements-client";
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { IAddonConfigClient } from "./clients/addon-config-client";
+import type { IAuctionHouseClient } from "./clients/auction-house-client";
 import type { IBankClient } from "./clients/bank-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
@@ -32,6 +33,7 @@ import { BuiltInAchievements } from "./modules/achievements/built-in-achievement
 import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
 import { CrossBar } from "./modules/action-bar/cross-bar";
+import { registerAuctionHouse } from "./modules/auction-house/register-auction-house";
 import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
 import { BuiltInBags } from "./modules/bags/built-in-bags";
@@ -248,6 +250,7 @@ export function startSteamDeckUI(
 	mail: IMailClient,
 	pets: IPetsClient,
 	pvpFinder: IPvpFinderClient,
+	auctionHouse: IAuctionHouseClient,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -346,6 +349,14 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const auctionHouseFeature = registerAuctionHouse(
+		pool,
+		events,
+		ui,
+		modules,
+		auctionHouse,
+		scheduler,
+	);
 	const transmogPanel = registerTransmog(pool, events, ui, modules, scheduler);
 	const bankFeature = registerBank(
 		pool,
@@ -599,6 +610,7 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			auctionHouseFeature.destroy();
 			bankFeature.destroy();
 			mailFeature.destroy();
 			mapFeature.panel.destroy();

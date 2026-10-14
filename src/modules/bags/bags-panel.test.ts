@@ -241,7 +241,9 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	const pool = new FramePoolManager(factory);
 	const parent = new Frame("parent", pool);
 	let bankType: number | undefined;
+	let auctionOpen = false;
 	const actions = {
+		hasItemUseTarget: () => auctionOpen,
 		getCooldown: vi.fn(() => ({ start: 100, duration: 14400 })),
 		getDepositBankType: () => bankType,
 		useItem: vi.fn(),
@@ -451,6 +453,24 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	itemScripts.at(0)?.get("PostClick")?.(undefined, "RightButton");
 	expect(actions.useItem).toHaveBeenLastCalledWith({ ...cloth, count: 1 });
 	bankType = undefined;
+	auctionOpen = true;
+	panel.refreshInteractions();
+	expect(firstIcon?.SetAttribute).toHaveBeenLastCalledWith("item2", undefined);
+	const auctionNode = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId.includes("item-42"));
+	expect(auctionNode?.secureActions?.().alternate).toBeUndefined();
+	actions.useItem.mockClear();
+	auctionNode?.onAlternate?.();
+	expect(actions.useItem).toHaveBeenCalledExactlyOnceWith({
+		...cloth,
+		count: 1,
+	});
+	itemScripts.at(0)?.get("PostClick")?.(undefined, "RightButton");
+	expect(actions.useItem).toHaveBeenCalledTimes(2);
+	auctionOpen = false;
+	panel.refreshInteractions();
 	click?.();
 	flush();
 	layout.mockClear();

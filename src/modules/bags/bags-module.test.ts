@@ -20,6 +20,7 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	};
 	let visibilityChanged: ((visible: boolean) => void) | undefined;
 	const view = {
+		refreshInteractions: vi.fn(),
 		refreshCooldowns: vi.fn(),
 		setItems: vi.fn(),
 		setMoney: vi.fn(),
@@ -60,6 +61,8 @@ it("starts closed, follows native bag visibility, and restores built-in bags on 
 	expect(ui.openPanel).not.toHaveBeenCalled();
 	// Selecting Bags from another tab must load without native bags opening.
 	visibilityChanged?.(true);
+	events.emit("INVENTORY_ITEM_USE_TARGET_CHANGED");
+	expect(view.refreshInteractions).toHaveBeenCalledOnce();
 	expect(inventory.getItems).toHaveBeenCalledOnce();
 	expect(ui.openPanel).not.toHaveBeenCalled();
 	events.emit("BAG_COOLDOWNS_CHANGED");

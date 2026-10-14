@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { AuctionHouseClient } from "./clients/auction-house-client";
 import type { Reputation } from "./clients/reputation-client";
 import type { Toy } from "./clients/toys-client";
 import { createTestEventBus } from "./events/test-event-bus";
@@ -572,8 +573,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		mail,
 		pets,
+		undefined,
+		new AuctionHouseClient(events),
 	);
-	expect(frames).toHaveLength(5);
+	expect(frames).toHaveLength(6);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -610,9 +613,9 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(6);
+	expect(frames).toHaveLength(7);
 	for (const frame of builtIns)
-		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(5));
+		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(6));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();

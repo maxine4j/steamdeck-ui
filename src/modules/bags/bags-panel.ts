@@ -62,6 +62,20 @@ export class BagsPanel implements IPanel {
 	private navGrid: NavGrid = [];
 	private navigationChanged?: () => void;
 	private visibilityChanged?: (visible: boolean) => void;
+	refreshInteractions(): void {
+		if (!this.mounted) return;
+		for (const cell of this.icons) {
+			const source = cell.source;
+			cell.icon.setItem(
+				source &&
+					this.presentation.itemInteraction !== "transfer" &&
+					!this.actions.hasItemUseTarget?.() &&
+					this.actions.getDepositBankType?.() === undefined
+					? source
+					: undefined,
+			);
+		}
+	}
 	constructor(
 		public readonly id: string,
 		public readonly title: string,
@@ -69,7 +83,11 @@ export class BagsPanel implements IPanel {
 		private readonly pool: IFramePoolManager,
 		private readonly actions: Pick<
 			IInventoryClient,
-			"useItem" | "pickupItem" | "getDepositBankType" | "getCooldown"
+			| "useItem"
+			| "pickupItem"
+			| "getDepositBankType"
+			| "getCooldown"
+			| "hasItemUseTarget"
 		>,
 		private readonly menu: IItemActionMenu,
 		private readonly scheduler: ITaskScheduler,
@@ -243,6 +261,7 @@ export class BagsPanel implements IPanel {
 					const usesSecureItem = () =>
 						source !== undefined &&
 						this.presentation.itemInteraction !== "transfer" &&
+						!this.actions.hasItemUseTarget?.() &&
 						this.actions.getDepositBankType?.() === undefined;
 					const icon = cell.icon;
 					const current = () =>

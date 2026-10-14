@@ -33,6 +33,7 @@ export interface IInventoryActions {
 	destroyItem(item: InventorySlot): void;
 }
 export interface IInventoryClient extends IInventoryActions {
+	hasItemUseTarget?(): boolean;
 	getCooldown?(item: InventorySlot): ItemCooldown;
 	getDepositBankType?(): number | undefined;
 	getItems(): InventoryItem[];
@@ -42,7 +43,14 @@ export interface IInventoryClient extends IInventoryActions {
 export class InventoryClient implements IInventoryClient {
 	constructor(
 		private readonly bankTarget?: { getDepositBankType(): number | undefined },
+		private readonly auctionTarget?: {
+			isOpen(): boolean;
+			selectSellItem(slot: InventorySlot): void;
+		},
 	) {}
+	hasItemUseTarget(): boolean {
+		return this.auctionTarget?.isOpen() ?? false;
+	}
 	// Retail backpack, four equipped bags, and reagent bag; excludes banks.
 	private readonly bagIds = [0, 1, 2, 3, 4, 5];
 	private readonly reader = new ContainerItemReader();
@@ -68,6 +76,10 @@ export class InventoryClient implements IInventoryClient {
 	}
 	useItem(item: InventorySlot): void {
 		if (!this.isCurrentUnlockedSlot(item)) return;
+		if (this.auctionTarget?.isOpen()) {
+			this.auctionTarget.selectSellItem(item);
+			return;
+		}
 		const bankType = this.bankTarget?.getDepositBankType();
 		if (bankType !== undefined && !C_Bank.CanUseBank(bankType)) return;
 		// The generated signature incorrectly requires optional trailing arguments.

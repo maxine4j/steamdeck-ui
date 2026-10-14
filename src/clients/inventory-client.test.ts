@@ -3,6 +3,29 @@ import { InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("routes bag use into auction selling while open and resumes ordinary use after close", () => {
+	let open = true;
+	const selectSellItem = vi.fn();
+	const use = vi.fn();
+	vi.stubGlobal("C_Container", {
+		GetContainerItemInfo: () => ({ itemID: 42 }),
+		UseContainerItem: use,
+	});
+	const client = new InventoryClient(undefined, {
+		isOpen: () => open,
+		selectSellItem,
+	});
+	const slot = { bagId: 0, slotId: 1, itemId: 42 };
+	expect(client.hasItemUseTarget()).toBe(true);
+	client.useItem(slot);
+	expect(selectSellItem).toHaveBeenCalledWith(slot);
+	expect(use).not.toHaveBeenCalled();
+	open = false;
+	expect(client.hasItemUseTarget()).toBe(false);
+	client.useItem(slot);
+	expect(use).toHaveBeenCalledWith(0, 1);
+});
+
 it("reads the physical slot cooldown, including multi-hour durations and disabled cooldowns", () => {
 	const cooldown = vi.fn(() => [100, 14400, 1]);
 	vi.stubGlobal("C_Container", { GetContainerItemCooldown: cooldown });
