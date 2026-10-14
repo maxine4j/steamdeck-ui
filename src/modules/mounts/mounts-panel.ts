@@ -1,6 +1,7 @@
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
+import { DebouncedInput } from "../../ui/components/debounced-input";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
@@ -26,6 +27,7 @@ export class MountsPanel implements IPanel {
 	readonly icon = 132261;
 	private readonly frame: Frame;
 	private readonly search: Frame;
+	private readonly searchInput: DebouncedInput;
 	private readonly searchNavigation: INavigable;
 	private readonly filters: Dropdown;
 	private readonly footer: Frame;
@@ -73,6 +75,12 @@ export class MountsPanel implements IPanel {
 	) {
 		this.frame = new Frame("mounts-root", pool);
 		this.search = new Frame("mounts-search", pool, "SearchBox");
+		this.searchInput = new DebouncedInput(scheduler, (text) => {
+			if (this.mounted) {
+				this.client.search(text);
+				this.refresh();
+			}
+		});
 		this.searchNavigation = {
 			navId: this.search.id,
 			onFocus: (refresh) => {
@@ -514,10 +522,7 @@ export class MountsPanel implements IPanel {
 		this.search.setParent(this.frame);
 		this.search.layout(300, 20, "TOPLEFT", this.frame, 16, -66);
 		this.search.configureInput((text) => {
-			if (this.mounted) {
-				this.client.search(text);
-				this.refresh();
-			}
+			if (this.mounted) this.searchInput.change(text);
 		});
 		this.search.setTooltip("Search mounts");
 		this.search.blurInput();
@@ -569,6 +574,7 @@ export class MountsPanel implements IPanel {
 		this.filters.mount(this.frame);
 		this.frame.show();
 		this.mounted = true;
+		this.searchInput.resume();
 		if (this.dirty) this.refresh(true);
 		else this.layoutContent();
 	}
@@ -577,6 +583,7 @@ export class MountsPanel implements IPanel {
 	}
 	onUnmount(): void {
 		this.mounted = false;
+		this.searchInput.cancel();
 		this.search.blurInput();
 		this.menu.close();
 		this.cancelRefresh?.();

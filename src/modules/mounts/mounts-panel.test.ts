@@ -13,6 +13,7 @@ import { MountsPanel } from "./mounts-panel";
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	vi.useRealTimers();
 });
 it("uses the native search box proportions without a custom inset background", () => {
 	const { panel, parent } = setup();
@@ -30,6 +31,25 @@ it("uses the native search box proportions without a custom inset background", (
 			.mocked(Frame.prototype.setInsetBackground)
 			.mock.contexts.some((frame) => frame.id === "mounts-search"),
 	).toBe(false);
+});
+
+it("debounces mount searches for 300ms after the final text change and cancels hidden work", () => {
+	vi.useFakeTimers();
+	const { panel, parent, client } = setup();
+	panel.onMount(parent);
+	const change = vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0);
+	change?.("h");
+	vi.advanceTimersByTime(250);
+	change?.("horse");
+	vi.advanceTimersByTime(299);
+	expect(client.search).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(1);
+	expect(client.search).toHaveBeenCalledExactlyOnceWith("horse");
+	change?.("cat");
+	panel.onUnmount();
+	vi.advanceTimersByTime(500);
+	expect(client.search).toHaveBeenCalledOnce();
+	panel.destroy();
 });
 it("shows controller graphics beside summon action descriptions", () => {
 	const { panel, parent } = setup();
@@ -244,6 +264,10 @@ function setup() {
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
+		delay: (seconds: number, callback: () => void) => {
+			const timer = setTimeout(callback, seconds * 1000);
+			return () => clearTimeout(timer);
+		},
 		nextFrame: (callback: () => void) => {
 			let cancelled = false;
 			pending.push(() => {
@@ -634,6 +658,7 @@ it("reuses pooled icons on refresh and hides surplus controls when favourites di
 });
 
 it("preserves search, filters, equipment and extra actions in a 70px footer", () => {
+	vi.useFakeTimers();
 	const { panel, parent, client, publish, close } = setup();
 	vi.mocked(client.getFilters).mockReturnValue([
 		{ id: "collection:1", label: "Collected", checked: true },
@@ -651,6 +676,7 @@ it("preserves search, filters, equipment and extra actions in a 70px footer", ()
 	expect(Frame.prototype.setIcon).toHaveBeenCalledWith(789);
 	expect(Frame.prototype.setSpell).toHaveBeenCalledWith(460002);
 	vi.mocked(Frame.prototype.configureInput).mock.calls.at(-1)?.[0]("horse");
+	vi.advanceTimersByTime(300);
 	expect(client.search).toHaveBeenCalledWith("horse");
 	vi.mocked(Frame.prototype.onDragStart).mock.calls.at(-1)?.[0]?.();
 	expect(client.pickupRandom).toHaveBeenCalledOnce();

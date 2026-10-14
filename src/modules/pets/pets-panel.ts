@@ -81,6 +81,7 @@ export class PetsPanel implements IPanel {
 					this.refresh();
 				}
 			},
+			scheduler,
 			(focusId) => this.navigationChanged?.(focusId),
 		);
 		this.viewport = new Frame("pets-scroll", pool, "ScrollFrame");

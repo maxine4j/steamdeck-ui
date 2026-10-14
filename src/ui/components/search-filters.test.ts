@@ -4,9 +4,13 @@ import { Dropdown } from "./dropdown";
 import { Frame } from "./frame";
 import { SearchFilters } from "./search-filters";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.useRealTimers();
+});
 
 it("provides native search and filter controls with explicit controller text focus and lifecycle cleanup", () => {
+	vi.useFakeTimers();
 	for (const method of [
 		"setParent",
 		"layout",
@@ -25,7 +29,14 @@ it("provides native search and filter controls with explicit controller text foc
 	vi.spyOn(Dropdown.prototype, "destroy").mockImplementation(() => {});
 	const pool = {} as IFramePoolManager;
 	const changed = vi.fn();
-	const controls = new SearchFilters("toys", pool, changed);
+	const scheduler = {
+		nextFrame: vi.fn(),
+		delay: (seconds: number, callback: () => void) => {
+			const timer = setTimeout(callback, seconds * 1000);
+			return () => clearTimeout(timer);
+		},
+	};
+	const controls = new SearchFilters("toys", pool, changed, scheduler);
 	controls.mount(new Frame("parent", pool));
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
 		300,
@@ -44,6 +55,10 @@ it("provides native search and filter controls with explicit controller text foc
 	node?.onInteract();
 	expect(Frame.prototype.focusInput).toHaveBeenCalledOnce();
 	vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0)?.("dragon");
+	expect(changed).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(299);
+	expect(changed).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(1);
 	expect(changed).toHaveBeenCalledWith("dragon");
 	node?.onBlur();
 	expect(Frame.prototype.blurInput).toHaveBeenCalled();

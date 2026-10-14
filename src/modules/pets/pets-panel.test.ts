@@ -6,7 +6,10 @@ import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { PetsPanel } from "./pets-panel";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.useRealTimers();
+});
 const pet = (id: number, expansionId = 10, favourite = false): Pet => ({
 	id: `Pet-${id}`,
 	speciesId: id,
@@ -51,6 +54,10 @@ function setup() {
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
+		delay: (seconds: number, callback: () => void) => {
+			const timer = setTimeout(callback, seconds * 1000);
+			return () => clearTimeout(timer);
+		},
 		nextFrame: (callback: () => void) => {
 			let cancelled = false;
 			pending.push(() => {
@@ -90,6 +97,7 @@ function setup() {
 }
 
 it("searches pets and refreshes native family filters without removing the summon action", () => {
+	vi.useFakeTimers();
 	const { panel, parent, client } = setup();
 	vi.mocked(SearchFilters.prototype.mount).mockRestore();
 	vi.spyOn(Dropdown.prototype, "mount").mockImplementation(() => {});
@@ -105,6 +113,10 @@ it("searches pets and refreshes native family filters without removing the summo
 	search?.onInteract();
 	expect(Frame.prototype.focusInput).toHaveBeenCalled();
 	vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0)?.("cat");
+	expect(client.search).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(299);
+	expect(client.search).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(1);
 	expect(client.search).toHaveBeenCalledWith("cat");
 	expect(client.load).toHaveBeenCalledTimes(2);
 	const option = vi

@@ -75,6 +75,7 @@ export class ToysPanel implements IPanel {
 					this.refresh();
 				}
 			},
+			scheduler,
 			(focusId) => this.navigationChanged?.(focusId),
 		);
 		this.viewport = new Frame("toys-scroll", pool, "ScrollFrame");

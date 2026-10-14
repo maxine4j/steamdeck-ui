@@ -8,7 +8,10 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ToysPanel } from "./toys-panel";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.useRealTimers();
+});
 it("shows controller graphics beside toy action descriptions", () => {
 	const { panel, parent } = setup();
 	panel.onMount(parent);
@@ -136,6 +139,10 @@ function setup() {
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
+		delay: (seconds: number, callback: () => void) => {
+			const timer = setTimeout(callback, seconds * 1000);
+			return () => clearTimeout(timer);
+		},
 		nextFrame: (callback: () => void) => {
 			let cancelled = false;
 			pending.push(() => {
@@ -175,6 +182,7 @@ function setup() {
 }
 
 it("searches toys and refreshes native checkbox filters through the header controls", () => {
+	vi.useFakeTimers();
 	const { panel, parent, client } = setup();
 	vi.mocked(SearchFilters.prototype.mount).mockRestore();
 	vi.spyOn(Dropdown.prototype, "mount").mockImplementation(() => {});
@@ -190,6 +198,10 @@ it("searches toys and refreshes native checkbox filters through the header contr
 	search?.onInteract();
 	expect(Frame.prototype.focusInput).toHaveBeenCalled();
 	vi.mocked(Frame.prototype.configureInput).mock.lastCall?.at(0)?.("train");
+	expect(client.search).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(299);
+	expect(client.search).not.toHaveBeenCalled();
+	vi.advanceTimersByTime(1);
 	expect(client.search).toHaveBeenCalledWith("train");
 	expect(client.load).toHaveBeenCalledTimes(2);
 	const option = vi
