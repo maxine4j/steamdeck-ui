@@ -21,7 +21,15 @@ export class CollectionCache implements ICollectionCache {
 		const cache = new SavedVariableCache<T>(() => {
 			// Construction precedes login, so resolve the table only on access.
 			SteamDeckUIConfig ??= {};
-			SteamDeckUIConfig.collectionCache ??= { version: 1, namespaces: {} };
+			SteamDeckUIConfig.collectionCache ??= { version: 2, namespaces: {} };
+			const saved = SteamDeckUIConfig.collectionCache;
+			if (saved.version === 1) {
+				// Schema 1 duplicated journal data in snapshot namespaces. Keep each
+				// authoritative item record and retire only those obsolete containers.
+				for (const legacy of Object.keys(saved.namespaces))
+					if (legacy.endsWith(".snapshot")) delete saved.namespaces[legacy];
+				saved.version = 2;
+			}
 			const key = character ? `${namespace}:${this.character()}` : namespace;
 			const namespaces = SteamDeckUIConfig.collectionCache.namespaces;
 			namespaces[key] ??= {};

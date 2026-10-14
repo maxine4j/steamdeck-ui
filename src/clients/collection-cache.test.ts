@@ -38,3 +38,28 @@ it("resolves WoW's loaded SavedVariables lazily and shares namespace observers",
 	expect(first.peek("1")).toBe(8);
 	expect(scheduler.nextFrame).not.toHaveBeenCalled();
 });
+
+it("migrates obsolete journal snapshots without discarding authoritative item records", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {
+		currencyFavourites: [7],
+		collectionCache: {
+			version: 1,
+			namespaces: {
+				"mounts.snapshot": { snapshot: { value: ["old"] } },
+				"toys.snapshot": { snapshot: { value: ["old"] } },
+				"pets.snapshot": { snapshot: { value: ["old"] } },
+				"pets.items": { "Pet-1": { value: 42 } },
+				"achievements.categories:player": { "1": { value: 7 } },
+			},
+		},
+	});
+	const cache = new CollectionCache({ nextFrame: vi.fn() }, () => "player");
+	expect(cache.create<number>("pets.items").peek("Pet-1")).toBe(42);
+	expect(
+		Object.keys(SteamDeckUIConfig?.collectionCache?.namespaces ?? {}),
+	).toEqual(["pets.items", "achievements.categories:player"]);
+	expect(cache.create<number>("achievements.categories", true).peek("1")).toBe(
+		7,
+	);
+	expect(SteamDeckUIConfig?.currencyFavourites).toEqual([7]);
+});

@@ -21,9 +21,8 @@ export class BuiltInPets {
 }
 export class PetsModule implements IModule {
 	readonly id = "pets";
-	private readonly refresh = (payload?: { id: string }) => {
-		this.journal.invalidate(payload?.id);
-		this.view.invalidate();
+	private readonly refresh = (payload?: { id: string; removed?: boolean }) => {
+		this.journal.refreshEntry(payload?.id, payload?.removed);
 	};
 	private readonly resume = () => this.view.resume();
 	private readonly sync = () => {
@@ -33,14 +32,14 @@ export class PetsModule implements IModule {
 	constructor(
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
-		private readonly view: { invalidate(): void; resume(): void },
+		private readonly view: { resume(): void },
 		private readonly native: Pick<
 			BuiltInPets,
 			"disable" | "restore" | "isOpen"
 		>,
 		private readonly journal: Pick<
 			IPetsClient,
-			"prefetch" | "invalidate" | "stop"
+			"prefetch" | "refreshEntry" | "stop"
 		>,
 	) {}
 	disableBuiltIn(): void {

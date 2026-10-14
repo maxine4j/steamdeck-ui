@@ -1,6 +1,10 @@
 import type { ICollectionCache } from "./collection-cache";
+import {
+	CollectionJournal,
+	type CollectionPageReader,
+	type ICollectionJournal,
+} from "./collection-journal";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
-import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import { getPetExpansion } from "./pet-expansions";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
@@ -66,16 +70,16 @@ export interface Pet {
 	readonly description?: string;
 	readonly ownedCount?: number;
 	readonly collectionLimit?: number;
+	readonly displayed?: boolean;
+	readonly present?: boolean;
 }
 export interface IPetsClient
-	extends Omit<IJournalPrefetch, "invalidate">,
+	extends ICollectionJournal<string>,
 		ICollectionQuery {
-	invalidate(id?: string): void;
+	refreshEntry(id?: string, removed?: boolean): void;
 	load(
-		done: (pets: Pet[]) => void,
+		done: (pets: Pet[], complete: boolean) => void,
 		progress?: (completed: number, total: number) => void,
-		preview?: (pets: Pet[]) => void,
-		retainCachedView?: boolean,
 	): () => void;
 	isInCombat(): boolean;
 	canUse(id: string): boolean;
@@ -120,48 +124,252 @@ const petFilterKinds = [
 
 export class PetsClient implements IPetsClient {
 	private filtersInitialized = false;
-	private fullScan = true;
-	private readonly dirtyIds = new Set<string>();
-	private readonly items?: SavedVariableCache<Pet>;
-	private readonly snapshots?: SavedVariableCache<Pet[]>;
-	private journal: JournalPrefetch<Pet[]>;
-	private querying = false;
-	private querySnapshot?: Pet[];
-	constructor(
-		private readonly scheduler: ITaskScheduler,
-		cache?: ICollectionCache,
-	) {
-		this.items = cache?.create("pets.items", false);
-		this.snapshots = cache?.create("pets.snapshot", false);
-		this.journal = this.createJournal(this.snapshots);
-	}
-	private createJournal(
-		persisted?: SavedVariableCache<Pet[]>,
-	): JournalPrefetch<Pet[]> {
-		return new JournalPrefetch(
-			this.scheduler,
-			(done, preview, progress) => this.scan(done, progress, preview),
-			persisted,
+	private catalogWarm = false;
+	private queryActive = false;
+	private applyingQuery = false;
+	private readonly pendingQuery: (() => void)[] = [];
+	private readonly pendingFilters = new Map<string, boolean>();
+	private readonly removed = new Set<string>();
+	private readonly items: SavedVariableCache<Pet>;
+	private readonly journal: CollectionJournal<Pet>;
+	constructor(scheduler: ITaskScheduler, cache: ICollectionCache) {
+		this.items = cache.create<Pet>("pets.items");
+		this.journal = new CollectionJournal(
+			scheduler,
+			this.items,
+			(row) => row.id,
+			(row) => row.present !== false && row.displayed !== false,
+			() => this.beginScan(),
+			(id) => this.readTarget(id, true),
 		);
+	}
+	private beginScan(): CollectionPageReader<Pet> {
+		this.ensureFilters();
+		if (!this.catalogWarm) {
+			const [count] = C_PetJournal.GetNumPets();
+			return {
+				count,
+				read: (index) => this.readIndex(index + 1),
+				finish: () => this.finishScan(),
+			};
+		}
+		// GetOwnedPetIDs is an unfiltered Lua table; generated scalar annotations omit it.
+		const owned = (
+			C_PetJournal.GetOwnedPetIDs as unknown as (this: void) => string[]
+		)();
+		const ownership = new Set(owned);
+		const ids = this.items.values().map((row) => row.id);
+		for (const id of owned) if (!ids.includes(id)) ids.push(id);
+		const [count] = C_PetJournal.GetNumPets();
+		const known = new Set(ids);
+		return {
+			count: ids.length + count,
+			read: (index) => {
+				const id = ids.at(index);
+				if (id !== undefined) {
+					if (id.startsWith("species-")) {
+						const previous = this.items.peek(id);
+						if (!previous) return [];
+						const counts = this.collectionCount(previous.speciesId);
+						return [
+							{ ...previous, ...counts, present: counts.ownedCount === 0 },
+						];
+					}
+					return ownership.has(id) ? this.readTarget(id) : this.removeOwned(id);
+				}
+				const [guid, species] = C_PetJournal.GetPetInfoByIndex(
+					index - ids.length + 1,
+				);
+				const key = guid || `species-${species}`;
+				if (known.has(key)) return [];
+				return this.readIndex(index - ids.length + 1);
+			},
+			finish: () => this.finishScan(),
+		};
+	}
+	private finishScan(): void {
+		this.catalogWarm = true;
+		const commands = this.pendingQuery.splice(0);
+		for (const apply of commands) apply();
+		this.pendingFilters.clear();
+		if (commands.length > 0 || this.queryActive) this.refreshDisplay();
+	}
+	private applyQuery(apply: () => void): void {
+		this.queryActive = true;
+		const run = () => this.changeQuery(apply);
+		if (this.journal.isScanning()) this.pendingQuery.push(run);
+		else {
+			run();
+			this.refreshDisplay();
+		}
+	}
+	private changeQuery(apply: () => void): void {
+		const previous = this.applyingQuery;
+		this.applyingQuery = true;
+		apply();
+		this.applyingQuery = previous;
+	}
+	refreshDisplay(): void {
+		this.journal.project(() => {
+			const [count] = C_PetJournal.GetNumPets();
+			const ids = this.items.values().map((row) => row.id);
+			const visible = new Set<string>();
+			return {
+				count: count + ids.length,
+				read: (index) => {
+					if (index < count) {
+						const [guid, species, collected] = C_PetJournal.GetPetInfoByIndex(
+							index + 1,
+						);
+						visible.add(collected && guid ? guid : `species-${species}`);
+						return [];
+					}
+					const id = ids.at(index - count);
+					const row = id !== undefined ? this.items.peek(id) : undefined;
+					if (!row) return [];
+					const displayed = visible.has(row.id);
+					return row.displayed === displayed ? [] : [{ ...row, displayed }];
+				},
+			};
+		});
+	}
+	private readIndex(index: number): Pet[] {
+		const [
+			guid,
+			speciesId,
+			collected,
+			customName,
+			,
+			favourite,
+			revoked,
+			name,
+			icon,
+			,
+			,
+			source,
+			description,
+		] = C_PetJournal.GetPetInfoByIndex(index);
+		if (!speciesId) return [];
+		const id = collected && guid ? guid : `species-${speciesId}`;
+		const previous = this.items.peek(id);
+		return [
+			{
+				id,
+				speciesId,
+				name: customName || name || previous?.name || `Pet ${speciesId}`,
+				icon,
+				collected: collected && !!guid,
+				favourite: collected && favourite,
+				expansionId: getPetExpansion(speciesId),
+				source,
+				description,
+				...this.collectionCount(speciesId),
+				present:
+					!revoked && !this.removed.has(id) && previous?.present !== false,
+				displayed: this.catalogWarm ? previous?.displayed : true,
+			},
+		];
+	}
+	private readTarget(id: string, restore = false): Pet[] {
+		if (this.removed.has(id)) {
+			// Only the targeted event consumes its payload; scans must not steal it.
+			if (restore) this.removed.delete(id);
+			return this.removeOwned(id);
+		}
+		if (id.startsWith("species-")) return [];
+		const previous = this.items.peek(id);
+		if (!restore && previous?.present === false) return this.removeOwned(id);
+		const [
+			speciesId,
+			customName,
+			,
+			,
+			,
+			,
+			favourite,
+			name,
+			icon,
+			,
+			,
+			source,
+			description,
+		] = C_PetJournal.GetPetInfoByPetID(id);
+		if (!speciesId) return previous ? [previous] : [];
+		const counts = this.collectionCount(speciesId);
+		const pet: Pet = {
+			id,
+			speciesId,
+			name: customName || name || previous?.name || `Pet ${speciesId}`,
+			icon,
+			collected: true,
+			favourite,
+			expansionId: getPetExpansion(speciesId),
+			source: source ?? previous?.source,
+			description: description ?? previous?.description,
+			...counts,
+			present: true,
+			displayed: previous?.displayed,
+		};
+		const rows = [pet];
+		for (const copy of this.items.values()) {
+			if (copy.id === id || copy.speciesId !== speciesId) continue;
+			rows.push({
+				...copy,
+				...counts,
+				present: copy.id.startsWith("species-")
+					? counts.ownedCount === 0
+					: copy.present,
+			});
+		}
+		return rows;
+	}
+	private removeOwned(id: string): Pet[] {
+		const previous = this.items.peek(id);
+		if (!previous) return [];
+		const counts = this.collectionCount(previous.speciesId);
+		const rows: Pet[] = [
+			{
+				...previous,
+				...counts,
+				collected: false,
+				favourite: false,
+				present: false,
+			},
+		];
+		for (const copy of this.items.values()) {
+			if (copy.id !== id && copy.speciesId === previous.speciesId)
+				rows.push({
+					...copy,
+					...counts,
+					present: copy.id.startsWith("species-")
+						? counts.ownedCount === 0
+						: copy.present,
+				});
+		}
+		if (counts.ownedCount === 0)
+			rows.push({
+				...previous,
+				...counts,
+				id: `species-${previous.speciesId}`,
+				collected: false,
+				favourite: false,
+				present: true,
+			});
+		return rows;
 	}
 	private ensureFilters(): void {
 		if (this.filtersInitialized) return;
 		this.filtersInitialized = true;
-		C_PetJournal.SetDefaultFilters();
-		C_PetJournal.ClearSearchFilter();
-	}
-	private resetQuery(): void {
-		this.journal.stop();
-		this.querying = true;
-		this.querySnapshot = undefined;
-		this.fullScan = true;
-		this.dirtyIds.clear();
-		this.journal = this.createJournal();
+		this.changeQuery(() => {
+			C_PetJournal.SetDefaultFilters();
+			C_PetJournal.ClearSearchFilter();
+		});
 	}
 	search(text: string): void {
-		this.ensureFilters();
-		this.resetQuery();
-		C_PetJournal.SetSearchFilter(text);
+		this.applyQuery(() => {
+			this.ensureFilters();
+			C_PetJournal.SetSearchFilter(text);
+		});
 	}
 	getFilters(): CollectionFilter[] {
 		this.ensureFilters();
@@ -185,169 +393,54 @@ export class PetsClient implements IPetsClient {
 				label: `Source: ${labels[`BATTLE_PET_SOURCE_${index}`]}`,
 				checked: api.IsPetSourceChecked(index),
 			});
-		return filters;
+		return filters.map((filter) => ({
+			...filter,
+			checked: this.pendingFilters.get(filter.id) ?? filter.checked,
+		}));
 	}
 	toggleFilter(id: string): void {
 		const filter = this.getFilters().find((filter) => filter.id === id);
 		if (!filter) return;
+		this.pendingFilters.set(id, !filter.checked);
 		const api = C_PetJournal as unknown as PetFilterApi;
-		this.resetQuery();
-		const kind = petFilterKinds.find((kind) => kind.id === id);
-		if (kind)
-			api.SetFilterChecked(
-				(_G as unknown as Record<string, number>)[kind.constant],
-				!filter.checked,
-			);
-		else {
-			const [group, value] = id.split(":");
-			if (group === "family")
-				api.SetPetTypeFilter(Number(value), !filter.checked);
-			else api.SetPetSourceChecked(Number(value), !filter.checked);
-		}
+		this.applyQuery(() => {
+			const kind = petFilterKinds.find((kind) => kind.id === id);
+			if (kind)
+				api.SetFilterChecked(
+					(_G as unknown as Record<string, number>)[kind.constant],
+					!filter.checked,
+				);
+			else {
+				const [group, value] = id.split(":");
+				if (group === "family")
+					api.SetPetTypeFilter(Number(value), !filter.checked);
+				else api.SetPetSourceChecked(Number(value), !filter.checked);
+			}
+		});
+		if (!this.journal.isScanning()) this.pendingFilters.delete(id);
 	}
 	prefetch(): void {
-		this.fullScan = true;
 		this.journal.prefetch();
 	}
-	invalidate(id?: string): void {
-		if (id && this.items?.peek(id)) this.dirtyIds.add(id);
-		else this.fullScan = true;
-		this.journal.invalidate();
+	refreshEntry(id?: string, removed = false): void {
+		if (id === undefined && this.applyingQuery) return;
+		if (id) {
+			if (removed) this.removed.add(id);
+			else this.removed.delete(id);
+		}
+		this.journal.refreshEntry(id);
 	}
 	stop(): void {
 		this.journal.stop();
-		this.items?.stop();
-		this.filtersInitialized = false;
-		this.fullScan = true;
-		this.querying = false;
-		this.querySnapshot = undefined;
-		this.journal = this.createJournal(this.snapshots);
+		this.pendingQuery.length = 0;
+		this.pendingFilters.clear();
+		this.removed.clear();
 	}
 	load(
-		done: (pets: Pet[]) => void,
+		done: (pets: Pet[], complete: boolean) => void,
 		progress?: (completed: number, total: number) => void,
-		preview?: (pets: Pet[]) => void,
-		retainCachedView = false,
 	): () => void {
-		return this.journal.load(done, preview, progress, retainCachedView);
-	}
-	private scan(
-		done: (pets: Pet[]) => void,
-		progress?: (completed: number, total: number) => void,
-		preview?: (pets: Pet[]) => void,
-	): () => void {
-		const saved = !this.fullScan
-			? this.querying
-				? this.querySnapshot
-				: this.snapshots?.peek("snapshot")
-			: undefined;
-		const dirty = new Set(this.dirtyIds);
-		this.dirtyIds.clear();
-		this.fullScan = false;
-		const pets: Pet[] = [];
-		const seen = new Set<string>();
-		let count: number | undefined,
-			index = 0,
-			cancelled = false,
-			previewed = false;
-		const step = () => {
-			if (cancelled) return;
-			this.ensureFilters();
-			if (count === undefined) {
-				if (saved) count = saved.length;
-				else {
-					const [total] = C_PetJournal.GetNumPets();
-					count = total;
-				}
-			}
-			const end = Math.min(count, index + 20);
-			while (index < end) {
-				const previous = saved?.at(index);
-				index++;
-				let pet: Pet | undefined;
-				if (previous) {
-					pet = previous;
-					if (previous.collected && dirty.has(previous.id)) {
-						const [
-							speciesId,
-							customName,
-							,
-							,
-							,
-							,
-							favourite,
-							name,
-							icon,
-							,
-							,
-							source,
-							description,
-						] = C_PetJournal.GetPetInfoByPetID(previous.id);
-						if (speciesId)
-							pet = {
-								...previous,
-								name: customName || name,
-								icon,
-								favourite,
-								source: source ?? previous.source,
-								description: description ?? previous.description,
-								...this.collectionCount(speciesId),
-							};
-					}
-				} else {
-					const [
-						guid,
-						speciesId,
-						collected,
-						customName,
-						,
-						favourite,
-						revoked,
-						name,
-						icon,
-						,
-						,
-						source,
-						description,
-					] = C_PetJournal.GetPetInfoByIndex(index);
-					if (speciesId && !revoked)
-						pet = {
-							id: collected && guid ? guid : `species-${speciesId}`,
-							speciesId,
-							name: customName || name || `Pet ${speciesId}`,
-							icon,
-							collected: collected && !!guid,
-							favourite: collected && favourite,
-							expansionId: getPetExpansion(speciesId),
-							source,
-							description,
-							...this.collectionCount(speciesId),
-						};
-				}
-				if (pet && !seen.has(pet.id)) {
-					seen.add(pet.id);
-					pets.push(pet);
-					if (pet !== previous) this.items?.put(pet.id, pet);
-				}
-			}
-			progress?.(index, count);
-			if (!previewed && pets.length > 0 && index < count) {
-				previewed = true;
-				preview?.([...pets]);
-			}
-			if (cancelled) return;
-			if (index < count) cancel = this.scheduler.nextFrame(step);
-			else {
-				if (this.querying) this.querySnapshot = pets;
-				else this.snapshots?.put("snapshot", pets);
-				done(pets);
-			}
-		};
-		let cancel = this.scheduler.nextFrame(step);
-		return () => {
-			cancelled = true;
-			cancel();
-		};
+		return this.journal.load(done, progress);
 	}
 	private collectionCount(speciesId: number): {
 		ownedCount: number;
@@ -386,9 +479,12 @@ export class PetsClient implements IPetsClient {
 	}
 	toggleFavourite(id: string): void {
 		if (this.isInCombat() || id.startsWith("species-")) return;
-		const [species, , , , , , favourite] = C_PetJournal.GetPetInfoByPetID(id);
-		if (!species) return;
-		this.invalidate(id);
-		C_PetJournal.SetFavorite(id, favourite ? 0 : 1);
+		this.applyQuery(() => {
+			if (this.isInCombat()) return;
+			const [species, , , , , , favourite] = C_PetJournal.GetPetInfoByPetID(id);
+			if (!species) return;
+			C_PetJournal.SetFavorite(id, favourite ? 0 : 1);
+			this.journal.refreshEntry(id);
+		});
 	}
 }

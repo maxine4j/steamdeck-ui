@@ -18,6 +18,8 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	const module = new ToysModule(ui, events, view, native, {
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshItem: vi.fn(),
 		stop: vi.fn(),
 	});
 	module.disableBuiltIn();
@@ -29,7 +31,7 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	expect(ui.closePanel).toHaveBeenCalledWith("right", "toys");
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");
-	expect(view.invalidate).toHaveBeenCalledTimes(2);
+	expect(view.invalidate).not.toHaveBeenCalled();
 	events.emit("TOYS_COOLDOWN_CHANGED");
 	expect(view.refreshCooldowns).toHaveBeenCalledOnce();
 	events.emit("COMBAT_ENDED");
@@ -38,14 +40,20 @@ it("opens toys on the right, refreshes data and cooldowns separately, and restor
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");
 	events.emit("TOYS_COOLDOWN_CHANGED");
-	expect(view.invalidate).toHaveBeenCalledTimes(2);
+	expect(view.invalidate).not.toHaveBeenCalled();
 	expect(view.refreshCooldowns).toHaveBeenCalledTimes(1);
 	expect(native.restore).toHaveBeenCalledOnce();
 });
 
 it("warms the toy journal at initialization and invalidates item metadata before refreshing", () => {
 	const events = createTestEventBus();
-	const journal = { prefetch: vi.fn(), invalidate: vi.fn(), stop: vi.fn() };
+	const journal = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshItem: vi.fn(),
+		stop: vi.fn(),
+	};
 	const module = new ToysModule(
 		{ openPanel: vi.fn(), closePanel: vi.fn() },
 		events,
@@ -57,9 +65,9 @@ it("warms the toy journal at initialization and invalidates item metadata before
 	expect(journal.prefetch).toHaveBeenCalledOnce();
 	events.emit("TOYS_CHANGED");
 	events.emit("ITEM_DATA_LOAD_RESULT");
-	expect(journal.invalidate).toHaveBeenCalledTimes(2);
+	expect(journal.refreshEntry).toHaveBeenCalledOnce();
 	events.emit("TOYS_CHANGED", { id: 42 });
-	expect(journal.invalidate).toHaveBeenLastCalledWith(42);
+	expect(journal.refreshEntry).toHaveBeenLastCalledWith(42);
 	module.shutdown();
 	expect(journal.stop).toHaveBeenCalledOnce();
 });
@@ -69,8 +77,9 @@ it("ignores failed or unrelated item loads", () => {
 	const journal = {
 		prefetch: vi.fn(),
 		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
 		stop: vi.fn(),
-		invalidateItem: vi.fn((id: number) => id === 42),
+		refreshItem: vi.fn((id: number) => id === 42),
 	};
 	const view = {
 		invalidate: vi.fn(),
@@ -89,5 +98,5 @@ it("ignores failed or unrelated item loads", () => {
 	events.emit("ITEM_DATA_LOAD_RESULT", { id: 42, success: false });
 	expect(view.invalidate).not.toHaveBeenCalled();
 	events.emit("ITEM_DATA_LOAD_RESULT", { id: 42, success: true });
-	expect(view.invalidate).toHaveBeenCalledOnce();
+	expect(view.invalidate).not.toHaveBeenCalled();
 });

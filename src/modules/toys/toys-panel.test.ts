@@ -30,7 +30,7 @@ it("keeps a warm toy view and its actions unchanged until reopening after invali
 	publish([toy(1)]);
 	const first = panel.getNavGrid().at(0)?.at(0);
 	vi.mocked(Frame.prototype.setIcon).mockClear();
-	for (let event = 0; event < 5; event++) panel.invalidate();
+	for (let event = 0; event < 5; event++) publish([toy(1)]);
 	panel.resume();
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
@@ -47,14 +47,14 @@ it("keeps a warm toy view and its actions unchanged until reopening after invali
 	panel.destroy();
 });
 it("keeps early toys usable through item-data invalidations and defers replacement until reopening", () => {
-	const { panel, parent, client, menu, flush } = setup();
+	const { panel, parent, client, menu, flush, publish } = setup();
 	panel.onMount(parent);
 	const load = vi.mocked(client.load).mock.calls.at(-1);
-	load?.at(2)?.([toy(1)]);
+	load?.at(0)?.([toy(1)], false);
 	flush();
 	panel.getNavGrid().at(0)?.at(0)?.navigationScroll?.scrollToEdge("down");
 	expect(Frame.prototype.scrollToEdge).not.toHaveBeenCalled();
-	for (let event = 0; event < 5; event++) panel.invalidate();
+	for (let event = 0; event < 5; event++) publish([toy(1)]);
 	expect(client.load).toHaveBeenCalledOnce();
 	const first = panel.getNavGrid().at(0)?.at(0);
 	expect(first?.secureActions?.().alternate).toBeDefined();
@@ -90,7 +90,7 @@ it("shows Blizzard's favourite star and clears it when a cell is reused", () => 
 	publish([toy(1)]);
 	expect(vi.mocked(Frame.prototype.hide).mock.contexts).toContain(star);
 	panel.destroy();
-	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).toContain(star);
+	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).not.toContain(star);
 });
 const toy = (id: number, expansionId = 10, favourite = false): Toy => ({
 	id,
@@ -158,7 +158,8 @@ function setup() {
 		getFilters: vi.fn(() => []),
 		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
-		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		refreshItem: vi.fn(() => false),
 		stop: vi.fn(),
 		isInCombat: vi.fn(() => false),
 		load: vi.fn(() => vi.fn()),
@@ -235,7 +236,7 @@ it("closes the native journal only when the host closes, rather than during pane
 	expect(close).toHaveBeenCalledOnce();
 });
 
-it("clears the focused secure target before asynchronous refresh reuses its icon", () => {
+it("clears the focused secure target when the cache removes its entry", () => {
 	const { panel, parent, publish } = setup();
 	panel.onMount(parent);
 	publish([toy(1)]);
@@ -245,7 +246,7 @@ it("clears the focused secure target before asynchronous refresh reuses its icon
 		expect(focused?.secureActions?.().alternate).toBeUndefined(),
 	);
 	panel.setNavigationChanged(changed);
-	panel.refresh();
+	publish([]);
 	expect(changed).toHaveBeenCalledOnce();
 });
 
@@ -353,9 +354,9 @@ it("reuses icons on reopen, hides surplus groups and refreshes cooldowns without
 	panel.onUnmount();
 	panel.onMount(parent);
 	flush();
-	expect(client.load).toHaveBeenCalledTimes(1);
+	expect(client.load).toHaveBeenCalledTimes(2);
 	panel.refreshCooldowns();
-	expect(client.load).toHaveBeenCalledTimes(1);
+	expect(client.load).toHaveBeenCalledTimes(2);
 	expect(client.getCooldown).toHaveBeenCalledWith(3);
 	panel.refresh();
 	publish([toy(2, 11)]);
@@ -382,8 +383,6 @@ it("makes the first rendered batch interactive while remaining toys render", () 
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
-	expect(panel.getNavGrid()).toEqual([]);
-	pending.shift()?.();
 	const firstBatch = panel.getNavGrid().flat();
 	expect(firstBatch).toHaveLength(9); // One header and nine icons per batch.
 	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(9);
@@ -412,12 +411,13 @@ it("routes D-pad input through an early page while the cold journal scan is pend
 	nav.registerGrid("toys", () => panel.getNavGrid());
 	nav.setActiveGrid("toys");
 	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
-	const preview = vi.mocked(client.load).mock.calls.at(-1)?.at(2);
+	const preview = vi.mocked(client.load).mock.calls.at(-1)?.at(0);
 	preview?.(
 		Array.from({ length: 20 }, (_, index) => ({
 			...toy(index + 1),
 			name: `Toy ${String(index + 1).padStart(2, "0")}`,
 		})),
+		false,
 	);
 	pending.shift()?.();
 	events.emit("NAV_RIGHT");
@@ -449,20 +449,19 @@ it("routes D-pad input through an early page while the cold journal scan is pend
 });
 
 it("retains partial navigation while waiting for replacement data and disables stale actions", () => {
-	const { panel, parent, client, menu, pending, publish } = setup();
+	const { panel, parent, client, menu, publish } = setup();
 	panel.onMount(parent);
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
-	pending.shift()?.();
 	const first = panel.getNavGrid().at(0)?.at(0);
 	expect(first?.secureActions?.().alternate).toBeDefined();
 	panel.refresh();
 	expect(panel.getNavGrid().flat()).toHaveLength(9);
-	expect(first?.secureActions?.().alternate).toBeUndefined();
-	expect(first?.tooltipItem?.()).toBeUndefined();
+	expect(first?.secureActions?.().alternate).toBeDefined();
+	expect(first?.tooltipItem?.()).toEqual({ toy: 1 });
 	first?.onContext?.();
-	expect(menu.open).not.toHaveBeenCalled();
+	expect(menu.open).toHaveBeenCalledOnce();
 	publish([toy(99)]);
 	expect(
 		panel
@@ -515,7 +514,7 @@ it("keeps focus on an early toy as a larger sorted snapshot renders", () => {
 		...toy(index + 1),
 		name: `Toy ${String(index + 1).padStart(2, "0")}`,
 	}));
-	vi.mocked(client.load).mock.calls.at(-1)?.at(2)?.(toys.slice(10, 30));
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(toys.slice(10, 30));
 	flush();
 	events.emit("NAV_DOWN");
 	expect(nav.focusedId).toBe("toy-21");
@@ -549,9 +548,9 @@ it("cancels cached render continuations when fresher data arrives in the same lo
 	publish?.(Array.from({ length: 25 }, (_, index) => toy(index + 1)));
 	pending.shift()?.();
 	const stale = panel.getNavGrid().at(0)?.at(0);
+	vi.mocked(Frame.prototype.setToy).mockClear();
 	publish?.([toy(99)]);
 	expect(stale?.secureActions?.().alternate).toBeUndefined();
-	vi.mocked(Frame.prototype.setToy).mockClear();
 	flush();
 	expect(
 		panel
@@ -582,8 +581,9 @@ it("shows loading progress through scanning and rendering, then hides the bar", 
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
-	pending.shift()?.();
 	expect(widths().at(-1)).toBeCloseTo(70 + 70 * (10 / 26));
+	pending.shift()?.();
+	expect(widths().at(-1)).toBeCloseTo(70 + 70 * (20 / 26));
 	flush();
 	expect(widths().at(-1)).toBe(140);
 	expect(Frame.prototype.setLabel).toHaveBeenLastCalledWith(
@@ -621,8 +621,9 @@ it("rejects stale loads and cancels rendering on unmount, reloading interrupted 
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
-	pending.shift()?.();
 	expect(changed).toHaveBeenCalledOnce();
+	pending.shift()?.();
+	expect(changed).toHaveBeenCalledTimes(2);
 	panel.onUnmount();
 	flush();
 	expect(panel.getNavGrid()).toEqual([]);
@@ -636,4 +637,100 @@ it("rejects stale loads and cancels rendering on unmount, reloading interrupted 
 			.map((node) => node.navId),
 	).toEqual(["toy-1"]);
 	expect(changed).toHaveBeenCalledOnce();
+});
+
+it("renders cached toys immediately and updates only changed tiles from the live subscription", () => {
+	const { panel, parent, client, flush } = setup();
+	const first = toy(1);
+	const second = toy(2);
+	vi.mocked(client.load).mockImplementation((done) => {
+		done([first, second], true);
+		return () => {};
+	});
+	panel.onMount(parent);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "toy-1"),
+	).toBe(true);
+	flush();
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
+		[first, { ...second, collected: false }],
+		true,
+	);
+	flush();
+	const icons = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("toys-icon-"));
+	expect(icons.map((frame) => frame.id)).toEqual(["toys-icon-1"]);
+});
+
+it("keeps cooldown updates associated with all retained controls during partial cache rendering", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	const toys = Array.from({ length: 45 }, (_, index) => toy(index + 1));
+	publish(toys);
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
+		toys.map((entry, index) =>
+			index < 20 ? { ...entry, collected: false } : entry,
+		),
+		true,
+	);
+	vi.mocked(client.getCooldown).mockClear();
+	panel.refreshCooldowns();
+	expect(client.getCooldown).toHaveBeenCalledTimes(20);
+	flush();
+	expect(
+		new Set(vi.mocked(client.getCooldown).mock.calls.map((args) => args.at(0)))
+			.size,
+	).toBe(45);
+});
+
+it("bounds cooldown event bursts and refreshes retained cooldowns on an unchanged reopening", () => {
+	const { panel, parent, client, publish, pending, flush } = setup();
+	panel.onMount(parent);
+	const toys = Array.from({ length: 45 }, (_, index) => toy(index + 1));
+	publish(toys);
+	vi.mocked(client.getCooldown).mockClear();
+	for (let event = 0; event < 10; event++) panel.refreshCooldowns();
+	expect(client.getCooldown.mock.calls.length).toBeLessThanOrEqual(20);
+	pending.shift()?.();
+	expect(client.getCooldown.mock.calls.length).toBeLessThanOrEqual(40);
+	flush();
+	panel.onUnmount();
+	vi.mocked(client.load).mockImplementation((done) => {
+		done(toys, true);
+		return () => {};
+	});
+	vi.mocked(client.getCooldown).mockReturnValue({ start: 123, duration: 45 });
+	panel.onMount(parent);
+	flush();
+	expect(Frame.prototype.setCooldown).toHaveBeenCalledWith(123, 45);
+});
+
+it("detaches on close, resubscribes on reopening, and retains toy frames for the session", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([toy(1), toy(2)]);
+	const originals = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("toys-icon-"));
+	const detach = vi.mocked(client.load).mock.results.at(0)?.value;
+	panel.onUnmount();
+	expect(detach).toHaveBeenCalledOnce();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([toy(3)]);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	publish([toy(1), toy(2)]);
+	flush();
+	const returned = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("toys-icon-"));
+	expect(returned).toEqual(originals);
+	panel.destroy();
+	expect(Frame.prototype.destroy).not.toHaveBeenCalled();
+	expect(SearchFilters.prototype.destroy).not.toHaveBeenCalled();
 });

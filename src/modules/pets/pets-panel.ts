@@ -19,6 +19,11 @@ const columns = 10;
 const spacing = 46;
 interface PetCell {
 	navId?: string;
+	key?: string;
+	pet?: Pet;
+	top?: number;
+	column?: number;
+	visible?: boolean;
 	readonly border: Frame;
 	readonly favourite: Frame;
 	readonly icon: Frame;
@@ -44,16 +49,14 @@ export class PetsPanel implements IPanel {
 	private parent?: Frame;
 	private mountPending = false;
 	private dirty = true;
-	private loading = false;
 	private snapshotComplete = false;
 	private viewComplete = false;
-	private queuedRefresh = false;
 	private generation = 0;
 	private renderGeneration = 0;
-	private renderLoadGeneration = 0;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private grid: NavGrid = [];
+	private visibleIds = new Set<string>();
 	private contentHeight = 1;
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll: NavigationScroll = {
@@ -138,28 +141,11 @@ export class PetsPanel implements IPanel {
 		this.viewport.show();
 		this.content.show();
 		this.mounted = true;
-		if (this.dirty) this.refresh(true);
-		else {
-			this.layoutContent();
-		}
-	}
-	invalidate(): void {
-		if (this.mounted && this.snapshotComplete) {
-			this.queuedRefresh = true;
-			this.dirty = true;
-			return;
-		}
-		if (this.mounted && (this.loading || this.cancelRender)) {
-			this.queuedRefresh = true;
-			return;
-		}
 		this.refresh();
 	}
-	refresh(retainCachedView = false): void {
+	refresh(): void {
 		this.snapshotComplete = false;
 		this.viewComplete = false;
-		this.loading = false;
-		this.queuedRefresh = false;
 		this.dirty = true;
 		const generation = ++this.generation;
 		this.cancelLoad?.();
@@ -197,15 +183,14 @@ export class PetsPanel implements IPanel {
 		this.loadingProgress.setColor(1, 0.82, 0);
 		this.loadingTrack.show();
 		this.setLoadingProgress(0);
-		this.loading = true;
 		this.cancelLoad = this.client.load(
-			(pets) => {
+			(pets, complete = true) => {
 				if (!this.mounted || generation !== this.generation) return;
-				this.cancelLoad = undefined;
-				this.loading = false;
-				this.snapshotComplete = true;
+				this.snapshotComplete = complete;
+				this.dirty = true;
+				this.viewComplete = false;
 				this.pets = pets;
-				if (!this.client.isInCombat()) this.render(generation);
+				if (!this.client.isInCombat()) this.render(generation, complete);
 			},
 			(completed, total) => {
 				if (!this.mounted || generation !== this.generation) return;
@@ -213,12 +198,6 @@ export class PetsPanel implements IPanel {
 				// fractions, not an estimate of elapsed time.
 				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
 			},
-			(pets) => {
-				if (!this.mounted || generation !== this.generation) return;
-				this.pets = pets;
-				if (!this.client.isInCombat()) this.render(generation, false);
-			},
-			retainCachedView,
 		);
 	}
 	private setLoadingProgress(progress: number): void {
@@ -237,10 +216,6 @@ export class PetsPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		const renderGeneration = ++this.renderGeneration;
-		// Keep targets for retained pets; clear removed identities before reuse.
-		const replacing =
-			this.grid.length > 0 && this.renderLoadGeneration === generation;
-		this.renderLoadGeneration = generation;
 		const grid: NavGrid = [];
 		const retained = new Map(
 			this.grid.flat().map((node) => [node.navId, node]),
@@ -249,8 +224,7 @@ export class PetsPanel implements IPanel {
 		let renderedPets = 0;
 		const groups = groupPets(this.pets);
 		const cellsById = new Map<string, PetCell>();
-		for (const cell of this.cells)
-			if (cell.navId) cellsById.set(cell.navId, cell);
+		for (const cell of this.cells) if (cell.key) cellsById.set(cell.key, cell);
 		const wanted = new Set(
 			groups.flatMap((group) =>
 				group.pets.map((pet) =>
@@ -258,11 +232,10 @@ export class PetsPanel implements IPanel {
 				),
 			),
 		);
+		this.visibleIds = wanted;
 		const available = this.cells.filter(
-			(cell) => !cell.navId || !wanted.has(cell.navId),
+			(cell) => cell.visible && cell.navId && !wanted.has(cell.navId),
 		);
-		for (const cell of available) cell.navId = undefined;
-		if (replacing) this.navigationChanged?.();
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -292,15 +265,39 @@ export class PetsPanel implements IPanel {
 			group.pets.forEach((pet, index) => {
 				const navId =
 					group.id === -1 ? `pet-favourite-${pet.id}` : `pet-${pet.id}`;
-				let cell = cellsById.get(navId) ?? available.pop();
+				const cellKey = `${group.id === -1 ? "favourite" : "species"}-${pet.speciesId}`;
+				let cell = cellsById.get(cellKey);
 				const previous = retained.get(navId);
 				if (previous)
-					grid.at(firstRow + Math.floor(index / columns))?.push({
-						...previous,
-						navColumn: index % columns,
-					});
+					grid
+						.at(firstRow + Math.floor(index / columns))
+						?.push(
+							previous.navColumn === index % columns
+								? previous
+								: { ...previous, navColumn: index % columns },
+						);
 				const row = Math.floor(index / columns);
 				const cellTop = top + 28 + row * spacing;
+
+				if (
+					cell?.visible &&
+					previous &&
+					cell.top === cellTop &&
+					cell.column === index % columns &&
+					cell.pet?.id === pet.id &&
+					cell.pet?.icon === pet.icon &&
+					cell.pet?.name === pet.name &&
+					cell.pet?.collected === pet.collected &&
+					cell.pet?.favourite === pet.favourite &&
+					cell.pet?.ownedCount === pet.ownedCount &&
+					cell.pet?.collectionLimit === pet.collectionLimit &&
+					cell.pet?.source === pet.source &&
+					cell.pet?.description === pet.description &&
+					cell.pet?.expansionId === pet.expansionId
+				) {
+					renderedPets++;
+					return;
+				}
 				jobs.push(() => {
 					if (!cell) {
 						const frameIndex = this.cells.length;
@@ -312,6 +309,11 @@ export class PetsPanel implements IPanel {
 						this.cells.push(cell);
 					}
 					cell.navId = navId;
+					cell.key = cellKey;
+					cell.pet = pet;
+					cell.top = cellTop;
+					cell.column = index % columns;
+					cell.visible = true;
 					cell.border.setParent(this.content);
 					cell.border.layout(
 						42,
@@ -345,12 +347,13 @@ export class PetsPanel implements IPanel {
 					cell.border.show();
 					cell.icon.show();
 					const control = cell.icon;
-					// This control is ready once its render job finishes. Dirty tracks
-					// unfinished work for reopening, not readiness of rendered controls.
+
 					const current = () =>
 						this.mounted &&
-						generation === this.generation &&
-						cell?.navId === navId;
+						this.visibleIds.has(navId) &&
+						cell?.visible &&
+						cell.navId === navId &&
+						cell.pet === pet;
 					control.onClick(() => {
 						if (current() && pet.collected) this.client.summon(pet.id);
 					});
@@ -401,7 +404,7 @@ export class PetsPanel implements IPanel {
 				cell.border.hide();
 				cell.icon.hide();
 				cell.favourite.hide();
-				cell.navId = undefined;
+				cell.visible = false;
 			});
 		}
 		for (let i = groups.length; i < this.headers.length; i++) {
@@ -438,10 +441,8 @@ export class PetsPanel implements IPanel {
 				this.grid = grid.filter((row) => row.length > 0);
 				this.navigationChanged?.();
 			}
-			if (complete && cursor === jobs.length && this.queuedRefresh)
-				this.invalidate();
 		};
-		this.cancelRender = this.scheduler.nextFrame(step);
+		step();
 	}
 	private layoutContent(): void {
 		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
@@ -450,7 +451,7 @@ export class PetsPanel implements IPanel {
 	resume(): void {
 		if (!this.mounted || this.client.isInCombat()) return;
 		if (this.mountPending && this.parent) this.onMount(this.parent);
-		else if (this.dirty && !this.viewComplete) this.refresh(true);
+		else if (this.dirty) this.render(this.generation, this.snapshotComplete);
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
@@ -469,8 +470,6 @@ export class PetsPanel implements IPanel {
 	onUnmount(): void {
 		this.mounted = false;
 		this.controls.hide();
-		this.loading = false;
-		if (this.queuedRefresh) this.dirty = true;
 		this.cancelLoad?.();
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
@@ -480,21 +479,6 @@ export class PetsPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
-		this.controls.destroy();
-		for (const cell of this.cells) {
-			cell.icon.destroy();
-			cell.favourite.destroy();
-			cell.border.destroy();
-		}
-		for (const header of this.headers) header.destroy();
-		this.cells.length = 0;
-		this.headers.length = 0;
-		this.content.destroy();
-		this.viewport.destroy();
-		this.loadingProgress.destroy();
-		this.loadingTrack.destroy();
-		this.summonButton.destroy();
-		this.footer.destroy();
-		this.frame.destroy();
+		// Collection controls retain their acquired native frames for the session.
 	}
 }

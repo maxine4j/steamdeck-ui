@@ -10,7 +10,12 @@ it("warms the journal, routes visibility and change events, resumes combat and r
 		restore: vi.fn(),
 		isOpen: vi.fn(() => true),
 	};
-	const client = { prefetch: vi.fn(), invalidate: vi.fn(), stop: vi.fn() };
+	const client = {
+		prefetch: vi.fn(),
+		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
+		stop: vi.fn(),
+	};
 	const panel = { invalidate: vi.fn(), resume: vi.fn() };
 	const module = new PetsModule(ui, events, panel, native, client);
 	module.disableBuiltIn();
@@ -19,8 +24,11 @@ it("warms the journal, routes visibility and change events, resumes combat and r
 	expect(client.prefetch).toHaveBeenCalledOnce();
 	expect(ui.openPanel).toHaveBeenCalledExactlyOnceWith("pets", "right");
 	events.emit("PETS_CHANGED", { id: "Pet-1" });
-	expect(client.invalidate).toHaveBeenCalledExactlyOnceWith("Pet-1");
-	expect(panel.invalidate).toHaveBeenCalledOnce();
+	expect(client.refreshEntry).toHaveBeenCalledExactlyOnceWith(
+		"Pet-1",
+		undefined,
+	);
+	expect(panel.invalidate).not.toHaveBeenCalled();
 	native.isOpen.mockReturnValue(false);
 	events.emit("PETS_VISIBILITY_CHANGED");
 	expect(ui.closePanel).toHaveBeenCalledExactlyOnceWith("right", "pets");
@@ -28,7 +36,7 @@ it("warms the journal, routes visibility and change events, resumes combat and r
 	expect(panel.resume).toHaveBeenCalledOnce();
 	module.shutdown();
 	events.emit("PETS_CHANGED");
-	expect(panel.invalidate).toHaveBeenCalledOnce();
+	expect(panel.invalidate).not.toHaveBeenCalled();
 	expect(native.restore).toHaveBeenCalledOnce();
 	expect(client.stop).toHaveBeenCalledOnce();
 });

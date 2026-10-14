@@ -17,6 +17,8 @@ export class SavedVariableCache<T> {
 	private readonly pending = new Map<string, (this: void) => T>();
 	private cancel?: () => void;
 	private generation = 0;
+	private batchDepth = 0;
+	private notifications: CacheChange<T>[] = [];
 	constructor(
 		private readonly saved: () => CacheEntries<T>,
 		private readonly scheduler: ITaskScheduler,
@@ -42,8 +44,24 @@ export class SavedVariableCache<T> {
 	putMany(changes: readonly CacheChange<T>[]): void {
 		const entries = this.saved();
 		for (const change of changes) entries[change.key] = { value: change.value };
-		if (changes.length > 0)
+		if (this.batchDepth > 0) this.notifications.push(...changes);
+		else if (changes.length > 0)
 			for (const observer of [...this.observers]) observer(changes);
+	}
+	/** Writes still go straight to SavedVariables; only notifications are batched. */
+	batch(write: () => void): void {
+		this.batchDepth++;
+		try {
+			write();
+		} finally {
+			this.batchDepth--;
+			if (this.batchDepth === 0) {
+				const changes = this.notifications;
+				this.notifications = [];
+				if (changes.length > 0)
+					for (const observer of [...this.observers]) observer(changes);
+			}
+		}
 	}
 	subscribe(
 		observer: (changes: readonly CacheChange<T>[]) => void,

@@ -7,24 +7,14 @@ import type { IBuiltInToys } from "./built-in-toys";
 export class ToysModule implements IModule {
 	readonly id = "toys";
 	private readonly refresh = (payload?: { id: number }) => {
-		this.journal.invalidate(payload?.id);
-		this.view.invalidate();
+		this.journal.refreshEntry(payload?.id);
 	};
 	private readonly cooldown = () => this.view.refreshCooldowns();
 	private readonly itemLoaded = (payload?: {
 		id: number;
 		success: boolean;
 	}) => {
-		if (!payload) {
-			this.refresh();
-			return;
-		}
-		if (!payload.success) return;
-		if (!this.journal.invalidateItem) {
-			this.refresh(payload);
-			return;
-		}
-		if (this.journal.invalidateItem(payload.id)) this.view.invalidate();
+		if (payload?.success) this.journal.refreshItem(payload.id);
 	};
 	private readonly resume = () => this.view.resume();
 	private readonly sync = () => {
@@ -35,14 +25,13 @@ export class ToysModule implements IModule {
 		private readonly ui: Pick<IUIOrchestrator, "openPanel" | "closePanel">,
 		private readonly events: IEventBus,
 		private readonly view: {
-			invalidate(): void;
 			refreshCooldowns(): void;
 			resume(): void;
 		},
 		private readonly native: IBuiltInToys,
 		private readonly journal: Pick<
 			IToysClient,
-			"prefetch" | "invalidate" | "invalidateItem" | "stop"
+			"prefetch" | "refreshEntry" | "refreshItem" | "stop"
 		>,
 	) {}
 	disableBuiltIn(): void {

@@ -30,7 +30,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
 	MOUNTS_CHANGED: { id: number } | undefined;
 	TOYS_CHANGED: { id: number } | undefined;
-	PETS_CHANGED: { id: string } | undefined;
+	PETS_CHANGED: { id: string; removed?: boolean } | undefined;
 	ACHIEVEMENTS_CHANGED: { id: number } | undefined;
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }

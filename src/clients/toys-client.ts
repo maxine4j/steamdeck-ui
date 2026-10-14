@@ -1,6 +1,10 @@
 import type { ICollectionCache } from "./collection-cache";
+import {
+	CollectionJournal,
+	type CollectionPageReader,
+	type ICollectionJournal,
+} from "./collection-journal";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
-import { type IJournalPrefetch, JournalPrefetch } from "./journal-prefetch";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -30,15 +34,16 @@ export interface Toy {
 	readonly collected: boolean;
 	readonly favourite: boolean;
 	readonly expansionId?: number;
+	readonly displayed?: boolean;
 }
-export interface IToysClient extends IJournalPrefetch, ICollectionQuery {
-	invalidateItem?(id: number): boolean;
+export interface IToysClient
+	extends ICollectionJournal<number>,
+		ICollectionQuery {
+	refreshItem(id: number): boolean;
 	isInCombat(): boolean;
 	load(
-		callback: (toys: Toy[]) => void,
+		callback: (toys: Toy[], complete: boolean) => void,
 		onProgress?: (completed: number, total: number) => void,
-		onFirstPage?: (toys: Toy[]) => void,
-		retainCachedView?: boolean,
 	): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
@@ -59,49 +64,105 @@ interface ToyFilterApi {
 
 export class ToysClient implements IToysClient {
 	private filtersInitialized = false;
+	private catalogWarm = false;
+	private queryActive = false;
+	private applyingQuery = false;
+	private readonly pendingQuery: (() => void)[] = [];
+	private readonly pendingFilters = new Map<string, boolean>();
 	private readonly requestedItems = new Set<number>();
-	private journal: JournalPrefetch<Toy[]>;
-	private querying = false;
-	private querySnapshot?: Toy[];
-	private readonly items?: SavedVariableCache<Toy>;
-	private readonly snapshots?: SavedVariableCache<Toy[]>;
-	private backfill = false;
-	private readonly dirtyIds = new Set<number>();
-	constructor(
-		private readonly scheduler: ITaskScheduler,
-		cache?: ICollectionCache,
-	) {
-		this.items = cache?.create("toys.items", false);
-		this.snapshots = cache?.create("toys.snapshot", false);
-		this.journal = this.createJournal(this.snapshots);
-	}
-	private createJournal(
-		persisted?: SavedVariableCache<Toy[]>,
-	): JournalPrefetch<Toy[]> {
-		return new JournalPrefetch(
-			this.scheduler,
-			(done, preview, progress) => this.scan(done, progress, preview),
-			persisted,
+	private readonly items: SavedVariableCache<Toy>;
+	private readonly journal: CollectionJournal<Toy>;
+	constructor(scheduler: ITaskScheduler, cache: ICollectionCache) {
+		this.items = cache.create<Toy>("toys.items");
+		this.journal = new CollectionJournal(
+			scheduler,
+			this.items,
+			(row) => String(row.id),
+			(row) => row.displayed !== false,
+			() => this.beginScan(),
+			(key) => {
+				const toy = this.readToy(Number(key));
+				return toy ? [toy] : [];
+			},
 		);
+	}
+	private beginScan(): CollectionPageReader<Toy> {
+		this.ensureFilters();
+		const ids = this.catalogWarm
+			? this.items.values().map((row) => row.id)
+			: [];
+		const known = new Set(ids);
+		const displayed = C_ToyBox.GetNumFilteredToys();
+		return {
+			count: ids.length + displayed,
+			read: (index) => {
+				const cached = ids.at(index);
+				const id = cached ?? C_ToyBox.GetToyFromIndex(index - ids.length + 1);
+				if (id <= 0 || (cached === undefined && known.has(id))) return [];
+				const row = this.readToy(id);
+				return row
+					? [{ ...row, displayed: this.catalogWarm ? row.displayed : true }]
+					: [];
+			},
+			finish: () => {
+				this.catalogWarm = true;
+				const commands = this.pendingQuery.splice(0);
+				for (const apply of commands) apply();
+				this.pendingFilters.clear();
+				if (commands.length > 0 || this.queryActive) this.refreshDisplay();
+			},
+		};
+	}
+	private applyQuery(apply: () => void): void {
+		this.queryActive = true;
+		const run = () => this.changeQuery(apply);
+		if (this.journal.isScanning()) this.pendingQuery.push(run);
+		else {
+			run();
+			this.refreshDisplay();
+		}
+	}
+	private changeQuery(apply: () => void): void {
+		const previous = this.applyingQuery;
+		this.applyingQuery = true;
+		apply();
+		this.applyingQuery = previous;
+	}
+	refreshDisplay(): void {
+		this.journal.project(() => {
+			const count = C_ToyBox.GetNumFilteredToys();
+			const ids = this.items.values().map((row) => row.id);
+			const visible = new Set<number>();
+			return {
+				count: count + ids.length,
+				read: (index) => {
+					if (index < count) {
+						visible.add(C_ToyBox.GetToyFromIndex(index + 1));
+						return [];
+					}
+					const id = ids.at(index - count);
+					const row =
+						id !== undefined ? this.items.peek(String(id)) : undefined;
+					if (!row) return [];
+					const displayed = visible.has(row.id);
+					return row.displayed === displayed ? [] : [{ ...row, displayed }];
+				},
+			};
+		});
 	}
 	private ensureFilters(): void {
 		if (this.filtersInitialized) return;
 		this.filtersInitialized = true;
-		C_ToyBoxInfo.SetDefaultFilters();
-		C_ToyBox.SetFilterString("");
-	}
-	private resetQuery(): void {
-		this.journal.stop();
-		this.querying = true;
-		this.querySnapshot = undefined;
-		this.backfill = true;
-		this.dirtyIds.clear();
-		this.journal = this.createJournal();
+		this.changeQuery(() => {
+			C_ToyBoxInfo.SetDefaultFilters();
+			C_ToyBox.SetFilterString("");
+		});
 	}
 	search(text: string): void {
-		this.ensureFilters();
-		this.resetQuery();
-		C_ToyBox.SetFilterString(text);
+		this.applyQuery(() => {
+			this.ensureFilters();
+			C_ToyBox.SetFilterString(text);
+		});
 	}
 	getFilters(): CollectionFilter[] {
 		this.ensureFilters();
@@ -126,120 +187,58 @@ export class ToysClient implements IToysClient {
 					label: `Source: ${labels[`BATTLE_PET_SOURCE_${index}`]}`,
 					checked: api.IsSourceTypeFilterChecked(index),
 				});
-		return filters;
+		return filters.map((filter) => ({
+			...filter,
+			checked: this.pendingFilters.get(filter.id) ?? filter.checked,
+		}));
 	}
 	toggleFilter(id: string): void {
 		const filter = this.getFilters().find((filter) => filter.id === id);
 		if (!filter) return;
+		this.pendingFilters.set(id, !filter.checked);
 		const api = C_ToyBox as unknown as ToyFilterApi;
-		this.resetQuery();
-		if (id === "collected") api.SetCollectedShown(!filter.checked);
-		else if (id === "uncollected") api.SetUncollectedShown(!filter.checked);
-		else if (id === "usable") api.SetUnusableShown(filter.checked);
-		else {
-			const [, value] = id.split(":");
-			api.SetSourceTypeFilter(Number(value), !filter.checked);
-		}
+		this.applyQuery(() => {
+			if (id === "collected") api.SetCollectedShown(!filter.checked);
+			else if (id === "uncollected") api.SetUncollectedShown(!filter.checked);
+			else if (id === "usable") api.SetUnusableShown(filter.checked);
+			else {
+				const [, value] = id.split(":");
+				api.SetSourceTypeFilter(Number(value), !filter.checked);
+			}
+		});
+		if (!this.journal.isScanning()) this.pendingFilters.delete(id);
 	}
 	prefetch(): void {
-		this.backfill = true;
 		this.journal.prefetch();
 	}
-	invalidate(id?: number): void {
-		if (this.querying) this.backfill = true;
-		if (id !== undefined && id > 0) this.dirtyIds.add(id);
-		this.journal.invalidate();
+	refreshEntry(id?: number): void {
+		if (id === undefined && this.applyingQuery) return;
+		this.journal.refreshEntry(
+			id !== undefined && id > 0 ? String(id) : undefined,
+		);
 	}
-	invalidateItem(id: number): boolean {
-		if (
-			!this.requestedItems.has(id) &&
-			this.items?.peek(String(id)) === undefined
-		)
+	refreshItem(id: number): boolean {
+		if (!this.requestedItems.has(id) && !this.items.peek(String(id)))
 			return false;
-		this.invalidate(id);
+		this.refreshEntry(id);
 		return true;
 	}
 	stop(): void {
 		this.journal.stop();
-		this.items?.stop();
-		this.filtersInitialized = false;
-		this.querying = false;
-		this.querySnapshot = undefined;
-		this.journal = this.createJournal(this.snapshots);
+		this.pendingQuery.length = 0;
+		this.pendingFilters.clear();
+		this.requestedItems.clear();
 	}
 	load(
-		callback: (toys: Toy[]) => void,
+		callback: (toys: Toy[], complete: boolean) => void,
 		onProgress?: (completed: number, total: number) => void,
-		onFirstPage?: (toys: Toy[]) => void,
-		retainCachedView = false,
 	): () => void {
-		return this.journal.load(
-			callback,
-			onFirstPage,
-			onProgress,
-			retainCachedView,
-		);
-	}
-	private scan(
-		callback: (toys: Toy[]) => void,
-		onProgress?: (completed: number, total: number) => void,
-		onFirstPage?: (toys: Toy[]) => void,
-	): () => void {
-		const toys: Toy[] = [];
-		const saved = !this.backfill
-			? this.querying
-				? this.querySnapshot
-				: this.snapshots?.peek("snapshot")
-			: undefined;
-		const ids = saved?.map((toy) => toy.id);
-		for (const id of this.dirtyIds) if (ids && !ids.includes(id)) ids.push(id);
-		const targeted =
-			this.dirtyIds.size > 0 ? new Set(this.dirtyIds) : undefined;
-		this.dirtyIds.clear();
-		let index = 1;
-		let count: number | undefined;
-		let cancelled = false;
-		let previewed = false;
-		const step = () => {
-			if (cancelled) return;
-			this.ensureFilters();
-			count ??= ids?.length ?? C_ToyBox.GetNumFilteredToys();
-			const end = Math.min(count, index + 19);
-			while (index <= end) {
-				const id = ids
-					? (ids.at(index++ - 1) ?? 0)
-					: C_ToyBox.GetToyFromIndex(index++);
-				if (id <= 0) continue;
-				const cached = this.items?.peek(String(id));
-				const toy =
-					cached && targeted && !targeted.has(id) ? cached : this.readToy(id);
-				if (toy) toys.push(toy);
-			}
-			onProgress?.(Math.min(count, index - 1), count);
-			if (!previewed && toys.length > 0 && index <= count) {
-				previewed = true;
-				onFirstPage?.([...toys]);
-			}
-			if (cancelled) return;
-			if (index <= count) cancel = this.scheduler.nextFrame(step);
-			else {
-				this.backfill = false;
-				// Retain completed work even if a newer event superseded publication.
-				if (this.querying) this.querySnapshot = toys;
-				else this.snapshots?.put("snapshot", toys);
-				callback(toys);
-			}
-		};
-		let cancel = this.scheduler.nextFrame(step);
-		return () => {
-			cancelled = true;
-			cancel();
-		};
+		return this.journal.load(callback, onProgress);
 	}
 	private readToy(id: number): Toy | undefined {
-		const previous = this.items?.peek(String(id));
+		const previous = this.items.peek(String(id));
 		const [itemId, name, icon, favourite] = C_ToyBox.GetToyInfo(id);
-		if (itemId === undefined) return this.items?.peek(String(id));
+		if (itemId === undefined) return this.items.peek(String(id));
 		const [itemName, , , , , , , , , , , , , , expansionId] =
 			C_Item.GetItemInfo(id);
 		const loaded = itemName !== undefined && itemName !== "";
@@ -254,15 +253,17 @@ export class ToysClient implements IToysClient {
 			favourite,
 			collected: PlayerHasToy(id),
 			expansionId: loaded ? expansionId : previous?.expansionId,
+			displayed: previous?.displayed,
 		};
-		this.items?.put(String(id), toy);
 		return toy;
 	}
 	toggleFavourite(id: number): void {
-		if (PlayerHasToy(id)) {
-			this.invalidate(id);
-			C_ToyBox.SetIsFavorite(id, !C_ToyBox.GetIsFavorite(id));
-		}
+		this.applyQuery(() => {
+			if (PlayerHasToy(id)) {
+				C_ToyBox.SetIsFavorite(id, !C_ToyBox.GetIsFavorite(id));
+				this.journal.refreshEntry(String(id));
+			}
+		});
 	}
 	canUse(id: number): boolean {
 		return !this.isInCombat() && PlayerHasToy(id) && C_ToyBox.IsToyUsable(id);

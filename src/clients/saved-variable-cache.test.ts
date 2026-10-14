@@ -54,3 +54,17 @@ it("bounds explicit refreshes and cancels continuations without losing saved ent
 	expect(read).toHaveBeenCalledTimes(20);
 	expect(cache.peek("0")).toBe(1);
 });
+
+it("makes page writes available to later reads while notifying observers once at the page boundary", () => {
+	const { cache } = setup();
+	const observer = vi.fn();
+	cache.subscribe(observer);
+	cache.batch(() => {
+		cache.put("a", 1);
+		expect(cache.peek("a")).toBe(1);
+		cache.put("b", (cache.peek("a") ?? 0) + 1);
+		expect(observer).not.toHaveBeenCalled();
+	});
+	expect(observer).toHaveBeenCalledOnce();
+	expect(cache.values()).toEqual([1, 2]);
+});

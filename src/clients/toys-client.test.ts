@@ -1,8 +1,25 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { CollectionCache } from "./collection-cache";
-import { ToysClient } from "./toys-client";
+import { type Toy, ToysClient } from "./toys-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("restores the default visible catalogue during login warming after a filtered saved session", () => {
+	const { client, pending, cache } = setup(1);
+	cache.create<Toy>("toys.items").put("1", {
+		id: 1,
+		name: "Saved",
+		icon: 101,
+		collected: true,
+		favourite: false,
+		displayed: false,
+	});
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const done = vi.fn();
+	client.load(done);
+	expect(done.mock.lastCall?.at(0).map((row: Toy) => row.id)).toEqual([1]);
+});
 
 it("searches the native toy journal instead of reusing a persisted unfiltered snapshot", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});
@@ -17,11 +34,11 @@ it("searches the native toy journal instead of reusing a persisted unfiltered sn
 	client.load(done);
 	while (pending.length) pending.shift()?.();
 	expect(api.SetFilterString).toHaveBeenLastCalledWith("Toy 3");
-	expect(done).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(1)).toBe(true);
 	expect(
 		done.mock.lastCall?.at(0).map((toy: { id: number }) => toy.id),
 	).toEqual([3]);
-	client.invalidate(1);
+	client.refreshEntry(1);
 	const updated = vi.fn();
 	client.load(updated);
 	while (pending.length) pending.shift()?.();
@@ -30,10 +47,10 @@ it("searches the native toy journal instead of reusing a persisted unfiltered sn
 	).toEqual([3]);
 	client.stop();
 	const reopened = vi.fn();
-	client.load(reopened, undefined, undefined, true);
+	client.load(reopened);
 	expect(
 		reopened.mock.lastCall?.at(0).map((toy: { id: number }) => toy.id),
-	).toEqual([1, 2, 3]);
+	).toEqual([3]);
 });
 
 it("exposes toy collection, usable-only and valid sources without redundant expansion filters", () => {
@@ -75,20 +92,20 @@ it("exposes toy collection, usable-only and valid sources without redundant expa
 	expect(filters.SetExpansionTypeFilter).not.toHaveBeenCalled();
 });
 
-it("keeps a warm toy snapshot fixed while refreshing cached metadata for reopening", () => {
+it("updates a warm toy view from background events and serves the same latest data on reopening", () => {
 	const { client, api, pending } = setup(1);
 	client.load(vi.fn());
 	while (pending.length) pending.shift()?.();
 	api.GetToyInfo = (id) => [id, "Updated", 123, false];
-	client.invalidate();
 	const opened = vi.fn();
-	client.load(opened, undefined, undefined, true);
-	while (pending.length) pending.shift()?.();
-	expect(opened).toHaveBeenCalledOnce();
+	client.load(opened);
 	expect(opened.mock.lastCall?.at(0).at(0).name).toBe("Toy 1");
+	client.refreshEntry();
+	while (pending.length) pending.shift()?.();
+	expect(opened.mock.lastCall?.at(0).at(0).name).toBe("Updated");
 	const reopened = vi.fn();
-	client.load(reopened, undefined, undefined, true);
-	expect(reopened.mock.lastCall?.at(0).at(0).name).toBe("Updated");
+	client.load(reopened);
+	expect(reopened.mock.lastCall?.at(0)).toEqual(opened.mock.lastCall?.at(0));
 });
 
 it("does not rescan persisted toys when reopening an unchanged journal", () => {
@@ -106,17 +123,17 @@ it("does not rescan persisted toys when reopening an unchanged journal", () => {
 	expect(info).not.toHaveBeenCalled();
 });
 
-it("publishes an early usable page before a cold scan finishes", () => {
-	const { client, pending } = setup(65);
+it("publishes every usable page before a cold scan finishes", () => {
+	const { client, pending, cache } = setup(65);
 	const done = vi.fn();
-	const preview = vi.fn();
-	client.load(done, undefined, preview);
+	client.load(done);
 	pending.shift()?.();
-	expect(preview.mock.lastCall?.at(0)).toHaveLength(20);
-	expect(done).not.toHaveBeenCalled();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(20);
+	expect(done.mock.lastCall?.at(1)).toBe(false);
+	expect(cache.create("toys.items").values()).toHaveLength(20);
 	while (pending.length) pending.shift()?.();
-	expect(preview).toHaveBeenCalledOnce();
 	expect(done.mock.lastCall?.at(0)).toHaveLength(65);
+	expect(done.mock.lastCall?.at(1)).toBe(true);
 });
 
 it("prefetches the full journal despite a saved native search and filters", () => {
@@ -126,11 +143,11 @@ it("prefetches the full journal despite a saved native search and filters", () =
 	api.GetNumFilteredToys = () => (search || filtered ? 4 : 25);
 	api.SetFilterString = vi.fn((text: string) => {
 		search = text;
-		client.invalidate();
+		client.refreshEntry();
 	});
 	const reset = vi.fn(() => {
 		filtered = false;
-		client.invalidate();
+		client.refreshEntry();
 	});
 	vi.stubGlobal("C_ToyBoxInfo", {
 		SetDefaultFilters: reset,
@@ -176,11 +193,11 @@ it("prefetches in twenty-entry batches and reuses the snapshot on opening", () =
 	pending.shift()?.();
 	expect(info).toHaveBeenCalledTimes(40);
 	pending.shift()?.();
-	expect(done).toHaveBeenCalledOnce();
+	expect(done.mock.lastCall?.at(1)).toBe(true);
 	client.load(done);
 	pending.shift()?.();
 	expect(info).toHaveBeenCalledTimes(45);
-	expect(done).toHaveBeenCalledTimes(2);
+	expect(done).toHaveBeenCalledTimes(5);
 });
 
 it("passes item cooldown values through without arithmetic", () => {
@@ -193,6 +210,7 @@ it("passes item cooldown values through without arithmetic", () => {
 });
 
 function setup(count = 2, persistent = false) {
+	if (!persistent) vi.stubGlobal("SteamDeckUIConfig", {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
 		nextFrame: (callback: () => void) => {
@@ -238,15 +256,97 @@ function setup(count = 2, persistent = false) {
 		],
 		RequestLoadItemDataByID: vi.fn(),
 	});
+	const cache = new CollectionCache(scheduler, () => "player");
 	return {
+		cache,
+		scheduler,
 		api,
 		pending,
-		client: new ToysClient(
-			scheduler,
-			persistent ? new CollectionCache(scheduler, () => "player") : undefined,
-		),
+		client: new ToysClient(scheduler, cache),
 	};
 }
+
+it("opens saved toys synchronously without scanning and remains subscribed to item updates", () => {
+	const { client, cache, api, pending } = setup();
+	const toy = {
+		id: 1,
+		name: "Cached",
+		icon: 101,
+		collected: false,
+		favourite: false,
+	};
+	cache.create<Toy>("toys.items").put("1", toy);
+	const info = vi.spyOn(api, "GetToyInfo");
+	const done = vi.fn();
+	client.load(done);
+	expect(done.mock.lastCall?.at(0)).toEqual([toy]);
+	expect(pending).toHaveLength(0);
+	client.refreshEntry(1);
+	while (pending.length) pending.shift()?.();
+	expect(info).toHaveBeenCalledExactlyOnceWith(1);
+	expect(done.mock.lastCall?.at(0).at(0).collected).toBe(true);
+});
+
+it("warms saved toys at login, persists and publishes each bounded page, and continues while closed", () => {
+	const { client, cache, pending, api } = setup(45);
+	cache.create("toys.items").put("1", {
+		id: 1,
+		name: "Saved",
+		icon: 101,
+		collected: false,
+		favourite: false,
+	});
+	const done = vi.fn();
+	const detach = client.load(done);
+	const info = vi.spyOn(api, "GetToyInfo");
+	client.prefetch();
+	pending.shift()?.();
+	expect(info).toHaveBeenCalledTimes(20);
+	expect(cache.create("toys.items").values()).toHaveLength(20);
+	expect(done.mock.lastCall?.at(0)).toHaveLength(20);
+	detach();
+	const calls = done.mock.calls.length;
+	while (pending.length) pending.shift()?.();
+	expect(cache.create("toys.items").values()).toHaveLength(45);
+	expect(done).toHaveBeenCalledTimes(calls);
+	expect(
+		SteamDeckUIConfig?.collectionCache?.namespaces["toys.snapshot"],
+	).toBeUndefined();
+	const reopened = vi.fn();
+	client.load(reopened);
+	expect(reopened.mock.lastCall?.at(0)).toHaveLength(45);
+	expect(pending).toHaveLength(0);
+});
+
+it("filters a warm toy cache without scanning details or discarding hidden entries", () => {
+	const { client, api, cache, pending } = setup(3);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const info = vi.spyOn(api, "GetToyInfo");
+	api.GetNumFilteredToys = () => 1;
+	api.GetToyFromIndex = () => 2;
+	const done = vi.fn();
+	client.load(done);
+	client.search("Toy 2");
+	while (pending.length) pending.shift()?.();
+	expect(done.mock.lastCall?.at(0).map((row: Toy) => row.id)).toEqual([2]);
+	expect(info).not.toHaveBeenCalled();
+	expect(cache.create("toys.items").values()).toHaveLength(3);
+	client.refreshEntry();
+	while (pending.length) pending.shift()?.();
+	expect(info.mock.calls.map((args) => args.at(0)).sort()).toEqual([1, 2, 3]);
+});
+
+it("does not interpret native query-change events as server collection changes", () => {
+	const { client, api, pending } = setup(2);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const info = vi.spyOn(api, "GetToyInfo");
+	api.SetFilterString = () => client.refreshEntry();
+	client.search("toy");
+	while (pending.length) pending.shift()?.();
+	expect(info).not.toHaveBeenCalled();
+});
 
 it("serves saved toys immediately and refreshes an event's item without enumerating the journal", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});
@@ -258,7 +358,7 @@ it("serves saved toys immediately and refreshes an event's item without enumerat
 	const count = vi.spyOn(next.api, "GetNumFilteredToys");
 	const info = vi.spyOn(next.api, "GetToyInfo");
 	const done = vi.fn();
-	next.client.invalidate(1);
+	next.client.refreshEntry(1);
 	next.client.load(done);
 	expect(done.mock.lastCall?.at(0)).toHaveLength(45);
 	expect(info).not.toHaveBeenCalled();
@@ -273,7 +373,7 @@ it("refreshes toys from context-free events without relying on expiry", () => {
 	client.prefetch();
 	while (pending.length) pending.shift()?.();
 	const info = vi.spyOn(api, "GetToyInfo");
-	client.invalidate();
+	client.refreshEntry();
 	while (pending.length) pending.shift()?.();
 	expect(info).toHaveBeenCalledTimes(45);
 });
@@ -283,9 +383,9 @@ it("retains newly discovered toys when another event arrives during a refresh", 
 	const { client, pending } = setup(45, true);
 	client.prefetch();
 	while (pending.length) pending.shift()?.();
-	client.invalidate(46);
+	client.refreshEntry(46);
 	pending.shift()?.();
-	client.invalidate(47);
+	client.refreshEntry(47);
 	while (pending.length) pending.shift()?.();
 	const done = vi.fn();
 	client.load(done);
@@ -309,7 +409,7 @@ it("retains saved metadata while Blizzard item data is temporarily unavailable",
 		GetItemInfo: () => [],
 		RequestLoadItemDataByID: vi.fn(),
 	});
-	client.invalidate(1);
+	client.refreshEntry(1);
 	while (pending.length) pending.shift()?.();
 	const done = vi.fn();
 	client.load(done);
@@ -326,7 +426,7 @@ it("converts journal entries and item expansion metadata without using native fr
 	client.load(done);
 	expect(done).not.toHaveBeenCalled();
 	pending.shift()?.();
-	expect(done).toHaveBeenCalledExactlyOnceWith([
+	expect(done.mock.lastCall?.at(0)).toMatchObject([
 		{
 			id: 1,
 			name: "Toy 1",
@@ -353,11 +453,12 @@ it("finishes bounded enumeration after closing and reuses the cache on reopening
 	const cancel = client.load(done);
 	pending.shift()?.();
 	expect(info).toHaveBeenCalledTimes(20);
-	expect(done).not.toHaveBeenCalled();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(20);
 	expect(pending).toHaveLength(1);
 	cancel();
+	const calls = done.mock.calls.length;
 	while (pending.length) pending.shift()?.();
-	expect(done).not.toHaveBeenCalled();
+	expect(done).toHaveBeenCalledTimes(calls);
 	expect(info).toHaveBeenCalledTimes(45);
 	client.load(done);
 	pending.shift()?.();
@@ -373,27 +474,93 @@ it("reports scanned entries against the total each frame, including skipped entr
 	client.load(done, progress);
 	pending.shift()?.();
 	expect(progress).toHaveBeenLastCalledWith(20, 45);
-	expect(done).not.toHaveBeenCalled();
+	expect(done.mock.lastCall?.at(0)).toHaveLength(19);
 	pending.shift()?.();
 	expect(progress).toHaveBeenLastCalledWith(40, 45);
 	pending.shift()?.();
 	expect(progress).toHaveBeenLastCalledWith(45, 45);
-	expect(done.mock.calls.at(0)?.at(0)).toHaveLength(44);
+	expect(done.mock.lastCall?.at(0)).toHaveLength(44);
 });
 
 it("reports an empty collection and stops reporting after cancellation", () => {
 	const { client, pending } = setup(0);
 	const progress = vi.fn();
 	const done = vi.fn();
-	client.load(done, progress);
+	const detach = client.load(done, progress);
 	pending.shift()?.();
 	expect(progress).toHaveBeenCalledExactlyOnceWith(0, 0);
-	expect(done).toHaveBeenCalledExactlyOnceWith([]);
+	expect(done).toHaveBeenCalledExactlyOnceWith([], true);
+	detach();
 	const cancel = client.load(done, progress);
 	cancel();
 	pending.shift()?.();
 	expect(progress).toHaveBeenCalledTimes(1);
 	expect(done).toHaveBeenCalledTimes(1);
+});
+
+it("detaching one observer does not remove another observer's shared progress callback", () => {
+	const { client, pending } = setup(45);
+	const progress = vi.fn();
+	client.load(vi.fn(), progress);
+	client.load(vi.fn(), progress)();
+	pending.shift()?.();
+	expect(progress).toHaveBeenCalledExactlyOnceWith(20, 45);
+});
+
+it("queues native searches until every initial journal entry is cached", () => {
+	const { client, api, pending, cache } = setup(45);
+	let search = "";
+	api.SetFilterString = vi.fn((text) => {
+		search = text;
+	});
+	api.GetNumFilteredToys = () => (search ? 1 : 45);
+	client.prefetch();
+	pending.shift()?.();
+	api.SetFilterString.mockClear();
+	client.search("toy");
+	expect(api.SetFilterString).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(cache.create("toys.items").values()).toHaveLength(45);
+	expect(api.SetFilterString).toHaveBeenCalledExactlyOnceWith("toy");
+});
+
+it("keeps pending filter toggles coherent while the initial journal scan is running", () => {
+	const { client, api, pending } = setup(45);
+	Object.assign(api, {
+		GetCollectedShown: () => true,
+		GetUncollectedShown: () => true,
+		GetUnusableShown: () => true,
+		SetCollectedShown: vi.fn(),
+	});
+	vi.stubGlobal("_G", {});
+	vi.stubGlobal("C_PetJournal", { GetNumPetSources: () => 0 });
+	client.prefetch();
+	client.toggleFilter("collected");
+	expect(client.getFilters().at(0)?.checked).toBe(false);
+	client.toggleFilter("collected");
+	expect(client.getFilters().at(0)?.checked).toBe(true);
+	while (pending.length) pending.shift()?.();
+	expect(api.SetCollectedShown.mock.calls.map((args) => args.at(0))).toEqual([
+		false,
+		true,
+	]);
+});
+
+it("retains every initial toy ID when a favourite action would reorder the native journal", () => {
+	const { client, api, pending, cache } = setup(45);
+	const ids = Array.from({ length: 45 }, (_, index) => index + 1);
+	api.GetToyFromIndex = (index) => ids.at(index - 1) ?? 0;
+	api.SetIsFavorite = vi.fn(() => {
+		const first = ids.shift();
+		if (first !== undefined) ids.push(first);
+	});
+	client.prefetch();
+	pending.shift()?.();
+	client.toggleFavourite(1);
+	expect(api.SetIsFavorite).not.toHaveBeenCalled();
+	while (pending.length) pending.shift()?.();
+	expect(cache.create("toys.items").values()).toHaveLength(45);
+	expect(api.SetIsFavorite).toHaveBeenCalledExactlyOnceWith(1, false);
 });
 
 it("requests missing metadata once and re-reads loaded expansion data", () => {
@@ -428,10 +595,27 @@ it("requests missing metadata once and re-reads loaded expansion data", () => {
 		0,
 		11,
 	]);
-	client.invalidate();
+	client.refreshEntry();
 	client.load(done);
 	pending.shift()?.();
 	expect(done.mock.calls.at(-1)?.at(0).at(0).expansionId).toBe(11);
+});
+
+it("updates the cached favourite after an action without another detail scan", () => {
+	const { client, api, pending, cache } = setup(2);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	const info = vi.spyOn(api, "GetToyInfo");
+	api.SetIsFavorite = vi.fn(() => {
+		info.mockImplementation((id) => [id, `Toy ${id}`, 100 + id, false]);
+		client.refreshEntry();
+	});
+	client.toggleFavourite(1);
+	while (pending.length) pending.shift()?.();
+	expect(cache.create("toys.items").peek("1")).toMatchObject({
+		favourite: false,
+	});
+	expect(info).toHaveBeenCalledExactlyOnceWith(1);
 });
 
 it("toggles live favourite state only for collected toys and guards use eligibility", () => {

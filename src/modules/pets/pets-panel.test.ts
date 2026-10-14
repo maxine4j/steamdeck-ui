@@ -123,7 +123,7 @@ function setup() {
 		getFilters: vi.fn(() => []),
 		toggleFilter: vi.fn(),
 		prefetch: vi.fn(),
-		invalidate: vi.fn(),
+		refreshEntry: vi.fn(),
 		stop: vi.fn(),
 		load: vi.fn(() => vi.fn()),
 		isInCombat: vi.fn(() => false),
@@ -237,7 +237,9 @@ it("hosts the random favourite pet action in a mounts-style bottom bar after the
 	expect(client.summonFavourite).toHaveBeenCalledOnce();
 	panel.onUnmount();
 	panel.destroy();
-	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).toContain(footer);
+	expect(vi.mocked(Frame.prototype.destroy).mock.contexts).not.toContain(
+		footer,
+	);
 });
 it("groups favourites and expansions in descending order and summons through X and the favourite button", () => {
 	const { panel, parent, client, menu, publish } = setup();
@@ -267,17 +269,16 @@ it("groups favourites and expansions in descending order and summons through X a
 	panel.refresh();
 	first?.onAlternate?.();
 	first?.onContext?.();
-	expect(client.summon).toHaveBeenCalledOnce();
-	expect(menu.open).toHaveBeenCalledOnce();
+	expect(client.summon).toHaveBeenCalledTimes(2);
+	expect(menu.open).toHaveBeenCalledTimes(2);
 });
 it("renders at most ten jobs per frame and reuses the completed view on unchanged reopening", () => {
-	const { panel, parent, client, pending, flush } = setup();
+	const { panel, parent, client, flush } = setup();
 	panel.onMount(parent);
 	vi.mocked(Frame.prototype.setIcon).mockClear();
 	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
 		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
 	);
-	pending.shift()?.();
 	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(9);
 	expect(panel.getNavGrid().slice(0, -1).flat()).toHaveLength(9);
 	flush();
@@ -293,7 +294,7 @@ it("renders at most ten jobs per frame and reuses the completed view on unchange
 	vi.mocked(Frame.prototype.setIcon).mockClear();
 	panel.onMount(parent);
 	flush();
-	expect(client.load).toHaveBeenCalledOnce();
+	expect(client.load).toHaveBeenCalledTimes(2);
 	expect(
 		vi.mocked(Frame.prototype.setIcon).mock.contexts.map((frame) => frame.id),
 	).toEqual(["pets-summon-favourite"]);
@@ -302,11 +303,10 @@ it("renders at most ten jobs per frame and reuses the completed view on unchange
 });
 it("defers hidden changes, retains warm actions during event bursts and refreshes on reopening", () => {
 	const { panel, parent, client, publish, flush } = setup();
-	panel.invalidate();
 	expect(client.load).not.toHaveBeenCalled();
 	panel.onMount(parent);
 	publish([pet(1)]);
-	for (let i = 0; i < 5; i++) panel.invalidate();
+	for (let i = 0; i < 5; i++) publish([pet(1)]);
 	flush();
 	expect(client.load).toHaveBeenCalledOnce();
 	panel.getNavGrid().at(0)?.at(0)?.onAlternate?.();
@@ -354,4 +354,57 @@ it("defers loading in combat, resumes afterwards and lays out resizing without r
 	vi.mocked(Frame.prototype.onSizeChanged).mock.lastCall?.at(0)?.();
 	expect(client.load).toHaveBeenCalledOnce();
 	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+});
+
+it("renders cached pets immediately and updates only changed tiles from the live subscription", () => {
+	const { panel, parent, client, flush } = setup();
+	const first = pet(1);
+	const second = pet(2);
+	vi.mocked(client.load).mockImplementation((done) => {
+		done([first, second], true);
+		return () => {};
+	});
+	panel.onMount(parent);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "pet-Pet-1"),
+	).toBe(true);
+	flush();
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	vi.mocked(client.load).mock.calls.at(-1)?.at(0)?.(
+		[first, { ...second, collected: false }],
+		true,
+	);
+	flush();
+	const icons = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("pets-icon-"));
+	expect(icons.map((frame) => frame.id)).toEqual(["pets-icon-1"]);
+});
+
+it("detaches on close, resubscribes on reopening, and retains pet frames for the session", () => {
+	const { panel, parent, client, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([pet(1), pet(2)]);
+	const originals = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("pets-icon-"));
+	const detach = vi.mocked(client.load).mock.results.at(0)?.value;
+	panel.onUnmount();
+	expect(detach).toHaveBeenCalledOnce();
+	panel.onMount(parent);
+	expect(client.load).toHaveBeenCalledTimes(2);
+	publish([pet(3)]);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	publish([pet(1), pet(2)]);
+	flush();
+	const returned = vi
+		.mocked(Frame.prototype.setIcon)
+		.mock.contexts.filter((frame) => frame.id.startsWith("pets-icon-"));
+	expect(returned).toEqual(originals);
+	panel.destroy();
+	expect(Frame.prototype.destroy).not.toHaveBeenCalled();
+	expect(SearchFilters.prototype.destroy).not.toHaveBeenCalled();
 });

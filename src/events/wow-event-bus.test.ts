@@ -135,9 +135,18 @@ it("preserves collection IDs for targeted cache refreshes", () => {
 	])
 		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
 	dispatch(frame, "NEW_PET_ADDED", "BattlePet-1");
-	expect(pets).toHaveBeenCalledWith(undefined);
+	expect(pets).toHaveBeenCalledWith({ id: "BattlePet-1" });
 	dispatch(frame, "PET_JOURNAL_LIST_UPDATE");
 	expect(pets).toHaveBeenCalledTimes(2);
+	dispatch(frame, "PET_JOURNAL_PET_DELETED", "BattlePet-1");
+	expect(pets).toHaveBeenLastCalledWith({ id: "BattlePet-1", removed: true });
+	dispatch(frame, "PET_JOURNAL_PET_REVOKED", "BattlePet-2");
+	expect(pets).toHaveBeenLastCalledWith({ id: "BattlePet-2", removed: true });
+	dispatch(frame, "PET_JOURNAL_PET_RESTORED", "BattlePet-2");
+	expect(pets).toHaveBeenLastCalledWith({ id: "BattlePet-2" });
+	dispatch(frame, "NEW_TOY_ADDED", 77);
+	expect(toys).toHaveBeenLastCalledWith({ id: 77 });
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("NEW_TOY_ADDED");
 	expect(achievements).toHaveBeenCalledWith({ id: 123 });
 	expect(items).toHaveBeenCalledWith({ id: 99, success: true });
 });

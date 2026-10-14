@@ -254,6 +254,7 @@ export class WowEventBus implements IEventBus {
 		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
+		this.frame.RegisterEvent("NEW_TOY_ADDED");
 		for (const event of petEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
@@ -385,7 +386,16 @@ export class WowEventBus implements IEventBus {
 						? { id: unit }
 						: undefined,
 				);
-			if (petEvents.includes(event)) this.emit("PETS_CHANGED");
+			if (petEvents.includes(event))
+				this.emit(
+					"PETS_CHANGED",
+					typeof unit === "string" && event !== "PET_JOURNAL_LIST_UPDATE"
+						? event === "PET_JOURNAL_PET_DELETED" ||
+							event === "PET_JOURNAL_PET_REVOKED"
+							? { id: unit, removed: true }
+							: { id: unit }
+						: undefined,
+				);
 			if (event === "MOUNT_JOURNAL_SEARCH_UPDATED")
 				this.emit("MOUNTS_SEARCH_CHANGED");
 			if (event === "MOUNT_EQUIPMENT_APPLY_RESULT")
@@ -397,7 +407,7 @@ export class WowEventBus implements IEventBus {
 						? { id: unit }
 						: undefined,
 				);
-			if (event === "TOYS_UPDATED")
+			if (event === "TOYS_UPDATED" || event === "NEW_TOY_ADDED")
 				this.emit(
 					"TOYS_CHANGED",
 					typeof unit === "number" ? { id: unit } : undefined,
