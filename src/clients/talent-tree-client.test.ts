@@ -13,6 +13,7 @@ function setup() {
 		GetEntryID: () => id + 100,
 		GetCenter: () => [x, y],
 		GetEffectiveScale: () => 1,
+		GetParent: vi.fn(),
 		IsVisible: () => visible,
 		OnClick: vi.fn(),
 		OnEnter: vi.fn(),
@@ -41,6 +42,33 @@ function setup() {
 			hero.isCollapsed = collapsed;
 		}),
 	};
+	const control = (x: number, y: number) => {
+		const scripts = { OnEnter: vi.fn(), OnLeave: vi.fn() };
+		return {
+			GetCenter: () => [x, y],
+			GetEffectiveScale: () => 1,
+			IsVisible: vi.fn(() => false),
+			IsEnabled: vi.fn(() => true),
+			Click: vi.fn(),
+			GetScript: (name: keyof typeof scripts) => scripts[name],
+			scripts,
+		};
+	};
+	const apply = control(50, 0);
+	const heroSelector = control(50, 140);
+	const specs = [20, 80].map((x, index) => ({
+		subTreeID: index + 10,
+		NodesContainer: {},
+		ActivateButton: control(x, 10),
+		ApplyChangesButton: control(x, 10),
+	}));
+	const heroDialog = {
+		IsShown: vi.fn(() => false),
+		Hide: vi.fn(() => heroDialog.IsShown.mockReturnValue(false)),
+		HookScript: (name: string, callback: () => void) =>
+			hooks.set(`hero-${name}`, callback),
+		SpecContentFramePool: { EnumerateActive: () => specs },
+	};
 	const tree = {
 		GetSize: () => [1000, 600],
 		EnumerateAllTalentButtons: () => nodes,
@@ -50,7 +78,9 @@ function setup() {
 			HookScript: (name: string, callback: () => void) =>
 				hooks.set(`choices-${name}`, callback),
 		},
-		HeroTalentsContainer: hero,
+		ApplyButton: apply,
+		heroSpecSelectionDialog: heroDialog,
+		HeroTalentsContainer: Object.assign(hero, { HeroSpecButton: heroSelector }),
 		HideSelections: vi.fn(() => {
 			choicesOpen = false;
 		}),
@@ -109,8 +139,69 @@ function setup() {
 		hooks,
 		changed,
 		chrome,
+		apply,
+		heroSelector,
+		heroDialog,
+		specs,
 	};
 }
+
+it("navigates Apply and the hero selector spatially, using native control actions and hover scripts", () => {
+	const { client, parent, apply, heroSelector } = setup();
+	apply.IsVisible.mockReturnValue(true);
+	heroSelector.IsVisible.mockReturnValue(true);
+	client.mount(parent);
+	const grid = client.navigation();
+	expect(grid.at(0)?.at(0)?.navId).toBe("talent-hero-select");
+	const node = grid.at(-1)?.at(0);
+	expect(node?.navId).toBe("talent-apply");
+	node?.onFocus();
+	expect(apply.scripts.OnEnter).toHaveBeenCalledWith(apply);
+	expect(TalentDisplayMixin.OnEnter).not.toHaveBeenCalled();
+	node?.onInteract();
+	expect(apply.Click).toHaveBeenCalledWith("LeftButton");
+	apply.IsEnabled.mockReturnValue(false);
+	node?.onInteract();
+	expect(apply.Click).toHaveBeenCalledOnce();
+	node?.onBlur();
+	expect(apply.scripts.OnLeave).toHaveBeenCalledWith(apply);
+	grid.at(0)?.at(0)?.onInteract();
+	expect(heroSelector.Click).toHaveBeenCalledWith("LeftButton");
+});
+
+it("restricts hero dialog navigation to its talents and visible activation/apply controls, and closes it on Back", () => {
+	const { client, parent, heroDialog, specs, nodes, hooks, changed } = setup();
+	client.mount(parent);
+	heroDialog.IsShown.mockReturnValue(true);
+	specs.at(0)?.ActivateButton.IsVisible.mockReturnValue(true);
+	specs.at(1)?.ApplyChangesButton.IsVisible.mockReturnValue(true);
+	nodes.at(2)?.GetParent.mockReturnValue(specs.at(0)?.NodesContainer);
+	const grid = client.navigation();
+	expect(grid.map((row) => row.map((node) => node.navId))).toEqual([
+		["talent-node-3"],
+		["talent-hero-activate-10", "talent-hero-apply-11"],
+	]);
+	grid.at(-1)?.at(0)?.onInteract();
+	expect(specs.at(0)?.ActivateButton.Click).toHaveBeenCalledWith("LeftButton");
+	grid.at(-1)?.at(1)?.onInteract();
+	expect(specs.at(1)?.ApplyChangesButton.Click).toHaveBeenCalledWith(
+		"LeftButton",
+	);
+	changed.mockClear();
+	hooks.get("hero-OnShow")?.();
+	expect(changed).toHaveBeenCalledOnce();
+	expect(client.dismissChoices()).toBe(true);
+	expect(heroDialog.Hide).toHaveBeenCalledOnce();
+	expect(client.dismissChoices()).toBe(false);
+});
+
+it("closes the hero dialog when the fullscreen tree unmounts", () => {
+	const { client, parent, heroDialog } = setup();
+	client.mount(parent);
+	heroDialog.IsShown.mockReturnValue(true);
+	client.unmount();
+	expect(heroDialog.Hide).toHaveBeenCalledOnce();
+});
 
 it("hosts and fits the native tree, includes visible class/spec/hero/apex nodes spatially, and restores on close", () => {
 	const { client, native, layout, navigation, parent, nodes, tree, chrome } =

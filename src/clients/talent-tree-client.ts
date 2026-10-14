@@ -1,5 +1,8 @@
 import type { IEventBus } from "../events/types";
-import type { NativeTalentButton } from "../modules/talents/wow-talents-globals";
+import type {
+	NativeTalentButton,
+	NativeTalentControl,
+} from "../modules/talents/wow-talents-globals";
 import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
 import type { NativeNavigation } from "../ui/components/native-navigation";
@@ -21,7 +24,7 @@ export interface ITalentTreeClient {
 export class TalentTreeClient implements ITalentTreeClient {
 	private parent?: Frame;
 	private hooked = false;
-	private focused?: NativeTalentButton;
+	private leaveFocused?: () => void;
 	private size?: readonly [number, number];
 	private heroCollapsed?: boolean;
 	private readonly changed = () => {
@@ -57,6 +60,8 @@ export class TalentTreeClient implements ITalentTreeClient {
 			hooksecurefunc(tree, "OnUpdate", () => this.changed());
 			tree.SelectionChoiceFrame.HookScript("OnShow", this.changed);
 			tree.SelectionChoiceFrame.HookScript("OnHide", this.changed);
+			tree.heroSpecSelectionDialog.HookScript("OnShow", this.changed);
+			tree.heroSpecSelectionDialog.HookScript("OnHide", this.changed);
 			this.hooked = true;
 		}
 		// Keep every hero node visible without changing the player's saved collapse preference.
@@ -119,8 +124,10 @@ export class TalentTreeClient implements ITalentTreeClient {
 	}
 	unmount(): void {
 		this.parent = undefined;
-		if (this.focused) TalentDisplayMixin.OnLeave(this.focused);
-		this.focused = undefined;
+		this.leaveFocused?.();
+		this.leaveFocused = undefined;
+		if (PlayerSpellsFrame?.TalentsFrame.heroSpecSelectionDialog.IsShown())
+			PlayerSpellsFrame.TalentsFrame.heroSpecSelectionDialog.Hide();
 		PlayerSpellsFrame?.TalentsFrame.HideSelections();
 		if (this.heroCollapsed !== undefined)
 			PlayerSpellsFrame?.TalentsFrame.HeroTalentsContainer.SetCollapsed(
@@ -138,20 +145,64 @@ export class TalentTreeClient implements ITalentTreeClient {
 		const tree = PlayerSpellsFrame?.TalentsFrame;
 		if (!this.parent || !tree) return [];
 		const choice = tree.SelectionChoiceFrame.IsShown();
+		const dialog = tree.heroSpecSelectionDialog;
+		const heroChoice = dialog.IsShown();
+		const controls: { button: NativeTalentControl; id: string }[] = [];
+		const heroParents = [];
+		if (!choice) {
+			if (heroChoice) {
+				for (const spec of dialog.SpecContentFramePool.EnumerateActive()) {
+					heroParents.push(spec.NodesContainer);
+					controls.push(
+						{
+							button: spec.ActivateButton,
+							id: `talent-hero-activate-${spec.subTreeID}`,
+						},
+						{
+							button: spec.ApplyChangesButton,
+							id: `talent-hero-apply-${spec.subTreeID}`,
+						},
+					);
+				}
+			} else {
+				controls.push(
+					{ button: tree.ApplyButton, id: "talent-apply" },
+					{
+						button: tree.HeroTalentsContainer.HeroSpecButton,
+						id: "talent-hero-select",
+					},
+				);
+			}
+		}
 		const buttons: NativeTalentButton[] = [];
 		if (choice) buttons.push(...tree.SelectionChoiceFrame.selectionFrameArray);
 		else
 			for (const button of tree.EnumerateAllTalentButtons())
-				buttons.push(button);
-		const positioned: { button: NativeTalentButton; x: number; y: number }[] =
-			[];
-		for (const button of buttons) {
+				if (!heroChoice || heroParents.includes(button.GetParent()))
+					buttons.push(button);
+		const targets = [
+			...buttons.map((button) => ({
+				button,
+				talent: button,
+				id: choice
+					? `talent-choice-${button.GetEntryID()}`
+					: `talent-node-${button.GetNodeID?.()}`,
+			})),
+			...controls.map((control) => ({ ...control, talent: undefined })),
+		];
+		const positioned: {
+			target: (typeof targets)[number];
+			x: number;
+			y: number;
+		}[] = [];
+		for (const target of targets) {
+			const { button } = target;
 			if (!button.IsVisible()) continue;
 			const [x, y] = button.GetCenter();
 			if (x === undefined || y === undefined) continue;
 			const scale = button.GetEffectiveScale();
 			positioned.push({
-				button,
+				target,
 				x: Math.round(x * scale),
 				y: Math.round(y * scale),
 			});
@@ -159,39 +210,48 @@ export class TalentTreeClient implements ITalentTreeClient {
 		positioned.sort((a, b) => b.y - a.y || a.x - b.x);
 		const grid: NavGrid = [];
 		let rowY: number | undefined;
-		for (const { button, x, y } of positioned) {
+		for (const {
+			target: { button, talent, id },
+			x,
+			y,
+		} of positioned) {
 			if (rowY === undefined || Math.abs(rowY - y) > 4) {
 				grid.push([]);
 				rowY = y;
 			}
-			const id = choice
-				? `talent-choice-${button.GetEntryID()}`
-				: `talent-node-${button.GetNodeID?.()}`;
-			const node = this.focus.navigation(button, undefined, id, () =>
-				button.OnClick("LeftButton"),
-			);
+			const control = talent ? undefined : (button as NativeTalentControl);
+			const leave = () => {
+				if (talent) TalentDisplayMixin.OnLeave(talent);
+				else control?.GetScript("OnLeave")?.(control);
+			};
+			const node = this.focus.navigation(button, undefined, id, () => {
+				if (talent) talent.OnClick("LeftButton");
+				else if (control?.IsEnabled()) control.Click("LeftButton");
+				this.changed();
+			});
 			grid.at(-1)?.push({
 				...node,
 				navColumn: x,
 				onFocus: (refresh) => {
 					node.onFocus(refresh);
-					if (this.focused) TalentDisplayMixin.OnLeave(this.focused);
-					this.focused = button;
+					this.leaveFocused?.();
+					this.leaveFocused = leave;
 					// The base display preserves Blizzard's icon-anchored tooltip without
 					// starting the choice node's mouse-only auto-open/auto-close timer.
-					TalentDisplayMixin.OnEnter(button);
+					if (talent) TalentDisplayMixin.OnEnter(talent);
+					else control?.GetScript("OnEnter")?.(control);
 				},
 				onBlur: () => {
 					node.onBlur();
-					if (this.focused === button) {
-						TalentDisplayMixin.OnLeave(button);
-						this.focused = undefined;
+					if (this.leaveFocused === leave) {
+						leave();
+						this.leaveFocused = undefined;
 					}
 				},
 				onContext:
-					!choice && button.talentSelections && button.ShowSelections
+					!choice && talent?.talentSelections && talent.ShowSelections
 						? () => {
-								button.ShowSelections?.();
+								talent.ShowSelections?.();
 								this.changed();
 							}
 						: undefined,
@@ -201,8 +261,11 @@ export class TalentTreeClient implements ITalentTreeClient {
 	}
 	dismissChoices(): boolean {
 		const tree = PlayerSpellsFrame?.TalentsFrame;
-		if (!this.parent || !tree?.SelectionChoiceFrame.IsShown()) return false;
-		tree.HideSelections();
+		if (!this.parent || !tree) return false;
+		if (tree.SelectionChoiceFrame.IsShown()) tree.HideSelections();
+		else if (tree.heroSpecSelectionDialog.IsShown())
+			tree.heroSpecSelectionDialog.Hide();
+		else return false;
 		this.changed();
 		return true;
 	}

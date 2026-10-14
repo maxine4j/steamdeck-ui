@@ -6,11 +6,23 @@ export interface NativeTalentButton extends NativeNavigationFrame {
 	IsVisible(): boolean;
 	GetCenter(): LuaMultiReturn<[number | undefined, number | undefined]>;
 	GetEffectiveScale(): number;
+	GetParent(): NativeNavigationFrame;
 	GetNodeID?(): number;
 	GetEntryID(): number;
 	OnClick(button: string): void;
 	readonly talentSelections?: number[];
 	ShowSelections?(): void;
+}
+
+export interface NativeTalentControl extends NativeNavigationFrame {
+	IsVisible(): boolean;
+	GetCenter(): LuaMultiReturn<[number | undefined, number | undefined]>;
+	GetEffectiveScale(): number;
+	IsEnabled(): boolean;
+	Click(button: string): void;
+	GetScript(
+		script: "OnEnter" | "OnLeave",
+	): ((this: void, frame: NativeTalentControl) => void) | undefined;
 }
 
 declare global {
@@ -33,7 +45,25 @@ declare global {
 					RefreshLoadoutOptions(): void;
 					EnumerateAllTalentButtons(): LuaIterable<NativeTalentButton>;
 					HideSelections(): void;
+					readonly ApplyButton: NativeTalentControl;
+					readonly heroSpecSelectionDialog: {
+						IsShown(): boolean;
+						Hide(): void;
+						HookScript(
+							script: "OnShow" | "OnHide",
+							callback: (this: void) => void,
+						): void;
+						readonly SpecContentFramePool: {
+							EnumerateActive(): LuaIterable<{
+								readonly subTreeID: number;
+								readonly NodesContainer: NativeNavigationFrame;
+								readonly ActivateButton: NativeTalentControl;
+								readonly ApplyChangesButton: NativeTalentControl;
+							}>;
+						};
+					};
 					readonly HeroTalentsContainer: {
+						readonly HeroSpecButton: NativeTalentControl;
 						readonly isCollapsed: boolean;
 						SetCollapsed(collapsed: boolean, skipPersisting: boolean): void;
 					};
