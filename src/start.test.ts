@@ -10,6 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
 	vi.stubGlobal("_G", {});
+	vi.stubGlobal("TransmogFrame", undefined);
 	vi.stubGlobal("SearchBoxTemplate_OnTextChanged", vi.fn());
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 32, height: 128 }),
@@ -61,6 +62,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetWidth: vi.fn(),
 				SetBlendMode: vi.fn(),
 				SetVertexColor: vi.fn(),
+				SetDesaturated: vi.fn(),
 				SetAlpha: vi.fn(),
 				CreateAnimationGroup: () => ({
 					CreateAnimation: () => ({
@@ -1075,6 +1077,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	app.ui.openPanel("pets", "right");
 	expect(app.ui.getContainer("right").activePanelId).toBe("pets");
 	expect(pets.load).toHaveBeenCalledOnce();
+	app.ui.openPanel("transmog", "fullscreen");
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("transmog");
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
 	app.stop();
 	expect(pets.stop).toHaveBeenCalledOnce();
 	expect(map.disable).toHaveBeenCalledOnce();

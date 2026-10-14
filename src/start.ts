@@ -21,6 +21,7 @@ import type { ITalentsClient } from "./clients/talents-client";
 import type { ITaskScheduler } from "./clients/task-scheduler";
 import type { ITitlesClient } from "./clients/titles-client";
 import type { IToysClient } from "./clients/toys-client";
+import { TransmogClient } from "./clients/transmog-client";
 import type { IVendorClient } from "./clients/vendor-client";
 import type { IEventBus } from "./events/types";
 import { AchievementsModule } from "./modules/achievements/achievements-module";
@@ -75,6 +76,8 @@ import { BuiltInToys } from "./modules/toys/built-in-toys";
 import { ToyActionMenu } from "./modules/toys/toy-action-menu";
 import { ToysModule } from "./modules/toys/toys-module";
 import { ToysPanel } from "./modules/toys/toys-panel";
+import { TransmogModule } from "./modules/transmog/transmog-module";
+import { TransmogPanel } from "./modules/transmog/transmog-panel";
 import { BuiltInVendor } from "./modules/vendor/built-in-vendor";
 import { VendorModule } from "./modules/vendor/vendor-module";
 import { VendorPanel } from "./modules/vendor/vendor-panel";
@@ -124,6 +127,27 @@ function registerBank(
 			modal.destroy();
 		},
 	};
+}
+
+function registerTransmog(
+	pool: FramePoolManager,
+	events: IEventBus,
+	ui: UIOrchestrator,
+	modules: ModuleManager,
+	scheduler: ITaskScheduler,
+) {
+	const client = new TransmogClient(
+		new NativeLayout(scheduler),
+		new NativeNavigation(pool),
+		events,
+		new NativeVisibility(),
+	);
+	const panel = new TransmogPanel(pool, client, scheduler, () =>
+		ui.closePanel("fullscreen", "transmog"),
+	);
+	ui.registerPanel(panel);
+	modules.register(new TransmogModule(ui, events, client, panel));
+	return panel;
 }
 
 function registerMap(
@@ -316,6 +340,7 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const transmogPanel = registerTransmog(pool, events, ui, modules, scheduler);
 	const bankFeature = registerBank(
 		pool,
 		navigation,
@@ -568,6 +593,7 @@ export function startSteamDeckUI(
 			collectionsFeature.petsPanel.destroy();
 			talentsPanel.destroy();
 			talentTreePanel.destroy();
+			transmogPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();
 			buybackPanel.destroy();
