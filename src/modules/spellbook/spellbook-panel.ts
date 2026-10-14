@@ -27,6 +27,7 @@ export class SpellbookPanel implements IPanel {
 			secureIcons: true,
 			focusIcon: true,
 			backgroundAtlas: "spellbook-item-backplate",
+			backgroundOpacity: 0.12,
 			outlineIcons: true,
 		});
 	}

@@ -111,6 +111,7 @@ export class Frame implements IUIComponent {
 	private textInputConfigured = false;
 	private readonly heldGamePadButtons = new Map<string, number>();
 	private opacityChanged = false;
+	private backgroundOpacityChanged = false;
 	private texture?: WowTexture;
 	private textureTinted = false;
 	private buttonSkinned = false;
@@ -705,6 +706,13 @@ export class Frame implements IUIComponent {
 		);
 		this.opacityChanged = alpha !== 1;
 	}
+	setBackgroundOpacity(alpha: number): void {
+		this.acquire();
+		(this.texture as WowTexture & { SetAlpha(value: number): void }).SetAlpha(
+			alpha,
+		);
+		this.backgroundOpacityChanged = alpha !== 1;
+	}
 	setTooltip(
 		text: string,
 		hyperlink?: string,
@@ -1140,6 +1148,7 @@ export class Frame implements IUIComponent {
 		applyWindowSkin(this.pool, this.acquire());
 	}
 	private clearTextureTint(): void {
+		if (this.backgroundOpacityChanged) this.setBackgroundOpacity(1);
 		if (!this.textureTinted) return;
 		(
 			this.texture as WowTexture & {

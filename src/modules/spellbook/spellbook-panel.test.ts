@@ -20,6 +20,7 @@ it("renders two-column named spell tiles, binds with Y, excludes passive casting
 		"clampScroll",
 		"setButtonBackground",
 		"setAtlasBackground",
+		"setBackgroundOpacity",
 		"setIconOutline",
 		"setFocused",
 		"onClick",
@@ -67,6 +68,7 @@ it("renders two-column named spell tiles, binds with Y, excludes passive casting
 	expect(Frame.prototype.setAtlasBackground).toHaveBeenCalledWith(
 		"spellbook-item-backplate",
 	);
+	expect(Frame.prototype.setBackgroundOpacity).toHaveBeenCalledWith(0.12);
 	node?.onFocus();
 	expect(Frame.prototype.setFocused).toHaveBeenLastCalledWith(true, true);
 	expect(vi.mocked(Frame.prototype.setFocused).mock.contexts.at(-1)?.id).toBe(
