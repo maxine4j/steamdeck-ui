@@ -58,6 +58,22 @@ it("reads visible learned spells grouped by skill line, retaining passives and e
 		},
 	]);
 });
+it("shows class and specialization spells before General without relying on localized labels", () => {
+	const client = setup();
+	C_SpellBook.GetNumSpellBookSkillLines = () => 4;
+	C_SpellBook.GetSpellBookSkillLineInfo = (index: number) => ({
+		name: ["Allgemein", "Class", "Specialization", "Hidden"].at(index - 1),
+		itemIndexOffset: (index - 1) * 4,
+		numSpellBookItems: 4,
+		shouldHide: index === 4,
+	});
+	expect(client.read().map((group) => group.name)).toEqual([
+		"Class",
+		"Specialization",
+		"Allgemein",
+	]);
+});
+
 it.each([
 	["PAD3", 13],
 	["PAD4", 14],

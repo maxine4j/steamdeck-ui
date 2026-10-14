@@ -88,7 +88,11 @@ export class SpellbookClient implements ISpellbookClient {
 			}
 			groups.push({ id: `skill-${index}`, name: line.name, spells });
 		}
-		return groups;
+		// General is skill line 1 regardless of the player's locale.
+		return [
+			...groups.filter((group) => group.id !== "skill-1"),
+			...groups.filter((group) => group.id === "skill-1"),
+		];
 	}
 	canModify(): boolean {
 		return !InCombatLockdown();
