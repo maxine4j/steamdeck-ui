@@ -3,9 +3,14 @@ import type { NativeTalentButton } from "../modules/talents/wow-talents-globals"
 import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
 import type { NativeNavigation } from "../ui/components/native-navigation";
+import type { NativeVisibility } from "../ui/components/native-visibility";
 import type { NavGrid } from "../ui/navigation/types";
 
 export interface ITalentTreeClient {
+	presentation(available: { width: number; height: number }): {
+		width: number;
+		height: number;
+	};
 	mount(parent: Frame): void;
 	resize(): void;
 	unmount(): void;
@@ -18,7 +23,6 @@ export class TalentTreeClient implements ITalentTreeClient {
 	private hooked = false;
 	private focused?: NativeTalentButton;
 	private size?: readonly [number, number];
-	private scale = 1;
 	private heroCollapsed?: boolean;
 	private readonly changed = () => {
 		if (!this.parent) return;
@@ -37,15 +41,15 @@ export class TalentTreeClient implements ITalentTreeClient {
 		private readonly layout: NativeLayout,
 		private readonly focus: NativeNavigation,
 		private readonly events: IEventBus,
+		private readonly chrome: Pick<NativeVisibility, "hide" | "restore">,
 	) {}
 	mount(parent: Frame): void {
 		this.native.openFull();
 		const frame = PlayerSpellsFrame;
 		if (!frame) return;
 		this.parent = parent;
-		const [width, height] = frame.GetSize();
+		const [width, height] = frame.TalentsFrame.GetSize();
 		this.size = [width, height];
-		this.scale = frame.GetScale();
 		const tree = frame.TalentsFrame;
 		this.heroCollapsed = tree.HeroTalentsContainer.isCollapsed;
 		if (!this.hooked) {
@@ -58,6 +62,36 @@ export class TalentTreeClient implements ITalentTreeClient {
 		// Keep every hero node visible without changing the player's saved collapse preference.
 		tree.HeroTalentsContainer.SetCollapsed(false, true);
 		this.resize();
+		this.chrome.hide(
+			[
+				frame.NineSlice,
+				frame.PortraitContainer,
+				frame.TitleContainer,
+				frame.CloseButton,
+				frame.MaximizeMinimizeButton,
+				frame.TabSystem,
+				frame.Bg,
+				frame.TopTileStreaks,
+			].filter((region) => region !== undefined),
+		);
+	}
+	presentation(available: { width: number; height: number }): {
+		width: number;
+		height: number;
+	} {
+		let size = this.size;
+		if (!size && PlayerSpellsFrame) {
+			const [width, height] = PlayerSpellsFrame.TalentsFrame.GetSize();
+			size = [width, height];
+		}
+		if (!size) return available;
+		const [width, height] = size;
+		const scale = Math.min(
+			1,
+			available.width / width,
+			available.height / height,
+		);
+		return { width: width * scale, height: height * scale };
 	}
 	resize(): void {
 		const parent = this.parent;
@@ -70,13 +104,17 @@ export class TalentTreeClient implements ITalentTreeClient {
 			reparent: true,
 			anchors: [["CENTER", "CENTER", 0, 0]],
 			size: [width, height],
-			scale: Math.min(
-				this.scale,
-				available.width / width,
-				available.height / height,
-			),
+			scale: Math.min(1, available.width / width, available.height / height),
 			strata: "DIALOG",
 			levelOffset: 1,
+		});
+		// Preserve the native script owner: talent actions resolve PlayerSpellsFrame via GetParent().
+		this.layout.bind(frame.TalentsFrame, {
+			parent: frame,
+			reparent: false,
+			anchors: [["CENTER", "CENTER", 0, 0]],
+			size: [width, height],
+			scale: 1,
 		});
 	}
 	unmount(): void {
@@ -92,6 +130,7 @@ export class TalentTreeClient implements ITalentTreeClient {
 		this.heroCollapsed = undefined;
 		this.focus.release();
 		this.layout.release();
+		this.chrome.restore();
 		this.size = undefined;
 		if (this.native.isFullOpen()) this.native.close();
 	}

@@ -5,6 +5,7 @@ import { TalentTreePanel } from "./talent-tree-panel";
 
 const { hosts } = vi.hoisted(() => ({
 	hosts: [] as {
+		id: string;
 		inset: ReturnType<typeof vi.fn>;
 		show: ReturnType<typeof vi.fn>;
 		hide: ReturnType<typeof vi.fn>;
@@ -14,12 +15,19 @@ const { hosts } = vi.hoisted(() => ({
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
+		setParent = vi.fn();
+		layout = vi.fn();
+		setWindowBackground = vi.fn();
+		setLabel = vi.fn();
+		setFocusBorder = vi.fn();
+		setCloseButtonBackground = vi.fn();
+		onClick = vi.fn();
 		inset = vi.fn();
 		show = vi.fn();
 		hide = vi.fn();
 		destroy = vi.fn();
 		onSizeChanged = vi.fn();
-		constructor() {
+		constructor(readonly id: string) {
 			hosts.push(this);
 		}
 	},
@@ -34,6 +42,7 @@ it("mounts the fullscreen tree, defers refreshed navigation, dismisses choices w
 		},
 	};
 	const client = {
+		presentation: vi.fn(() => ({ width: 800, height: 480 })),
 		mount: vi.fn(),
 		unmount: vi.fn(),
 		resize: vi.fn(),
@@ -48,12 +57,38 @@ it("mounts the fullscreen tree, defers refreshed navigation, dismisses choices w
 		scheduler,
 		close,
 	);
-	const host = hosts.at(-1);
+	const host = hosts.find((frame) => frame.id === "talent-tree-host");
+	const window = hosts.find(
+		(frame) => frame.id === "talent-tree-window",
+	) as unknown as {
+		layout: ReturnType<typeof vi.fn>;
+		setWindowBackground: ReturnType<typeof vi.fn>;
+		setFocusBorder: ReturnType<typeof vi.fn>;
+		setLabel: ReturnType<typeof vi.fn>;
+	};
 	panel.setNavigationChanged(changed);
 	panel.refresh();
 	expect(pending).toHaveLength(0);
-	panel.onMount({ onSizeChanged: vi.fn() } as unknown as IUIComponent);
+	const parent = {
+		onSizeChanged: vi.fn(),
+		getSize: () => ({ width: 1000, height: 600 }),
+	};
+	panel.onMount(parent as unknown as IUIComponent);
 	expect(client.mount).toHaveBeenCalledWith(host);
+	expect(window?.setWindowBackground).toHaveBeenCalledOnce();
+	expect(window?.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Talents",
+		"TOP",
+		0,
+		-6,
+		12,
+	);
+	expect(client.presentation).toHaveBeenCalledWith({ width: 984, height: 560 });
+	expect(window?.layout).toHaveBeenCalledWith(816, 520, "CENTER", parent);
+	expect(host?.inset).toHaveBeenCalledWith(window, 8, 32, 8, 8);
+	panel.onActiveChanged(true);
+	expect(window?.setFocusBorder).toHaveBeenLastCalledWith(true);
 	panel.refresh();
 	panel.refresh();
 	expect(pending).toHaveLength(1);
@@ -69,7 +104,7 @@ it("mounts the fullscreen tree, defers refreshed navigation, dismisses choices w
 	panel.onUnmount();
 	expect(client.unmount).toHaveBeenCalledOnce();
 	expect(host?.hide).toHaveBeenCalledOnce();
-	panel.onMount({ onSizeChanged: vi.fn() } as unknown as IUIComponent);
+	panel.onMount(parent as unknown as IUIComponent);
 	expect(client.mount).toHaveBeenLastCalledWith(host);
 	panel.destroy();
 	expect(host?.destroy).toHaveBeenCalledOnce();

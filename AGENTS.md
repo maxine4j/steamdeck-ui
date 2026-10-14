@@ -25,6 +25,7 @@ Keep these boundaries strict:
 - Clients own direct WoW API calls, API-specific constants, and conversion into application data. Do not inject low-level WoW API adapters into clients or put those details in `main.ts`; the entry point only constructs and wires dependencies. Inject client interfaces into modules, and mock WoW globals when testing clients.
 - Prefer explicit dependency injection throughout. Do not introduce hidden global, event, or frame dependencies.
 - Use `FramePoolManager` for presentation components. Acquire pooled frames, reset them on release, and design panels to reuse controls rather than creating frames during normal open/close cycles.
+- Preserve the shared window styling, including the metal window border. Native feature content can retain its background artwork, but host it inside the shared window skin and remove redundant Blizzard window chrome. Fit the focus outline to the styled window, not an oversized fullscreen container.
 
 The event bus owns the hidden WoW event frame, translates WoW event payloads into typed application events, and dispatches them to subscribers. This permits modules to be tested with a mock event bus.
 

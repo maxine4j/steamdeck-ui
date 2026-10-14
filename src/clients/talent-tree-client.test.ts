@@ -42,6 +42,7 @@ function setup() {
 		}),
 	};
 	const tree = {
+		GetSize: () => [1000, 600],
 		EnumerateAllTalentButtons: () => nodes,
 		SelectionChoiceFrame: {
 			IsShown: () => choicesOpen,
@@ -57,7 +58,11 @@ function setup() {
 	nodes.at(1)?.ShowSelections.mockImplementation(() => {
 		choicesOpen = true;
 	});
+	const tabs = { IsShown: () => true, Show: vi.fn(), Hide: vi.fn() };
+	const border = { IsShown: () => true, Show: vi.fn(), Hide: vi.fn() };
 	vi.stubGlobal("PlayerSpellsFrame", {
+		TabSystem: tabs,
+		NineSlice: border,
 		TalentsFrame: tree,
 		GetSize: () => [1000, 600],
 		GetScale: () => 1,
@@ -72,6 +77,7 @@ function setup() {
 		isFullOpen: vi.fn(() => true),
 	};
 	const layout = { bind: vi.fn(), release: vi.fn() };
+	const chrome = { hide: vi.fn(), restore: vi.fn() };
 	const navigation = {
 		navigation: vi.fn(
 			(
@@ -88,6 +94,7 @@ function setup() {
 		layout as unknown as NativeLayout,
 		navigation as unknown as NativeNavigation,
 		events,
+		chrome,
 	);
 	const parent = { getSize: () => ({ width: 800, height: 500 }) } as Frame;
 	return {
@@ -101,23 +108,37 @@ function setup() {
 		choices,
 		hooks,
 		changed,
+		chrome,
 	};
 }
 
 it("hosts and fits the native tree, includes visible class/spec/hero/apex nodes spatially, and restores on close", () => {
-	const { client, native, layout, navigation, parent, nodes, tree } = setup();
+	const { client, native, layout, navigation, parent, nodes, tree, chrome } =
+		setup();
 	expect(client.navigation()).toEqual([]);
 	client.mount(parent);
 	expect(native.openFull).toHaveBeenCalledOnce();
 	expect(layout.bind).toHaveBeenCalledWith(
-		PlayerSpellsFrame,
+		tree,
 		expect.objectContaining({
-			parent,
-			reparent: true,
-			scale: 0.8,
+			parent: PlayerSpellsFrame,
+			reparent: false,
+			scale: 1,
 			anchors: [["CENTER", "CENTER", 0, 0]],
 		}),
 	);
+	expect(layout.bind).toHaveBeenCalledWith(
+		PlayerSpellsFrame,
+		expect.objectContaining({ parent, size: [1000, 600], scale: 0.8 }),
+	);
+	expect(chrome.hide).toHaveBeenCalledWith([
+		PlayerSpellsFrame?.NineSlice,
+		PlayerSpellsFrame?.TabSystem,
+	]);
+	expect(client.presentation({ width: 800, height: 500 })).toEqual({
+		width: 800,
+		height: 480,
+	});
 	expect(tree.HeroTalentsContainer.SetCollapsed).toHaveBeenCalledWith(
 		false,
 		true,
@@ -139,6 +160,7 @@ it("hosts and fits the native tree, includes visible class/spec/hero/apex nodes 
 	expect(TalentDisplayMixin.OnLeave).toHaveBeenCalledWith(nodes.at(2));
 	client.unmount();
 	expect(layout.release).toHaveBeenCalledOnce();
+	expect(chrome.restore).toHaveBeenCalledOnce();
 	expect(navigation.release).toHaveBeenCalledOnce();
 	expect(native.close).toHaveBeenCalledOnce();
 	expect(client.navigation()).toEqual([]);

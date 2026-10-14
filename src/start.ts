@@ -85,6 +85,7 @@ import { Modal } from "./ui/components/modal";
 import { NativeLayout } from "./ui/components/native-layout";
 import { NativeNavigation } from "./ui/components/native-navigation";
 import { NativeScriptSuppression } from "./ui/components/native-script-suppression";
+import { NativeVisibility } from "./ui/components/native-visibility";
 import { type FrameFactory, FramePoolManager } from "./ui/frame-pool-manager";
 import { NavigationManager } from "./ui/navigation/navigation-manager";
 import { PanelContainer } from "./ui/panel/panel-container";
@@ -503,6 +504,7 @@ export function startSteamDeckUI(
 			new NativeLayout(scheduler),
 			new NativeNavigation(pool),
 			events,
+			new NativeVisibility(),
 		),
 		scheduler,
 		() => ui.closePanel("fullscreen", "talent-tree"),

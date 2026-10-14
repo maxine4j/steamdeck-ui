@@ -1,5 +1,6 @@
 import type { LayoutFrame } from "../../ui/components/native-layout";
 import type { NativeNavigationFrame } from "../../ui/components/native-navigation";
+import type { NativeVisibleRegion } from "../../ui/components/native-visibility";
 
 export interface NativeTalentButton extends NativeNavigationFrame {
 	IsVisible(): boolean;
@@ -15,6 +16,14 @@ export interface NativeTalentButton extends NativeNavigationFrame {
 declare global {
 	const PlayerSpellsFrame:
 		| (LayoutFrame & {
+				readonly NineSlice?: NativeVisibleRegion;
+				readonly PortraitContainer?: NativeVisibleRegion;
+				readonly TitleContainer?: NativeVisibleRegion;
+				readonly CloseButton?: NativeVisibleRegion;
+				readonly MaximizeMinimizeButton?: NativeVisibleRegion;
+				readonly TabSystem?: NativeVisibleRegion;
+				readonly Bg?: NativeVisibleRegion;
+				readonly TopTileStreaks?: NativeVisibleRegion;
 				IsShown(): boolean;
 				IsInspecting(): boolean;
 				GetTab(): number;

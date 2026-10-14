@@ -877,6 +877,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		LFDParentFrame,
 	);
 	expect(app.ui.getContainer("left").activePanelId).toBe("dungeon-finder");
+	clickRow("Dungeons")();
+	flush();
 	expect(labels.flat()).toContain("No random dungeons available");
 	const finderFrames = frames.length;
 	app.ui.closePanel("left", "dungeon-finder");
@@ -943,6 +945,20 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		SetFrameLevel: vi.fn(),
 		SetAlpha: vi.fn(),
 		TalentsFrame: {
+			GetParent: () => spellsFrame,
+			GetNumPoints: () => 0,
+			GetSize: () => [1000, 600],
+			GetScale: () => 1,
+			GetFrameStrata: () => "HIGH",
+			GetAlpha: () => 1,
+			IsShown: () => true,
+			SetParent: vi.fn(),
+			ClearAllPoints: vi.fn(),
+			SetPoint: vi.fn(),
+			SetSize: vi.fn(),
+			SetScale: vi.fn(),
+			SetFrameStrata: vi.fn(),
+			SetAlpha: vi.fn(),
 			EnumerateAllTalentButtons: () => [],
 			HideSelections: vi.fn(),
 			HookScript: vi.fn(),
