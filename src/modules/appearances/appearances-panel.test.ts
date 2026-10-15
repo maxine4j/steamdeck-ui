@@ -22,6 +22,7 @@ beforeEach(() => {
 		"setTooltip",
 		"onClick",
 		"onSizeChanged",
+		"onVerticalScroll",
 		"setScrollContent",
 		"clampScroll",
 		"revealVerticalRange",
@@ -32,13 +33,17 @@ beforeEach(() => {
 		"destroy",
 	] as const)
 		vi.spyOn(Frame.prototype, method).mockImplementation(() => {});
+	vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
+		top: 0,
+		bottom: 160,
+	});
 });
 afterEach(() => vi.restoreAllMocks());
 
 function setup() {
 	const pending: (() => void)[] = [];
 	const scheduler = {
-		nextFrame: (callback: () => void) => {
+		nextFrame: vi.fn((callback: () => void) => {
 			let cancelled = false;
 			pending.push(() => {
 				if (!cancelled) callback();
@@ -46,7 +51,7 @@ function setup() {
 			return () => {
 				cancelled = true;
 			};
-		},
+		}),
 	};
 	let loaded: (rows: Appearance[], complete: boolean) => void = () => {};
 	let update: (rows: readonly Appearance[], complete: boolean) => void =
@@ -96,6 +101,7 @@ function setup() {
 		close,
 		detach,
 		pending,
+		scheduler,
 		flush,
 		loaded: (rows: Appearance[], complete = true) => loaded(rows, complete),
 		update: (rows: readonly Appearance[], complete = true) =>
@@ -111,6 +117,152 @@ const appearance = (id: number, expansionId = 7): Appearance => ({
 	icon: id,
 	collected: true,
 	expansionId,
+});
+
+function openSlot(panel: AppearancesPanel, slot = 1) {
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === `appearance-slot-${slot}`)
+		?.onAlternate?.();
+}
+function scroll(top: number, bottom: number) {
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockReturnValue({
+		top,
+		bottom,
+	});
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.calls.at(-1)?.at(0)?.();
+}
+function itemCount(panel: AppearancesPanel) {
+	return panel
+		.getNavGrid()
+		.flat()
+		.filter((node) => node.navId.startsWith("appearance-item-")).length;
+}
+
+it("prepares one page ahead, retains focused tiles and performs no rendering in prepared ranges", () => {
+	const { panel, parent, loaded, flush, scheduler } = setup();
+	panel.onMount(parent);
+	openSlot(panel);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id)));
+	flush();
+	expect(itemCount(panel)).toBe(70);
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId.startsWith("appearance-item-"));
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	vi.mocked(Frame.prototype.layout).mockClear();
+	scheduler.nextFrame.mockClear();
+	scroll(150, 310);
+	expect(scheduler.nextFrame).not.toHaveBeenCalled();
+	scroll(500, 660);
+	flush();
+	expect(itemCount(panel)).toBeGreaterThan(70);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === first?.navId),
+	).toBe(first);
+	expect(
+		vi
+			.mocked(Frame.prototype.layout)
+			.mock.instances.some((frame) => frame.id === "appearances-content-1"),
+	).toBe(false);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	scheduler.nextFrame.mockClear();
+	scroll(0, 160);
+	scroll(500, 660);
+	expect(scheduler.nextFrame).not.toHaveBeenCalled();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+});
+
+it("prepares skipped gaps, rechecks queued scrolls and extends preparation after resize", () => {
+	const { panel, parent, loaded, flush, scheduler } = setup();
+	panel.onMount(parent);
+	openSlot(panel);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id)));
+	flush();
+	scroll(2000, 2160);
+	scroll(0, 160);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	flush();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+	scroll(2000, 2160);
+	flush();
+	scheduler.nextFrame.mockClear();
+	scroll(1000, 1160);
+	expect(scheduler.nextFrame).toHaveBeenCalledOnce();
+	flush();
+	const before = itemCount(panel);
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockReturnValue({
+		top: 1000,
+		bottom: 1600,
+	});
+	vi.mocked(Frame.prototype.onSizeChanged).mock.calls.at(-1)?.at(0)?.();
+	flush();
+	expect(itemCount(panel)).toBeGreaterThan(before);
+});
+
+it("cancels stale batches and keeps prepared coverage isolated by slot and replacement data", () => {
+	const { panel, parent, loaded, update, flush } = setup();
+	panel.onMount(parent);
+	openSlot(panel);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id)));
+	panel.onBack();
+	openSlot(panel, 10);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id + 2000)));
+	flush();
+	expect(itemCount(panel)).toBe(70);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId.startsWith("appearance-item-1-")),
+	).toBe(false);
+	scroll(2000, 2160);
+	flush();
+	loaded([appearance(9000)]);
+	flush();
+	expect(itemCount(panel)).toBe(0);
+	scroll(0, 160);
+	flush();
+	expect(itemCount(panel)).toBe(1);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	update([{ ...appearance(9000), icon: 999 }]);
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledWith(999);
+	panel.onBack();
+	openSlot(panel);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id)));
+	flush();
+	expect(itemCount(panel)).toBe(70);
+});
+
+it("hides changed offscreen tiles until their new positions are prepared and blocks stale actions", () => {
+	const { panel, parent, loaded, update, flush } = setup();
+	panel.onMount(parent);
+	openSlot(panel);
+	loaded(Array.from({ length: 1000 }, (_, id) => appearance(id)));
+	flush();
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId.startsWith("appearance-item-"));
+	scroll(2000, 2160);
+	flush();
+	vi.mocked(Frame.prototype.hide).mockClear();
+	update([{ ...appearance(0), name: "Z moved to end" }]);
+	flush();
+	expect(
+		vi
+			.mocked(Frame.prototype.hide)
+			.mock.instances.some((frame) => frame.id === "appearance-item-1-0"),
+	).toBe(true);
+	vi.mocked(Frame.prototype.tryOnModel).mockClear();
+	first?.onAlternate?.();
+	expect(Frame.prototype.tryOnModel).not.toHaveBeenCalled();
 });
 
 it("lands on conventional slots without loading and opens a slot through left click or controller X", () => {

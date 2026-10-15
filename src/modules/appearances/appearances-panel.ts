@@ -15,6 +15,7 @@ import type {
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import { PreparedRanges } from "../../ui/prepared-ranges";
 import { expansionNames } from "../expansion-names";
 
 interface Cell {
@@ -33,6 +34,9 @@ interface SlotView {
 	readonly headers: Frame[];
 	grid: NavGrid;
 	height: number;
+	laidOutHeight?: number;
+	groups?: [number, Appearance[]][];
+	readonly preparedRanges: PreparedRanges;
 }
 
 const columns = 10;
@@ -62,9 +66,9 @@ export class AppearancesPanel implements IPanel {
 	private slot?: number;
 	private complete = false;
 	private generation = 0;
-	private renderPending = false;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
+	private cancelViewport?: () => void;
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction) => {
@@ -195,6 +199,7 @@ export class AppearancesPanel implements IPanel {
 				headers: [],
 				grid: [],
 				height: 1,
+				preparedRanges: new PreparedRanges(),
 			};
 			this.views.set(slot, state);
 		}
@@ -204,8 +209,15 @@ export class AppearancesPanel implements IPanel {
 		view.content.setParent(this.viewport);
 		this.viewport.setScrollContent(view.content);
 		this.viewport.onSizeChanged(() => {
-			if (this.mounted && this.slot === slot) this.layoutContent(view);
+			if (this.mounted && this.slot === slot) {
+				this.layoutContent(view);
+				this.viewport.clampScroll();
+				this.requestViewportRender(view, slot, this.generation);
+			}
 		});
+		this.viewport.onVerticalScroll(() =>
+			this.requestViewportRender(view, slot, this.generation),
+		);
 		this.viewport.show();
 		view.content.show();
 		this.frame.setLabel(
@@ -223,8 +235,9 @@ export class AppearancesPanel implements IPanel {
 			(rows, complete) => {
 				if (!this.mounted || generation !== this.generation) return;
 				view.view.replace(rows);
+				this.invalidate(view);
 				this.complete = complete;
-				this.requestRender(view, slot, generation);
+				this.render(view, slot, generation);
 			},
 			(completed, total) => {
 				if (this.mounted && generation === this.generation)
@@ -242,46 +255,81 @@ export class AppearancesPanel implements IPanel {
 				const changed = view.view.update(rows);
 				const finished = this.complete !== complete;
 				this.complete = complete;
-				if (changed || finished) this.requestRender(view, slot, generation);
+				if (changed || finished) {
+					this.invalidate(view);
+					this.render(view, slot, generation);
+				}
 			},
 		);
 	}
 	private layoutContent(view: SlotView): void {
+		if (view.laidOutHeight === view.height) return;
 		view.content.layout(460, view.height, "TOPLEFT", this.viewport);
+		view.laidOutHeight = view.height;
 		this.viewport.clampScroll();
 	}
-	private requestRender(
+	private invalidate(view: SlotView): void {
+		view.groups = undefined;
+		view.preparedRanges.reset();
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.cancelRender?.();
+		this.cancelRender = undefined;
+	}
+	private requestViewportRender(
 		view: SlotView,
 		slot: number,
 		generation: number,
 	): void {
-		if (this.cancelRender) {
-			this.renderPending = true;
+		if (
+			!this.mounted ||
+			this.slot !== slot ||
+			generation !== this.generation ||
+			this.cancelViewport ||
+			this.cancelRender ||
+			view.preparedRanges.includes(this.viewport.getVisibleVerticalRange())
+		)
 			return;
-		}
-		this.render(view, slot, generation);
+		this.cancelViewport = this.scheduler.nextFrame(() => {
+			this.cancelViewport = undefined;
+			if (
+				this.mounted &&
+				this.slot === slot &&
+				generation === this.generation &&
+				!this.cancelRender &&
+				!view.preparedRanges.includes(this.viewport.getVisibleVerticalRange())
+			)
+				this.render(view, slot, generation);
+		});
 	}
 	private render(view: SlotView, slot: number, generation: number): void {
-		this.renderPending = false;
-		const groups = new Map<number, Appearance[]>();
-		for (const row of view.view.values()) {
-			const key = row.expansionId ?? -1;
-			let group = groups.get(key);
-			if (!group) {
-				group = [];
-				groups.set(key, group);
+		const range = this.viewport.getVisibleVerticalRange();
+		const firstVisible = range.top - 2 * spacing;
+		const lastVisible =
+			range.bottom + Math.max(2 * spacing, range.bottom - range.top);
+		if (!view.groups) {
+			const groups = new Map<number, Appearance[]>();
+			for (const row of view.view.values()) {
+				const key = row.expansionId ?? -1;
+				let group = groups.get(key);
+				if (!group) {
+					group = [];
+					groups.set(key, group);
+				}
+				group.push(row);
 			}
-			group.push(row);
+			view.groups = [...groups.entries()].sort(([a], [b]) => b - a);
+			for (const [, rows] of view.groups)
+				rows.sort((a, b) =>
+					a.name === b.name ? a.id - b.id : a.name < b.name ? -1 : 1,
+				);
 		}
-		const ordered = [...groups.entries()].sort(([a], [b]) => b - a);
+		const ordered = view.groups;
 		const jobs: (() => void)[] = [];
 		const wanted = new Set<number>();
 		const grid: NavGrid = [];
 		let top = 0;
 		ordered.forEach(([expansion, rows], groupIndex) => {
-			rows.sort((a, b) =>
-				a.name === b.name ? a.id - b.id : a.name < b.name ? -1 : 1,
-			);
 			const headerTop = top;
 			jobs.push(() => {
 				let header = view.headers.at(groupIndex);
@@ -309,18 +357,20 @@ export class AppearancesPanel implements IPanel {
 			for (let index = 0; index < Math.ceil(rows.length / columns); index++)
 				grid.push([]);
 			rows.forEach((row, index) => {
-				wanted.add(row.id);
 				const cellTop = top + 28 + Math.floor(index / columns) * spacing;
 				const column = index % columns;
 				const navRow = grid.at(firstRow + Math.floor(index / columns));
 				const existing = view.cells.get(row.id);
-				if (
+				const ready =
 					existing?.visible &&
 					existing.node &&
 					existing.row === view.view.get(String(row.id)) &&
 					existing.top === cellTop &&
-					existing.column === column
-				) {
+					existing.column === column;
+				const nearby = cellTop + 42 >= firstVisible && cellTop <= lastVisible;
+				if (!nearby && !ready) return;
+				wanted.add(row.id);
+				if (ready && existing?.node) {
 					navRow?.push(existing.node);
 					return;
 				}
@@ -445,11 +495,6 @@ export class AppearancesPanel implements IPanel {
 			this.navigationChanged?.();
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
-			else if (this.renderPending)
-				this.cancelRender = this.scheduler.nextFrame(() => {
-					this.cancelRender = undefined;
-					this.render(view, slot, generation);
-				});
 			else
 				this.frame.setLabel(
 					"loading",
@@ -459,6 +504,10 @@ export class AppearancesPanel implements IPanel {
 					16,
 					12,
 				);
+			if (cursor === jobs.length) {
+				view.preparedRanges.remember(firstVisible, lastVisible);
+				this.requestViewportRender(view, slot, generation);
+			}
 		};
 		step();
 	}
@@ -474,7 +523,10 @@ export class AppearancesPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
-		this.renderPending = false;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.viewport.onVerticalScroll();
+		this.viewport.onSizeChanged();
 		if (this.slot !== undefined) this.views.get(this.slot)?.content.hide();
 	}
 	onBack(): void {
