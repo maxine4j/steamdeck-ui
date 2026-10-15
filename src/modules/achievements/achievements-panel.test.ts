@@ -10,25 +10,35 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { AchievementsPanel } from "./achievements-panel";
 
-const { lists, frames, reveal, edges, resizeCallbacks, listOptions } =
-	vi.hoisted(() => ({
-		listOptions: new Map<string, unknown>(),
-		edges: vi.fn(),
-		resizeCallbacks: new Map<string, () => void>(),
-		reveal: vi.fn(),
-		lists: new Map<string, { rows: readonly ListRow[]; mounted: boolean }>(),
-		frames: new Map<
-			string,
-			{
-				visible: boolean;
-				layouts: number[][];
-				insets: number[][];
-				labels: Map<string, string>;
-				opacity: number;
-				click?: () => void;
-			}
-		>(),
-	}));
+const {
+	lists,
+	frames,
+	reveal,
+	edges,
+	resizeCallbacks,
+	listOptions,
+	viewport,
+	scrollCallbacks,
+} = vi.hoisted(() => ({
+	viewport: { top: 0, bottom: 800 },
+	scrollCallbacks: new Map<string, (() => void) | undefined>(),
+	listOptions: new Map<string, unknown>(),
+	edges: vi.fn(),
+	resizeCallbacks: new Map<string, () => void>(),
+	reveal: vi.fn(),
+	lists: new Map<string, { rows: readonly ListRow[]; mounted: boolean }>(),
+	frames: new Map<
+		string,
+		{
+			visible: boolean;
+			layouts: number[][];
+			insets: number[][];
+			labels: Map<string, string>;
+			opacity: number;
+			click?: () => void;
+		}
+	>(),
+}));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
 		state = {
@@ -54,7 +64,16 @@ vi.mock("../../ui/components/frame", () => ({
 		setIcon() {}
 		setScrollContent() {}
 		clampScroll() {}
-		resetScroll() {}
+		resetScroll() {
+			viewport.bottom -= viewport.top;
+			viewport.top = 0;
+		}
+		getVisibleVerticalRange() {
+			return { ...viewport };
+		}
+		onVerticalScroll(callback?: () => void) {
+			scrollCallbacks.set(this.id, callback);
+		}
 		onSizeChanged(callback: () => void) {
 			resizeCallbacks.set(this.id, callback);
 		}
@@ -165,6 +184,9 @@ beforeEach(() => {
 	frames.clear();
 	reveal.mockClear();
 	resizeCallbacks.clear();
+	scrollCallbacks.clear();
+	viewport.top = 0;
+	viewport.bottom = 800;
 });
 
 it("spans achievement tile progress bars beneath icons with padded edges", () => {
@@ -374,8 +396,186 @@ function setup(flushLoad = true) {
 	};
 	panel.onMount(parent);
 	if (flushLoad) flush();
-	return { panel, client, close, parent, flush, step, activate };
+	return { panel, client, close, parent, flush, step, activate, pending };
 }
+
+function largePage() {
+	viewport.bottom = 200;
+	const context = setup(false);
+	context.client.cachedCatalog = () => ({
+		categories: [{ id: 92, name: "General", parent: -1 }],
+		entries: new Map([
+			[
+				92,
+				Array.from({ length: 1000 }, (_, i) =>
+					achievement(990000 + i, i % 2 === 0),
+				),
+			],
+		]),
+	});
+	context.flush();
+	context.activate("summary-category-Characters");
+	const scroll = (top: number, height = 200) => {
+		viewport.top = top;
+		viewport.bottom = top + height;
+		scrollCallbacks.get("achievements-scroll")?.();
+	};
+	const tiles = () =>
+		context.panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => node.navId.startsWith("achievement-"));
+	return { ...context, scroll, tiles };
+}
+
+it("prepares only visible achievements and one page ahead at stable full-content coordinates", () => {
+	const { tiles, scroll, flush } = largePage();
+	expect(tiles()).toHaveLength(35);
+	expect(tiles().some((node) => node.navId === "achievement-990030")).toBe(
+		true,
+	);
+	expect(frames.get("achievements-content")?.layouts.at(-1)?.at(1)).toBe(9324);
+	const contentLayouts = frames.get("achievements-content")?.layouts.length;
+	scroll(450);
+	flush();
+	expect(tiles().length).toBeGreaterThan(35);
+	expect(tiles().length).toBeLessThan(100);
+	expect(frames.get("achievements-content")?.layouts).toHaveLength(
+		contentLayouts ?? 0,
+	);
+});
+
+it("schedules no callbacks, navigation rebuilds or tile writes when revisiting prepared achievements", () => {
+	const { panel, scroll, flush, pending, tiles } = largePage();
+	const first = tiles().at(0);
+	scroll(450);
+	flush();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	const layout = vi.spyOn(Frame.prototype, "layout");
+	const label = vi.spyOn(Frame.prototype, "setLabel");
+	for (const top of [0, 150, 450, 200, 0]) scroll(top);
+	expect(pending).toHaveLength(0);
+	expect(layout).not.toHaveBeenCalled();
+	expect(label).not.toHaveBeenCalled();
+	expect(changed).not.toHaveBeenCalled();
+	expect(tiles().at(0)).toBe(first);
+	layout.mockRestore();
+	label.mockRestore();
+});
+
+it("coalesces scroll requests and rechecks coverage after returning to prepared achievements", () => {
+	const { scroll, flush, pending, tiles } = largePage();
+	const count = tiles().length;
+	scroll(4000);
+	scroll(4100);
+	expect(pending).toHaveLength(1);
+	scroll(0);
+	flush();
+	expect(tiles()).toHaveLength(count);
+});
+
+it("does not count skipped achievement groups as prepared and retains focused controls during jumps", () => {
+	const { panel, scroll, flush, pending, tiles } = largePage();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	nav.registerGrid("achievements", () => panel.getNavGrid());
+	nav.setActiveGrid("achievements");
+	panel.setNavigationChanged((id) => nav.refreshGrid("achievements", id));
+	events.emit("NAV_DOWN");
+	const focused = nav.focusedId;
+	scroll(7000);
+	flush();
+	expect(nav.focusedId).toBe(focused);
+	expect(tiles().some((node) => node.navId === "achievement-990500")).toBe(
+		false,
+	);
+	scroll(4600);
+	expect(pending).toHaveLength(1);
+	flush();
+	expect(tiles().some((node) => node.navId === "achievement-990500")).toBe(
+		true,
+	);
+	nav.destroy();
+});
+
+it("checks the latest viewport after active achievement batches finish without restarting them", () => {
+	const { scroll, step, flush, tiles } = largePage();
+	scroll(2000);
+	step();
+	step();
+	scroll(7000);
+	flush();
+	expect(tiles().some((node) => node.navId === "achievement-990210")).toBe(
+		true,
+	);
+	expect(tiles().some((node) => node.navId === "achievement-990760")).toBe(
+		true,
+	);
+});
+
+it("prepares achievements exposed by a taller viewport", () => {
+	const { tiles, flush } = largePage();
+	viewport.bottom = 800;
+	resizeCallbacks.get("achievements-scroll")?.();
+	flush();
+	expect(tiles().length).toBeGreaterThan(100);
+	expect(tiles().length).toBeLessThan(200);
+});
+
+it("renders externally selected off-screen achievements before focusing them", () => {
+	const { panel, flush, tiles } = largePage();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	panel.selectAchievement(990900);
+	flush();
+	expect(tiles().some((node) => node.navId === "achievement-990900")).toBe(
+		true,
+	);
+	expect(changed).toHaveBeenCalledWith("achievement-990900");
+});
+
+it("cancels achievement scroll rendering on close and reconciles interrupted work on reopening", () => {
+	const { panel, parent, scroll, flush, tiles } = largePage();
+	scroll(4000);
+	panel.onUnmount();
+	expect(scrollCallbacks.get("achievements-scroll")).toBeUndefined();
+	const count = frames.size;
+	flush();
+	expect(frames.size).toBe(count);
+	panel.onMount(parent);
+	flush();
+	expect(tiles().some((node) => node.navId === "achievement-990450")).toBe(
+		true,
+	);
+});
+
+it("extends controller navigation into the next deferred achievement row without jumping to the bottom", () => {
+	const { panel, flush, tiles } = largePage();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	edges.mockClear();
+	tiles().at(-1)?.navigationScroll?.scrollToEdge("down");
+	flush();
+	expect(edges).not.toHaveBeenCalled();
+	expect(tiles().some((node) => node.navId === "achievement-990035")).toBe(
+		true,
+	);
+	expect(changed).toHaveBeenCalledWith("achievement-990035");
+});
+
+it("does not publish stale page jobs after switching categories before scrolling completes", () => {
+	const { panel, scroll, flush, step, activate, tiles } = largePage();
+	scroll(4000);
+	step();
+	panel.onBack();
+	flush();
+	activate("summary-category-Characters");
+	expect(tiles()).toHaveLength(35);
+	expect(tiles().some((node) => node.navId === "achievement-990450")).toBe(
+		false,
+	);
+});
 
 it("shows controller graphics beside achievement actions", () => {
 	setup();

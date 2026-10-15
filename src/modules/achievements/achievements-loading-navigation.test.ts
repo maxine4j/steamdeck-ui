@@ -33,6 +33,7 @@ function setup() {
 		"resetScroll",
 		"revealVerticalRange",
 		"onSizeChanged",
+		"onVerticalScroll",
 		"onClick",
 		"show",
 		"hide",
@@ -42,6 +43,10 @@ function setup() {
 	vi.spyOn(Frame.prototype, "getSize").mockReturnValue({
 		width: 500,
 		height: 800,
+	});
+	vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
+		top: 0,
+		bottom: 800,
 	});
 	vi.spyOn(Frame.prototype, "labelHeight").mockReturnValue(16);
 	const pending: (() => void)[] = [];

@@ -14,6 +14,7 @@ import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import { PreparedRanges } from "../../ui/prepared-ranges";
 import {
 	type AchievementPage,
 	achievementCategoryIcon,
@@ -35,6 +36,13 @@ interface AchievementCell {
 	border: Frame;
 	icon: Frame;
 }
+interface PresentationJob {
+	top?: number;
+	bottom?: number;
+	navId?: string;
+	ready?: boolean;
+	run: () => void;
+}
 export class AchievementsPanel implements IPanel {
 	readonly id = "achievements";
 	readonly title = "Achievements";
@@ -50,7 +58,11 @@ export class AchievementsPanel implements IPanel {
 	private readonly loadingProgress: Frame;
 	private readonly update: DeferredRefresh;
 	private readonly cells: AchievementCell[] = [];
-	private readonly headers: Frame[] = [];
+	private readonly headers = new Map<number, Frame>();
+	private readonly preparedRanges = new PreparedRanges();
+	private presentation?: { jobs: PresentationJob[]; grid: NavGrid };
+	private laidOutHeight?: number;
+	private laidOutWidth?: number;
 	private mounted = false;
 	private summaryMounted = false;
 	private categories: AchievementCategory[] = [];
@@ -75,11 +87,42 @@ export class AchievementsPanel implements IPanel {
 	private renderDirty = true;
 	private cancelScan?: () => void;
 	private cancelRender?: () => void;
+	private cancelViewport?: () => void;
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
-			if (!this.scanning && !this.renderDirty)
-				this.viewport.scrollToEdge(direction);
+			if (this.scanning || this.renderDirty) return;
+			if (direction === "down" && this.presentation) {
+				let lastTop = -1;
+				for (const job of this.presentation.jobs)
+					if (job.ready && job.navId && job.top !== undefined)
+						lastTop = Math.max(lastTop, job.top);
+				let next: PresentationJob | undefined;
+				for (const job of this.presentation.jobs)
+					if (
+						!job.ready &&
+						job.navId &&
+						job.top !== undefined &&
+						job.top > lastTop &&
+						(!next || job.top < (next.top ?? 0))
+					)
+						next = job;
+				if (
+					next?.navId &&
+					next.top !== undefined &&
+					next.bottom !== undefined
+				) {
+					this.pendingFocus = next.navId;
+					this.viewport.revealVerticalRange(
+						next.top,
+						next.bottom,
+						this.contentHeight,
+					);
+					this.requestViewportRender();
+					return;
+				}
+			}
+			this.viewport.scrollToEdge(direction);
 		},
 	};
 	constructor(
@@ -498,6 +541,10 @@ export class AchievementsPanel implements IPanel {
 		this.renderRevision++;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.presentation = undefined;
+		this.preparedRanges.reset();
 		if (this.renderedPage !== this.page || this.page === undefined) {
 			this.grid = [];
 			this.viewport.hide();
@@ -606,8 +653,9 @@ export class AchievementsPanel implements IPanel {
 			1,
 			Math.min(5, Math.floor((groupWidth + 4) / spacing)),
 		);
-		const jobs: (() => void)[] = [];
+		const jobs: PresentationJob[] = [];
 		const grid: NavGrid = [];
+		this.presentation = { jobs, grid };
 		const retained = new Map(
 			this.grid.flat().map((node) => [node.navId, node]),
 		);
@@ -627,8 +675,6 @@ export class AchievementsPanel implements IPanel {
 			(cell) => !cell.navId || !wanted.has(cell.navId),
 		);
 		for (const cell of available) cell.navId = undefined;
-		const generation = this.generation;
-		const revision = this.renderRevision;
 		let cellIndex = 0;
 		let headerIndex = 0;
 		let y = 0;
@@ -642,40 +688,44 @@ export class AchievementsPanel implements IPanel {
 			const index = headerIndex++;
 			const top = layout?.top ?? y;
 			const width = layout?.width ?? this.width;
-			jobs.push(() => {
-				let header = this.headers.at(index);
-				if (!header) {
-					header = new Frame(`achievements-header-${index}`, this.pool);
-					this.headers.push(header);
-				}
-				header.setParent(this.content);
-				header.layout(
-					width,
-					height,
-					"TOPLEFT",
-					this.content,
-					layout?.left ?? 0,
-					-top,
-				);
-				header.setLabel(
-					"title",
-					title,
-					"TOPLEFT",
-					0,
-					-2,
-					size,
-					layout ? width : width - 190,
-				);
-				header.setLabel(
-					"count",
-					count,
-					layout ? "TOPLEFT" : "TOPRIGHT",
-					0,
-					layout ? -36 : -4,
-					12,
-					layout ? width : 180,
-				);
-				header.show();
+			jobs.push({
+				top,
+				bottom: top + height,
+				run: () => {
+					let header = this.headers.get(index);
+					if (!header) {
+						header = new Frame(`achievements-header-${index}`, this.pool);
+						this.headers.set(index, header);
+					}
+					header.setParent(this.content);
+					header.layout(
+						width,
+						height,
+						"TOPLEFT",
+						this.content,
+						layout?.left ?? 0,
+						-top,
+					);
+					header.setLabel(
+						"title",
+						title,
+						"TOPLEFT",
+						0,
+						-2,
+						size,
+						layout ? width : width - 190,
+					);
+					header.setLabel(
+						"count",
+						count,
+						layout ? "TOPLEFT" : "TOPRIGHT",
+						0,
+						layout ? -36 : -4,
+						12,
+						layout ? width : 180,
+					);
+					header.show();
+				},
 			});
 			if (!layout) y += height;
 		};
@@ -723,78 +773,83 @@ export class AchievementsPanel implements IPanel {
 							navColumn: column * columns + (index % columns),
 						});
 					const cellTop = top + Math.floor(index / columns) * spacing;
-					jobs.push(() => {
-						if (!cell) {
-							const cellNumber = this.cells.length;
-							cell = {
-								border: new Frame(
-									`achievements-border-${cellNumber}`,
-									this.pool,
-								),
-								icon: new Frame(
-									`achievements-icon-${cellNumber}`,
-									this.pool,
-									"Button",
-								),
-							};
-							this.cells.push(cell);
-						}
-						cell.navId = navId;
-						cell.border.setParent(this.content);
-						cell.border.layout(
-							42,
-							42,
-							"TOPLEFT",
-							this.content,
-							left + (index % columns) * spacing,
-							-cellTop,
-						);
-						const [red, green, blue] = achievement.completed
-							? gold
-							: ([0.12, 0.12, 0.12] as const);
-						cell.border.setColor(red, green, blue);
-						cell.icon.setParent(cell.border);
-						cell.icon.layout(38, 38, "CENTER", cell.border);
-						cell.icon.setIcon(achievement.icon);
-						cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
-						const current = () =>
-							this.mounted && cell?.navId === navId && this.page === page.id;
-						const activate = () => {
-							if (current()) {
-								this.selectedAchievement = achievement.id;
-								this.navigationChanged?.(`achievement-${achievement.id}`);
+					jobs.push({
+						top: cellTop,
+						bottom: cellTop + 42,
+						navId,
+						run: () => {
+							if (!cell) {
+								const cellNumber = this.cells.length;
+								cell = {
+									border: new Frame(
+										`achievements-border-${cellNumber}`,
+										this.pool,
+									),
+									icon: new Frame(
+										`achievements-icon-${cellNumber}`,
+										this.pool,
+										"Button",
+									),
+								};
+								this.cells.push(cell);
 							}
-						};
-						cell.icon.onClick(activate);
-						const tooltip = () =>
-							current()
-								? { text: this.tooltip(achievement), anchor: this.frame }
-								: undefined;
-						cell.icon.setHoverTooltip(tooltip);
-						const node = cell.icon.navigationNode(
-							`achievement-${achievement.id}`,
-							activate,
-							() =>
-								this.viewport.revealVerticalRange(
-									cellTop,
-									cellTop + 42,
-									this.contentHeight,
-								),
-						);
-						const rowNodes = grid[row];
-						const oldIndex =
-							rowNodes?.findIndex((candidate) => candidate.navId === navId) ??
-							-1;
-						if (oldIndex >= 0) rowNodes?.splice(oldIndex, 1);
-						rowNodes?.push({
-							...node,
-							navigationScroll: this.navigationScroll,
-							navColumn: column * columns + (index % columns),
-							tooltipItem: tooltip,
-						});
-						rowNodes?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
-						cell.border.show();
-						cell.icon.show();
+							cell.navId = navId;
+							cell.border.setParent(this.content);
+							cell.border.layout(
+								42,
+								42,
+								"TOPLEFT",
+								this.content,
+								left + (index % columns) * spacing,
+								-cellTop,
+							);
+							const [red, green, blue] = achievement.completed
+								? gold
+								: ([0.12, 0.12, 0.12] as const);
+							cell.border.setColor(red, green, blue);
+							cell.icon.setParent(cell.border);
+							cell.icon.layout(38, 38, "CENTER", cell.border);
+							cell.icon.setIcon(achievement.icon);
+							cell.icon.setOpacity(achievement.completed ? 1 : 0.25);
+							const current = () =>
+								this.mounted && cell?.navId === navId && this.page === page.id;
+							const activate = () => {
+								if (current()) {
+									this.selectedAchievement = achievement.id;
+									this.navigationChanged?.(`achievement-${achievement.id}`);
+								}
+							};
+							cell.icon.onClick(activate);
+							const tooltip = () =>
+								current()
+									? { text: this.tooltip(achievement), anchor: this.frame }
+									: undefined;
+							cell.icon.setHoverTooltip(tooltip);
+							const node = cell.icon.navigationNode(
+								`achievement-${achievement.id}`,
+								activate,
+								() =>
+									this.viewport.revealVerticalRange(
+										cellTop,
+										cellTop + 42,
+										this.contentHeight,
+									),
+							);
+							const rowNodes = grid[row];
+							const oldIndex =
+								rowNodes?.findIndex((candidate) => candidate.navId === navId) ??
+								-1;
+							if (oldIndex >= 0) rowNodes?.splice(oldIndex, 1);
+							rowNodes?.push({
+								...node,
+								navigationScroll: this.navigationScroll,
+								navColumn: column * columns + (index % columns),
+								tooltipItem: tooltip,
+							});
+							rowNodes?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
+							cell.border.show();
+							cell.icon.show();
+						},
 					});
 				});
 				columnBottoms[column] =
@@ -809,20 +864,30 @@ export class AchievementsPanel implements IPanel {
 		// Retain visible controls while replacing their data; only surplus controls
 		// need cleanup, after the new controls have been published.
 		for (const cell of available)
-			jobs.push(() => {
-				cell.border.hide();
-				cell.icon.hide();
-				cell.navId = undefined;
+			jobs.push({
+				run: () => {
+					cell.border.hide();
+					cell.icon.hide();
+					cell.navId = undefined;
+				},
 			});
-		for (const header of this.headers.slice(headerIndex))
-			jobs.push(() => header.hide());
+		for (const [index, header] of this.headers)
+			if (index >= headerIndex) jobs.push({ run: () => header.hide() });
 		this.contentHeight = Math.max(1, y);
-		this.content.layout(
-			this.width,
-			this.contentHeight,
-			"TOPLEFT",
-			this.viewport,
-		);
+		// Re-anchoring a scroll child moves its content independently of the thumb.
+		if (
+			this.laidOutHeight !== this.contentHeight ||
+			this.laidOutWidth !== this.width
+		) {
+			this.content.layout(
+				this.width,
+				this.contentHeight,
+				"TOPLEFT",
+				this.viewport,
+			);
+			this.laidOutHeight = this.contentHeight;
+			this.laidOutWidth = this.width;
+		}
 		this.content.setLabel(
 			"empty",
 			cellIndex > 0 || this.scanning ? "" : "No achievements to display",
@@ -833,6 +898,57 @@ export class AchievementsPanel implements IPanel {
 			this.width,
 		);
 		this.viewport.clampScroll();
+		this.renderViewport();
+	}
+	private requestViewportRender(): void {
+		if (
+			!this.mounted ||
+			!this.presentation ||
+			this.cancelViewport ||
+			this.cancelRender ||
+			this.isViewportPrepared()
+		)
+			return;
+		this.cancelViewport = this.scheduler.nextFrame(() => {
+			this.cancelViewport = undefined;
+			if (
+				this.mounted &&
+				this.presentation &&
+				!this.cancelRender &&
+				!this.isViewportPrepared()
+			)
+				this.renderViewport();
+		});
+	}
+	private isViewportPrepared(): boolean {
+		if (
+			this.pendingFocus &&
+			this.presentation?.jobs.some(
+				(job) => !job.ready && job.navId === this.pendingFocus,
+			)
+		)
+			return false;
+		return this.preparedRanges.includes(
+			this.viewport.getVisibleVerticalRange(),
+		);
+	}
+	private renderViewport(): void {
+		const presentation = this.presentation;
+		if (!presentation) return;
+		const range = this.viewport.getVisibleVerticalRange();
+		const top = range.top - 2 * spacing;
+		const bottom =
+			range.bottom + Math.max(2 * spacing, range.bottom - range.top);
+		const jobs = presentation.jobs.filter(
+			(job) =>
+				!job.ready &&
+				(job.top === undefined ||
+					job.bottom === undefined ||
+					(job.bottom >= top && job.top <= bottom) ||
+					job.navId === this.pendingFocus),
+		);
+		const generation = this.generation;
+		const revision = this.renderRevision;
 		let cursor = 0;
 		const step = () => {
 			if (
@@ -843,13 +959,19 @@ export class AchievementsPanel implements IPanel {
 				return;
 			this.cancelRender = undefined;
 			const end = Math.min(jobs.length, cursor + 36);
-			while (cursor < end) jobs.at(cursor++)?.();
+			while (cursor < end) {
+				const job = jobs.at(cursor++);
+				if (job) {
+					job.run();
+					job.ready = true;
+				}
+			}
 			if (!this.scanning)
 				this.setLoadingProgress(
 					0.5 + 0.5 * (jobs.length > 0 ? cursor / jobs.length : 1),
 				);
 			this.viewport.show();
-			this.grid = grid.filter((row) => row.length > 0);
+			this.grid = presentation.grid.filter((row) => row.length > 0);
 			const focusId = this.grid
 				.flat()
 				.some((node) => node.navId === this.pendingFocus)
@@ -860,8 +982,10 @@ export class AchievementsPanel implements IPanel {
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else {
+				this.preparedRanges.remember(top, bottom);
 				this.renderDirty = false;
 				if (!this.scanning) this.finishLoading();
+				this.requestViewportRender();
 			}
 		};
 		this.cancelRender = this.scheduler.nextFrame(step);
@@ -888,6 +1012,12 @@ export class AchievementsPanel implements IPanel {
 		this.body.show();
 		this.list.setWidth(this.width);
 		this.viewport.inset(this.frame, 16, 120, 16, 36);
+		this.viewport.onVerticalScroll(() => this.requestViewportRender());
+		this.viewport.onSizeChanged(() => {
+			if (!this.mounted) return;
+			this.viewport.clampScroll();
+			this.requestViewportRender();
+		});
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.content.show();
@@ -910,6 +1040,7 @@ export class AchievementsPanel implements IPanel {
 		this.frame.show();
 		if (this.renderDirty) this.render();
 		else if (this.page === undefined) this.list.mount(this.body);
+		else this.requestViewportRender();
 		this.update.setActive(true);
 	}
 	private toggleFilter(): void {
@@ -925,6 +1056,9 @@ export class AchievementsPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelScan = undefined;
 		this.cancelRender = undefined;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.viewport.onVerticalScroll();
 		this.generation++;
 		if (this.scanning) this.update.invalidate();
 		this.list.unmount();
@@ -964,7 +1098,7 @@ export class AchievementsPanel implements IPanel {
 			cell.icon.destroy();
 			cell.border.destroy();
 		}
-		for (const header of this.headers) header.destroy();
+		for (const header of this.headers.values()) header.destroy();
 		this.filter.destroy();
 		this.loadingProgress.destroy();
 		this.loadingTrack.destroy();
