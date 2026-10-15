@@ -64,6 +64,9 @@ vi.mock("../../ui/components/scroll-list", () => ({
 		setRows(value: readonly ListRow[]) {
 			rows.set(this.id, value);
 		}
+		updateRows(value: readonly ListRow[]) {
+			rows.set(this.id, value);
+		}
 		mount() {}
 		unmount() {}
 		destroy() {}

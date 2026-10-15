@@ -37,7 +37,7 @@ export class CachePerformancePanel implements IPanel {
 			heading: true,
 			activate: () => {},
 		});
-		this.list.setRows([
+		this.list.updateRows([
 			heading(
 				"cache-total",
 				`Cache: ${caches.reduce((sum, cache) => sum + cache.entries, 0)} records · ${caches.length} stores`,
@@ -48,6 +48,7 @@ export class CachePerformancePanel implements IPanel {
 					label: `${cache.namespace}: ${cache.entries} records`,
 					detail: `${cache.pending} queued updates · Last write: ${cache.updatedAt ? `${Math.max(0, this.diagnostics.now() - cache.updatedAt)}s ago` : "unknown (not written this version)"}`,
 					height: 68,
+					background: [0.08, 0.09, 0.11],
 					activate: () => {},
 				}),
 			),
@@ -68,6 +69,7 @@ export class CachePerformancePanel implements IPanel {
 									job.state === "running" ? [0.8, 0.6, 0.1] : [0.2, 0.7, 0.3],
 							},
 							height: 84,
+							background: [0.08, 0.09, 0.11],
 							activate: () => {},
 						}),
 					)

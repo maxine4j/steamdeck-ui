@@ -305,8 +305,11 @@ export class ScrollList {
 			}
 			return position;
 		});
-		this.contentHeight = Math.max(1, top + lineHeight);
-		this.layoutContent();
+		const contentHeight = Math.max(1, top + lineHeight);
+		const heightChanged = this.contentHeight !== contentHeight;
+		this.contentHeight = contentHeight;
+		// Reanchoring an unchanged scroll child can reset its native scroll range.
+		if (!retainReady || heightChanged) this.layoutContent();
 		const groupLayouts = new Map<
 			string,
 			{
