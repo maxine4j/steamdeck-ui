@@ -54,8 +54,6 @@ export class ToysPanel implements IPanel {
 	);
 	private renderPending = false;
 	private renderMeasurement?: WorkMeasurement;
-	private displayed: readonly Toy[] = [];
-	private displayedCells: readonly ToyCell[] = [];
 	private mounted = false;
 	private parent?: Frame;
 	private mountPending = false;
@@ -67,7 +65,7 @@ export class ToysPanel implements IPanel {
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private cancelViewport?: () => void;
-	private renderedRange?: { top: number; bottom: number };
+	private preparedRanges: { top: number; bottom: number }[] = [];
 	private cancelCooldown?: () => void;
 	private repeatCooldown = false;
 	private grid: NavGrid = [];
@@ -195,6 +193,7 @@ export class ToysPanel implements IPanel {
 				this.viewComplete = false;
 				this.view.replace(toys);
 				this.groups = undefined;
+				this.preparedRanges = [];
 				if (
 					this.cancelRender &&
 					this.cells.some(
@@ -216,7 +215,10 @@ export class ToysPanel implements IPanel {
 			(changes, complete) => {
 				if (!this.mounted || generation !== this.generation) return;
 				const changed = this.view.update(changes);
-				if (changed) this.groups = undefined;
+				if (changed) {
+					this.groups = undefined;
+					this.preparedRanges = [];
+				}
 				if (
 					changed &&
 					changes.some((row) => {
@@ -260,19 +262,38 @@ export class ToysPanel implements IPanel {
 	}
 	private requestViewportRender(): void {
 		if (!this.mounted) return;
-		const range = this.viewport.getVisibleVerticalRange();
-		if (
-			range.top === this.renderedRange?.top &&
-			range.bottom === this.renderedRange?.bottom
-		)
+		if (this.isViewportPrepared()) return;
+		if (this.cancelViewport || this.cancelRender || this.client.isInCombat())
 			return;
-		this.dirty = true;
-		if (this.cancelViewport || this.client.isInCombat()) return;
 		this.cancelViewport = this.scheduler.nextFrame(() => {
 			this.cancelViewport = undefined;
-			if (this.mounted && !this.client.isInCombat())
+			if (
+				this.mounted &&
+				!this.client.isInCombat() &&
+				!this.cancelRender &&
+				!this.isViewportPrepared()
+			)
 				this.render(this.generation, this.snapshotComplete);
 		});
+	}
+	private isViewportPrepared(): boolean {
+		const range = this.viewport.getVisibleVerticalRange();
+		return this.preparedRanges.some(
+			(prepared) =>
+				range.top >= prepared.top && range.bottom <= prepared.bottom,
+		);
+	}
+	private rememberPreparedRange(top: number, bottom: number): void {
+		const retained: { top: number; bottom: number }[] = [];
+		for (const range of this.preparedRanges) {
+			if (range.bottom < top || range.top > bottom) retained.push(range);
+			else {
+				top = Math.min(top, range.top);
+				bottom = Math.max(bottom, range.bottom);
+			}
+		}
+		retained.push({ top, bottom });
+		this.preparedRanges = retained;
 	}
 	private render(generation: number, complete = true): void {
 		const measurement = new WorkMeasurement(
@@ -285,18 +306,17 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.renderPending = false;
-		this.renderedRange = this.viewport.getVisibleVerticalRange();
-		// Two rows on either side keep controller focus and touch scrolling ahead
-		// of presentation without acquiring controls for the entire collection.
-		const firstVisible = this.renderedRange.top - 2 * spacing;
-		const lastVisible = this.renderedRange.bottom + 2 * spacing;
+		const range = this.viewport.getVisibleVerticalRange();
+		// Prepare a full viewport ahead, retaining two rows above for jumps
+		// into unvisited areas. Completed ranges never need scroll-driven work.
+		const firstVisible = range.top - 2 * spacing;
+		const lastVisible =
+			range.bottom + Math.max(2 * spacing, range.bottom - range.top);
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
 			this.grid.flat().map((node) => [node.navId, node]),
 		);
-		const displayed: Toy[] = [];
-		const displayedCells: ToyCell[] = [];
 		const jobs: (() => void)[] = [];
 		let renderedToys = 0;
 		let updatedToys = 0;
@@ -335,7 +355,6 @@ export class ToysPanel implements IPanel {
 				const row = Math.floor(index / columns);
 				const cellTop = top + 28 + row * spacing;
 				const source = this.view.get(String(toy.id));
-				const cellIndex = displayed.length;
 				const navId =
 					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`;
 				const cellKey = navId;
@@ -362,8 +381,6 @@ export class ToysPanel implements IPanel {
 				// Retain visited navigation so a mouse scroll does not replace focus
 				// and reveal the first buffered row. Only nearby tiles receive writes.
 				if (!nearby) return;
-				if (cell) displayedCells[cellIndex] = cell;
-				displayed.push(toy);
 
 				if (
 					cell?.visible &&
@@ -378,7 +395,6 @@ export class ToysPanel implements IPanel {
 					cell.toy?.favourite === toy.favourite &&
 					cell.toy?.expansionId === toy.expansionId
 				) {
-					displayedCells[cellIndex] = cell;
 					renderedToys++;
 					return;
 				}
@@ -410,7 +426,6 @@ export class ToysPanel implements IPanel {
 					cell.top = cellTop;
 					cell.column = index % columns;
 					cell.visible = true;
-					displayedCells[cellIndex] = cell;
 					cell.border.setParent(this.content);
 					cell.border.layout(
 						42,
@@ -542,26 +557,18 @@ export class ToysPanel implements IPanel {
 			if (renderedToys !== previousCount || cursor === jobs.length) {
 				// Retain ready controls while batches add or update their identities.
 				this.grid = grid.filter((row) => row.length > 0);
-				const readyToys: Toy[] = [];
-				const readyCells: ToyCell[] = [];
-				displayed.forEach((toy, index) => {
-					const cell = displayedCells.at(index);
-					if (cell) {
-						readyToys.push(toy);
-						readyCells.push(cell);
-					}
-				});
-				this.displayed = readyToys;
-				this.displayedCells = readyCells;
 				this.navigationChanged?.();
 			}
 			measurement.add("frames", this.performance.now() - pageStart);
 			measurement.page(pageStart);
 			if (cursor === jobs.length) {
+				if (!this.renderPending)
+					this.rememberPreparedRange(firstVisible, lastVisible);
 				measurement.finish(
 					`complete updatedTiles=${updatedToys} readyTiles=${renderedToys} merged=${this.renderPending}`,
 				);
 				this.renderMeasurement = undefined;
+				if (!this.renderPending) this.requestViewportRender();
 			}
 			if (cursor === jobs.length && this.renderPending) {
 				this.cancelRender = this.scheduler.nextFrame(() => {
@@ -591,8 +598,14 @@ export class ToysPanel implements IPanel {
 			this.repeatCooldown = true;
 			return;
 		}
-		const toys = this.displayed;
-		const cells = this.displayedCells;
+		const range = this.viewport.getVisibleVerticalRange();
+		const cells = this.cells.filter(
+			(cell) =>
+				cell.visible &&
+				cell.top !== undefined &&
+				cell.top + 42 >= range.top - 2 * spacing &&
+				cell.top <= range.bottom + 2 * spacing,
+		);
 		const generation = this.generation;
 		let cursor = 0;
 		const step = () => {
@@ -603,17 +616,17 @@ export class ToysPanel implements IPanel {
 				this.client.isInCombat()
 			)
 				return;
-			const end = Math.min(toys.length, cursor + toysConfig.cooldownPageSize);
+			const end = Math.min(cells.length, cursor + toysConfig.cooldownPageSize);
 			while (cursor < end) {
 				const index = cursor++;
-				const toy = toys.at(index);
 				const cell = cells.at(index);
+				const toy = cell?.toy;
 				if (toy && cell?.navId && this.visibleIds.has(cell.navId)) {
 					const cooldown = this.client.getCooldown(toy.id);
 					cell.cooldown.setCooldown(cooldown.start, cooldown.duration);
 				}
 			}
-			if (cursor < toys.length)
+			if (cursor < cells.length)
 				this.cancelCooldown = this.scheduler.nextFrame(step);
 			else if (this.repeatCooldown) {
 				this.repeatCooldown = false;
@@ -629,6 +642,7 @@ export class ToysPanel implements IPanel {
 		if (!this.mounted || this.client.isInCombat()) return;
 		if (this.mountPending && this.parent) this.onMount(this.parent);
 		else if (this.dirty) this.render(this.generation, this.snapshotComplete);
+		else this.requestViewportRender();
 		this.refreshCooldowns();
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {

@@ -240,6 +240,10 @@ it("creates only nearby toy tiles, renders new scroll ranges and reuses tiles on
 	scroll?.();
 	flush();
 	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(110);
+	vi.mocked(client.getCooldown).mockClear();
+	panel.refreshCooldowns();
+	flush();
+	expect(client.getCooldown).toHaveBeenCalledTimes(40);
 	expect(
 		panel
 			.getNavGrid()
@@ -255,21 +259,71 @@ it("creates only nearby toy tiles, renders new scroll ranges and reuses tiles on
 	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
 });
 
-it("distinguishes reused tiles from actual frame updates in scroll performance logs", () => {
+it("does not schedule rendering while scrolling through previously prepared ranges", () => {
 	const log = vi.fn();
-	const { panel, parent, publish, flush } = setup({ now: () => 0, log });
-	panel.onMount(parent);
-	publish([toy(1)]);
-	log.mockClear();
-	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockReturnValue({
-		top: 1,
-		bottom: 1001,
+	const { panel, parent, publish, flush, pending } = setup({
+		now: () => 0,
+		log,
 	});
-	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	const range = vi.mocked(Frame.prototype.getVisibleVerticalRange);
+	range.mockReturnValue({ top: 0, bottom: 92 });
+	panel.onMount(parent);
+	publish(Array.from({ length: 1000 }, (_, index) => toy(index + 1)));
+	const scrollTo = (top: number) => {
+		range.mockReturnValue({ top, bottom: top + 92 });
+		vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	};
+	log.mockClear();
+	scrollTo(1);
+	scrollTo(92);
+	expect(pending).toHaveLength(0);
+	expect(log).not.toHaveBeenCalled();
+	scrollTo(138);
 	flush();
 	expect(log).toHaveBeenCalledWith(
-		expect.stringContaining("updatedTiles=0 readyTiles=1"),
+		expect.stringContaining("toys render start"),
 	);
+	log.mockClear();
+	for (const top of [230, 92, 0, 138, 230]) scrollTo(top);
+	expect(pending).toHaveLength(0);
+	expect(log).not.toHaveBeenCalled();
+	scrollTo(460);
+	scrollTo(0);
+	flush();
+	expect(log).not.toHaveBeenCalled();
+	// Jumping over rows must not mark the skipped area as prepared.
+	scrollTo(920);
+	flush();
+	log.mockClear();
+	scrollTo(460);
+	flush();
+	expect(log).toHaveBeenCalledWith(
+		expect.stringContaining("toys render start"),
+	);
+	log.mockClear();
+	scrollTo(0);
+	scrollTo(920);
+	expect(pending).toHaveLength(0);
+	expect(log).not.toHaveBeenCalled();
+});
+
+it("prepares a full viewport ahead before scrolling exposes those rows", () => {
+	const log = vi.fn();
+	const { panel, parent, publish, flush, pending } = setup({
+		now: () => 0,
+		log,
+	});
+	const range = vi.mocked(Frame.prototype.getVisibleVerticalRange);
+	range.mockReturnValue({ top: 0, bottom: 460 });
+	panel.onMount(parent);
+	publish(Array.from({ length: 1000 }, (_, index) => toy(index + 1)));
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(200);
+	log.mockClear();
+	range.mockReturnValue({ top: 460, bottom: 920 });
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	expect(pending).toHaveLength(0);
+	flush();
+	expect(log).not.toHaveBeenCalled();
 });
 
 it("keeps controller navigation moving through newly revealed rows in both directions", () => {
@@ -327,13 +381,13 @@ it("expands the rendered viewport on resize and defers scroll work during combat
 	panel.onMount(parent);
 	publish(Array.from({ length: 200 }, (_, index) => toy(index + 1)));
 	vi.mocked(Frame.prototype.setIcon).mockClear();
-	range.mockReturnValue({ top: 0, bottom: 184 });
+	range.mockReturnValue({ top: 0, bottom: 368 });
 	vi.mocked(Frame.prototype.onSizeChanged).mock.lastCall?.at(0)?.();
 	flush();
-	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(20);
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(120);
 	vi.mocked(Frame.prototype.setIcon).mockClear();
 	vi.mocked(client.isInCombat).mockReturnValue(true);
-	range.mockReturnValue({ top: 460, bottom: 644 });
+	range.mockReturnValue({ top: 920, bottom: 1104 });
 	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
 	flush();
 	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
