@@ -126,7 +126,7 @@ it("uses neutral cards for cache and work records, including after controller fo
 	for (const index of [1, 3]) {
 		const card = frames.get(`debug-cache-list-row-${index}`);
 		expect(card?.setButtonBackground).not.toHaveBeenCalled();
-		expect(card?.setColor).toHaveBeenLastCalledWith(0.08, 0.09, 0.11);
+		expect(card?.setColor).toHaveBeenLastCalledWith(0.2, 0.22, 0.26);
 	}
 	panel.getNavGrid().at(0)?.at(0)?.onFocus();
 	expect(
