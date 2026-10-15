@@ -36,6 +36,7 @@ export class PanelContainer implements IPanelContainer {
 		private readonly navigationNeighbors?: GridNeighbors,
 		private readonly tabGroups: readonly (readonly string[])[] = [],
 		private readonly events?: IEventBus,
+		private readonly onFocused?: (frame: Frame, position: DockPosition) => void,
 	) {
 		this.events?.subscribe("CHARACTER_MODEL_CHANGED", this.refreshPortraitTabs);
 		this.frame.dock(position, 500, position === "fullscreen" ? 20 : 0);
@@ -205,6 +206,7 @@ export class PanelContainer implements IPanelContainer {
 			{
 				...this.navigationNeighbors,
 				onActiveChanged: (active) => {
+					if (active) this.onFocused?.(this.frame, this.position);
 					const panel = this.stack.at(-1);
 					this.frame.setFocusBorder(active && !panel?.onActiveChanged);
 					panel?.onActiveChanged?.(active);

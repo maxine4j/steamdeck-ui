@@ -6,6 +6,7 @@ import { Frame } from "../../ui/components/frame";
 import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
+import * as toyDisplay from "./toy-display";
 import { ToysPanel } from "./toys-panel";
 
 afterEach(() => {
@@ -665,6 +666,62 @@ it("renders cached toys immediately and updates only changed tiles from the live
 		.mocked(Frame.prototype.setIcon)
 		.mock.contexts.filter((frame) => frame.id.startsWith("toys-icon-"));
 	expect(icons.map((frame) => frame.id)).toEqual(["toys-icon-1"]);
+});
+
+it("merges incoming toy pages without cancelling or regrouping the current render", () => {
+	const { panel, parent, client, pending, flush } = setup();
+	const group = vi.spyOn(toyDisplay, "groupToys");
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => toy(i + 1)),
+		false,
+	);
+	const grouped = group.mock.calls.length;
+	for (let i = 26; i <= 45; i++) load?.at(2)?.([toy(i)], false);
+	expect(group).toHaveBeenCalledTimes(grouped);
+	pending.shift()?.();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(19);
+	load?.at(2)?.([], true);
+	flush();
+	expect(panel.getNavGrid().flat()).toHaveLength(45);
+});
+
+it("restores secure actions when a toy disappears and returns during queued rendering", () => {
+	const { panel, parent, client, flush } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => toy(i + 1)),
+		false,
+	);
+	load?.at(2)?.([{ ...toy(1), displayed: false }], false);
+	load?.at(2)?.([toy(1)], true);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "toy-1")
+			?.secureActions?.().alternate,
+	).toBeDefined();
+});
+
+it("refreshes the focused secure target immediately when a queued delta removes a ready toy", () => {
+	const { panel, parent, client } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => toy(i + 1)),
+		false,
+	);
+	const focused = panel.getNavGrid().at(0)?.at(0);
+	const changed = vi.fn(() =>
+		expect(focused?.secureActions?.().alternate).toBeUndefined(),
+	);
+	panel.setNavigationChanged(changed);
+	load?.at(2)?.([{ ...toy(1), displayed: false }], false);
+	expect(changed).toHaveBeenCalledOnce();
 });
 
 it("keeps cooldown updates associated with all retained controls during partial cache rendering", () => {

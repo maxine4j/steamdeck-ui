@@ -221,6 +221,9 @@ export class NativeLayout {
 	): void {
 		control.ScrollStepInDirection(direction);
 	}
+	scrollToEnd(control: { ScrollToEnd(): void }): void {
+		control.ScrollToEnd();
+	}
 	release(): void {
 		for (const cancel of this.pending.values()) cancel();
 		this.pending.clear();

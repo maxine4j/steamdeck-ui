@@ -197,7 +197,7 @@ const mount = (id: number, favourite = false): Mount => ({
 	expansionId: 0,
 });
 
-function setup() {
+function setup(performance?: { now(): number; log(message: string): void }) {
 	vi.stubGlobal("MenuResponse", { Refresh: 2, Close: 3 });
 	vi.stubGlobal("MenuInputContext", { None: 1 });
 	const menuCallbacks = new Map<string, () => void>();
@@ -324,7 +324,14 @@ function setup() {
 	const pool = {} as IFramePoolManager;
 	const close = vi.fn();
 	const menu = { open: vi.fn(), close: vi.fn() };
-	const panel = new MountsPanel(pool, client, close, scheduler, menu);
+	const panel = new MountsPanel(
+		pool,
+		client,
+		close,
+		scheduler,
+		menu,
+		performance,
+	);
 	const parent = new Frame("parent", pool);
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
@@ -349,6 +356,22 @@ function setup() {
 		dropdown,
 	};
 }
+
+it("logs mount render preparation and frame work so repeated idle refreshes can be identified", () => {
+	let time = 0;
+	const performance = { now: () => time++, log: vi.fn() };
+	const { panel, parent, publish } = setup(performance);
+	panel.onMount(parent);
+	publish([mount(1)]);
+	expect(
+		performance.log.mock.calls.some(
+			(call) =>
+				call.at(0)?.includes("mounts render") &&
+				call.at(0)?.includes("prepare=") &&
+				call.at(0)?.includes("frames="),
+		),
+	).toBe(true);
+});
 
 it("renders the first cached controls immediately and only updates changed mount icons", () => {
 	const { panel, parent, client, flush } = setup();

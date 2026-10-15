@@ -156,7 +156,7 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 	});
 	expect(rows.at(1)).toMatchObject({
 		detail: "Friendly 1500 / 6000",
-		height: 60,
+		height: 72,
 		backgroundAtlas: "ui-journeys-renown-button",
 		progress: { value: 0.25, color: [0.15, 0.7, 0.25] },
 	});
@@ -164,7 +164,8 @@ it("shows expansion tiles before child sections, with reputation-bearing parents
 		columns: 2,
 		gap: 12,
 		edgeProgress: true,
-		progressInset: { horizontal: 10, bottom: 7 },
+		contentPadding: { horizontal: 16, vertical: 12 },
+		progressInset: { horizontal: 16, bottom: 12 },
 		progressTextures: {
 			fill: "ui-journeys-progressbar-fill",
 			track: "ui-journeys-progressbar-BG",
@@ -201,7 +202,11 @@ it("keeps capped tiles full without misleading numbers while retaining paragon p
 	]);
 	expect(rows).toMatchObject([
 		{ detail: "Renown 30", progress: { value: 1, color: [0.15, 0.45, 0.95] } },
-		{ detail: "Paragon 2500 / 10000", progress: { value: 0.25 } },
+		{
+			detail: "Paragon 2500 / 10000",
+			backgroundTint: [0.15, 0.7, 0.25],
+			progress: { value: 0.25 },
+		},
 		{ progress: { color: [0.8, 0.15, 0.15] } },
 		{ progress: { color: [0.85, 0.65, 0.15] } },
 	]);

@@ -135,6 +135,13 @@ it("preserves collection IDs for targeted cache refreshes", () => {
 	])
 		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
 	dispatch(frame, "NEW_PET_ADDED", "BattlePet-1");
+	dispatch(frame, "MOUNT_JOURNAL_USABILITY_CHANGED");
+	expect(mounts).toHaveBeenCalledOnce();
+	expect(frame.RegisterEvent).not.toHaveBeenCalledWith(
+		"MOUNT_JOURNAL_USABILITY_CHANGED",
+	);
+	dispatch(frame, "COMPANION_LEARNED");
+	expect(mounts).toHaveBeenLastCalledWith({ source: "COMPANION_LEARNED" });
 	expect(pets).toHaveBeenCalledWith({ id: "BattlePet-1" });
 	dispatch(frame, "PET_JOURNAL_LIST_UPDATE");
 	expect(pets).toHaveBeenCalledTimes(2);
@@ -240,8 +247,8 @@ it("forwards native login events through the hidden event frame", () => {
 	dispatch(frame, "COMPANION_UPDATE", "MOUNT");
 	dispatch(frame, "MOUNT_JOURNAL_USABILITY_CHANGED");
 	dispatch(frame, "PLAYER_REGEN_ENABLED");
-	expect(mounts).toHaveBeenCalledTimes(2);
-	expect(frame.RegisterEvent).toHaveBeenCalledWith(
+	expect(mounts).toHaveBeenCalledTimes(1);
+	expect(frame.RegisterEvent).not.toHaveBeenCalledWith(
 		"MOUNT_JOURNAL_USABILITY_CHANGED",
 	);
 	expect(frame.Hide).toHaveBeenCalledOnce();

@@ -240,9 +240,7 @@ it.each(["random", "specific", "follower", "pvp"] as const)(
 			expect(nav.focusedId).toBe(id);
 		};
 		panel.onMount(new Frame("parent", pool));
-		panel.setNavigationChanged((focusId) =>
-			nav.refreshGrid(panel.id, focusId),
-		);
+		panel.setNavigationChanged((focusId) => nav.refreshGrid(panel.id, focusId));
 		nav.registerGrid(panel.id, () => panel.getNavGrid());
 		nav.setActiveGrid(panel.id);
 		while (callbacks.length) callbacks.shift()?.();

@@ -60,7 +60,7 @@ it("stacks all four gameplay layouts at 80% scale, reads each modifier page and 
 		(frame) => frame.id === "cross-bar-preview-0-PAD3",
 	);
 	expect(calls.calls.at(xButton)?.slice(0, 3)).toEqual([48, 48, "CENTER"]);
-	expect(calls.calls.at(xButton)?.slice(-2)).toEqual([150, 0]);
+	expect(calls.calls.at(xButton)?.slice(-2)).toEqual([110, 0]);
 	const firstControls = new Set(
 		vi.mocked(Frame.prototype.setIcon).mock.contexts,
 	);

@@ -2,6 +2,7 @@ import type { IEventBus } from "../events/types";
 import type {
 	NativeTalentButton,
 	NativeTalentControl,
+	NativeTalentMenu,
 } from "../modules/talents/wow-talents-globals";
 import type { Frame } from "../ui/components/frame";
 import type { NativeLayout } from "../ui/components/native-layout";
@@ -135,6 +136,7 @@ export class TalentTreeClient implements ITalentTreeClient {
 		if (PlayerSpellsFrame?.TalentsFrame.heroSpecSelectionDialog.IsShown())
 			PlayerSpellsFrame.TalentsFrame.heroSpecSelectionDialog.Hide();
 		PlayerSpellsFrame?.TalentsFrame.HideSelections();
+		PlayerSpellsFrame?.TalentsFrame.ResetButton?.CloseMenu?.();
 		if (this.heroCollapsed !== undefined)
 			PlayerSpellsFrame?.TalentsFrame.HeroTalentsContainer.SetCollapsed(
 				this.heroCollapsed,
@@ -154,8 +156,21 @@ export class TalentTreeClient implements ITalentTreeClient {
 		const dialog = tree.heroSpecSelectionDialog;
 		const heroChoice = dialog.IsShown();
 		const controls: { button: NativeTalentControl; id: string }[] = [];
+		const reset = tree.ResetButton;
+		const resetMenu = reset?.IsMenuOpen?.() ? reset.menu : undefined;
+		const collectMenu = (menu: NativeTalentMenu): void => {
+			for (const button of [...menu.GetChildren()]) {
+				if (button.IsObjectType("Button") && button.IsVisible())
+					controls.push({
+						button,
+						id: `talent-reset-option-${controls.length}`,
+					});
+				if (button.GetChildren) collectMenu(button as NativeTalentMenu);
+			}
+		};
 		const heroParents = [];
-		if (!choice) {
+		if (resetMenu) collectMenu(resetMenu);
+		else if (!choice) {
 			if (heroChoice) {
 				for (const spec of dialog.SpecContentFramePool.EnumerateActive()) {
 					heroParents.push(spec.NodesContainer);
@@ -171,6 +186,9 @@ export class TalentTreeClient implements ITalentTreeClient {
 					);
 				}
 			} else {
+				if (reset) controls.push({ button: reset, id: "talent-reset" });
+				if (tree.UndoButton)
+					controls.push({ button: tree.UndoButton, id: "talent-undo" });
 				controls.push(
 					{ button: tree.ApplyButton, id: "talent-apply" },
 					{
@@ -181,8 +199,9 @@ export class TalentTreeClient implements ITalentTreeClient {
 			}
 		}
 		const buttons: NativeTalentButton[] = [];
-		if (choice) buttons.push(...tree.SelectionChoiceFrame.selectionFrameArray);
-		else
+		if (!resetMenu && choice)
+			buttons.push(...tree.SelectionChoiceFrame.selectionFrameArray);
+		else if (!resetMenu)
 			for (const button of tree.EnumerateAllTalentButtons())
 				if (!heroChoice || heroParents.includes(button.GetParent()))
 					buttons.push(button);
@@ -232,12 +251,22 @@ export class TalentTreeClient implements ITalentTreeClient {
 			};
 			const node = this.focus.navigation(button, undefined, id, () => {
 				if (talent) talent.OnClick("LeftButton");
-				else if (control?.IsEnabled()) control.Click("LeftButton");
+				else if (control?.IsEnabled()) {
+					if (control.OpenMenu) control.OpenMenu();
+					else control.Click("LeftButton");
+				}
 				this.changed();
 			});
 			grid.at(-1)?.push({
 				...node,
 				navColumn: x,
+				onAlternate:
+					!choice && talent
+						? () => {
+								talent.OnClick("RightButton");
+								this.changed();
+							}
+						: undefined,
 				onFocus: (refresh) => {
 					node.onFocus(refresh);
 					this.leaveFocused?.();
@@ -268,7 +297,8 @@ export class TalentTreeClient implements ITalentTreeClient {
 	dismissChoices(): boolean {
 		const tree = PlayerSpellsFrame?.TalentsFrame;
 		if (!this.parent || !tree) return false;
-		if (tree.SelectionChoiceFrame.IsShown()) tree.HideSelections();
+		if (tree.ResetButton?.IsMenuOpen?.()) tree.ResetButton.CloseMenu?.();
+		else if (tree.SelectionChoiceFrame.IsShown()) tree.HideSelections();
 		else if (tree.heroSpecSelectionDialog.IsShown())
 			tree.heroSpecSelectionDialog.Hide();
 		else return false;

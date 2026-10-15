@@ -68,6 +68,11 @@ it("prefetches at login initialization, refreshes server events and stops on shu
 	expect(journal.refreshDisplay).toHaveBeenCalledOnce();
 	events.emit("MOUNTS_CHANGED", { id: 42 });
 	expect(journal.refreshEntry).toHaveBeenLastCalledWith(42);
+	events.emit("MOUNTS_CHANGED", { source: "COMPANION_LEARNED" });
+	expect(journal.refreshEntry).toHaveBeenLastCalledWith(
+		undefined,
+		"COMPANION_LEARNED",
+	);
 	module.shutdown();
 	expect(journal.stop).toHaveBeenCalledOnce();
 });

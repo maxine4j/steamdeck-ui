@@ -14,6 +14,7 @@ import { InventoryClient } from "./clients/inventory-client";
 import { MailClient } from "./clients/mail-client";
 import { MapClient } from "./clients/map-client";
 import { MountsClient } from "./clients/mounts-client";
+import { PerformanceClient } from "./clients/performance-client";
 import { PetsClient } from "./clients/pets-client";
 import { PvpFinderClient } from "./clients/pvp-finder-client";
 import { ReputationClient } from "./clients/reputation-client";
@@ -51,6 +52,7 @@ const reputation = new ReputationClient();
 const titles = new TitlesClient();
 const scheduler = new TaskScheduler();
 const collectionCache = new CollectionCache(scheduler);
+const performance = new PerformanceClient();
 startSteamDeckUI(
 	frameFactory,
 	events,
@@ -58,7 +60,7 @@ startSteamDeckUI(
 	character,
 	reputation,
 	titles,
-	new MountsClient(scheduler, collectionCache),
+	new MountsClient(scheduler, collectionCache, performance),
 	new ActionBarClient(new FrameSuppression(new FramePoolManager(frameFactory))),
 	new ControllerInputClient(
 		events,
@@ -72,7 +74,7 @@ startSteamDeckUI(
 	new DialogueCamera(),
 	new VendorClient(),
 	new AchievementsClient(scheduler, collectionCache, events),
-	new ToysClient(scheduler, collectionCache),
+	new ToysClient(scheduler, collectionCache, performance),
 	new SlashCommandsClient(),
 	new AddonConfigClient(),
 	new MapClient(
@@ -88,8 +90,9 @@ startSteamDeckUI(
 		new FrameSuppression(new FramePoolManager(frameFactory)),
 		new NativeScriptSuppression(),
 	),
-	new PetsClient(scheduler, collectionCache),
+	new PetsClient(scheduler, collectionCache, performance),
 	new PvpFinderClient(),
 	new SpellbookClient(),
 	auctionHouse,
+	performance,
 );

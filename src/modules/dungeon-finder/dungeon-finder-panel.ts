@@ -199,8 +199,8 @@ export class DungeonFinderPanel implements IPanel {
 			onChanged: (complete) => {
 				// Intermediate batches omit controls that are still being rebuilt.
 				if (!complete) return;
-					this.initialRenderComplete = true;
-					this.notifyNavigationChanged();
+				this.initialRenderComplete = true;
+				this.notifyNavigationChanged();
 			},
 		});
 	}

@@ -62,61 +62,61 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 	).toEqual([
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_up.blp:18:18|t",
-			-200,
+			-160,
 			106,
 			-1,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_right.blp:18:18|t",
-			-150,
+			-110,
 			81,
 			-1,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_down.blp:18:18|t",
-			-200,
+			-160,
 			56,
 			-3,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\all_l_left.blp:18:18|t",
-			-250,
+			-210,
 			81,
 			-1,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_y.blp:18:18|t",
-			200,
+			160,
 			106,
 			2,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_b.blp:18:18|t",
-			250,
+			210,
 			81,
 			3,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_a.blp:18:18|t",
-			200,
+			160,
 			56,
 			0,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_r_x.blp:18:18|t",
-			150,
+			110,
 			81,
 			1,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rt.blp:18:18|t",
-			100,
+			60,
 			56,
 			156,
 		],
 		[
 			"|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_lb.blp:18:18|t",
-			-100,
+			-60,
 			106,
 			155,
 		],
@@ -140,7 +140,7 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 		48,
 		"BOTTOM",
 		undefined,
-		100,
+		60,
 		106,
 	);
 	expect(indicators.at(1)?.setIcon).toHaveBeenCalledWith(
@@ -163,7 +163,7 @@ it("keeps LB and RT on reserved slots and displays unbound LT and RB icons", () 
 		48,
 		"BOTTOM",
 		undefined,
-		-100,
+		-60,
 		56,
 	);
 	expect(indicators.at(0)?.setIcon).toHaveBeenCalledWith(

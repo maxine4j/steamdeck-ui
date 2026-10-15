@@ -5,8 +5,9 @@ import type { IModule } from "../types";
 import type { IBuiltInMounts } from "./built-in-mounts";
 export class MountsModule implements IModule {
 	readonly id = "mounts";
-	private readonly refresh = (payload?: { id: number }) => {
-		this.journal.refreshEntry(payload?.id);
+	private readonly refresh = (payload?: { id?: number; source?: string }) => {
+		if (payload?.source) this.journal.refreshEntry(payload.id, payload.source);
+		else this.journal.refreshEntry(payload?.id);
 	};
 	private readonly searchUpdated = () => {
 		this.journal.refreshDisplay();

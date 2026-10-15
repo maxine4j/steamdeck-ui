@@ -4,6 +4,35 @@ import { type Pet, PetsClient } from "./pets-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reads species counts once per scan and does not walk all cached pets for each owned GUID", () => {
+	const { client, cache, api, flush } = setup(65);
+	client.prefetch();
+	flush();
+	expect(api.GetNumCollectedInfo).toHaveBeenCalledTimes(1);
+	api.GetNumCollectedInfo.mockClear();
+	const values = vi.spyOn(cache.create<Pet>("pets.items"), "values");
+	client.refreshEntry();
+	flush();
+	expect(api.GetPetInfoByPetID).toHaveBeenCalledTimes(65);
+	expect(api.GetNumCollectedInfo).toHaveBeenCalledTimes(1);
+	expect(values.mock.calls.length).toBeLessThanOrEqual(2);
+});
+
+it("keeps species counts current when a targeted server event arrives during a scan", () => {
+	const { client, cache, api, pending, flush } = setup(65);
+	client.prefetch();
+	pending.shift()?.();
+	api.GetNumCollectedInfo.mockReturnValue([2, 3]);
+	client.refreshEntry("Pet-1");
+	flush();
+	expect(
+		cache
+			.create<Pet>("pets.items")
+			.values()
+			.every((row) => row.ownedCount === 2),
+	).toBe(true);
+});
+
 it("restores the default visible catalogue during login warming after a filtered saved session", () => {
 	const { client, flush, cache } = setup(1);
 	cache.create<Pet>("pets.items").put("Pet-1", {

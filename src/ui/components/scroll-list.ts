@@ -704,6 +704,8 @@ export class ScrollList {
 							button.progress.setAtlasBackground(
 								this.options.progressTextures.fill,
 								row.progress.color,
+								undefined,
+								true,
 							);
 						else button.progress.setColor(...row.progress.color);
 						button.progress.show();
@@ -786,7 +788,7 @@ export class ScrollList {
 					y: verticallyCentered
 						? -((row.fontSize ?? 14) + 4) / 2
 						: row.progress
-							? 18
+							? Math.max(18, (this.options.progressInset?.bottom ?? 0) + 12)
 							: verticalPadding,
 					width: textWidth - (row.animatedIconOnDetail ? 28 : 0),
 				};

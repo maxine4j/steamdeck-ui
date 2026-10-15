@@ -15,6 +15,10 @@ export interface NativeTalentButton extends NativeNavigationFrame {
 }
 
 export interface NativeTalentControl extends NativeNavigationFrame {
+	OpenMenu?(): void;
+	CloseMenu?(): void;
+	IsMenuOpen?(): boolean;
+	readonly menu?: NativeTalentMenu;
 	IsVisible(): boolean;
 	GetCenter(): LuaMultiReturn<[number | undefined, number | undefined]>;
 	GetEffectiveScale(): number;
@@ -23,6 +27,15 @@ export interface NativeTalentControl extends NativeNavigationFrame {
 	GetScript(
 		script: "OnEnter" | "OnLeave",
 	): ((this: void, frame: NativeTalentControl) => void) | undefined;
+}
+
+export interface NativeTalentMenu {
+	GetChildren(): LuaMultiReturn<NativeTalentMenuEntry[]>;
+}
+
+export interface NativeTalentMenuEntry extends NativeTalentControl {
+	GetChildren?(): LuaMultiReturn<NativeTalentMenuEntry[]>;
+	IsObjectType(type: string): boolean;
 }
 
 declare global {
@@ -47,6 +60,8 @@ declare global {
 					EnumerateAllTalentButtons(): LuaIterable<NativeTalentButton>;
 					HideSelections(): void;
 					readonly ApplyButton: NativeTalentControl;
+					readonly ResetButton?: NativeTalentControl;
+					readonly UndoButton?: NativeTalentControl;
 					readonly heroSpecSelectionDialog: {
 						IsShown(): boolean;
 						Hide(): void;

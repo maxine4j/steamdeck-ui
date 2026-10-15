@@ -33,7 +33,8 @@ export class ReputationPanel implements IPanel {
 			columns: 2,
 			gap: 12,
 			edgeProgress: true,
-			progressInset: { horizontal: 10, bottom: 7 },
+			contentPadding: { horizontal: 16, vertical: 12 },
+			progressInset: { horizontal: 16, bottom: 12 },
 			progressTextures: {
 				fill: "ui-journeys-progressbar-fill",
 				track: "ui-journeys-progressbar-BG",
@@ -114,7 +115,7 @@ export class ReputationPanel implements IPanel {
 	private tile(reputation: Reputation, indent = 0): ListRow {
 		const capped =
 			reputation.maxed && !reputation.standing.startsWith("Paragon");
-		const backgroundTint = capped
+		const backgroundTint = reputation.maxed
 			? reputation.seasonal || reputation.standing.startsWith("Renown")
 				? ([0.15, 0.45, 0.95] as const)
 				: ([0.15, 0.7, 0.25] as const)
@@ -126,7 +127,7 @@ export class ReputationPanel implements IPanel {
 		return {
 			id: `reputation-${reputation.index}`,
 			label: reputation.name,
-			height: 60,
+			height: 72,
 			backgroundAtlas: "ui-journeys-renown-button",
 			backgroundTint,
 			indent,

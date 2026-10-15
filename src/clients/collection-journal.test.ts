@@ -7,7 +7,11 @@ interface Row {
 	value: number;
 	visible?: boolean;
 }
-function setup() {
+function setup(options?: {
+	pageSize: number;
+	label: string;
+	performance: { now(): number; log(message: string): void };
+}) {
 	const entries: CacheEntries<Row> = {};
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -35,6 +39,7 @@ function setup() {
 		(row) => row.visible !== false,
 		begin,
 		(key) => [read(Number(key))],
+		options,
 	);
 	const flush = () => {
 		let steps = 0;
@@ -78,6 +83,79 @@ it("shares cold scans, commits and notifies each bounded page, and keeps warming
 	journal.load(reopened);
 	expect(reopened.mock.lastCall?.at(0)).toHaveLength(45);
 	expect(pending).toHaveLength(0);
+});
+
+it("uses its own configured page size and logs reasons, repeats and separate journal/publish timings", () => {
+	let time = 0;
+	const performance = { now: () => time++, log: vi.fn() };
+	const { journal, pending, read, flush } = setup({
+		pageSize: 7,
+		label: "pets",
+		performance,
+	});
+	journal.prefetch();
+	pending.shift()?.();
+	expect(read).toHaveBeenCalledTimes(7);
+	journal.refreshEntry();
+	journal.refreshEntry();
+	flush();
+	const messages = performance.log.mock.calls.map((call) => call.at(0));
+	expect(
+		messages.some((message) =>
+			message?.includes("pets scan start reason=login"),
+		),
+	).toBe(true);
+	expect(
+		messages.filter((message) => message?.includes("repeat queued")),
+	).toHaveLength(1);
+	expect(
+		messages.some((message) => message?.includes("reason=server-event-repeat")),
+	).toBe(true);
+	expect(
+		messages.some(
+			(message) =>
+				message?.includes("journal=") &&
+				message.includes("publish=") &&
+				message.includes("maxPage="),
+		),
+	).toBe(true);
+});
+
+it("logs cached opening and the targeted/projection work that follows server and filter changes", () => {
+	let time = 0;
+	const performance = { now: () => time++, log: vi.fn() };
+	const { journal, cache, flush } = setup({
+		pageSize: 7,
+		label: "pets",
+		performance,
+	});
+	cache.put("1", { id: 1, value: 0 });
+	journal.load(vi.fn());
+	journal.refreshEntry("1");
+	flush();
+	journal.project(() => ({
+		count: 1,
+		read: () => [{ id: 1, value: 1, visible: false }],
+	}));
+	flush();
+	const messages = performance.log.mock.calls.map((call) => call.at(0));
+	expect(messages.some((message) => message?.includes("open cached=1"))).toBe(
+		true,
+	);
+	expect(
+		messages.some(
+			(message) =>
+				message?.includes("pets targets complete") &&
+				message.includes("journal="),
+		),
+	).toBe(true);
+	expect(
+		messages.some(
+			(message) =>
+				message?.includes("pets projection complete") &&
+				message.includes("journal="),
+		),
+	).toBe(true);
 });
 
 it("forces login warming on a populated cache and bounds targeted event bursts without a full scan", () => {
@@ -139,4 +217,27 @@ it("cancels superseded projections and stores only the latest display state", ()
 	}));
 	flush();
 	expect(cache.values().every((row) => row.visible)).toBe(true);
+});
+
+it("sends changed entries and completion without rereading the entire cache for every page", () => {
+	const { journal, cache, pending, flush } = setup();
+	cache.put("1", { id: 1, value: 0 });
+	const values = vi.spyOn(cache, "values");
+	const initial = vi.fn();
+	const changed = vi.fn();
+	journal.load(initial, undefined, changed);
+	expect(initial).toHaveBeenCalledExactlyOnceWith([{ id: 1, value: 0 }], true);
+	journal.prefetch();
+	pending.shift()?.();
+	expect(changed.mock.lastCall?.at(0)).toHaveLength(20);
+	expect(changed.mock.lastCall?.at(1)).toBe(false);
+	flush();
+	expect(changed.mock.lastCall).toEqual([[], true]);
+	expect(initial).toHaveBeenCalledOnce();
+	expect(values).toHaveBeenCalledOnce();
+	cache.put("1", { id: 1, value: 2, visible: false });
+	expect(changed.mock.lastCall).toEqual([
+		[{ id: 1, value: 2, visible: false }],
+		true,
+	]);
 });

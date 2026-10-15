@@ -1,6 +1,7 @@
 import type { ApplicationEvent, IEventBus } from "../../events/types";
 import type { WowFrame } from "../../types";
 import type { FrameType, IFramePoolManager } from "../frame-pool-manager";
+import type { Frame } from "./frame";
 import {
 	setTooltipContent,
 	type TooltipContent,
@@ -38,6 +39,7 @@ export class ItemTooltip {
 	private item?: TooltipContent;
 	private elapsed = 0;
 	private layoutKey?: string;
+	private anchor?: { frame: Frame; side: "left" | "right" };
 	private readonly refresh = () => this.setItem(this.item);
 	private readonly refreshEvents: ApplicationEvent[] = [
 		"PLAYER_EQUIPMENT_CHANGED",
@@ -49,6 +51,12 @@ export class ItemTooltip {
 	) {
 		for (const event of this.refreshEvents)
 			events.subscribe(event, this.refresh);
+	}
+	setAnchor(frame: Frame, position: "left" | "right" | "fullscreen"): void {
+		this.anchor =
+			position === "fullscreen" ? undefined : { frame, side: position };
+		this.layoutKey = undefined;
+		if (this.item !== undefined) this.layout();
 	}
 	setItem(item: TooltipContent | undefined): void {
 		this.item = item;
@@ -89,7 +97,7 @@ export class ItemTooltip {
 		});
 		const anchor =
 			typeof item === "object" && "text" in item ? item.anchor : undefined;
-		if (anchor) anchor.anchorTooltip(main);
+		if (anchor && !this.anchor) anchor.anchorTooltip(main);
 		else main.SetOwner(UIParent, "ANCHOR_NONE");
 		main.suppressAutomaticCompareItem = true;
 		if (!anchor) {
@@ -103,6 +111,25 @@ export class ItemTooltip {
 		this.layout();
 	}
 	private layout(): void {
+		if (this.anchor) {
+			const { frame, side } = this.anchor;
+			let offset = 8;
+			for (const tooltip of this.tooltips.filter((tooltip) =>
+				tooltip.IsShown(),
+			)) {
+				tooltip.SetScale(1);
+				frame.anchorExisting(tooltip, [0, 0, 0, 0], false, [
+					[
+						side === "left" ? "TOPLEFT" : "TOPRIGHT",
+						side === "left" ? "TOPRIGHT" : "TOPLEFT",
+						side === "left" ? offset : -offset,
+						0,
+					],
+				]);
+				offset += tooltip.GetWidth() + 8;
+			}
+			return;
+		}
 		if (
 			typeof this.item === "object" &&
 			"text" in this.item &&
@@ -126,25 +153,11 @@ export class ItemTooltip {
 		const width =
 			visible.reduce((sum, tooltip) => sum + tooltip.GetWidth(), 0) +
 			Math.max(0, visible.length - 1) * 8;
-		const height = visible.reduce(
-			(max, tooltip) => Math.max(max, tooltip.GetHeight()),
-			1,
-		);
-		// Reserve the side panels and their tabs where possible; narrow screens retain readable content.
-		const availableWidth = Math.min(
-			screen.GetWidth() - 32,
-			Math.max(480, screen.GetWidth() - 1120),
-		);
-		const scale = Math.min(
-			1,
-			availableWidth / Math.max(1, width),
-			(screen.GetHeight() - 64) / (height + 22),
-		);
 		let x = -width / 2;
 		for (const tooltip of visible) {
-			tooltip.SetScale(scale);
+			tooltip.SetScale(1);
 			tooltip.ClearAllPoints();
-			tooltip.SetPoint("TOPLEFT", UIParent, "TOP", x, -32 / scale);
+			tooltip.SetPoint("TOPLEFT", UIParent, "TOP", x, -32);
 			x += tooltip.GetWidth() + 8;
 		}
 	}

@@ -15,7 +15,10 @@ function mount(id: number, collected = false): Mount {
 		favourite: false,
 	};
 }
-function setup(size = 45) {
+function setup(
+	size = 45,
+	performance?: { now(): number; log(message: string): void },
+) {
 	vi.stubGlobal("SteamDeckUIConfig", {});
 	const pending: (() => void)[] = [];
 	const scheduler = {
@@ -61,7 +64,7 @@ function setup(size = 45) {
 		Pickup: vi.fn(),
 	};
 	vi.stubGlobal("C_MountJournal", api);
-	const client = new MountsClient(scheduler, cache);
+	const client = new MountsClient(scheduler, cache, performance);
 	const flush = () => {
 		let steps = 0;
 		while (pending.length) {
@@ -71,6 +74,31 @@ function setup(size = 45) {
 	};
 	return { pending, scheduler, saved, cache, client, info, api, ids, flush };
 }
+
+it("logs mount warming and broad-event repeat timings independently of other collections", () => {
+	let time = 0;
+	const performance = { now: () => time++, log: vi.fn() };
+	const { client, pending, flush } = setup(45, performance);
+	client.prefetch();
+	pending.shift()?.();
+	client.refreshEntry();
+	flush();
+	const messages = performance.log.mock.calls.map((call) => call.at(0));
+	expect(
+		messages.some((message) =>
+			message?.includes("mounts scan start reason=login"),
+		),
+	).toBe(true);
+	expect(
+		messages.some((message) => message?.includes("reason=server-event-repeat")),
+	).toBe(true);
+	expect(
+		messages.some(
+			(message) =>
+				message?.includes("journal=") && message.includes("publish="),
+		),
+	).toBe(true);
+});
 
 it("renders saved mounts synchronously and never scans on warm opening or reopening", () => {
 	const { client, saved, info, api, pending } = setup();

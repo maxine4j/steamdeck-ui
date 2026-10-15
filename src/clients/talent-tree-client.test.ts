@@ -46,6 +46,7 @@ function setup() {
 	const control = (x: number, y: number) => {
 		const scripts = { OnEnter: vi.fn(), OnLeave: vi.fn() };
 		return {
+			IsObjectType: (type: string) => type === "Button",
 			GetCenter: () => [x, y],
 			GetEffectiveScale: () => 1,
 			IsVisible: vi.fn(() => false),
@@ -56,6 +57,17 @@ function setup() {
 		};
 	};
 	const apply = control(50, 0);
+	const resetOptions = [control(20, 0), control(20, -20), control(20, -40)];
+	const reset = Object.assign(control(20, 0), {
+		IsMenuOpen: vi.fn(() => false),
+		OpenMenu: vi.fn(() => {
+			reset.IsMenuOpen.mockReturnValue(true);
+			for (const option of resetOptions) option.IsVisible.mockReturnValue(true);
+		}),
+		CloseMenu: vi.fn(() => reset.IsMenuOpen.mockReturnValue(false)),
+		menu: { GetChildren: () => resetOptions },
+	});
+	const undo = control(20, 0);
 	const heroSelector = control(50, 140);
 	const specs = [20, 80].map((x, index) => ({
 		subTreeID: index + 10,
@@ -80,6 +92,8 @@ function setup() {
 				hooks.set(`choices-${name}`, callback),
 		},
 		ApplyButton: apply,
+		ResetButton: reset,
+		UndoButton: undo,
 		heroSpecSelectionDialog: heroDialog,
 		HeroTalentsContainer: Object.assign(hero, { HeroSpecButton: heroSelector }),
 		HideSelections: vi.fn(() => {
@@ -142,11 +156,49 @@ function setup() {
 		events,
 		chrome,
 		apply,
+		reset,
+		resetOptions,
+		undo,
 		heroSelector,
 		heroDialog,
 		specs,
 	};
 }
+
+it("unassigns focused talent ranks with X through Blizzard's right click action", () => {
+	const { client, parent, nodes, changed } = setup();
+	client.mount(parent);
+	client.navigation().at(0)?.at(0)?.onAlternate?.();
+	expect(nodes.at(0)?.OnClick).toHaveBeenCalledWith("RightButton");
+	expect(changed).toHaveBeenCalledOnce();
+});
+
+it("navigates reset's left/right/all menu and undo after pending changes", () => {
+	const { client, parent, reset, resetOptions, undo } = setup();
+	reset.IsVisible.mockReturnValue(true);
+	client.mount(parent);
+	client
+		.navigation()
+		.flat()
+		.find((node) => node.navId === "talent-reset")
+		?.onInteract();
+	expect(reset.OpenMenu).toHaveBeenCalledOnce();
+	const menu = client.navigation().flat();
+	expect(menu).toHaveLength(3);
+	for (const node of menu) node.onInteract();
+	for (const option of resetOptions)
+		expect(option.Click).toHaveBeenCalledWith("LeftButton");
+	expect(client.dismissChoices()).toBe(true);
+	expect(reset.CloseMenu).toHaveBeenCalledOnce();
+	reset.IsVisible.mockReturnValue(false);
+	undo.IsVisible.mockReturnValue(true);
+	client
+		.navigation()
+		.flat()
+		.find((node) => node.navId === "talent-undo")
+		?.onInteract();
+	expect(undo.Click).toHaveBeenCalledWith("LeftButton");
+});
 
 it("navigates Apply and the hero selector spatially, using native control actions and hover scripts", () => {
 	const { client, parent, apply, heroSelector } = setup();

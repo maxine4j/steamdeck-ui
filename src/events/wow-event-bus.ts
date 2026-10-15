@@ -202,7 +202,6 @@ const mountEvents = [
 	"COMPANION_LEARNED",
 	"COMPANION_UNLEARNED",
 	"NEW_MOUNT_ADDED",
-	"MOUNT_JOURNAL_USABILITY_CHANGED",
 ];
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {
@@ -384,7 +383,7 @@ export class WowEventBus implements IEventBus {
 					"MOUNTS_CHANGED",
 					event === "NEW_MOUNT_ADDED" && typeof unit === "number"
 						? { id: unit }
-						: undefined,
+						: { source: event },
 				);
 			if (petEvents.includes(event))
 				this.emit(

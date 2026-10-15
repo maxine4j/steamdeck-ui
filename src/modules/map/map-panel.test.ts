@@ -313,6 +313,38 @@ function setup() {
 		clickMap: vi.fn(),
 		unmount: vi.fn(),
 		read: () => quests,
+		detailsNavigation: vi.fn(() => [
+			[
+				{
+					action: "back" as const,
+					node: {
+						navId: "map-details-back",
+						onFocus: vi.fn(),
+						onBlur: vi.fn(),
+						onInteract: vi.fn(),
+					},
+				},
+			],
+			[
+				{
+					node: {
+						navId: "map-reward-1",
+						onFocus: vi.fn(),
+						onBlur: vi.fn(),
+						onInteract: vi.fn(),
+					},
+				},
+			],
+			(["abandon", "share", "track"] as const).map((action) => ({
+				action,
+				node: {
+					navId: `map-details-${action}`,
+					onFocus: vi.fn(),
+					onBlur: vi.fn(),
+					onInteract: vi.fn(),
+				},
+			})),
+		]),
 		navigation: () => [
 			{
 				node: {
@@ -374,7 +406,7 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	panel.onPanelCycle(1);
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	panel.showDetails(2);
-	expect(changed).toHaveBeenLastCalledWith("map-details");
+	expect(changed).toHaveBeenLastCalledWith("map-details-back");
 	panel.onPanelCycle(-1);
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	expect(
@@ -383,7 +415,7 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 		"xbox_s_lb.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t Quests",
 	);
 	panel.onPanelCycle(1);
-	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details");
+	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details-back");
 	panel.onUnmount();
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-header-1");
@@ -424,17 +456,20 @@ it("maps X to focus, A to native details, and B back to the previous list and se
 			.getNavGrid()
 			.flat()
 			.map((node) => node.navId),
-	).toEqual(["map-details"]);
+	).toEqual([
+		"map-details-back",
+		"map-reward-1",
+		"map-details-abandon",
+		"map-details-share",
+		"map-details-track",
+	]);
 	const details = panel.getNavGrid().at(0)?.at(0);
 	expect(state.frames.has("map-details-down")).toBe(false);
 	expect(state.frames.has("map-details-up")).toBe(false);
-	details?.onInteract();
-	details?.onMove?.("down", false);
-	details?.onMove?.("left", true);
-	expect(client.scrollDetails).not.toHaveBeenCalled();
-	details?.onMove?.("down", true);
+	expect(details?.onMove).toBeUndefined();
+	details?.onAlternate?.();
 	expect(client.scrollDetails).toHaveBeenCalledWith(1);
-	details?.onMove?.("up", true);
+	details?.onContext?.();
 	expect(client.scrollDetails).toHaveBeenCalledWith(-1);
 	panel.onBack();
 	expect(client.hideDetails).toHaveBeenCalled();
@@ -447,6 +482,41 @@ it("maps X to focus, A to native details, and B back to the previous list and se
 	).toEqual(["map-header-1", "map-quest-1", "map-quest-2", "map-quest-3"]);
 	panel.onBack();
 	expect(close).toHaveBeenCalledOnce();
+});
+it("keeps reward focus through refresh, dispatches native actions, confirms abandon and returns from the back button", () => {
+	const { panel, client, modal, changed } = setup();
+	panel.showDetails(2);
+	const grid = panel.getNavGrid();
+	grid.at(1)?.at(0)?.onFocus();
+	panel.refresh();
+	expect(changed).toHaveBeenLastCalledWith("map-reward-1");
+	const native = client.detailsNavigation.mock.results
+		.at(-1)
+		?.value?.flat()
+		.find((entry) => entry.action === "track")?.node;
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "map-details-track")
+		?.onInteract();
+	expect(native?.onInteract).toHaveBeenCalledOnce();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "map-details-abandon")
+		?.onInteract();
+	expect(client.abandon).not.toHaveBeenCalled();
+	expect(modal.open).toHaveBeenCalledWith(
+		"Abandon quest?",
+		expect.any(Array),
+		expect.anything(),
+	);
+	const choices = modal.open.mock.lastCall?.at(1) as ModalOption[];
+	choices.find((choice) => choice.id === "confirm")?.select();
+	expect(client.abandon).toHaveBeenCalledWith(2);
+	panel.getNavGrid().at(0)?.at(0)?.onInteract();
+	expect(client.hideDetails).toHaveBeenCalled();
+	expect(changed).toHaveBeenLastCalledWith("map-quest-2");
 });
 it("opens Y options with only available actions and uses confirmation before abandonment", () => {
 	const { panel, client, modal } = setup();

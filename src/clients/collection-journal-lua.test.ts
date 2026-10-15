@@ -15,16 +15,16 @@ it("forwards collection page reads, results and numeric progress without implici
 	).toEqual([]);
 	const start = lua
 		.match(
-			/function CollectionJournal\.prototype\.start\(self\)([\s\S]*?)\nend/,
+			/function CollectionJournal\.prototype\.start\(self, reason\)([\s\S]*?)\nend/,
 		)
 		?.at(1);
 	expect(start).toBeDefined();
-	expect(start).toContain("observer(index, reader.count)");
+	expect(start).toContain("observer(index, page.count)");
 	expect(start).not.toMatch(/observer\(self,/);
-	expect(start).not.toMatch(/page\.read\(page,/);
+	expect(start).not.toMatch(/reader\.read\(reader,/);
 	const load = lua
 		.match(
-			/function CollectionJournal\.prototype\.load\(self, done, progress\)([\s\S]*?)\nend/,
+			/function CollectionJournal\.prototype\.load\(self, done, progress, changed\)([\s\S]*?)\nend/,
 		)
 		?.at(1);
 	expect(load).toBeDefined();

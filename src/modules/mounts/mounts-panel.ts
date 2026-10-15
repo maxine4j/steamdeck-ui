@@ -1,4 +1,10 @@
 import type { IMountsClient, Mount } from "../../clients/mounts-client";
+import { mountsConfig } from "../../clients/mounts-config";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "../../clients/performance-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { DebouncedInput } from "../../ui/components/debounced-input";
@@ -54,6 +60,7 @@ export class MountsPanel implements IPanel {
 	private mounted = false;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
+	private renderMeasurement?: WorkMeasurement;
 	private loadGeneration = 0;
 	private renderGeneration = 0;
 	private mounts: readonly Mount[] = [];
@@ -78,6 +85,7 @@ export class MountsPanel implements IPanel {
 		private readonly close: () => void,
 		private readonly scheduler: ITaskScheduler,
 		private readonly menu: IMountActionMenu,
+		private readonly performance: IPerformanceClient = quietPerformance,
 	) {
 		this.frame = new Frame("mounts-root", pool);
 		this.search = new Frame("mounts-search", pool, "SearchBox");
@@ -115,6 +123,8 @@ export class MountsPanel implements IPanel {
 	}
 
 	refresh(): void {
+		this.renderMeasurement?.finish("cancelled refresh");
+		this.renderMeasurement = undefined;
 		const generation = ++this.loadGeneration;
 		this.renderGeneration++;
 		this.snapshotComplete = false;
@@ -269,6 +279,14 @@ export class MountsPanel implements IPanel {
 		generation: number,
 		complete: boolean,
 	): void {
+		this.renderMeasurement?.finish("superseded");
+		const measurement = new WorkMeasurement(
+			this.performance,
+			"mounts render",
+			"cache-update",
+		);
+		this.renderMeasurement = measurement;
+		const prepareStart = this.performance.now();
 		this.cancelRender?.();
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
@@ -447,6 +465,7 @@ export class MountsPanel implements IPanel {
 			jobs.push(() => header?.hide());
 		}
 		let cursor = 0;
+		measurement.add("prepare", this.performance.now() - prepareStart);
 		const step = () => {
 			if (
 				!this.mounted ||
@@ -455,7 +474,8 @@ export class MountsPanel implements IPanel {
 			)
 				return;
 			this.cancelRender = undefined;
-			const end = Math.min(jobs.length, cursor + 10);
+			const pageStart = this.performance.now();
+			const end = Math.min(jobs.length, cursor + mountsConfig.renderPageSize);
 			while (cursor < end) jobs.at(cursor++)?.();
 			if (complete)
 				this.setLoadingProgress(
@@ -468,6 +488,12 @@ export class MountsPanel implements IPanel {
 			else if (complete) {
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 				this.loadingTrack.hide();
+			}
+			measurement.add("frames", this.performance.now() - pageStart);
+			measurement.page(pageStart);
+			if (cursor === jobs.length) {
+				measurement.finish(`complete tiles=${mounts.length}`);
+				this.renderMeasurement = undefined;
 			}
 		};
 		step();
@@ -564,6 +590,8 @@ export class MountsPanel implements IPanel {
 		this.close();
 	}
 	onUnmount(): void {
+		this.renderMeasurement?.finish("cancelled close");
+		this.renderMeasurement = undefined;
 		this.mounted = false;
 		this.searchInput.cancel();
 		this.search.blurInput();

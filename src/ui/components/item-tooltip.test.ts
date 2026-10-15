@@ -227,7 +227,7 @@ it("refreshes focused content after equipment and item data changes and unsubscr
 	expect(compare).toHaveBeenCalledTimes(3);
 });
 
-it("fits two equipped comparisons on a narrow display and reanchors asynchronously refreshed data", () => {
+it("preserves full-size equipped comparisons on a narrow display and reanchors asynchronously refreshed data", () => {
 	const { tooltip, frames, screen, compare } = setup();
 	screen.GetWidth = () => 1280;
 	screen.GetHeight = () => 800;
@@ -236,7 +236,7 @@ it("fits two equipped comparisons on a narrow display and reanchors asynchronous
 		frames.at(2)?.Show();
 	});
 	tooltip.setItem(42);
-	const scale = 480 / 916;
+	const scale = 1;
 	for (const frame of frames)
 		expect(frame.SetScale).toHaveBeenLastCalledWith(scale);
 	const main = frames.at(0);
@@ -260,3 +260,42 @@ it("fits two equipped comparisons on a narrow display and reanchors asynchronous
 	update?.(main, 0.25);
 	expect(main.SetPoint).toHaveBeenCalledTimes(anchors);
 });
+
+it.each(["left", "right"] as const)(
+	"anchors full-size comparisons outside the active %s panel's top corner",
+	(side) => {
+		const { tooltip, frames, pool, events, compare } = setup();
+		const anchor = new Frame("active-panel", pool);
+		anchor.show();
+		const nativeAnchor = frames.at(0);
+		compare.mockImplementation(() => frames.at(2)?.Show());
+		tooltip.setAnchor(anchor, side);
+		tooltip.setItem(42);
+		const main = frames.at(1);
+		const comparison = frames.at(2);
+		expect(main?.SetPoint).toHaveBeenLastCalledWith(
+			side === "left" ? "TOPLEFT" : "TOPRIGHT",
+			nativeAnchor,
+			side === "left" ? "TOPRIGHT" : "TOPLEFT",
+			side === "left" ? 8 : -8,
+			0,
+		);
+		expect(comparison?.SetPoint).toHaveBeenLastCalledWith(
+			side === "left" ? "TOPLEFT" : "TOPRIGHT",
+			nativeAnchor,
+			side === "left" ? "TOPRIGHT" : "TOPLEFT",
+			side === "left" ? 316 : -316,
+			0,
+		);
+		for (const frame of frames.slice(1))
+			expect(frame.SetScale).toHaveBeenLastCalledWith(1);
+		events.emit("ITEM_DATA_LOAD_RESULT");
+		expect(main?.SetPoint).toHaveBeenLastCalledWith(
+			side === "left" ? "TOPLEFT" : "TOPRIGHT",
+			nativeAnchor,
+			side === "left" ? "TOPRIGHT" : "TOPLEFT",
+			side === "left" ? 8 : -8,
+			0,
+		);
+	},
+);

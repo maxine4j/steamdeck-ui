@@ -4,6 +4,7 @@ import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
 import { SearchFilters } from "../../ui/components/search-filters";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import * as petDisplay from "./pet-display";
 import { PetsPanel } from "./pets-panel";
 
 it("renders one tile per pet species with a duplicate count, clears reused badges and supplies collection tooltips", () => {
@@ -67,7 +68,7 @@ const pet = (id: number, expansionId = 10, favourite = false): Pet => ({
 	favourite,
 	expansionId,
 });
-function setup() {
+function setup(performance?: { now(): number; log(message: string): void }) {
 	vi.spyOn(SearchFilters.prototype, "mount").mockImplementation(() => {});
 	vi.spyOn(SearchFilters.prototype, "setOptions").mockImplementation(() => {});
 	vi.spyOn(SearchFilters.prototype, "hide").mockImplementation(() => {});
@@ -134,7 +135,14 @@ function setup() {
 	};
 	const menu = { open: vi.fn(), close: vi.fn() };
 	const pool = {} as IFramePoolManager;
-	const panel = new PetsPanel(pool, client, menu, scheduler, vi.fn());
+	const panel = new PetsPanel(
+		pool,
+		client,
+		menu,
+		scheduler,
+		vi.fn(),
+		performance,
+	);
 	const parent = new Frame("parent", pool);
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
@@ -145,6 +153,113 @@ function setup() {
 	};
 	return { panel, parent, client, menu, pending, publish, flush };
 }
+
+it("merges incoming pages while the current render makes progress without regrouping every page", () => {
+	const { panel, parent, client, pending, flush } = setup();
+	const group = vi.spyOn(petDisplay, "groupPets");
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
+		false,
+	);
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(10); // summon plus first nine tiles
+	const grouped = group.mock.calls.length;
+	for (let i = 26; i <= 45; i++) load?.at(2)?.([pet(i)], false);
+	expect(group).toHaveBeenCalledTimes(grouped);
+	pending.shift()?.();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(20);
+	load?.at(2)?.([], true);
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.filter((node) => node.navId.startsWith("pet-")),
+	).toHaveLength(45);
+	expect(
+		new Set(
+			vi
+				.mocked(Frame.prototype.setIcon)
+				.mock.contexts.filter((frame) => frame.id.startsWith("pets-icon-"))
+				.map((frame) => frame.id),
+		).size,
+	).toBe(45);
+});
+
+it("reports render preparation and frame work separately without logging cancellations for merged pages", () => {
+	let time = 0;
+	const performance = { now: () => time++, log: vi.fn() };
+	const { panel, parent, client, flush } = setup(performance);
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
+		false,
+	);
+	load?.at(2)?.([pet(26)], true);
+	flush();
+	const messages = performance.log.mock.calls.map((call) => call.at(0));
+	expect(
+		messages.some(
+			(message) =>
+				message?.includes("pets render") &&
+				message.includes("prepare=") &&
+				message.includes("frames="),
+		),
+	).toBe(true);
+	expect(messages.some((message) => message?.includes("cancelled"))).toBe(
+		false,
+	);
+});
+
+it("immediately disables removed and changed pet actions while queued rendering drains", () => {
+	const { panel, parent, client, menu, flush } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
+		false,
+	);
+	const old = panel.getNavGrid().at(0)?.at(0);
+	load?.at(2)?.(
+		[
+			{ ...pet(1), present: false },
+			{ ...pet(2), collected: false },
+		],
+		false,
+	);
+	old?.onAlternate?.();
+	old?.onContext?.();
+	expect(client.summon).not.toHaveBeenCalled();
+	expect(menu.open).not.toHaveBeenCalled();
+	flush();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "pet-Pet-1"),
+	).toBe(false);
+});
+
+it("restores actions when a pet disappears and returns before queued rendering finishes", () => {
+	const { panel, parent, client, flush } = setup();
+	panel.onMount(parent);
+	const load = vi.mocked(client.load).mock.calls.at(-1);
+	load?.at(0)?.(
+		Array.from({ length: 25 }, (_, i) => pet(i + 1)),
+		false,
+	);
+	load?.at(2)?.([{ ...pet(1), present: false }], false);
+	load?.at(2)?.([pet(1)], true);
+	flush();
+	panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "pet-Pet-1")
+		?.onAlternate?.();
+	expect(client.summon).toHaveBeenCalledExactlyOnceWith("Pet-1");
+});
 
 it("searches pets and refreshes native family filters without removing the summon action", () => {
 	vi.useFakeTimers();

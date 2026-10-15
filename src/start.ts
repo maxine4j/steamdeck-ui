@@ -15,6 +15,10 @@ import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMailClient } from "./clients/mail-client";
 import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+} from "./clients/performance-client";
 import type { IPetsClient } from "./clients/pets-client";
 import type { IPvpFinderClient } from "./clients/pvp-finder-client";
 import type { IReputationClient } from "./clients/reputation-client";
@@ -192,6 +196,7 @@ function registerCollections(
 	toys: IToysClient,
 	scheduler: ITaskScheduler,
 	pets: IPetsClient,
+	performance: IPerformanceClient,
 ) {
 	const collections = new CollectionsClient(new FrameSuppression(pool), events);
 	const builtInMounts = new BuiltInMounts(collections);
@@ -199,15 +204,25 @@ function registerCollections(
 	const builtInPets = new BuiltInPets(collections);
 	const petModal = new Modal("pet-actions", pool, navigation, events);
 	const petMenu = new PetActionMenu(petModal, pets, () => petsPanel.refresh());
-	const petsPanel = new PetsPanel(pool, pets, petMenu, scheduler, () =>
-		builtInPets.close(),
+	const petsPanel = new PetsPanel(
+		pool,
+		pets,
+		petMenu,
+		scheduler,
+		() => builtInPets.close(),
+		performance,
 	);
 	ui.registerPanel(petsPanel, "right");
 	modules.register(new PetsModule(ui, events, petsPanel, builtInPets, pets));
 	const toyModal = new Modal("toy-actions", pool, navigation, events);
 	const toyMenu = new ToyActionMenu(toyModal, toys, () => toysPanel.refresh());
-	const toysPanel = new ToysPanel(pool, toys, toyMenu, scheduler, () =>
-		builtInToys.close(),
+	const toysPanel = new ToysPanel(
+		pool,
+		toys,
+		toyMenu,
+		scheduler,
+		() => builtInToys.close(),
+		performance,
 	);
 	ui.registerPanel(toysPanel, "right");
 	modules.register(new ToysModule(ui, events, toysPanel, builtInToys, toys));
@@ -224,6 +239,7 @@ function registerCollections(
 		},
 		scheduler,
 		mountMenu,
+		performance,
 	);
 	modules.register(
 		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
@@ -327,6 +343,7 @@ export function startSteamDeckUI(
 	pvpFinder: IPvpFinderClient,
 	spellbook: ISpellbookClient,
 	auctionHouse: IAuctionHouseClient,
+	performance: IPerformanceClient = quietPerformance,
 ) {
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
@@ -395,6 +412,7 @@ export function startSteamDeckUI(
 								]
 							: [],
 				events,
+				(frame, position) => itemTooltip.setAnchor(frame, position),
 			),
 	);
 	const grouping = new ItemGrouping();
@@ -575,6 +593,7 @@ export function startSteamDeckUI(
 		toys,
 		scheduler,
 		pets,
+		performance,
 	);
 	const paperDoll = new PaperDollPanel(
 		new Frame("paper-doll-frame", pool),

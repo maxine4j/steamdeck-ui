@@ -1,5 +1,11 @@
 import type { ICollectionCache } from "./collection-cache";
 import { getMountExpansion } from "./mount-expansions";
+import { mountsConfig } from "./mounts-config";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "./performance-client";
 import type { CacheChange, SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -22,7 +28,7 @@ export interface MountFilter {
 }
 export interface IMountJournal {
 	prefetch(): void;
-	refreshEntry(id?: number): void;
+	refreshEntry(id?: number, reason?: string): void;
 	refreshDisplay(): void;
 	stop(): void;
 }
@@ -63,6 +69,7 @@ export class MountsClient implements IMountsClient {
 	private cancelDisplay?: () => void;
 	private displayGeneration = 0;
 	private generation = 0;
+	private scanMeasurement?: WorkMeasurement;
 	private readonly favouriteWrites = new Set<number>();
 	private readonly actions = new Set<() => void>();
 	private readonly observers = new Set<(this: void) => void>();
@@ -73,16 +80,21 @@ export class MountsClient implements IMountsClient {
 	constructor(
 		private readonly scheduler: ITaskScheduler,
 		cache: ICollectionCache,
+		private readonly performance: IPerformanceClient = quietPerformance,
 	) {
 		this.items = cache.create<Mount>("mounts.items");
 	}
 	prefetch(): void {
-		this.startScan();
+		this.startScan("login");
 	}
-	refreshEntry(id?: number): void {
+	refreshEntry(id?: number, reason = "server-event"): void {
 		if (id === undefined || id <= 0) {
-			if (this.cancelScan) this.rescan = this.scanStarted;
-			else this.startScan();
+			if (this.cancelScan) {
+				if (this.scanStarted && !this.rescan) {
+					this.rescan = true;
+					this.performance.log(`mounts scan repeat queued reason=${reason}`);
+				}
+			} else this.startScan(reason);
 			return;
 		}
 		this.targets.add(id);
@@ -95,7 +107,7 @@ export class MountsClient implements IMountsClient {
 			if (generation !== this.generation) return;
 			this.cancelTargets = undefined;
 			const changes: CacheChange<Mount>[] = [];
-			let remaining = 20;
+			let remaining = mountsConfig.scanPageSize;
 			for (const id of this.targets) {
 				this.targets.delete(id);
 				const mount = this.readMount(id);
@@ -108,18 +120,26 @@ export class MountsClient implements IMountsClient {
 			this.refreshDisplay();
 		});
 	}
-	private startScan(): void {
+	private startScan(reason: string): void {
 		if (this.cancelScan) return;
 		const generation = this.generation;
 		this.scanStarted = false;
+		const measurement = new WorkMeasurement(
+			this.performance,
+			"mounts scan",
+			reason,
+		);
+		this.scanMeasurement = measurement;
 		let ids: number[] | undefined;
 		let index = 0;
 		const step = () => {
 			if (generation !== this.generation) return;
 			this.scanStarted = true;
+			const pageStart = this.performance.now();
+			const journalStart = this.performance.now();
 			ids ??= C_MountJournal.GetMountIDs() as unknown as number[];
 			const changes: CacheChange<Mount>[] = [];
-			const end = Math.min(ids.length, index + 20);
+			const end = Math.min(ids.length, index + mountsConfig.scanPageSize);
 			while (index < end) {
 				const id = ids.at(index++);
 				if (id !== undefined) {
@@ -127,16 +147,20 @@ export class MountsClient implements IMountsClient {
 					if (mount) changes.push({ key: String(id), value: mount });
 				}
 			}
-			this.items.putMany(changes);
+			measurement.add("journal", this.performance.now() - journalStart);
+			measurement.measure("publish", () => this.items.putMany(changes));
+			measurement.page(pageStart);
 			if (generation !== this.generation) return;
 			for (const observer of this.progress) observer(index, ids.length);
 			if (index < ids.length) this.cancelScan = this.scheduler.nextFrame(step);
 			else {
 				this.cancelScan = undefined;
 				this.scanStarted = false;
+				measurement.finish(`complete entries=${index}`);
+				this.scanMeasurement = undefined;
 				if (this.rescan) {
 					this.rescan = false;
-					this.startScan();
+					this.startScan("server-event-repeat");
 				} else this.refreshDisplay();
 			}
 		};
@@ -179,7 +203,7 @@ export class MountsClient implements IMountsClient {
 			)
 				return;
 			count ??= C_MountJournal.GetNumDisplayedMounts();
-			let remaining = 20;
+			let remaining = mountsConfig.scanPageSize;
 			while (index <= count && remaining > 0) {
 				const current = index++;
 				indices.set(C_MountJournal.GetDisplayedMountID(current), current);
@@ -242,7 +266,7 @@ export class MountsClient implements IMountsClient {
 		this.observers.add(publish);
 		if (onProgress) this.progress.add(onProgress);
 		if (this.items.values().length > 0) publish();
-		else this.startScan();
+		else this.startScan("empty-cache");
 		return () => {
 			detach();
 			this.subscriptions.delete(detach);
@@ -254,6 +278,8 @@ export class MountsClient implements IMountsClient {
 		return values.filter((mount) => mount.index > 0);
 	}
 	stop(): void {
+		this.scanMeasurement?.finish("cancelled");
+		this.scanMeasurement = undefined;
 		this.generation++;
 		this.cancelScan?.();
 		this.cancelScan = undefined;
@@ -286,7 +312,7 @@ export class MountsClient implements IMountsClient {
 	}
 	getMounts(): Mount[] {
 		const values = this.items.values();
-		if (values.length === 0) this.startScan();
+		if (values.length === 0) this.startScan("empty-cache");
 		return this.visible(values.filter((mount) => !mount.hidden));
 	}
 	getCount() {

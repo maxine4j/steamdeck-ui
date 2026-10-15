@@ -4,8 +4,8 @@ import type { NavDirection } from "../navigation/types";
 
 export interface CursorSurface extends WowFrame {
 	SetFrameStrata(strata: string): void;
-	GetLeft(): number;
-	GetTop(): number;
+	GetLeft(): number | undefined;
+	GetTop(): number | undefined;
 	GetWidth(): number;
 	GetHeight(): number;
 	GetEffectiveScale(): number;
@@ -37,12 +37,18 @@ export class NativeCursor {
 	private overlay?: CursorOverlay;
 	private readonly held = new Set<NavDirection>();
 	private hovered?: CursorTarget;
+	private validTarget?: (this: void, target: CursorTarget) => boolean;
 	private readonly mouseQueries = new Map<
 		CursorTarget,
 		CursorTarget["IsMouseOver"]
 	>();
 	constructor(private readonly pool: IFramePoolManager) {}
-	show(surface: CursorSurface, onUpdate?: () => void): void {
+	show(
+		surface: CursorSurface,
+		onUpdate?: () => void,
+		validTarget?: (this: void, target: CursorTarget) => boolean,
+	): void {
+		this.validTarget = validTarget;
 		this.surface = surface;
 		if (!this.overlay)
 			this.overlay = this.pool.acquire("Frame") as CursorOverlay;
@@ -102,13 +108,19 @@ export class NativeCursor {
 	trackMouseOver(surface: CursorSurface, target: CursorTarget): void {
 		if (this.mouseQueries.has(target)) return;
 		this.mouseQueries.set(target, target.IsMouseOver);
-		target.IsMouseOver = () => this.contains(surface, target);
+		target.IsMouseOver = () =>
+			(!this.validTarget || this.validTarget(target)) &&
+			this.contains(surface, target);
 	}
 	hover(target?: CursorTarget): void {
 		const tooltip = GameTooltip as unknown as CursorTooltip;
+		if (target && this.validTarget && !this.validTarget(target))
+			target = undefined;
 		if (this.hovered !== target) {
 			const previous = this.hovered;
-			previous?.OnMouseLeave?.();
+			this.hovered = undefined;
+			if (previous && (!this.validTarget || this.validTarget(previous)))
+				previous.OnMouseLeave?.();
 			if (previous && tooltip.GetOwner() === previous) tooltip.Hide();
 			this.hovered = target;
 			target?.OnMouseEnter?.();
@@ -170,17 +182,25 @@ export class NativeCursor {
 		horizontal.SetColorTexture(1, 0.82, 0, 0.85);
 		vertical.SetColorTexture(1, 0.82, 0, 0.85);
 	}
-	position(surface: CursorSurface): readonly [number, number] {
+	position(surface: CursorSurface): readonly [number, number] | undefined {
+		const left = surface.GetLeft(),
+			top = surface.GetTop();
+		if (left === undefined || top === undefined) return undefined;
 		return [
-			surface.GetLeft() + this.x * surface.GetWidth(),
-			surface.GetTop() - this.y * surface.GetHeight(),
+			left + this.x * surface.GetWidth(),
+			top - this.y * surface.GetHeight(),
 		];
 	}
 	contains(surface: CursorSurface, target: CursorSurface): boolean {
-		const [x, y] = this.position(surface);
+		const position = this.position(surface);
+		const targetLeft = target.GetLeft(),
+			targetTop = target.GetTop();
+		if (!position || targetLeft === undefined || targetTop === undefined)
+			return false;
+		const [x, y] = position;
 		const scale = target.GetEffectiveScale() / surface.GetEffectiveScale();
-		const left = target.GetLeft() * scale,
-			top = target.GetTop() * scale;
+		const left = targetLeft * scale,
+			top = targetTop * scale;
 		return (
 			x >= left &&
 			x <= left + target.GetWidth() * scale &&
@@ -196,6 +216,7 @@ export class NativeCursor {
 		}
 		this.overlay = undefined;
 		this.surface = undefined;
+		this.validTarget = undefined;
 		this.x = this.y = 0.5;
 	}
 }

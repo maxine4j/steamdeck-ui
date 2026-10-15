@@ -115,6 +115,7 @@ export class Frame implements IUIComponent {
 	private scaleChanged = false;
 	private texture?: WowTexture;
 	private textureTinted = false;
+	private textureDesaturated = false;
 	private buttonSkinned = false;
 	private iconRing = false;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
@@ -1156,6 +1157,12 @@ export class Frame implements IUIComponent {
 	}
 	private clearTextureTint(): void {
 		if (this.backgroundOpacityChanged) this.setBackgroundOpacity(1);
+		if (this.textureDesaturated) {
+			(
+				this.texture as WowTexture & { SetDesaturated(value: boolean): void }
+			).SetDesaturated(false);
+			this.textureDesaturated = false;
+		}
 		if (!this.textureTinted) return;
 		(
 			this.texture as WowTexture & {
@@ -1168,12 +1175,20 @@ export class Frame implements IUIComponent {
 		atlas: string,
 		tint?: readonly [number, number, number],
 		slice?: number,
+		desaturate = false,
 	): void {
 		this.setColor(0, 0, 0, 0);
 		this.texture?.ClearAllPoints();
 		this.texture?.SetAllPoints();
 		this.texture?.SetTexCoord(0, 1, 0, 1);
 		this.texture?.SetAtlas(atlas, false);
+		// Neutralize baked colors so vertex tint preserves the requested hue.
+		if (desaturate) {
+			(
+				this.texture as WowTexture & { SetDesaturated(value: boolean): void }
+			).SetDesaturated(true);
+			this.textureDesaturated = true;
+		}
 		if (slice !== undefined && this.texture) {
 			const texture = this.texture as SlicedTexture;
 			texture.SetTextureSliceMargins(slice, slice, slice, slice);

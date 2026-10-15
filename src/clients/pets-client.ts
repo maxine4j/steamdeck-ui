@@ -2,10 +2,16 @@ import type { ICollectionCache } from "./collection-cache";
 import {
 	CollectionJournal,
 	type CollectionPageReader,
+	type CollectionUpdate,
 	type ICollectionJournal,
 } from "./collection-journal";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+} from "./performance-client";
 import { getPetExpansion } from "./pet-expansions";
+import { petsConfig } from "./pets-config";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -73,6 +79,10 @@ export interface Pet {
 	readonly displayed?: boolean;
 	readonly present?: boolean;
 }
+interface CollectionCount {
+	readonly ownedCount: number;
+	readonly collectionLimit: number;
+}
 export interface IPetsClient
 	extends ICollectionJournal<string>,
 		ICollectionQuery {
@@ -80,6 +90,7 @@ export interface IPetsClient
 	load(
 		done: (pets: Pet[], complete: boolean) => void,
 		progress?: (completed: number, total: number) => void,
+		changed?: CollectionUpdate<Pet>,
 	): () => void;
 	isInCombat(): boolean;
 	canUse(id: string): boolean;
@@ -130,9 +141,14 @@ export class PetsClient implements IPetsClient {
 	private readonly pendingQuery: (() => void)[] = [];
 	private readonly pendingFilters = new Map<string, boolean>();
 	private readonly removed = new Set<string>();
+	private scanCounts?: Map<number, CollectionCount>;
 	private readonly items: SavedVariableCache<Pet>;
 	private readonly journal: CollectionJournal<Pet>;
-	constructor(scheduler: ITaskScheduler, cache: ICollectionCache) {
+	constructor(
+		scheduler: ITaskScheduler,
+		cache: ICollectionCache,
+		performance: IPerformanceClient = quietPerformance,
+	) {
 		this.items = cache.create<Pet>("pets.items");
 		this.journal = new CollectionJournal(
 			scheduler,
@@ -141,15 +157,19 @@ export class PetsClient implements IPetsClient {
 			(row) => row.present !== false && row.displayed !== false,
 			() => this.beginScan(),
 			(id) => this.readTarget(id, true),
+			{ pageSize: petsConfig.scanPageSize, label: "pets", performance },
 		);
 	}
 	private beginScan(): CollectionPageReader<Pet> {
 		this.ensureFilters();
+		// Scan-local API results only; all pet records remain in SavedVariables.
+		const counts = new Map<number, CollectionCount>();
+		this.scanCounts = counts;
 		if (!this.catalogWarm) {
 			const [count] = C_PetJournal.GetNumPets();
 			return {
 				count,
-				read: (index) => this.readIndex(index + 1),
+				read: (index) => this.readIndex(index + 1, counts),
 				finish: () => this.finishScan(),
 			};
 		}
@@ -159,9 +179,13 @@ export class PetsClient implements IPetsClient {
 		)();
 		const ownership = new Set(owned);
 		const ids = this.items.values().map((row) => row.id);
-		for (const id of owned) if (!ids.includes(id)) ids.push(id);
-		const [count] = C_PetJournal.GetNumPets();
 		const known = new Set(ids);
+		for (const id of owned)
+			if (!known.has(id)) {
+				ids.push(id);
+				known.add(id);
+			}
+		const [count] = C_PetJournal.GetNumPets();
 		return {
 			count: ids.length + count,
 			read: (index) => {
@@ -170,24 +194,25 @@ export class PetsClient implements IPetsClient {
 					if (id.startsWith("species-")) {
 						const previous = this.items.peek(id);
 						if (!previous) return [];
-						const counts = this.collectionCount(previous.speciesId);
-						return [
-							{ ...previous, ...counts, present: counts.ownedCount === 0 },
-						];
+						const count = this.collectionCount(previous.speciesId, counts);
+						return [{ ...previous, ...count, present: count.ownedCount === 0 }];
 					}
-					return ownership.has(id) ? this.readTarget(id) : this.removeOwned(id);
+					return ownership.has(id)
+						? this.readTarget(id, false, counts)
+						: this.removeOwned(id, counts);
 				}
 				const [guid, species] = C_PetJournal.GetPetInfoByIndex(
 					index - ids.length + 1,
 				);
 				const key = guid || `species-${species}`;
 				if (known.has(key)) return [];
-				return this.readIndex(index - ids.length + 1);
+				return this.readIndex(index - ids.length + 1, counts);
 			},
 			finish: () => this.finishScan(),
 		};
 	}
 	private finishScan(): void {
+		this.scanCounts = undefined;
 		this.catalogWarm = true;
 		const commands = this.pendingQuery.splice(0);
 		for (const apply of commands) apply();
@@ -233,7 +258,10 @@ export class PetsClient implements IPetsClient {
 			};
 		});
 	}
-	private readIndex(index: number): Pet[] {
+	private readIndex(
+		index: number,
+		counts?: Map<number, CollectionCount>,
+	): Pet[] {
 		const [
 			guid,
 			speciesId,
@@ -263,22 +291,27 @@ export class PetsClient implements IPetsClient {
 				expansionId: getPetExpansion(speciesId),
 				source,
 				description,
-				...this.collectionCount(speciesId),
+				...this.collectionCount(speciesId, counts),
 				present:
 					!revoked && !this.removed.has(id) && previous?.present !== false,
 				displayed: this.catalogWarm ? previous?.displayed : true,
 			},
 		];
 	}
-	private readTarget(id: string, restore = false): Pet[] {
+	private readTarget(
+		id: string,
+		restore = false,
+		scanCounts?: Map<number, CollectionCount>,
+	): Pet[] {
 		if (this.removed.has(id)) {
 			// Only the targeted event consumes its payload; scans must not steal it.
 			if (restore) this.removed.delete(id);
-			return this.removeOwned(id);
+			return this.removeOwned(id, scanCounts);
 		}
 		if (id.startsWith("species-")) return [];
 		const previous = this.items.peek(id);
-		if (!restore && previous?.present === false) return this.removeOwned(id);
+		if (!restore && previous?.present === false)
+			return this.removeOwned(id, scanCounts);
 		const [
 			speciesId,
 			customName,
@@ -295,7 +328,7 @@ export class PetsClient implements IPetsClient {
 			description,
 		] = C_PetJournal.GetPetInfoByPetID(id);
 		if (!speciesId) return previous ? [previous] : [];
-		const counts = this.collectionCount(speciesId);
+		const counts = this.collectionCount(speciesId, scanCounts);
 		const pet: Pet = {
 			id,
 			speciesId,
@@ -311,6 +344,8 @@ export class PetsClient implements IPetsClient {
 			displayed: previous?.displayed,
 		};
 		const rows = [pet];
+		// Full scans visit every copy themselves; targeted events reconcile siblings.
+		if (scanCounts) return rows;
 		for (const copy of this.items.values()) {
 			if (copy.id === id || copy.speciesId !== speciesId) continue;
 			rows.push({
@@ -323,10 +358,13 @@ export class PetsClient implements IPetsClient {
 		}
 		return rows;
 	}
-	private removeOwned(id: string): Pet[] {
+	private removeOwned(
+		id: string,
+		scanCounts?: Map<number, CollectionCount>,
+	): Pet[] {
 		const previous = this.items.peek(id);
 		if (!previous) return [];
-		const counts = this.collectionCount(previous.speciesId);
+		const counts = this.collectionCount(previous.speciesId, scanCounts);
 		const rows: Pet[] = [
 			{
 				...previous,
@@ -336,7 +374,7 @@ export class PetsClient implements IPetsClient {
 				present: false,
 			},
 		];
-		for (const copy of this.items.values()) {
+		for (const copy of scanCounts ? [] : this.items.values()) {
 			if (copy.id !== id && copy.speciesId === previous.speciesId)
 				rows.push({
 					...copy,
@@ -431,6 +469,7 @@ export class PetsClient implements IPetsClient {
 		this.journal.refreshEntry(id);
 	}
 	stop(): void {
+		this.scanCounts = undefined;
 		this.journal.stop();
 		this.pendingQuery.length = 0;
 		this.pendingFilters.clear();
@@ -439,13 +478,16 @@ export class PetsClient implements IPetsClient {
 	load(
 		done: (pets: Pet[], complete: boolean) => void,
 		progress?: (completed: number, total: number) => void,
+		changed?: CollectionUpdate<Pet>,
 	): () => void {
-		return this.journal.load(done, progress);
+		return this.journal.load(done, progress, changed);
 	}
-	private collectionCount(speciesId: number): {
-		ownedCount: number;
-		collectionLimit: number;
-	} {
+	private collectionCount(
+		speciesId: number,
+		counts?: Map<number, CollectionCount>,
+	): CollectionCount {
+		const existing = counts?.get(speciesId);
+		if (existing) return existing;
 		const [ownedCount, collectionLimit] = (
 			C_PetJournal as unknown as {
 				GetNumCollectedInfo(
@@ -454,7 +496,10 @@ export class PetsClient implements IPetsClient {
 				): LuaMultiReturn<[number, number]>;
 			}
 		).GetNumCollectedInfo(speciesId);
-		return { ownedCount, collectionLimit };
+		const count = { ownedCount, collectionLimit };
+		counts?.set(speciesId, count);
+		if (!counts) this.scanCounts?.set(speciesId, count);
+		return count;
 	}
 	isInCombat(): boolean {
 		return InCombatLockdown();

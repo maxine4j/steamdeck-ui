@@ -4,6 +4,53 @@ import { type CursorSurface, NativeCursor } from "./native-cursor";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("waits for viewport anchors during a map change and resumes hit testing after layout", () => {
+	const { cursor, surface } = setup();
+	const viewport = {
+		...surface,
+		GetLeft: vi.fn(() => undefined as number | undefined),
+	};
+	const target = {
+		...surface,
+		GetLeft: () => 480,
+		GetTop: () => 420,
+		GetWidth: () => 40,
+		GetHeight: () => 40,
+	};
+	cursor.show(viewport);
+	expect(cursor.position(viewport)).toBeUndefined();
+	expect(cursor.contains(viewport, target)).toBe(false);
+	viewport.GetLeft.mockReturnValue(100);
+	expect(cursor.position(viewport)).toEqual([500, 400]);
+	expect(cursor.contains(viewport, target)).toBe(true);
+	expect(
+		cursor.contains(viewport, { ...target, GetLeft: () => undefined }),
+	).toBe(false);
+});
+
+it("drops a released hover target without calling its invalid native leave handler and can reopen", () => {
+	const { cursor, surface, tooltip } = setup();
+	let valid = true;
+	const target = {
+		...surface,
+		IsMouseOver: vi.fn(() => false),
+		OnMouseEnter: vi.fn(),
+		OnMouseLeave: vi.fn(() => {
+			if (!valid) throw new Error("released pin has no map");
+		}),
+	};
+	cursor.show(surface, undefined, () => valid);
+	cursor.trackMouseOver(surface, target);
+	cursor.hover(target);
+	tooltip.GetOwner.mockReturnValue(target);
+	valid = false;
+	expect(target.IsMouseOver()).toBe(false);
+	expect(() => cursor.hide()).not.toThrow();
+	expect(target.OnMouseLeave).not.toHaveBeenCalled();
+	expect(tooltip.Hide).toHaveBeenCalled();
+	expect(() => cursor.show(surface)).not.toThrow();
+});
+
 function setup() {
 	const overlay = {
 		SetParent: vi.fn(),

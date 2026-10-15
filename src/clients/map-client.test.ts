@@ -1,9 +1,37 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import type { Frame } from "../ui/components/frame";
+import { NativeLayout } from "../ui/components/native-layout";
+import { NavigationGrid } from "../ui/navigation/navigation-grid";
 import { MapClient } from "./map-client";
 
 afterEach(() => vi.unstubAllGlobals());
+it("handles Y parent-map navigation while providers query an unanchored viewport and ignores clicks until layout resumes", () => {
+	vi.stubGlobal("unpack", (values: number[]) => values);
+	const { client, cursor, frame } = setup();
+	Object.assign(frame.ScrollContainer, {
+		ShouldNavigateOnClick: () => true,
+		ShouldNavigateIgnoreZoneMapPositionData: () => false,
+		ShouldZoomInOnClick: () => false,
+	});
+	Object.assign(frame, {
+		NavigateToParentMap: vi.fn(() => {
+			cursor.position.mockReturnValue(undefined);
+			expect(frame.GetNormalizedCursorPosition()).toEqual([-1, -1]);
+		}),
+	});
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	expect(() => client.clickMap("RightButton")).not.toThrow();
+	expect(() => client.clickMap("LeftButton")).not.toThrow();
+	expect(C_Map.SetUserWaypoint).not.toHaveBeenCalled();
+	cursor.position.mockReturnValue([420, 300]);
+	expect(frame.GetNormalizedCursorPosition()).toEqual([0.25, 0.75]);
+});
 function setup() {
 	const events = createTestEventBus();
 	const hooks = new Map<string, (...args: number[]) => void>();
@@ -51,6 +79,13 @@ function setup() {
 			for (const provider of providers) callback(provider);
 		},
 	);
+	const button = () => ({
+		IsShown: vi.fn(() => true),
+		IsEnabled: vi.fn(() => true),
+		Click: vi.fn(),
+		GetTop: () => 100,
+		GetLeft: () => 0,
+	});
 	const quests = {
 		ContentsAnchor: {},
 		QuestsFrame: {
@@ -62,6 +97,10 @@ function setup() {
 			},
 		},
 		DetailsFrame: {
+			BackFrame: { BackButton: button() },
+			AbandonButton: button(),
+			ShareButton: button(),
+			TrackButton: button(),
 			Bg: {},
 			SealMaterialBG: {},
 			ScrollFrame: { ScrollBar: {}, Contents: {} },
@@ -90,6 +129,11 @@ function setup() {
 		})),
 	});
 	vi.stubGlobal("QuestMapFrame", quests);
+	const rewards = {
+		IsShown: () => true,
+		RewardButtons: [] as ReturnType<typeof button>[],
+	};
+	vi.stubGlobal("MapQuestInfoRewardsFrame", rewards);
 	vi.stubGlobal("HideUIPanel", vi.fn());
 	vi.stubGlobal("GetQuestUiMapID", () => 101);
 	vi.stubGlobal("QuestMapFrame_ShowQuestDetails", vi.fn());
@@ -106,11 +150,12 @@ function setup() {
 		bind: vi.fn(),
 		release: vi.fn(),
 		scroll: vi.fn(),
-		navigation: vi.fn((_frame, _scroll, navId, onInteract) => ({
+		scrollToEnd: vi.fn(),
+		navigation: vi.fn((_frame, _scroll, navId, onInteract, hover) => ({
 			navId,
 			onInteract,
-			onFocus: vi.fn(),
-			onBlur: vi.fn(),
+			onFocus: vi.fn(() => hover?.enter()),
+			onBlur: vi.fn(() => hover?.leave()),
 		})),
 	};
 	const cursor = {
@@ -141,6 +186,7 @@ function setup() {
 		scripts,
 		frame,
 		quests,
+		rewards,
 		layout,
 		cursor,
 		indicator,
@@ -155,6 +201,97 @@ function setup() {
 		),
 	};
 }
+it("navigates native detail actions and reward icons, excluding unavailable controls and clearing reward hover", () => {
+	const { client, hooks, quests, rewards, layout } = setup();
+	const enter = vi.fn(),
+		leave = vi.fn();
+	const icon = { GetWidth: () => 32, GetHeight: () => 32 };
+	const reward = {
+		IsShown: vi.fn(() => true),
+		IsEnabled: () => true,
+		Click: vi.fn(),
+		GetTop: () => 80,
+		GetLeft: () => 0,
+		Icon: icon,
+		GetScript: (script: string) => (script === "OnEnter" ? enter : leave),
+	};
+	rewards.RewardButtons.push(reward);
+	rewards.RewardButtons.push({
+		...reward,
+		IsShown: vi.fn(() => true),
+		GetLeft: () => 150,
+	});
+	quests.DetailsFrame.ShareButton.GetLeft = () => 105;
+	quests.DetailsFrame.TrackButton.GetLeft = () => 210;
+	const scrollToEnd = vi.fn();
+	Object.assign(quests.DetailsFrame.ScrollFrame.ScrollBar, {
+		ScrollToEnd: scrollToEnd,
+	});
+	const nativeLayout = new NativeLayout({ nextFrame: () => vi.fn() });
+	layout.scrollToEnd.mockImplementation((control) =>
+		nativeLayout.scrollToEnd(control),
+	);
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	expect(client.detailsNavigation()).toEqual([]);
+	hooks.get("QuestMapFrame_ShowQuestDetails")?.(7);
+	const grid = client.detailsNavigation();
+	expect(grid.map((row) => row.map(({ node }) => node.navId))).toEqual([
+		["map-details-back"],
+		["map-reward-1", "map-reward-2"],
+		["map-details-abandon", "map-details-share", "map-details-track"],
+	]);
+	const graph = new NavigationGrid(
+		grid.map((row) => row.map(({ node }) => node)),
+	);
+	expect(graph.neighbor("map-details-back", "down")?.navId).toBe(
+		"map-reward-1",
+	);
+	expect(graph.neighbor("map-reward-1", "right")?.navId).toBe("map-reward-2");
+	expect(graph.neighbor("map-details-share", "right")?.navId).toBe(
+		"map-details-track",
+	);
+	const nodes = grid.flat();
+	nodes.find(({ action }) => action === "share")?.node.onInteract();
+	expect(quests.DetailsFrame.ShareButton.Click).toHaveBeenCalledWith(
+		"LeftButton",
+	);
+	quests.DetailsFrame.ShareButton.IsEnabled.mockReturnValue(false);
+	nodes.find(({ action }) => action === "share")?.node.onInteract();
+	expect(quests.DetailsFrame.ShareButton.Click).toHaveBeenCalledOnce();
+	expect(
+		client
+			.detailsNavigation()
+			.flat()
+			.map(({ action }) => action),
+	).not.toContain("share");
+	const item = nodes.find(({ node }) => node.navId === "map-reward-1")?.node;
+	item?.onFocus();
+	expect(scrollToEnd).toHaveBeenCalledOnce();
+	expect(enter).toHaveBeenCalledWith(reward);
+	expect(layout.scrollToEnd).toHaveBeenCalledWith(
+		quests.DetailsFrame.ScrollFrame.ScrollBar,
+	);
+	expect(layout.navigation).toHaveBeenCalledWith(
+		reward,
+		undefined,
+		"map-reward-1",
+		expect.any(Function),
+		expect.objectContaining({ anchor: icon }),
+	);
+	item?.onBlur();
+	expect(leave).toHaveBeenCalledWith(reward);
+	reward.IsShown.mockReturnValue(false);
+	expect(
+		client
+			.detailsNavigation()
+			.flat()
+			.map(({ node }) => node.navId),
+	).not.toContain("map-reward-1");
+});
 it("fits dark quest details artwork, hides the parchment overlay and makes description text readable", () => {
 	const { client, hooks, quests, appearance, layout } = setup();
 	client.disable();
@@ -281,6 +418,7 @@ it("shows and moves the map cursor only while mounted and releases it on close",
 	expect(cursor.show).toHaveBeenCalledWith(
 		frame.ScrollContainer,
 		expect.any(Function),
+		expect.any(Function),
 	);
 	client.moveCursor("up", true);
 	expect(cursor.move).toHaveBeenCalledWith("up", true);
@@ -292,6 +430,24 @@ it("shows and moves the map cursor only while mounted and releases it on close",
 	expect(cursor.move).toHaveBeenCalledOnce();
 	client.unmount();
 	expect(cursor.release).toHaveBeenCalledOnce();
+});
+
+it("invalidates released map pins before cursor leave callbacks after changing zones", () => {
+	const { client, cursor, frame } = setup();
+	client.disable();
+	client.mount(
+		{ getSize: () => ({ width: 1200, height: 720 }) } as Frame,
+		{} as Frame,
+	);
+	client.setCursorActive(true);
+	const valid = cursor.show.mock.lastCall?.at(2) as
+		| ((pin: { GetMap(): unknown }) => boolean)
+		| undefined;
+	expect(valid).toBeTypeOf("function");
+	const pin = { GetMap: vi.fn(() => frame as typeof frame | undefined) };
+	expect(valid?.(pin)).toBe(true);
+	pin.GetMap.mockReturnValue(undefined);
+	expect(valid?.(pin)).toBe(false);
 });
 
 it("hovers icons with motion enabled even when mouse clicks are disabled", () => {

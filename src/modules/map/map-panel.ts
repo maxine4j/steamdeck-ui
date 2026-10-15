@@ -1,6 +1,7 @@
 import {
 	type IMapClient,
 	MAP_QUEST_PANE_WIDTH,
+	type MapDetailsNavigation,
 	type MapQuest,
 	type MapQuestNavigation,
 } from "../../clients/map-client";
@@ -26,6 +27,8 @@ export class MapPanel implements IPanel {
 	private rows: MapQuestNavigation[] = [];
 	private quests: MapQuest[] = [];
 	private details?: number;
+	private detailsFocus?: string;
+	private detailsRows: MapDetailsNavigation[][] = [];
 	private mounted = false;
 	private active = false;
 	private parent?: Frame;
@@ -39,16 +42,6 @@ export class MapPanel implements IPanel {
 		onInteract: () => {},
 		onAlternate: () => this.client.clickMap("LeftButton"),
 		onContext: () => this.client.clickMap("RightButton"),
-	};
-	private readonly detailsNode: INavigable = {
-		navId: "map-details",
-		onFocus: () => {},
-		onBlur: () => {},
-		onInteract: () => {},
-		onMove: (direction, pressed) => {
-			if (pressed && (direction === "up" || direction === "down"))
-				this.client.scrollDetails(direction === "down" ? 1 : -1);
-		},
 	};
 	constructor(
 		pool: IFramePoolManager,
@@ -124,6 +117,8 @@ export class MapPanel implements IPanel {
 		this.modal.close();
 		this.client.unmount();
 		this.details = undefined;
+		this.detailsRows = [];
+		this.detailsFocus = undefined;
 		this.rows = [];
 		this.parent?.onSizeChanged();
 		this.parent = undefined;
@@ -149,20 +144,23 @@ export class MapPanel implements IPanel {
 	private render(): void {
 		this.updateOutline();
 		if (this.details !== undefined) {
+			this.detailsRows = this.client.detailsNavigation();
 			this.pane.setLabel(
 				"hint",
 				this.section === "map"
 					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-					: `Quests · ${controllerIcon("D-pad")} Scroll  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+					: `Quests · ${controllerIcon("A")} Select  ${controllerIcon("X")}/${controllerIcon("Y")} Scroll  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 				"BOTTOMLEFT",
 				12,
 				14,
 				13,
 				MAP_QUEST_PANE_WIDTH - 24,
 			);
-			this.navigationChanged?.(
-				this.section === "map" ? "map-cursor" : "map-details",
-			);
+			const nodes = this.detailsRows.flat().map(({ node }) => node);
+			const focus = nodes.some((node) => node.navId === this.detailsFocus)
+				? this.detailsFocus
+				: nodes.at(0)?.navId;
+			this.navigationChanged?.(this.section === "map" ? "map-cursor" : focus);
 			return;
 		}
 		this.rows = this.client.navigation();
@@ -210,6 +208,7 @@ export class MapPanel implements IPanel {
 			this.rememberQuestFocus(`map-quest-${id}`);
 			this.section = "quests";
 		}
+		if (this.details !== id) this.detailsFocus = undefined;
 		this.details = id;
 		this.render();
 	}
@@ -224,7 +223,30 @@ export class MapPanel implements IPanel {
 	}
 	getNavGrid(): NavGrid {
 		if (this.section === "map") return [[this.cursorNode]];
-		if (this.details !== undefined) return [[this.detailsNode]];
+		if (this.details !== undefined)
+			return this.detailsRows.map((row) =>
+				row.map(
+					({ node, action }) =>
+						({
+							...node,
+							onFocus: (refresh) => {
+								this.detailsFocus = node.navId;
+								node.onFocus(refresh);
+							},
+							onInteract:
+								action === "back"
+									? () => this.onBack()
+									: action === "abandon"
+										? () => {
+												if (this.details !== undefined)
+													this.confirmAbandon(this.details);
+											}
+										: () => node.onInteract(),
+							onAlternate: () => this.client.scrollDetails(1),
+							onContext: () => this.client.scrollDetails(-1),
+						}) satisfies INavigable,
+				),
+			);
 		return this.rows.map(({ node, questID }) => [
 			{
 				...node,
@@ -234,8 +256,8 @@ export class MapPanel implements IPanel {
 				},
 				onInteract: () => {
 					if (questID !== undefined) {
-						this.showDetails(questID);
 						this.client.showDetails(questID);
+						this.showDetails(questID);
 					} else {
 						node.onInteract();
 						// Header changes rebuild native pools asynchronously. The module's
@@ -257,8 +279,8 @@ export class MapPanel implements IPanel {
 				id: "details",
 				label: "View details",
 				select: () => {
-					this.showDetails(id);
 					this.client.showDetails(id);
+					this.showDetails(id);
 				},
 			},
 			{
@@ -293,23 +315,27 @@ export class MapPanel implements IPanel {
 			options.push({
 				id: "abandon",
 				label: "Abandon quest…",
-				select: () =>
-					this.modal.open(
-						"Abandon quest?",
-						[
-							{
-								id: "confirm",
-								label: "Abandon quest",
-								select: () => this.client.abandon(id),
-							},
-							{ id: "cancel", label: "Keep quest", select: () => {} },
-						],
-						{
-							text: `${quest.title}\n\nQuest progress will be lost and associated quest items will be removed.`,
-						},
-					),
+				select: () => this.confirmAbandon(id),
 			});
 		this.modal.open(quest.title, options);
+	}
+	private confirmAbandon(id: number): void {
+		const quest = this.client.read().find((quest) => quest.id === id);
+		if (!quest?.canAbandon) return;
+		this.modal.open(
+			"Abandon quest?",
+			[
+				{
+					id: "confirm",
+					label: "Abandon quest",
+					select: () => this.client.abandon(id),
+				},
+				{ id: "cancel", label: "Keep quest", select: () => {} },
+			],
+			{
+				text: `${quest.title}\n\nQuest progress will be lost and associated quest items will be removed.`,
+			},
+		);
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;

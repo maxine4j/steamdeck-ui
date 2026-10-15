@@ -1,5 +1,12 @@
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "../../clients/performance-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IToysClient, Toy } from "../../clients/toys-client";
+import { toysConfig } from "../../clients/toys-config";
+import { CollectionView } from "../../ui/collection-view";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import { SearchFilters } from "../../ui/components/search-filters";
@@ -17,6 +24,7 @@ interface ToyCell {
 	navId?: string;
 	key?: string;
 	toy?: Toy;
+	source?: Toy;
 	top?: number;
 	column?: number;
 	visible?: boolean;
@@ -37,8 +45,14 @@ export class ToysPanel implements IPanel {
 	private readonly loadingTrack: Frame;
 	private readonly loadingProgress: Frame;
 	private readonly cells: ToyCell[] = [];
+	private readonly cellsById = new Map<string, ToyCell>();
 	private readonly headers: Frame[] = [];
-	private toys: readonly Toy[] = [];
+	private readonly view = new CollectionView<Toy>(
+		(row) => String(row.id),
+		(row) => row.displayed !== false,
+	);
+	private renderPending = false;
+	private renderMeasurement?: WorkMeasurement;
 	private displayed: readonly Toy[] = [];
 	private displayedCells: readonly ToyCell[] = [];
 	private mounted = false;
@@ -69,6 +83,7 @@ export class ToysPanel implements IPanel {
 		private readonly menu: IToyActionMenu,
 		private readonly scheduler: ITaskScheduler,
 		private readonly close: () => void,
+		private readonly performance: IPerformanceClient = quietPerformance,
 	) {
 		this.frame = new Frame("toys-root", pool);
 		this.controls = new SearchFilters(
@@ -121,6 +136,8 @@ export class ToysPanel implements IPanel {
 		this.refreshCooldowns();
 	}
 	refresh(): void {
+		this.renderMeasurement?.finish("cancelled refresh");
+		this.renderMeasurement = undefined;
 		this.snapshotComplete = false;
 		this.viewComplete = false;
 		this.dirty = true;
@@ -129,6 +146,7 @@ export class ToysPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.renderPending = false;
 		this.menu.close();
 		// Retain logical navigation while waiting for a replacement snapshot.
 		// Existing action callbacks are invalidated by the load generation.
@@ -166,14 +184,47 @@ export class ToysPanel implements IPanel {
 				this.snapshotComplete = complete;
 				this.dirty = true;
 				this.viewComplete = false;
-				this.toys = toys;
-				if (!this.client.isInCombat()) this.render(generation, complete);
+				this.view.replace(toys);
+				if (
+					this.cancelRender &&
+					this.cells.some(
+						(cell) =>
+							cell.visible &&
+							cell.toy &&
+							cell.source !== this.view.get(String(cell.toy.id)),
+					)
+				)
+					this.navigationChanged?.();
+				if (!this.client.isInCombat()) this.requestRender(generation);
 			},
 			(completed, total) => {
 				if (!this.mounted || generation !== this.generation) return;
 				// Scanning and rendering each occupy half the bar. These are work
 				// fractions, not an estimate of elapsed time.
 				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
+			},
+			(changes, complete) => {
+				if (!this.mounted || generation !== this.generation) return;
+				const changed = this.view.update(changes);
+				if (
+					changed &&
+					changes.some((row) => {
+						const source = this.view.get(String(row.id));
+						const ordinary = this.cellsById.get(`toy-${row.id}`);
+						const favourite = this.cellsById.get(`toy-favourite-${row.id}`);
+						return (
+							(ordinary?.visible && ordinary.source !== source) ||
+							(favourite?.visible && favourite.source !== source)
+						);
+					})
+				)
+					this.navigationChanged?.();
+				const finished = complete !== this.snapshotComplete;
+				this.snapshotComplete = complete;
+				if (!changed && !finished) return;
+				this.dirty = true;
+				this.viewComplete = false;
+				if (!this.client.isInCombat()) this.requestRender(generation);
 			},
 		);
 	}
@@ -189,9 +240,24 @@ export class ToysPanel implements IPanel {
 			this.loadingProgress.show();
 		}
 	}
+	private requestRender(generation: number): void {
+		if (this.cancelRender) {
+			this.renderPending = true;
+			return;
+		}
+		this.render(generation, this.snapshotComplete);
+	}
 	private render(generation: number, complete = true): void {
+		const measurement = new WorkMeasurement(
+			this.performance,
+			"toys render",
+			"cache-update",
+		);
+		this.renderMeasurement = measurement;
+		const prepareStart = this.performance.now();
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.renderPending = false;
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
@@ -201,9 +267,8 @@ export class ToysPanel implements IPanel {
 		const displayedCells: ToyCell[] = [];
 		const jobs: (() => void)[] = [];
 		let renderedToys = 0;
-		const groups = groupToys(this.toys);
-		const cellsById = new Map<string, ToyCell>();
-		for (const cell of this.cells) if (cell.key) cellsById.set(cell.key, cell);
+		const groups = groupToys(this.view.values());
+		const cellsById = this.cellsById;
 		const wanted = new Set(
 			groups.flatMap((group) =>
 				group.toys.map((toy) =>
@@ -242,6 +307,7 @@ export class ToysPanel implements IPanel {
 			for (let i = 0; i < Math.ceil(group.toys.length / columns); i++)
 				grid.push([]);
 			group.toys.forEach((toy, index) => {
+				const source = this.view.get(String(toy.id));
 				const cellIndex = displayed.length;
 				const navId =
 					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`;
@@ -263,6 +329,7 @@ export class ToysPanel implements IPanel {
 
 				if (
 					cell?.visible &&
+					cell.source === source &&
 					previous &&
 					cell.top === cellTop &&
 					cell.column === index % columns &&
@@ -278,6 +345,7 @@ export class ToysPanel implements IPanel {
 					return;
 				}
 				jobs.push(() => {
+					if (this.view.get(String(toy.id)) !== source) return;
 					if (!cell) {
 						const frameIndex = this.cells.length;
 						cell = {
@@ -298,7 +366,9 @@ export class ToysPanel implements IPanel {
 					}
 					cell.navId = navId;
 					cell.key = cellKey;
+					cellsById.set(cellKey, cell);
 					cell.toy = toy;
+					cell.source = source;
 					cell.top = cellTop;
 					cell.column = index % columns;
 					cell.visible = true;
@@ -337,7 +407,8 @@ export class ToysPanel implements IPanel {
 						this.visibleIds.has(navId) &&
 						cell?.visible &&
 						cell.navId === navId &&
-						cell.toy === toy;
+						cell.toy === toy &&
+						this.view.get(String(toy.id)) === source;
 					control.setHoverTooltip(() =>
 						current() ? { toy: toy.id } : undefined,
 					);
@@ -399,17 +470,22 @@ export class ToysPanel implements IPanel {
 			jobs.push(() => header?.hide());
 		}
 		let cursor = 0;
+		measurement.add("prepare", this.performance.now() - prepareStart);
 		const step = () => {
 			if (
 				!this.mounted ||
 				generation !== this.generation ||
 				renderGeneration !== this.renderGeneration ||
 				this.client.isInCombat()
-			)
+			) {
+				measurement.finish("paused combat-or-hidden");
+				this.renderMeasurement = undefined;
 				return;
+			}
 			this.cancelRender = undefined;
+			const pageStart = this.performance.now();
 			const previousCount = renderedToys;
-			const end = Math.min(jobs.length, cursor + 10);
+			const end = Math.min(jobs.length, cursor + toysConfig.renderPageSize);
 			while (cursor < end) jobs.at(cursor++)?.();
 			if (complete)
 				this.setLoadingProgress(
@@ -417,7 +493,7 @@ export class ToysPanel implements IPanel {
 				);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
-			else if (complete) {
+			else if (this.snapshotComplete && !this.renderPending) {
 				this.viewComplete = true;
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
@@ -438,6 +514,25 @@ export class ToysPanel implements IPanel {
 				this.displayed = readyToys;
 				this.displayedCells = readyCells;
 				this.navigationChanged?.();
+			}
+			measurement.add("frames", this.performance.now() - pageStart);
+			measurement.page(pageStart);
+			if (cursor === jobs.length) {
+				measurement.finish(
+					`complete tiles=${renderedToys} merged=${this.renderPending}`,
+				);
+				this.renderMeasurement = undefined;
+			}
+			if (cursor === jobs.length && this.renderPending) {
+				this.cancelRender = this.scheduler.nextFrame(() => {
+					this.cancelRender = undefined;
+					if (
+						this.mounted &&
+						generation === this.generation &&
+						!this.client.isInCombat()
+					)
+						this.render(generation, this.snapshotComplete);
+				});
 			}
 		};
 		step();
@@ -464,7 +559,7 @@ export class ToysPanel implements IPanel {
 				this.client.isInCombat()
 			)
 				return;
-			const end = Math.min(toys.length, cursor + 20);
+			const end = Math.min(toys.length, cursor + toysConfig.cooldownPageSize);
 			while (cursor < end) {
 				const index = cursor++;
 				const toy = toys.at(index);
@@ -507,6 +602,8 @@ export class ToysPanel implements IPanel {
 		this.close();
 	}
 	onUnmount(): void {
+		this.renderMeasurement?.finish("cancelled close");
+		this.renderMeasurement = undefined;
 		this.mounted = false;
 		this.controls.hide();
 		this.cancelLoad?.();

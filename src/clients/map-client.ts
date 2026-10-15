@@ -15,6 +15,7 @@ import type {
 	NativeNavigation,
 	NativeNavigationFrame,
 	NativeNavigationScroll,
+	NativeTooltipAnchor,
 } from "../ui/components/native-navigation";
 import type { NativeVisibleRegion } from "../ui/components/native-visibility";
 import type {
@@ -31,6 +32,10 @@ const MAP_INSET = 8;
 
 export interface MapQuestNavigation {
 	readonly questID?: number;
+	readonly node: INavigable;
+}
+export interface MapDetailsNavigation {
+	readonly action?: "back" | "abandon" | "share" | "track";
 	readonly node: INavigable;
 }
 
@@ -59,6 +64,7 @@ export interface IMapClient {
 	unmount(): void;
 	read(): MapQuest[];
 	navigation(): MapQuestNavigation[];
+	detailsNavigation(): MapDetailsNavigation[][];
 	moveCursor(direction: NavDirection, pressed: boolean): void;
 	setCursorActive(active: boolean): void;
 	clickMap(button: "LeftButton" | "RightButton"): void;
@@ -105,6 +111,7 @@ interface NativeQuestScroll
 	covenantCallingsHeaderFramePool: NativeQuestPool;
 }
 interface MapPin extends CursorTarget {
+	GetMap(): NativeWorldMap | undefined;
 	readonly pinTemplate?: string;
 	IsShown(): boolean;
 	IsMouseMotionEnabled(): boolean;
@@ -137,6 +144,16 @@ interface MapProvider {
 	Label?: LayoutFrame;
 	GetOffsetY?(): number;
 }
+interface NativeDetailButton extends NativeNavigationFrame {
+	IsShown(): boolean;
+	IsEnabled?(): boolean;
+	GetLeft(): number;
+	Click?(button: string): void;
+	GetScript?(
+		script: "OnEnter" | "OnLeave",
+	): ((this: void, frame: NativeDetailButton) => void) | undefined;
+	Icon?: NativeTooltipAnchor;
+}
 export interface NativeWorldMap extends LayoutFrame {
 	readonly dataProviders: unknown;
 	HandleUserActionToggleSelf(): void;
@@ -162,11 +179,18 @@ export interface NativeQuestMap extends LayoutFrame {
 	ContentsAnchor: LayoutFrame;
 	QuestsFrame: LayoutFrame & { ScrollFrame: NativeQuestScroll };
 	DetailsFrame: LayoutFrame & {
+		BackFrame: { BackButton: NativeDetailButton };
+		AbandonButton: NativeDetailButton;
+		ShareButton: NativeDetailButton;
+		TrackButton: NativeDetailButton;
 		questID?: number;
 		Bg: NativeBackground;
 		SealMaterialBG: NativeVisibleRegion;
 		ScrollFrame: {
-			ScrollBar: { ScrollStepInDirection(direction: number): void };
+			ScrollBar: {
+				ScrollStepInDirection(direction: number): void;
+				ScrollToEnd(): void;
+			};
 			Contents: NativeTextContent;
 		};
 	};
@@ -178,6 +202,15 @@ export interface NativeQuestMap extends LayoutFrame {
 	QuestSessionManagement: LayoutFrame;
 }
 declare global {
+	const MapQuestInfoRewardsFrame: {
+		IsShown(): boolean;
+		RewardButtons: NativeDetailButton[];
+		spellRewardPool?: { EnumerateActive(): LuaIterable<NativeDetailButton> };
+		followerRewardPool?: { EnumerateActive(): LuaIterable<NativeDetailButton> };
+		reputationRewardPool?: {
+			EnumerateActive(): LuaIterable<NativeDetailButton>;
+		};
+	};
 	const MAP_AND_QUEST_LOG: string;
 	const UiMapPoint: {
 		CreateFromCoordinates(
@@ -250,7 +283,10 @@ export class MapClient implements IMapClient {
 	};
 	constructor(
 		private readonly events: IEventBus,
-		private readonly layout: Pick<NativeLayout, "bind" | "release" | "scroll">,
+		private readonly layout: Pick<
+			NativeLayout,
+			"bind" | "release" | "scroll" | "scrollToEnd"
+		>,
 		private readonly controls: Pick<NativeNavigation, "navigation" | "release">,
 		private readonly cursor: Pick<
 			NativeCursor,
@@ -438,7 +474,7 @@ export class MapClient implements IMapClient {
 				});
 		});
 		if (this.cursorActive) {
-			this.cursor.show(map.ScrollContainer, this.updateHover);
+			this.cursor.show(map.ScrollContainer, this.updateHover, this.validPin);
 			this.updateHover();
 		}
 	}
@@ -522,14 +558,17 @@ export class MapClient implements IMapClient {
 					pinFocus: map.IsCanvasMouseFocusOrPinFocus,
 				};
 				// Native hover providers ask the map for coordinates and focus each frame.
-				map.GetNormalizedCursorPosition = () =>
-					map.ScrollContainer.NormalizeUIPosition(
-						...this.cursor.position(map.ScrollContainer),
-					);
+				map.GetNormalizedCursorPosition = () => {
+					const position = this.cursor.position(map.ScrollContainer);
+					// Blizzard queries providers between ClearAllPoints and the next layout.
+					// Outside-canvas coordinates suppress hover until anchors are available.
+					if (!position) return unpack([-1, -1] as [number, number]);
+					return map.ScrollContainer.NormalizeUIPosition(...position);
+				};
 				map.IsCanvasMouseFocus = () => this.hoveredPin === undefined;
 				map.IsCanvasMouseFocusOrPinFocus = () => true;
 			}
-			this.cursor.show(map.ScrollContainer, this.updateHover);
+			this.cursor.show(map.ScrollContainer, this.updateHover, this.validPin);
 			this.updateHover();
 		} else {
 			this.cursor.hide();
@@ -552,6 +591,9 @@ export class MapClient implements IMapClient {
 		this.hoveredPin = this.findPin(false);
 		this.cursor.hover(this.hoveredPin);
 	};
+	private readonly validPin: (this: void, target: CursorTarget) => boolean = (
+		target,
+	) => (target as MapPin).GetMap() === WorldMapFrame;
 	private findPin(click: boolean): MapPin | undefined {
 		const map = WorldMapFrame;
 		let target: MapPin | undefined;
@@ -640,6 +682,8 @@ export class MapClient implements IMapClient {
 			if (scroll.ShouldZoomInOnClick()) scroll.ZoomOut();
 			return;
 		}
+		const position = this.cursor.position(scroll);
+		if (!position) return;
 		this.updateHover();
 		const pin = this.findPin(true);
 		if (pin) {
@@ -648,7 +692,7 @@ export class MapClient implements IMapClient {
 			pin.OnClick?.("LeftButton");
 			return;
 		}
-		const [x, y] = scroll.NormalizeUIPosition(...this.cursor.position(scroll));
+		const [x, y] = scroll.NormalizeUIPosition(...position);
 		for (const blob of map.EnumeratePinsByTemplate("QuestBlobPinTemplate")) {
 			if (!blob.IsShown() || !blob.UpdateMouseOverTooltip) continue;
 			const [id] = blob.UpdateMouseOverTooltip(x, y);
@@ -737,6 +781,89 @@ export class MapClient implements IMapClient {
 				),
 			};
 		});
+	}
+	detailsNavigation(): MapDetailsNavigation[][] {
+		if (!this.parent || !this.details) return [];
+		const details = QuestMapFrame.DetailsFrame;
+		const available = (button: NativeDetailButton) =>
+			button.IsShown() && button.IsEnabled?.() !== false;
+		const action = (
+			button: NativeDetailButton,
+			action: NonNullable<MapDetailsNavigation["action"]>,
+		): MapDetailsNavigation => ({
+			action,
+			node: {
+				...this.controls.navigation(
+					button,
+					undefined,
+					`map-details-${action}`,
+					() => {
+						if (!this.parent || !this.details || !available(button)) return;
+						button.Click?.("LeftButton");
+						this.events.emit("QUEST_LOG_UPDATE");
+					},
+				),
+				navColumn: button.GetLeft(),
+			},
+		});
+		const grid: MapDetailsNavigation[][] = [];
+		if (available(details.BackFrame.BackButton))
+			grid.push([action(details.BackFrame.BackButton, "back")]);
+		const rewards = MapQuestInfoRewardsFrame;
+		if (rewards.IsShown()) {
+			const buttons = [...rewards.RewardButtons];
+			for (const pool of [
+				rewards.spellRewardPool,
+				rewards.followerRewardPool,
+				rewards.reputationRewardPool,
+			])
+				if (pool)
+					for (const button of pool.EnumerateActive()) buttons.push(button);
+			const targets = buttons
+				.map((button, index) => ({
+					button,
+					index,
+					x: button.GetLeft(),
+					y: button.GetTop(),
+				}))
+				.filter(
+					({ button, x, y }) =>
+						available(button) && typeof x === "number" && typeof y === "number",
+				);
+			targets.sort((a, b) => b.y - a.y || a.x - b.x);
+			let rowY: number | undefined;
+			for (const { button, index, x, y } of targets) {
+				if (rowY === undefined || Math.abs(rowY - y) > 4) {
+					grid.push([]);
+					rowY = y;
+				}
+				const node = this.controls.navigation(
+					button,
+					undefined,
+					`map-reward-${index + 1}`,
+					() => {},
+					{
+						enter: () => {
+							if (!this.parent || !this.details || !available(button)) return;
+							this.layout.scrollToEnd(details.ScrollFrame.ScrollBar);
+							button.GetScript?.("OnEnter")?.(button);
+						},
+						leave: () => button.GetScript?.("OnLeave")?.(button),
+						anchor: button.Icon,
+					},
+				);
+				grid.at(-1)?.push({ node: { ...node, navColumn: x } });
+			}
+		}
+		const actions: MapDetailsNavigation[] = [];
+		for (const [button, name] of [
+			[details.AbandonButton, "abandon"],
+			[details.ShareButton, "share"],
+			[details.TrackButton, "track"],
+		] as const)
+			if (available(button)) actions.push(action(button, name));
+		if (actions.length > 0) grid.push(actions);
+		return grid;
 	}
 	read(): MapQuest[] {
 		const [count] = C_QuestLog.GetNumQuestLogEntries();

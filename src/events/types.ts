@@ -29,7 +29,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	MAP_NAVIGATION_CHANGED: undefined;
 	ACHIEVEMENTS_SELECTED: { id: number };
 	ACHIEVEMENTS_CACHE_UPDATED: undefined;
-	MOUNTS_CHANGED: { id: number } | undefined;
+	MOUNTS_CHANGED: { id?: number; source?: string } | undefined;
 	TOYS_CHANGED: { id: number } | undefined;
 	PETS_CHANGED: { id: string; removed?: boolean } | undefined;
 	ACHIEVEMENTS_CHANGED: { id: number } | undefined;

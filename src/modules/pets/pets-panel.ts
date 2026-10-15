@@ -1,5 +1,12 @@
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "../../clients/performance-client";
 import type { IPetsClient, Pet } from "../../clients/pets-client";
+import { petsConfig } from "../../clients/pets-config";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
+import { CollectionView } from "../../ui/collection-view";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import { SearchFilters } from "../../ui/components/search-filters";
@@ -21,6 +28,7 @@ interface PetCell {
 	navId?: string;
 	key?: string;
 	pet?: Pet;
+	source?: Pet;
 	top?: number;
 	column?: number;
 	visible?: boolean;
@@ -44,7 +52,12 @@ export class PetsPanel implements IPanel {
 	private readonly loadingProgress: Frame;
 	private readonly cells: PetCell[] = [];
 	private readonly headers: Frame[] = [];
-	private pets: readonly Pet[] = [];
+	private readonly view = new CollectionView<Pet>(
+		(row) => row.id,
+		(row) => row.present !== false && row.displayed !== false,
+	);
+	private renderPending = false;
+	private renderMeasurement?: WorkMeasurement;
 	private mounted = false;
 	private parent?: Frame;
 	private mountPending = false;
@@ -71,6 +84,7 @@ export class PetsPanel implements IPanel {
 		private readonly menu: IPetActionMenu,
 		private readonly scheduler: ITaskScheduler,
 		private readonly close: () => void,
+		private readonly performance: IPerformanceClient = quietPerformance,
 	) {
 		this.summonButton = new Frame("pets-summon-favourite", pool, "Button");
 		this.summonNode = this.summonButton.navigationNode(
@@ -144,6 +158,8 @@ export class PetsPanel implements IPanel {
 		this.refresh();
 	}
 	refresh(): void {
+		this.renderMeasurement?.finish("cancelled refresh");
+		this.renderMeasurement = undefined;
 		this.snapshotComplete = false;
 		this.viewComplete = false;
 		this.dirty = true;
@@ -152,6 +168,7 @@ export class PetsPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.renderPending = false;
 		this.menu.close();
 		// Retain logical navigation while waiting for a replacement snapshot.
 		// Existing action callbacks are invalidated by the load generation.
@@ -189,14 +206,24 @@ export class PetsPanel implements IPanel {
 				this.snapshotComplete = complete;
 				this.dirty = true;
 				this.viewComplete = false;
-				this.pets = pets;
-				if (!this.client.isInCombat()) this.render(generation, complete);
+				this.view.replace(pets);
+				if (!this.client.isInCombat()) this.requestRender(generation);
 			},
 			(completed, total) => {
 				if (!this.mounted || generation !== this.generation) return;
 				// Scanning and rendering each occupy half the bar. These are work
 				// fractions, not an estimate of elapsed time.
 				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
+			},
+			(changes, complete) => {
+				if (!this.mounted || generation !== this.generation) return;
+				const changed = this.view.update(changes);
+				const finished = complete !== this.snapshotComplete;
+				this.snapshotComplete = complete;
+				if (!changed && !finished) return;
+				this.dirty = true;
+				this.viewComplete = false;
+				if (!this.client.isInCombat()) this.requestRender(generation);
 			},
 		);
 	}
@@ -212,9 +239,24 @@ export class PetsPanel implements IPanel {
 			this.loadingProgress.show();
 		}
 	}
+	private requestRender(generation: number): void {
+		if (this.cancelRender) {
+			this.renderPending = true;
+			return;
+		}
+		this.render(generation, this.snapshotComplete);
+	}
 	private render(generation: number, complete = true): void {
+		const measurement = new WorkMeasurement(
+			this.performance,
+			"pets render",
+			"cache-update",
+		);
+		this.renderMeasurement = measurement;
+		const prepareStart = this.performance.now();
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.renderPending = false;
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
@@ -222,7 +264,7 @@ export class PetsPanel implements IPanel {
 		);
 		const jobs: (() => void)[] = [];
 		let renderedPets = 0;
-		const groups = groupPets(this.pets);
+		const groups = groupPets(this.view.values());
 		const cellsById = new Map<string, PetCell>();
 		for (const cell of this.cells) if (cell.key) cellsById.set(cell.key, cell);
 		const wanted = new Set(
@@ -263,6 +305,7 @@ export class PetsPanel implements IPanel {
 			for (let i = 0; i < Math.ceil(group.pets.length / columns); i++)
 				grid.push([]);
 			group.pets.forEach((pet, index) => {
+				const source = this.view.get(pet.id);
 				const navId =
 					group.id === -1 ? `pet-favourite-${pet.id}` : `pet-${pet.id}`;
 				const cellKey = `${group.id === -1 ? "favourite" : "species"}-${pet.speciesId}`;
@@ -281,6 +324,7 @@ export class PetsPanel implements IPanel {
 
 				if (
 					cell?.visible &&
+					cell.source === source &&
 					previous &&
 					cell.top === cellTop &&
 					cell.column === index % columns &&
@@ -299,6 +343,7 @@ export class PetsPanel implements IPanel {
 					return;
 				}
 				jobs.push(() => {
+					if (this.view.get(pet.id) !== source) return;
 					if (!cell) {
 						const frameIndex = this.cells.length;
 						cell = {
@@ -311,6 +356,7 @@ export class PetsPanel implements IPanel {
 					cell.navId = navId;
 					cell.key = cellKey;
 					cell.pet = pet;
+					cell.source = source;
 					cell.top = cellTop;
 					cell.column = index % columns;
 					cell.visible = true;
@@ -353,7 +399,8 @@ export class PetsPanel implements IPanel {
 						this.visibleIds.has(navId) &&
 						cell?.visible &&
 						cell.navId === navId &&
-						cell.pet === pet;
+						cell.pet === pet &&
+						this.view.get(pet.id) === source;
 					control.onClick(() => {
 						if (current() && pet.collected) this.client.summon(pet.id);
 					});
@@ -412,17 +459,22 @@ export class PetsPanel implements IPanel {
 			jobs.push(() => header?.hide());
 		}
 		let cursor = 0;
+		measurement.add("prepare", this.performance.now() - prepareStart);
 		const step = () => {
 			if (
 				!this.mounted ||
 				generation !== this.generation ||
 				renderGeneration !== this.renderGeneration ||
 				this.client.isInCombat()
-			)
+			) {
+				measurement.finish("paused combat-or-hidden");
+				this.renderMeasurement = undefined;
 				return;
+			}
 			this.cancelRender = undefined;
+			const pageStart = this.performance.now();
 			const previousCount = renderedPets;
-			const end = Math.min(jobs.length, cursor + 10);
+			const end = Math.min(jobs.length, cursor + petsConfig.renderPageSize);
 			while (cursor < end) jobs.at(cursor++)?.();
 			if (complete)
 				this.setLoadingProgress(
@@ -430,7 +482,7 @@ export class PetsPanel implements IPanel {
 				);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
-			else if (complete) {
+			else if (this.snapshotComplete && !this.renderPending) {
 				this.viewComplete = true;
 				this.dirty = false;
 				this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
@@ -440,6 +492,25 @@ export class PetsPanel implements IPanel {
 				// Retain ready controls while batches add or update their identities.
 				this.grid = grid.filter((row) => row.length > 0);
 				this.navigationChanged?.();
+			}
+			measurement.add("frames", this.performance.now() - pageStart);
+			measurement.page(pageStart);
+			if (cursor === jobs.length) {
+				measurement.finish(
+					`complete tiles=${renderedPets} merged=${this.renderPending}`,
+				);
+				this.renderMeasurement = undefined;
+			}
+			if (cursor === jobs.length && this.renderPending) {
+				this.cancelRender = this.scheduler.nextFrame(() => {
+					this.cancelRender = undefined;
+					if (
+						this.mounted &&
+						generation === this.generation &&
+						!this.client.isInCombat()
+					)
+						this.render(generation, this.snapshotComplete);
+				});
 			}
 		};
 		step();
@@ -468,6 +539,8 @@ export class PetsPanel implements IPanel {
 		this.close();
 	}
 	onUnmount(): void {
+		this.renderMeasurement?.finish("cancelled close");
+		this.renderMeasurement = undefined;
 		this.mounted = false;
 		this.controls.hide();
 		this.cancelLoad?.();

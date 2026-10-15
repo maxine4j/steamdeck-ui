@@ -962,7 +962,7 @@ it("pads button contents and centers single-line labels without crowding icons",
 	);
 });
 
-it("insets tile progress tracks and sizes the fill within the padded width", () => {
+it("insets textured progress below the text and tints a neutral fill", () => {
 	const list = new ScrollList(
 		"padded",
 		{} as IFramePoolManager,
@@ -970,7 +970,8 @@ it("insets tile progress tracks and sizes the fill within the padded width", () 
 		vi.fn(),
 		{
 			edgeProgress: true,
-			progressInset: { horizontal: 10, bottom: 7 },
+			contentPadding: { horizontal: 16, vertical: 12 },
+			progressInset: { horizontal: 16, bottom: 12 },
 			progressTextures: {
 				fill: "ui-journeys-progressbar-fill",
 				track: "ui-journeys-progressbar-BG",
@@ -981,6 +982,8 @@ it("insets tile progress tracks and sizes the fill within the padded width", () 
 		{
 			id: "rep",
 			label: "Rep",
+			detail: "Friendly",
+			height: 72,
 			indent: 12,
 			progress: { value: 0.5, color: [0, 1, 0] },
 			activate: vi.fn(),
@@ -992,17 +995,40 @@ it("insets tile progress tracks and sizes the fill within the padded width", () 
 	).toHaveBeenLastCalledWith("ui-journeys-progressbar-BG");
 	expect(
 		frames.get("padded-progress-0")?.setAtlasBackground,
-	).toHaveBeenLastCalledWith("ui-journeys-progressbar-fill", [0, 1, 0]);
+	).toHaveBeenLastCalledWith(
+		"ui-journeys-progressbar-fill",
+		[0, 1, 0],
+		undefined,
+		true,
+	);
+	expect(frames.get("padded-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Rep",
+		"TOPLEFT",
+		16,
+		-12,
+		14,
+		412,
+	);
+	expect(frames.get("padded-row-0")?.setLabel).toHaveBeenCalledWith(
+		"detail",
+		"Friendly",
+		"BOTTOMLEFT",
+		16,
+		24,
+		12,
+		412,
+	);
 	expect(frames.get("padded-track-0")?.layout).toHaveBeenLastCalledWith(
-		424,
+		412,
 		6,
 		"BOTTOMLEFT",
 		expect.anything(),
-		10,
-		7,
+		16,
+		12,
 	);
 	expect(frames.get("padded-progress-0")?.layout).toHaveBeenLastCalledWith(
-		212,
+		206,
 		6,
 		"BOTTOMLEFT",
 		expect.anything(),

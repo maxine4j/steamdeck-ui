@@ -2,11 +2,17 @@ import type { ICollectionCache } from "./collection-cache";
 import {
 	CollectionJournal,
 	type CollectionPageReader,
+	type CollectionUpdate,
 	type ICollectionJournal,
 } from "./collection-journal";
 import type { CollectionFilter, ICollectionQuery } from "./collection-query";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+} from "./performance-client";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
+import { toysConfig } from "./toys-config";
 
 // Legacy toy APIs are absent from the generated Retail declarations.
 declare global {
@@ -44,6 +50,7 @@ export interface IToysClient
 	load(
 		callback: (toys: Toy[], complete: boolean) => void,
 		onProgress?: (completed: number, total: number) => void,
+		changed?: CollectionUpdate<Toy>,
 	): () => void;
 	toggleFavourite(id: number): void;
 	canUse(id: number): boolean;
@@ -72,7 +79,11 @@ export class ToysClient implements IToysClient {
 	private readonly requestedItems = new Set<number>();
 	private readonly items: SavedVariableCache<Toy>;
 	private readonly journal: CollectionJournal<Toy>;
-	constructor(scheduler: ITaskScheduler, cache: ICollectionCache) {
+	constructor(
+		scheduler: ITaskScheduler,
+		cache: ICollectionCache,
+		performance: IPerformanceClient = quietPerformance,
+	) {
 		this.items = cache.create<Toy>("toys.items");
 		this.journal = new CollectionJournal(
 			scheduler,
@@ -84,6 +95,7 @@ export class ToysClient implements IToysClient {
 				const toy = this.readToy(Number(key));
 				return toy ? [toy] : [];
 			},
+			{ pageSize: toysConfig.scanPageSize, label: "toys", performance },
 		);
 	}
 	private beginScan(): CollectionPageReader<Toy> {
@@ -232,8 +244,9 @@ export class ToysClient implements IToysClient {
 	load(
 		callback: (toys: Toy[], complete: boolean) => void,
 		onProgress?: (completed: number, total: number) => void,
+		changed?: CollectionUpdate<Toy>,
 	): () => void {
-		return this.journal.load(callback, onProgress);
+		return this.journal.load(callback, onProgress, changed);
 	}
 	private readToy(id: number): Toy | undefined {
 		const previous = this.items.peek(String(id));

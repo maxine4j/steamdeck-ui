@@ -1,3 +1,8 @@
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "./performance-client";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -11,6 +16,16 @@ export interface ICollectionJournal<ID> {
 	refreshEntry(id?: ID): void;
 	stop(): void;
 }
+export type CollectionUpdate<T> = (
+	this: void,
+	rows: readonly T[],
+	complete: boolean,
+) => void;
+interface CollectionJournalOptions {
+	readonly pageSize: number;
+	readonly label: string;
+	readonly performance: IPerformanceClient;
+}
 
 /** Scheduling and observation only; clients provide every domain/API operation. */
 export class CollectionJournal<T> {
@@ -22,6 +37,10 @@ export class CollectionJournal<T> {
 	private cancelProjection?: () => void;
 	private projectionGeneration = 0;
 	private generation = 0;
+	private scanMeasurement?: WorkMeasurement;
+	private targetMeasurement?: WorkMeasurement;
+	private targetCount = 0;
+	private projectionMeasurement?: WorkMeasurement;
 	private readonly observers = new Set<(this: void) => void>();
 	private readonly subscriptions = new Set<() => void>();
 	private readonly progress = new Set<
@@ -34,17 +53,28 @@ export class CollectionJournal<T> {
 		private readonly included: (this: void, row: T) => boolean,
 		private readonly begin: (this: void) => CollectionPageReader<T>,
 		private readonly readTarget: (this: void, key: string) => readonly T[],
+		private readonly options: CollectionJournalOptions = {
+			pageSize: 20,
+			label: "collection",
+			performance: quietPerformance,
+		},
 	) {}
 	isScanning(): boolean {
 		return this.cancelScan !== undefined;
 	}
 	prefetch(): void {
-		this.start();
+		this.start("login");
 	}
 	refreshEntry(key?: string): void {
 		if (key === undefined) {
-			if (this.cancelScan) this.repeat ||= this.started;
-			else this.start();
+			if (this.cancelScan) {
+				if (this.started && !this.repeat) {
+					this.repeat = true;
+					this.options.performance.log(
+						`${this.options.label} scan repeat queued reason=server-event`,
+					);
+				}
+			} else this.start("server-event");
 		} else {
 			this.targets.add(key);
 			this.scheduleTargets();
@@ -56,32 +86,45 @@ export class CollectionJournal<T> {
 	private notify(): void {
 		for (const observer of [...this.observers]) observer();
 	}
-	private start(): void {
+	private start(reason: string): void {
 		if (this.cancelScan) return;
 		const generation = this.generation;
 		this.started = false;
+		const measurement = new WorkMeasurement(
+			this.options.performance,
+			`${this.options.label} scan`,
+			reason,
+		);
+		this.scanMeasurement = measurement;
 		let reader: CollectionPageReader<T> | undefined;
 		let index = 0;
 		const step = () => {
 			if (generation !== this.generation) return;
 			this.started = true;
-			reader ??= this.begin();
-			const end = Math.min(reader.count, index + 20);
-			const page = reader;
-			this.cache.batch(() => {
-				while (index < end) this.write(page.read(index++));
+			const started = this.options.performance.now();
+			const rows = measurement.measure("journal", () => {
+				reader ??= this.begin();
+				const end = Math.min(reader.count, index + this.options.pageSize);
+				const rows: T[] = [];
+				while (index < end) rows.push(...reader.read(index++));
+				return rows;
 			});
+			measurement.measure("publish", () => this.write(rows));
+			measurement.page(started);
+			const page = reader;
+			if (!page) return;
 			if (generation !== this.generation) return;
-			for (const observer of [...this.progress]) observer(index, reader.count);
-			if (index < reader.count)
-				this.cancelScan = this.scheduler.nextFrame(step);
+			for (const observer of [...this.progress]) observer(index, page.count);
+			if (index < page.count) this.cancelScan = this.scheduler.nextFrame(step);
 			else {
 				this.cancelScan = undefined;
 				this.started = false;
-				reader.finish?.();
+				measurement.finish(`complete entries=${index}`);
+				this.scanMeasurement = undefined;
+				page.finish?.();
 				if (this.repeat) {
 					this.repeat = false;
-					this.start();
+					this.start("server-event-repeat");
 				}
 				this.notify();
 			}
@@ -90,23 +133,54 @@ export class CollectionJournal<T> {
 	}
 	private scheduleTargets(): void {
 		if (this.cancelTargets) return;
+		this.targetMeasurement ??= new WorkMeasurement(
+			this.options.performance,
+			`${this.options.label} targets`,
+			"server-event",
+		);
+		const measurement = this.targetMeasurement;
 		const generation = this.generation;
 		this.cancelTargets = this.scheduler.nextFrame(() => {
 			if (generation !== this.generation) return;
 			this.cancelTargets = undefined;
-			let remaining = 20;
+			const started = this.options.performance.now();
+			let journalTime = 0;
 			this.cache.batch(() => {
+				let remaining = this.options.pageSize;
 				for (const key of this.targets) {
 					this.targets.delete(key);
-					this.write(this.readTarget(key));
+					this.targetCount++;
+					const readStart = this.options.performance.now();
+					const rows = this.readTarget(key);
+					journalTime += this.options.performance.now() - readStart;
+					// Subsequent sibling updates must see preceding writes in SavedVariables.
+					this.write(rows);
 					if (--remaining === 0) break;
 				}
 			});
+			measurement.add("journal", journalTime);
+			measurement.add(
+				"publish",
+				this.options.performance.now() - started - journalTime,
+			);
+			measurement.page(started);
 			if (generation === this.generation && this.targets.size > 0)
 				this.scheduleTargets();
+			else if (generation === this.generation) {
+				measurement.finish(`complete entries=${this.targetCount}`);
+				this.targetMeasurement = undefined;
+				this.targetCount = 0;
+			}
 		});
 	}
 	project(begin: () => CollectionPageReader<T>): void {
+		this.projectionMeasurement?.finish("superseded");
+		const measurement = new WorkMeasurement(
+			this.options.performance,
+			`${this.options.label} projection`,
+			"filter-or-display",
+		);
+		this.projectionMeasurement = measurement;
 		this.cancelProjection?.();
 		const revision = ++this.projectionGeneration;
 		const generation = this.generation;
@@ -118,22 +192,30 @@ export class CollectionJournal<T> {
 				revision !== this.projectionGeneration
 			)
 				return;
-			reader ??= begin();
-			const end = Math.min(reader.count, index + 20);
-			const page = reader;
-			this.cache.batch(() => {
-				while (index < end) this.write(page.read(index++));
+			const started = this.options.performance.now();
+			const rows = measurement.measure("journal", () => {
+				reader ??= begin();
+				const end = Math.min(reader.count, index + this.options.pageSize);
+				const rows: T[] = [];
+				while (index < end) rows.push(...reader.read(index++));
+				return rows;
 			});
+			measurement.measure("publish", () => this.write(rows));
+			measurement.page(started);
+			const page = reader;
+			if (!page) return;
 			if (
 				generation !== this.generation ||
 				revision !== this.projectionGeneration
 			)
 				return;
-			if (index < reader.count)
+			if (index < page.count)
 				this.cancelProjection = this.scheduler.nextFrame(step);
 			else {
 				this.cancelProjection = undefined;
-				reader.finish?.();
+				measurement.finish(`complete entries=${index}`);
+				this.projectionMeasurement = undefined;
+				page.finish?.();
 				this.notify();
 			}
 		};
@@ -142,21 +224,40 @@ export class CollectionJournal<T> {
 	load(
 		done: (rows: T[], complete: boolean) => void,
 		progress?: (completed: number, total: number) => void,
+		changed?: CollectionUpdate<T>,
 	): () => void {
+		const complete = () => !this.cancelScan && !this.cancelProjection;
 		const publish = () =>
-			done(
-				this.cache.values().filter((row) => this.included(row)),
-				!this.cancelScan && !this.cancelProjection,
-			);
-		const detach = this.cache.subscribe(publish);
+			changed
+				? changed([], complete())
+				: done(
+						this.cache.values().filter((row) => this.included(row)),
+						complete(),
+					);
+		const detach = this.cache.subscribe((changes) => {
+			if (changed)
+				changed(
+					changes.map((change) => change.value),
+					complete(),
+				);
+			else publish();
+		});
 		this.subscriptions.add(detach);
 		this.observers.add(publish);
 		const progressObserver = progress
 			? (completed: number, total: number) => progress(completed, total)
 			: undefined;
 		if (progressObserver) this.progress.add(progressObserver);
-		if (this.cache.values().length > 0) publish();
-		else this.start();
+		const cached = this.cache.values();
+		this.options.performance.log(
+			`${this.options.label} open cached=${cached.length} scanning=${this.isScanning()}`,
+		);
+		if (cached.length > 0)
+			done(
+				cached.filter((row) => this.included(row)),
+				complete(),
+			);
+		else this.start("empty-cache");
 		return () => {
 			detach();
 			this.subscriptions.delete(detach);
@@ -165,6 +266,13 @@ export class CollectionJournal<T> {
 		};
 	}
 	stop(): void {
+		this.scanMeasurement?.finish("cancelled");
+		this.scanMeasurement = undefined;
+		this.targetMeasurement?.finish("cancelled");
+		this.targetMeasurement = undefined;
+		this.targetCount = 0;
+		this.projectionMeasurement?.finish("cancelled");
+		this.projectionMeasurement = undefined;
 		this.generation++;
 		this.cancelScan?.();
 		this.cancelScan = undefined;

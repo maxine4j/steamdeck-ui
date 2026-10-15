@@ -157,18 +157,19 @@ it("cycles grouped panels in their visual order even when registered differently
 		undefined,
 		navigation,
 		undefined,
-		[["bags", "currency"], ["mounts", "toys", "pets"]],
+		[
+			["bags", "currency"],
+			["mounts", "toys", "pets"],
+		],
 		events,
 	);
-	const panels = ["bags", "currency", "pets", "toys", "mounts"].map(
-		(id) => ({
-			id,
-			title: id,
-			onMount: vi.fn(),
-			onUnmount: vi.fn(),
-			getNavGrid: () => [],
-		}),
-	);
+	const panels = ["bags", "currency", "pets", "toys", "mounts"].map((id) => ({
+		id,
+		title: id,
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+	}));
 	for (const panel of panels) container.registerPanel(panel);
 	const bags = panels[0];
 	if (!bags) throw new Error("Missing bags panel");

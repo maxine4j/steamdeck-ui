@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
 import {
@@ -8,6 +8,73 @@ import {
 } from "./native-navigation";
 
 vi.mock("./border", () => ({ setBorder: vi.fn() }));
+afterEach(() => vi.unstubAllGlobals());
+it("anchors native hover tooltips to the icon and clears hover when navigation is released", () => {
+	const outline = {
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		SetFrameLevel: vi.fn(),
+		EnableMouse: vi.fn(),
+		Show: vi.fn(),
+		Hide: vi.fn(),
+		SetSize: vi.fn(),
+		SetScript: vi.fn(),
+	};
+	const pool = { acquire: vi.fn(() => outline), release: vi.fn() };
+	const tooltip = {
+		GetOwner: vi.fn(),
+		SetAnchorType: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+	};
+	vi.stubGlobal("GameTooltip", tooltip);
+	let refreshOwner: (() => void) | undefined;
+	vi.stubGlobal(
+		"hooksecurefunc",
+		(_target: unknown, _method: string, callback: () => void) => {
+			refreshOwner = callback;
+		},
+	);
+	const control = new NativeNavigation(pool as unknown as IFramePoolManager);
+	const frame = { GetFrameLevel: () => 3 } as NativeNavigationFrame;
+	tooltip.GetOwner.mockReturnValue(frame);
+	const icon = { GetWidth: () => 32, GetHeight: () => 32 };
+	const enter = vi.fn(),
+		leave = vi.fn();
+	const node = control.navigation(frame, undefined, "reward", vi.fn(), {
+		enter,
+		leave,
+		anchor: icon,
+	});
+	node.onFocus();
+	expect(enter).toHaveBeenCalledOnce();
+	expect(tooltip.SetAnchorType).toHaveBeenCalledWith("ANCHOR_NONE");
+	expect(tooltip.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		icon,
+		"TOPRIGHT",
+		8,
+		0,
+	);
+	tooltip.SetPoint.mockClear();
+	refreshOwner?.();
+	expect(tooltip.SetPoint).toHaveBeenCalledWith(
+		"TOPLEFT",
+		icon,
+		"TOPRIGHT",
+		8,
+		0,
+	);
+	control.release();
+	tooltip.SetPoint.mockClear();
+	refreshOwner?.();
+	expect(tooltip.SetPoint).not.toHaveBeenCalled();
+	expect(leave).toHaveBeenCalledOnce();
+	node.onBlur();
+	expect(leave).toHaveBeenCalledOnce();
+});
 it("reuses a pooled focus outline and scrolls the focused native row into view", () => {
 	const outline = {
 		SetParent: vi.fn(),
