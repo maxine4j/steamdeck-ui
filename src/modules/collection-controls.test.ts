@@ -20,6 +20,10 @@ afterEach(() => {
 it.each(["toys", "pets"])(
 	"routes %s header and menu navigation, retains checkbox focus and restores collection actions",
 	(kind) => {
+		vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
+			top: 0,
+			bottom: 1000,
+		});
 		for (const method of [
 			"fill",
 			"setWindowBackground",

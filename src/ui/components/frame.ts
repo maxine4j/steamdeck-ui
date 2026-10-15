@@ -94,6 +94,7 @@ export class Frame implements IUIComponent {
 	private native?: WowFrame;
 	private scrollIndicator?: WowTexture;
 	private scrollPan?: ScrollPan;
+	private verticalScrollChanged?: () => void;
 	private lastRevealTop?: number;
 	private revealingUp = false;
 	private parent?: Frame;
@@ -309,7 +310,10 @@ export class Frame implements IUIComponent {
 				handler?: (this: void) => void,
 			): void;
 		};
-		scroll.SetScript("OnVerticalScroll", () => this.updateScrollIndicator());
+		scroll.SetScript("OnVerticalScroll", () => {
+			this.updateScrollIndicator();
+			this.verticalScrollChanged?.();
+		});
 		scroll.SetScript("OnScrollRangeChanged", () =>
 			this.updateScrollIndicator(),
 		);
@@ -391,6 +395,14 @@ export class Frame implements IUIComponent {
 		this.lastRevealTop = undefined;
 		this.revealingUp = false;
 		this.native?.SetVerticalScroll(0);
+	}
+	onVerticalScroll(callback?: () => void): void {
+		this.verticalScrollChanged = callback;
+	}
+	getVisibleVerticalRange(): { top: number; bottom: number } {
+		const native = this.acquire() as WowFrame & { GetHeight(): number };
+		const top = native.GetVerticalScroll();
+		return { top, bottom: top + native.GetHeight() };
 	}
 	scrollToEdge(direction: "up" | "down"): void {
 		const native = this.acquire();
@@ -1474,6 +1486,7 @@ export class Frame implements IUIComponent {
 			scroll.SetScript("OnVerticalScroll", undefined);
 			scroll.SetScript("OnScrollRangeChanged", undefined);
 			this.scrollIndicator = undefined;
+			this.verticalScrollChanged = undefined;
 			this.onSizeChanged();
 			this.native.SetScript("OnMouseWheel", undefined);
 			this.native.EnableMouseWheel(false);

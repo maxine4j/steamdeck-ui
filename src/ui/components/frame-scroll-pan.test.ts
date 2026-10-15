@@ -89,6 +89,21 @@ function setup() {
 	};
 }
 
+it("reports the visible vertical range when scrolling and detaches its listener", () => {
+	const s = setup();
+	const changed = vi.fn(() => s.viewport.getVisibleVerticalRange());
+	s.viewport.onVerticalScroll(changed);
+	expect(s.viewport.getVisibleVerticalRange()).toEqual({
+		top: 100,
+		bottom: 300,
+	});
+	s.viewport.scrollBy(46);
+	expect(changed).toHaveLastReturnedWith({ top: 146, bottom: 346 });
+	s.viewport.onVerticalScroll();
+	s.viewport.scrollBy(46);
+	expect(changed).toHaveBeenCalledOnce();
+});
+
 it("pans from child controls, suppresses swipe clicks and item pickup, but preserves taps", () => {
 	const s = setup();
 	const button = new Frame("button", s.pool, "Button");

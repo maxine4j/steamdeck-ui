@@ -16,7 +16,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IToyActionMenu } from "./toy-action-menu";
-import { groupToys } from "./toy-display";
+import { groupToys, type ToyGroup } from "./toy-display";
 
 const columns = 10;
 const spacing = 46;
@@ -47,6 +47,7 @@ export class ToysPanel implements IPanel {
 	private readonly cells: ToyCell[] = [];
 	private readonly cellsById = new Map<string, ToyCell>();
 	private readonly headers: Frame[] = [];
+	private groups?: ToyGroup[];
 	private readonly view = new CollectionView<Toy>(
 		(row) => String(row.id),
 		(row) => row.displayed !== false,
@@ -65,11 +66,14 @@ export class ToysPanel implements IPanel {
 	private renderGeneration = 0;
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
+	private cancelViewport?: () => void;
+	private renderedRange?: { top: number; bottom: number };
 	private cancelCooldown?: () => void;
 	private repeatCooldown = false;
 	private grid: NavGrid = [];
 	private visibleIds = new Set<string>();
 	private contentHeight = 1;
+	private laidOutHeight?: number;
 	private navigationChanged?: (focusId?: string) => void;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
@@ -125,8 +129,13 @@ export class ToysPanel implements IPanel {
 		this.controls.mount(this.frame);
 		this.viewport.inset(this.frame, 16, 104, 16, 48);
 		this.viewport.onSizeChanged(() => {
-			if (this.mounted) this.layoutContent();
+			if (this.mounted) {
+				this.layoutContent();
+				this.viewport.clampScroll();
+				this.requestViewportRender();
+			}
 		});
+		this.viewport.onVerticalScroll(() => this.requestViewportRender());
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.viewport.show();
@@ -185,6 +194,7 @@ export class ToysPanel implements IPanel {
 				this.dirty = true;
 				this.viewComplete = false;
 				this.view.replace(toys);
+				this.groups = undefined;
 				if (
 					this.cancelRender &&
 					this.cells.some(
@@ -206,6 +216,7 @@ export class ToysPanel implements IPanel {
 			(changes, complete) => {
 				if (!this.mounted || generation !== this.generation) return;
 				const changed = this.view.update(changes);
+				if (changed) this.groups = undefined;
 				if (
 					changed &&
 					changes.some((row) => {
@@ -247,6 +258,22 @@ export class ToysPanel implements IPanel {
 		}
 		this.render(generation, this.snapshotComplete);
 	}
+	private requestViewportRender(): void {
+		if (!this.mounted) return;
+		const range = this.viewport.getVisibleVerticalRange();
+		if (
+			range.top === this.renderedRange?.top &&
+			range.bottom === this.renderedRange?.bottom
+		)
+			return;
+		this.dirty = true;
+		if (this.cancelViewport || this.client.isInCombat()) return;
+		this.cancelViewport = this.scheduler.nextFrame(() => {
+			this.cancelViewport = undefined;
+			if (this.mounted && !this.client.isInCombat())
+				this.render(this.generation, this.snapshotComplete);
+		});
+	}
 	private render(generation: number, complete = true): void {
 		const measurement = new WorkMeasurement(
 			this.performance,
@@ -258,6 +285,11 @@ export class ToysPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.renderPending = false;
+		this.renderedRange = this.viewport.getVisibleVerticalRange();
+		// Two rows on either side keep controller focus and touch scrolling ahead
+		// of presentation without acquiring controls for the entire collection.
+		const firstVisible = this.renderedRange.top - 2 * spacing;
+		const lastVisible = this.renderedRange.bottom + 2 * spacing;
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
@@ -267,19 +299,12 @@ export class ToysPanel implements IPanel {
 		const displayedCells: ToyCell[] = [];
 		const jobs: (() => void)[] = [];
 		let renderedToys = 0;
-		const groups = groupToys(this.view.values());
+		let updatedToys = 0;
+		this.groups ??= groupToys(this.view.values());
+		const groups = this.groups;
 		const cellsById = this.cellsById;
-		const wanted = new Set(
-			groups.flatMap((group) =>
-				group.toys.map((toy) =>
-					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`,
-				),
-			),
-		);
+		const wanted = new Set<string>();
 		this.visibleIds = wanted;
-		const available = this.cells.filter(
-			(cell) => cell.visible && cell.navId && !wanted.has(cell.navId),
-		);
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -307,14 +332,25 @@ export class ToysPanel implements IPanel {
 			for (let i = 0; i < Math.ceil(group.toys.length / columns); i++)
 				grid.push([]);
 			group.toys.forEach((toy, index) => {
+				const row = Math.floor(index / columns);
+				const cellTop = top + 28 + row * spacing;
 				const source = this.view.get(String(toy.id));
 				const cellIndex = displayed.length;
 				const navId =
 					group.id === -1 ? `toy-favourite-${toy.id}` : `toy-${toy.id}`;
 				const cellKey = navId;
 				let cell = cellsById.get(cellKey);
-				if (cell) displayedCells[cellIndex] = cell;
 				const previous = retained.get(navId);
+				const nearby = cellTop + 42 >= firstVisible && cellTop <= lastVisible;
+				if (
+					!nearby &&
+					(!previous ||
+						cell?.top !== cellTop ||
+						cell.column !== index % columns ||
+						cell.source !== source)
+				)
+					return;
+				wanted.add(navId);
 				if (previous)
 					grid
 						.at(firstRow + Math.floor(index / columns))
@@ -323,9 +359,11 @@ export class ToysPanel implements IPanel {
 								? previous
 								: { ...previous, navColumn: index % columns },
 						);
+				// Retain visited navigation so a mouse scroll does not replace focus
+				// and reveal the first buffered row. Only nearby tiles receive writes.
+				if (!nearby) return;
+				if (cell) displayedCells[cellIndex] = cell;
 				displayed.push(toy);
-				const row = Math.floor(index / columns);
-				const cellTop = top + 28 + row * spacing;
 
 				if (
 					cell?.visible &&
@@ -443,6 +481,7 @@ export class ToysPanel implements IPanel {
 					});
 					navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
 					renderedToys++;
+					updatedToys++;
 				});
 			});
 			y += 28 + Math.ceil(group.toys.length / columns) * spacing + 14;
@@ -456,7 +495,8 @@ export class ToysPanel implements IPanel {
 			0,
 			-10,
 		);
-		for (const cell of available) {
+		for (const cell of this.cells) {
+			if (!cell.visible || !cell.navId || wanted.has(cell.navId)) continue;
 			jobs.push(() => {
 				cell.border.hide();
 				cell.icon.hide();
@@ -519,7 +559,7 @@ export class ToysPanel implements IPanel {
 			measurement.page(pageStart);
 			if (cursor === jobs.length) {
 				measurement.finish(
-					`complete tiles=${renderedToys} merged=${this.renderPending}`,
+					`complete updatedTiles=${updatedToys} readyTiles=${renderedToys} merged=${this.renderPending}`,
 				);
 				this.renderMeasurement = undefined;
 			}
@@ -538,7 +578,11 @@ export class ToysPanel implements IPanel {
 		step();
 	}
 	private layoutContent(): void {
+		// Re-anchoring a ScrollFrame's child resets its visual position while
+		// GetVerticalScroll still reports the previous offset.
+		if (this.laidOutHeight === this.contentHeight) return;
 		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
+		this.laidOutHeight = this.contentHeight;
 		this.viewport.clampScroll();
 	}
 	refreshCooldowns(): void {
@@ -610,6 +654,9 @@ export class ToysPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.viewport.onVerticalScroll();
 		this.cancelCooldown?.();
 		this.cancelCooldown = undefined;
 		this.repeatCooldown = false;

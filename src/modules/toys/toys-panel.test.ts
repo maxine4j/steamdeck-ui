@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { IPerformanceClient } from "../../clients/performance-client";
 import type { IToysClient, Toy } from "../../clients/toys-client";
 import { createTestEventBus } from "../../events/test-event-bus";
 import { Dropdown } from "../../ui/components/dropdown";
@@ -102,7 +103,11 @@ const toy = (id: number, expansionId = 10, favourite = false): Toy => ({
 	expansionId,
 });
 
-function setup() {
+function setup(performance?: IPerformanceClient) {
+	vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
+		top: 0,
+		bottom: 1000,
+	});
 	vi.spyOn(SearchFilters.prototype, "mount").mockImplementation(() => {});
 	vi.spyOn(SearchFilters.prototype, "setOptions").mockImplementation(() => {});
 	vi.spyOn(SearchFilters.prototype, "hide").mockImplementation(() => {});
@@ -118,6 +123,7 @@ function setup() {
 		"setColor",
 		"inset",
 		"onSizeChanged",
+		"onVerticalScroll",
 		"setScrollContent",
 		"clampScroll",
 		"setIcon",
@@ -171,7 +177,14 @@ function setup() {
 	const menu = { open: vi.fn(), close: vi.fn() };
 	const pool = {} as IFramePoolManager;
 	const close = vi.fn();
-	const panel = new ToysPanel(pool, client, menu, scheduler, close);
+	const panel = new ToysPanel(
+		pool,
+		client,
+		menu,
+		scheduler,
+		close,
+		performance,
+	);
 	const parent = new Frame("parent", pool);
 	const flush = () => {
 		while (pending.length) pending.shift()?.();
@@ -182,6 +195,178 @@ function setup() {
 	};
 	return { panel, parent, client, menu, flush, publish, pending, close };
 }
+
+it("creates only nearby toy tiles, renders new scroll ranges and reuses tiles on return", () => {
+	const { panel, parent, publish, flush, client } = setup();
+	const group = vi.spyOn(toyDisplay, "groupToys");
+	const range = vi.mocked(Frame.prototype.getVisibleVerticalRange);
+	range.mockReturnValue({ top: 0, bottom: 92 });
+	panel.onMount(parent);
+	publish(
+		Array.from({ length: 1000 }, (_, index) => ({
+			...toy(index + 1),
+			name: `Toy ${String(index + 1).padStart(4, "0")}`,
+		})),
+	);
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(40);
+	const icons = vi.mocked(Frame.prototype.setIcon).mock.contexts.slice();
+	group.mockClear();
+	vi.mocked(Frame.prototype.layout).mockClear();
+	vi.mocked(Frame.prototype.clampScroll).mockClear();
+	const scroll = vi
+		.mocked(Frame.prototype.onVerticalScroll)
+		.mock.lastCall?.at(0);
+	expect(scroll).toBeTypeOf("function");
+	range.mockReturnValue({ top: 460, bottom: 552 });
+	scroll?.();
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(110);
+	expect(group).not.toHaveBeenCalled();
+	expect(
+		vi.mocked(Frame.prototype.layout).mock.contexts.map((frame) => frame.id),
+	).not.toContain("toys-content");
+	expect(Frame.prototype.clampScroll).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "toy-1000"),
+	).toBe(false);
+	vi.mocked(client.getCooldown).mockClear();
+	panel.refreshCooldowns();
+	flush();
+	expect(client.getCooldown).toHaveBeenCalledTimes(70);
+	range.mockReturnValue({ top: 0, bottom: 92 });
+	scroll?.();
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(110);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.slice(0, 40)
+			.map((node) => node.secureActions?.().alternate),
+	).toEqual(icons);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	range.mockReturnValue({ top: 920, bottom: 1012 });
+	scroll?.();
+	panel.onUnmount();
+	flush();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+});
+
+it("distinguishes reused tiles from actual frame updates in scroll performance logs", () => {
+	const log = vi.fn();
+	const { panel, parent, publish, flush } = setup({ now: () => 0, log });
+	panel.onMount(parent);
+	publish([toy(1)]);
+	log.mockClear();
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockReturnValue({
+		top: 1,
+		bottom: 1001,
+	});
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	flush();
+	expect(log).toHaveBeenCalledWith(
+		expect.stringContaining("updatedTiles=0 readyTiles=1"),
+	);
+});
+
+it("keeps controller navigation moving through newly revealed rows in both directions", () => {
+	const { panel, parent, publish, flush } = setup();
+	let top = 0;
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockImplementation(() => ({
+		top,
+		bottom: top + 184,
+	}));
+	vi.mocked(Frame.prototype.revealVerticalRange).mockImplementation(
+		(start, end) => {
+			top = Math.max(
+				0,
+				start < top ? start - 92 : end > top + 92 ? end - 92 : top,
+			);
+			vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+		},
+	);
+	panel.onMount(parent);
+	publish(
+		Array.from({ length: 200 }, (_, index) => ({
+			...toy(index + 1),
+			name: `Toy ${String(index + 1).padStart(3, "0")}`,
+		})),
+	);
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	nav.registerGrid("toys", () => panel.getNavGrid());
+	nav.setActiveGrid("toys");
+	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
+	for (let row = 1; row <= 19; row++) {
+		events.emit("NAV_DOWN");
+		flush();
+		expect(nav.focusedId).toBe(`toy-${row * 10 + 1}`);
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === nav.focusedId)
+				?.secureActions?.().alternate,
+		).toBeDefined();
+	}
+	for (let row = 18; row >= 0; row--) {
+		events.emit("NAV_UP");
+		flush();
+		expect(nav.focusedId).toBe(`toy-${row * 10 + 1}`);
+	}
+	nav.destroy();
+});
+
+it("expands the rendered viewport on resize and defers scroll work during combat", () => {
+	const { panel, parent, publish, flush, client } = setup();
+	const range = vi.mocked(Frame.prototype.getVisibleVerticalRange);
+	range.mockReturnValue({ top: 0, bottom: 92 });
+	panel.onMount(parent);
+	publish(Array.from({ length: 200 }, (_, index) => toy(index + 1)));
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	range.mockReturnValue({ top: 0, bottom: 184 });
+	vi.mocked(Frame.prototype.onSizeChanged).mock.lastCall?.at(0)?.();
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(20);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	vi.mocked(client.isInCombat).mockReturnValue(true);
+	range.mockReturnValue({ top: 460, bottom: 644 });
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	flush();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+	vi.mocked(client.isInCombat).mockReturnValue(false);
+	panel.resume();
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalled();
+});
+
+it("preserves controller focus without pulling a manually scrolled viewport back", () => {
+	const { panel, parent, publish, flush } = setup();
+	let top = 0;
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockImplementation(() => ({
+		top,
+		bottom: top + 184,
+	}));
+	vi.mocked(Frame.prototype.revealVerticalRange).mockImplementation((start) => {
+		top = start;
+		vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	});
+	panel.onMount(parent);
+	publish(Array.from({ length: 200 }, (_, index) => toy(index + 1)));
+	const nav = new NavigationManager(createTestEventBus());
+	nav.registerGrid("toys", () => panel.getNavGrid());
+	nav.setActiveGrid("toys");
+	panel.setNavigationChanged(() => nav.refreshGrid("toys"));
+	top = 460;
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	flush();
+	expect(top).toBe(460);
+	expect(nav.focusedId).toBe("toy-1");
+	nav.destroy();
+});
 
 it("searches toys and refreshes native checkbox filters through the header controls", () => {
 	vi.useFakeTimers();
