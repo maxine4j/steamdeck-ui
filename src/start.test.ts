@@ -626,28 +626,28 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
-		undefined,
+		UIParent,
 		"TOPLEFT",
 		0,
 		0,
 	);
 	expect(frames.at(0)?.SetPoint).toHaveBeenCalledWith(
 		"BOTTOMLEFT",
-		undefined,
+		UIParent,
 		"BOTTOMLEFT",
 		0,
 		0,
 	);
 	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
 		"TOPRIGHT",
-		undefined,
+		UIParent,
 		"TOPRIGHT",
 		0,
 		0,
 	);
 	expect(frames.at(1)?.SetPoint).toHaveBeenCalledWith(
 		"BOTTOMRIGHT",
-		undefined,
+		UIParent,
 		"BOTTOMRIGHT",
 		0,
 		0,
@@ -793,7 +793,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	);
 	expect(overlay?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
-		undefined,
+		UIParent,
 		"TOPLEFT",
 		0,
 		0,

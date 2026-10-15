@@ -1,7 +1,9 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
+
+beforeEach(() => vi.stubGlobal("UIParent", {}));
 
 it.each([
 	{ mountSpell: 42 },
@@ -1097,7 +1099,14 @@ it.each(["left", "right", "fullscreen"] as const)(
 		expect(native.SetFrameStrata).toHaveBeenLastCalledWith("DIALOG");
 		frame.destroy();
 		expect(native.SetFrameStrata).toHaveBeenLastCalledWith("PARENT");
-		expect(pool.acquire("Frame")).toBe(native);
+		const reused = new Frame("reused-dock", pool);
+		vi.mocked(native.SetPoint).mockClear();
+		reused.dock(position, 500);
+		// Native talent nodes move between this dock and Blizzard's UIParent dialog.
+		// Pool release removes the parent, so implicit anchors would target the screen.
+		expect(
+			vi.mocked(native.SetPoint).mock.calls.map((call) => call.at(1)),
+		).toEqual([UIParent, UIParent]);
 	},
 );
 
@@ -1114,7 +1123,7 @@ it("insets fullscreen docks without changing side docks or modal shields", () =>
 	} as unknown as import("../frame-pool-manager").IFramePoolManager);
 	frame.dock("fullscreen", 500, 20);
 	expect(native.SetPoint.mock.calls).toEqual([
-		["TOPLEFT", undefined, "TOPLEFT", 20, -20],
-		["BOTTOMRIGHT", undefined, "BOTTOMRIGHT", -20, 20],
+		["TOPLEFT", UIParent, "TOPLEFT", 20, -20],
+		["BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -20, 20],
 	]);
 });

@@ -223,16 +223,17 @@ export class Frame implements IUIComponent {
 		native.ClearAllPoints();
 		native.SetSize(position === "fullscreen" ? 0 : width, 0);
 		const edge = position === "right" ? "RIGHT" : "LEFT";
+		// Pooled frames have no parent; keep native content in UIParent's anchor family.
 		native.SetPoint(
 			`TOP${edge}`,
-			undefined,
+			UIParent,
 			`TOP${edge}`,
 			inset,
 			inset !== 0 ? -inset : 0,
 		);
 		native.SetPoint(
 			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
-			undefined,
+			UIParent,
 			position === "fullscreen" ? "BOTTOMRIGHT" : `BOTTOM${edge}`,
 			position === "fullscreen" && inset !== 0 ? -inset : inset,
 			inset,
