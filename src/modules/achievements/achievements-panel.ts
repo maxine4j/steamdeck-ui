@@ -56,6 +56,8 @@ export class AchievementsPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly loadingTrack: Frame;
 	private readonly loadingProgress: Frame;
+	private readonly summaryTrack: Frame;
+	private readonly summaryProgress: Frame;
 	private readonly update: DeferredRefresh;
 	private readonly cells: AchievementCell[] = [];
 	private readonly headers = new Map<number, Frame>();
@@ -139,6 +141,8 @@ export class AchievementsPanel implements IPanel {
 		this.filter = new Frame("achievements-filter", pool, "Button");
 		this.loadingTrack = new Frame("achievements-loading-track", pool);
 		this.loadingProgress = new Frame("achievements-loading-progress", pool);
+		this.summaryTrack = new Frame("achievements-summary-track", pool);
+		this.summaryProgress = new Frame("achievements-summary-progress", pool);
 		this.list = new ScrollList("achievements-list", pool, "", close, {
 			autoHeight: true,
 			background: false,
@@ -487,20 +491,6 @@ export class AchievementsPanel implements IPanel {
 	private summaryRows(): ListRow[] {
 		if (!this.summary) return [];
 		return [
-			{
-				id: "summary-progress",
-				label: "",
-				heading: true,
-				height: 20,
-				progress: {
-					value:
-						this.summary.totals.total > 0
-							? this.summary.totals.completed / this.summary.totals.total
-							: 0,
-					color: gold,
-				},
-				activate: () => {},
-			},
 			...this.pages.map((p) => ({
 				id: `summary-category-${p.id}`,
 				label: p.name,
@@ -553,7 +543,8 @@ export class AchievementsPanel implements IPanel {
 		this.back.hide();
 		this.filter.hide();
 		const page = this.pages.find((p) => p.id === this.page);
-		this.body.inset(this.frame, 16, page ? 120 : 80, 16, 36);
+		this.body.inset(this.frame, 16, page ? 120 : 100, 16, 36);
+		this.summaryTrack.hide();
 		if (page || this.loading) {
 			this.list.unmount();
 			this.summaryMounted = false;
@@ -611,6 +602,29 @@ export class AchievementsPanel implements IPanel {
 			this.list.setRows([]);
 		} else if (!page) {
 			this.page = undefined;
+			const barWidth = Math.max(1, this.width - 36);
+			const progress =
+				this.summary.totals.total > 0
+					? this.summary.totals.completed / this.summary.totals.total
+					: 0;
+			this.summaryTrack.setParent(this.frame);
+			this.summaryTrack.layout(barWidth, 8, "TOPLEFT", this.frame, 34, -80);
+			this.summaryTrack.setAtlasBackground("ui-journeys-progressbar-BG");
+			this.summaryProgress.setParent(this.summaryTrack);
+			this.summaryProgress.setAtlasBackground(
+				"ui-journeys-progressbar-fill",
+				gold,
+			);
+			this.summaryTrack.show();
+			if (progress > 0) {
+				this.summaryProgress.layout(
+					barWidth * Math.min(1, progress),
+					8,
+					"TOPLEFT",
+					this.summaryTrack,
+				);
+				this.summaryProgress.show();
+			} else this.summaryProgress.hide();
 			if (!this.summaryMounted) {
 				this.list.setColumns(2);
 				this.list.mount(this.body);
@@ -1102,6 +1116,8 @@ export class AchievementsPanel implements IPanel {
 		this.filter.destroy();
 		this.loadingProgress.destroy();
 		this.loadingTrack.destroy();
+		this.summaryProgress.destroy();
+		this.summaryTrack.destroy();
 		this.back.destroy();
 		this.content.destroy();
 		this.viewport.destroy();

@@ -35,6 +35,7 @@ const {
 			insets: number[][];
 			labels: Map<string, string>;
 			opacity: number;
+			parent?: unknown;
 			click?: () => void;
 		}
 	>(),
@@ -47,6 +48,7 @@ vi.mock("../../ui/components/frame", () => ({
 			insets: [] as number[][],
 			labels: new Map<string, string>(),
 			opacity: 1,
+			parent: undefined as unknown,
 			click: undefined as (() => void) | undefined,
 		};
 		constructor(public id: string) {
@@ -56,7 +58,10 @@ vi.mock("../../ui/components/frame", () => ({
 		inset(_parent: unknown, ...insets: number[]) {
 			this.state.insets.push(insets);
 		}
-		setParent() {}
+		setParent(parent: unknown) {
+			this.state.parent = parent;
+		}
+		setAtlasBackground() {}
 		setColor() {}
 		setWindowBackground() {}
 		setButtonBackground() {}
@@ -201,21 +206,33 @@ it("spans achievement tile progress bars beneath icons with padded edges", () =>
 	});
 });
 
-it("keeps only a compact overall bar below the summary count and raises the tiles", () => {
-	setup();
+it("keeps the overall progress above the scrolling categories and only on the summary", () => {
+	const { panel, activate } = setup();
 	expect(frames.get("achievements")?.labels.get("overall-count")).toBe(
 		"5 / 20 achievements • 25%",
 	);
-	expect(lists.get("achievements-list")?.rows.at(0)).toMatchObject({
-		id: "summary-progress",
-		label: "",
-		height: 20,
-		progress: { value: 0.25 },
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.every((row) => row.id !== "summary-progress"),
+	).toBe(true);
+	expect(frames.get("achievements-summary-track")).toMatchObject({
+		visible: true,
+		parent: expect.objectContaining({ id: "achievements" }),
 	});
-	expect(lists.get("achievements-list")?.rows.at(0)?.detail).toBeUndefined();
-	expect(frames.get("achievements-body")?.insets.at(-1)).toEqual([
-		16, 80, 16, 36,
+	expect(frames.get("achievements-summary-track")?.layouts.at(-1)).toEqual([
+		432, 8, 34, -80,
 	]);
+	expect(frames.get("achievements-summary-progress")?.layouts.at(-1)).toEqual([
+		108, 8, 0, 0,
+	]);
+	expect(frames.get("achievements-body")?.insets.at(-1)).toEqual([
+		16, 100, 16, 36,
+	]);
+	activate("summary-category-Quests");
+	expect(frames.get("achievements-summary-track")?.visible).toBe(false);
+	panel.onBack();
+	expect(frames.get("achievements-summary-track")?.visible).toBe(true);
 });
 
 it("moves the summary scrollbar outside the tile edge and preserves category controls", () => {
