@@ -179,6 +179,28 @@ it("stops momentum when a viewport is hidden through its parent", () => {
 	expect(s.native.GetVerticalScroll()).toBe(stopped);
 });
 
+it("moves controller focus on a tap but leaves it alone after a drag", () => {
+	const s = setup();
+	const button = new Frame("item", s.pool, "Button");
+	button.setParent(s.content);
+	const focus = vi.fn();
+	button.setNavigationFocus(focus);
+	const native = s.natives.at(-1);
+	s.touch(true, 100);
+	s.tick();
+	s.touch(true, 180);
+	s.tick();
+	s.touch(false, 180);
+	native?.scripts.get("OnMouseUp")?.(native, "LeftButton");
+	expect(focus).not.toHaveBeenCalled();
+	s.tick();
+	s.touch(true, 180);
+	s.tick();
+	s.touch(false, 180);
+	native?.scripts.get("OnMouseUp")?.(native, "LeftButton");
+	expect(focus).toHaveBeenCalledOnce();
+});
+
 it("activates scroll-pane spells on release regardless of action-bar key-down settings", () => {
 	const s = setup();
 	const button = new Frame("spell", s.pool, "SecureButton");

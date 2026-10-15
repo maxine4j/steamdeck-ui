@@ -58,6 +58,7 @@ export class Dropdown {
 			root.SetScrollMode(360);
 			this.nodes = options.map((option, index): INavigable[] => {
 				const respond = () => {
+					this.navigationChanged?.(option.id);
 					option.activate();
 					return option.checked !== undefined
 						? MenuResponse.Refresh

@@ -62,6 +62,9 @@ export class IconCheckbox implements INavigable {
 	onFocus(refresh?: boolean): void {
 		this.nav.onFocus(refresh);
 	}
+	get mouseTarget(): Frame {
+		return this.button;
+	}
 	onBlur(): void {
 		this.nav.onBlur();
 	}

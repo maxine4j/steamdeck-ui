@@ -28,6 +28,7 @@ export class SearchFilters {
 			[
 				{
 					navId: this.search.id,
+					mouseTarget: this.search,
 					onFocus: (refresh) => this.search.setFocused(true, false, refresh),
 					onBlur: () => {
 						this.search.setFocused(false);

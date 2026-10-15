@@ -83,6 +83,7 @@ export class VendorPanel implements IPanel {
 				frame,
 				nav: {
 					navId: frame.id,
+					mouseTarget: frame,
 					onFocus: () => frame.setLabel("focus", ">", "BOTTOM", 0, 0),
 					onBlur: () => frame.setLabel("focus", ""),
 					onInteract: () => this.activate(control.key, control.action),

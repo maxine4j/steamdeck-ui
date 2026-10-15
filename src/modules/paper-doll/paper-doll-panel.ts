@@ -217,6 +217,7 @@ export class PaperDollPanel implements IPanel {
 					details,
 					nav: {
 						navId: `equipment-${index}`,
+						mouseTarget: button,
 						tooltipItem: () => {
 							const current = this.equipment.at(index);
 							const item = current?.hyperlink ?? current?.itemId;

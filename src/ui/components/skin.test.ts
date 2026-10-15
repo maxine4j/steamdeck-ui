@@ -46,6 +46,9 @@ function setup() {
 		CreateMaskTexture: vi.fn(() => mask),
 		SetPoint: vi.fn(),
 		SetScript: vi.fn(),
+		IsMouseOver: vi.fn(() => true),
+		SetHighlightAtlas: vi.fn(),
+		SetHighlightTexture: vi.fn(),
 		RegisterForClicks: vi.fn(),
 		RegisterForDrag: vi.fn(),
 		Show: vi.fn(),
@@ -64,6 +67,128 @@ function setup() {
 	pool.acquire("Frame");
 	return { native, pool, textures, mask };
 }
+
+it("gives red buttons hover artwork and restores selected or normal artwork after release", () => {
+	const { pool, textures, native } = setup();
+	const frame = new Frame("action", pool, "Button");
+	frame.setButtonBackground();
+	expect(native.SetHighlightAtlas).toHaveBeenCalledWith(
+		"128-RedButton-Highlight",
+		"ADD",
+	);
+	const send = (script: string, button = "LeftButton") => {
+		const handler = vi
+			.mocked(native.SetScript)
+			.mock.calls.findLast((call) => call.at(0) === script)
+			?.at(1);
+		if (typeof handler === "function") handler(native, button);
+	};
+	send("OnMouseDown");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center-Pressed",
+		false,
+	);
+	send("OnMouseUp");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center",
+		false,
+	);
+	frame.setButtonBackground(true);
+	send("OnMouseDown");
+	send("OnMouseUp");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center-Pressed",
+		false,
+	);
+	frame.setAtlasBackground("replacement");
+	expect(native.SetHighlightTexture).toHaveBeenLastCalledWith(undefined);
+	send("OnMouseDown");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"replacement",
+		false,
+	);
+});
+
+it("gives red close buttons hover and pressed states and resets on hide", () => {
+	const { pool, textures, native } = setup();
+	const frame = new Frame("close", pool, "Button");
+	frame.setCloseButtonBackground();
+	expect(native.SetHighlightAtlas).toHaveBeenCalledWith(
+		"RedButton-Highlight",
+		"ADD",
+	);
+	const down = vi
+		.mocked(native.SetScript)
+		.mock.calls.findLast((call) => call.at(0) === "OnMouseDown")
+		?.at(1);
+	if (typeof down === "function") down(native, "LeftButton");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"RedButton-exit-pressed",
+		false,
+	);
+	frame.hide();
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"RedButton-Exit",
+		false,
+	);
+});
+
+it("resets a held red button when its parent hides and preserves tooltip hide handling", () => {
+	const { pool, textures, native } = setup();
+	const frame = new Frame("action", pool, "Button");
+	frame.setButtonBackground();
+	frame.setHoverTooltip(() => undefined);
+	const send = (script: string) => {
+		const callback = vi
+			.mocked(native.SetScript)
+			.mock.calls.findLast((call) => call.at(0) === script)
+			?.at(1);
+		expect(callback).toBeTypeOf("function");
+		if (typeof callback === "function") callback(native, "LeftButton");
+	};
+	send("OnMouseDown");
+	send("OnHide");
+	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
+		"_128-RedButton-Center",
+		false,
+	);
+	frame.destroy();
+	for (const script of ["OnMouseDown", "OnMouseUp", "OnHide"])
+		expect(
+			vi
+				.mocked(native.SetScript)
+				.mock.calls.findLast((call) => call.at(0) === script)
+				?.at(1),
+		).toBeUndefined();
+});
+
+it("selects pointer focus without replacing the click action and clears it before pooled reuse", () => {
+	const { pool, native } = setup();
+	const frame = new Frame("action", pool, "Button");
+	const focus = vi.fn();
+	const activate = vi.fn();
+	frame.onClick(activate);
+	frame.setNavigationFocus(focus);
+	const release = vi
+		.mocked(native.SetScript)
+		.mock.calls.findLast((call) => call.at(0) === "OnMouseUp")
+		?.at(1);
+	expect(release).toBeTypeOf("function");
+	if (typeof release === "function") {
+		vi.mocked(native.IsMouseOver).mockReturnValue(false);
+		release(native, "LeftButton");
+		expect(focus).not.toHaveBeenCalled();
+		vi.mocked(native.IsMouseOver).mockReturnValue(true);
+		release(native, "RightButton");
+		expect(focus).not.toHaveBeenCalled();
+		release(native, "LeftButton");
+	}
+	expect(focus).toHaveBeenCalledOnce();
+	expect(activate).not.toHaveBeenCalled();
+	frame.destroy();
+	if (typeof release === "function") release(native, "LeftButton");
+	expect(focus).toHaveBeenCalledOnce();
+});
 
 it("replaces a sliced button with a full-frame atlas and clears its old caps", () => {
 	const { pool, textures } = setup();

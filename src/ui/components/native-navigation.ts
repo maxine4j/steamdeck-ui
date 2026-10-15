@@ -1,6 +1,6 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
-import type { INavigable } from "../navigation/types";
+import type { INavigable, NavigationMouseTarget } from "../navigation/types";
 import { setBorder } from "./border";
 import { FocusArrival } from "./focus-arrival";
 
@@ -38,7 +38,33 @@ export class NativeNavigation {
 		region: NativeTooltipAnchor;
 	};
 	private tooltipHooked = false;
+	private readonly mouseTargets = new Map<WowFrame, NavigationMouseTarget>();
 	constructor(private readonly pool: IFramePoolManager) {}
+	mouseTarget(frame: WowFrame): NavigationMouseTarget {
+		const existing = this.mouseTargets.get(frame);
+		if (existing) return existing;
+		let focus: (() => void) | undefined;
+		let hooked = false;
+		const target: NavigationMouseTarget = {
+			setNavigationFocus(callback) {
+				focus = callback;
+				if (hooked || !callback) return;
+				hooked = true;
+				const native = frame as WowFrame & {
+					IsMouseOver(): boolean;
+					HookScript(
+						script: string,
+						handler: (this: void, frame: WowFrame, button: string) => void,
+					): void;
+				};
+				native.HookScript("OnMouseUp", (_frame, button) => {
+					if (button === "LeftButton" && native.IsMouseOver()) focus?.();
+				});
+			},
+		};
+		this.mouseTargets.set(frame, target);
+		return target;
+	}
 	navigation(
 		frame: NativeNavigationFrame,
 		scroll: NativeNavigationScroll | undefined,
@@ -54,6 +80,7 @@ export class NativeNavigation {
 		};
 		return {
 			navId,
+			mouseTarget: this.mouseTarget(frame),
 			onInteract: () => onInteract(),
 			onFocus: (refresh) => {
 				if (scroll) {
@@ -145,6 +172,8 @@ export class NativeNavigation {
 		tooltip.SetPoint("TOPLEFT", anchor.region, "TOPRIGHT", 8, 0);
 	}
 	release(): void {
+		for (const target of this.mouseTargets.values())
+			target.setNavigationFocus(undefined);
 		this.tooltipAnchor = undefined;
 		this.leaveHovered?.();
 		this.leaveHovered = undefined;

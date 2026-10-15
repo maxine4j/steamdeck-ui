@@ -15,6 +15,7 @@ import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import { PreparedRanges } from "../../ui/prepared-ranges";
 import type { IToyActionMenu } from "./toy-action-menu";
 import { groupToys, type ToyGroup } from "./toy-display";
 
@@ -65,7 +66,7 @@ export class ToysPanel implements IPanel {
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private cancelViewport?: () => void;
-	private preparedRanges: { top: number; bottom: number }[] = [];
+	private readonly preparedRanges = new PreparedRanges();
 	private cancelCooldown?: () => void;
 	private repeatCooldown = false;
 	private grid: NavGrid = [];
@@ -193,7 +194,7 @@ export class ToysPanel implements IPanel {
 				this.viewComplete = false;
 				this.view.replace(toys);
 				this.groups = undefined;
-				this.preparedRanges = [];
+				this.preparedRanges.reset();
 				if (
 					this.cancelRender &&
 					this.cells.some(
@@ -217,7 +218,7 @@ export class ToysPanel implements IPanel {
 				const changed = this.view.update(changes);
 				if (changed) {
 					this.groups = undefined;
-					this.preparedRanges = [];
+					this.preparedRanges.reset();
 				}
 				if (
 					changed &&
@@ -278,22 +279,7 @@ export class ToysPanel implements IPanel {
 	}
 	private isViewportPrepared(): boolean {
 		const range = this.viewport.getVisibleVerticalRange();
-		return this.preparedRanges.some(
-			(prepared) =>
-				range.top >= prepared.top && range.bottom <= prepared.bottom,
-		);
-	}
-	private rememberPreparedRange(top: number, bottom: number): void {
-		const retained: { top: number; bottom: number }[] = [];
-		for (const range of this.preparedRanges) {
-			if (range.bottom < top || range.top > bottom) retained.push(range);
-			else {
-				top = Math.min(top, range.top);
-				bottom = Math.max(bottom, range.bottom);
-			}
-		}
-		retained.push({ top, bottom });
-		this.preparedRanges = retained;
+		return this.preparedRanges.includes(range);
 	}
 	private render(generation: number, complete = true): void {
 		const measurement = new WorkMeasurement(
@@ -563,7 +549,7 @@ export class ToysPanel implements IPanel {
 			measurement.page(pageStart);
 			if (cursor === jobs.length) {
 				if (!this.renderPending)
-					this.rememberPreparedRange(firstVisible, lastVisible);
+					this.preparedRanges.remember(firstVisible, lastVisible);
 				measurement.finish(
 					`complete updatedTiles=${updatedToys} readyTiles=${renderedToys} merged=${this.renderPending}`,
 				);

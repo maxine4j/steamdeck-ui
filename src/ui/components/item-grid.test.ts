@@ -8,12 +8,17 @@ const { layouts } = vi.hoisted(() => ({
 }));
 const { reveals } = vi.hoisted(() => ({ reveals: vi.fn() }));
 const { edges } = vi.hoisted(() => ({ edges: vi.fn() }));
+const { mouseFocus } = vi.hoisted(() => ({
+	mouseFocus: new Map<string, (() => void) | undefined>(),
+}));
 vi.mock("./frame", () => ({
 	Frame: class {
 		constructor(readonly id: string) {
 			layouts.set(id, this.layout);
 		}
 		layout = vi.fn();
+		setNavigationFocus = (callback?: () => void) =>
+			mouseFocus.set(this.id, callback);
 		setParent = vi.fn();
 		show = vi.fn();
 		hide = vi.fn();
@@ -114,6 +119,14 @@ it("offers secure spell icons, contextual binding and spell tooltips without ins
 	grid.mount(new Frame("parent", pool));
 	const node = grid.getNavGrid().at(0)?.at(0);
 	expect(node?.secureActions?.().alternate?.id).toBe("spells-icon-0");
+	const focus = vi.fn();
+	node?.mouseTarget?.setNavigationFocus(focus);
+	expect(mouseFocus.get("spells-icon-0")).toBeTypeOf("function");
+	mouseFocus.get("spells-icon-0")?.();
+	mouseFocus.get("spells-cell-0")?.();
+	expect(focus).toHaveBeenCalledTimes(2);
+	node?.mouseTarget?.setNavigationFocus(undefined);
+	expect(mouseFocus.get("spells-icon-0")).toBeUndefined();
 	node?.onAlternate?.();
 	expect(activate).not.toHaveBeenCalled();
 	node?.onContext?.();

@@ -198,6 +198,10 @@ const mount = (id: number, favourite = false): Mount => ({
 });
 
 function setup(performance?: { now(): number; log(message: string): void }) {
+	vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
+		top: 0,
+		bottom: 1000,
+	});
 	vi.stubGlobal("MenuResponse", { Refresh: 2, Close: 3 });
 	vi.stubGlobal("MenuInputContext", { None: 1 });
 	const menuCallbacks = new Map<string, () => void>();
@@ -260,6 +264,7 @@ function setup(performance?: { now(): number; log(message: string): void }) {
 		"setColor",
 		"inset",
 		"onSizeChanged",
+		"onVerticalScroll",
 		"setScrollContent",
 		"clampScroll",
 		"setIcon",
@@ -356,6 +361,96 @@ function setup(performance?: { now(): number; log(message: string): void }) {
 		dropdown,
 	};
 }
+
+it("prepares mounts one page ahead, retains visited ranges and cancels hidden scroll work", () => {
+	const log = vi.fn();
+	const { panel, parent, publish, pending, flush } = setup({
+		now: () => 0,
+		log,
+	});
+	const range = vi.mocked(Frame.prototype.getVisibleVerticalRange);
+	range.mockReturnValue({ top: 0, bottom: 460 });
+	panel.onMount(parent);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	publish(Array.from({ length: 1000 }, (_, index) => mount(index + 1)));
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(200);
+	const first = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node.navId === "mount-1");
+	const scrollTo = (top: number) => {
+		range.mockReturnValue({ top, bottom: top + 460 });
+		vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	};
+	log.mockClear();
+	vi.mocked(Frame.prototype.layout).mockClear();
+	scrollTo(460);
+	expect(pending).toHaveLength(0);
+	expect(log).not.toHaveBeenCalled();
+	scrollTo(920);
+	flush();
+	expect(Frame.prototype.setIcon).toHaveBeenCalledTimes(400);
+	expect(
+		vi.mocked(Frame.prototype.layout).mock.contexts.map((frame) => frame.id),
+	).not.toContain("mounts-content");
+	log.mockClear();
+	for (const top of [460, 0, 920, 460]) scrollTo(top);
+	expect(pending).toHaveLength(0);
+	expect(log).not.toHaveBeenCalled();
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.find((node) => node.navId === "mount-1"),
+	).toBe(first);
+	vi.mocked(Frame.prototype.setIcon).mockClear();
+	scrollTo(2300);
+	panel.onUnmount();
+	flush();
+	expect(Frame.prototype.setIcon).not.toHaveBeenCalled();
+});
+
+it("navigates into deferred mount rows and preserves focus through manual scrolling", () => {
+	const { panel, parent, publish, flush } = setup();
+	let top = 0;
+	vi.mocked(Frame.prototype.getVisibleVerticalRange).mockImplementation(() => ({
+		top,
+		bottom: top + 184,
+	}));
+	vi.mocked(Frame.prototype.revealVerticalRange).mockImplementation(
+		(start, end) => {
+			top = Math.max(
+				0,
+				start < top ? start - 92 : end > top + 92 ? end - 92 : top,
+			);
+			vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+		},
+	);
+	panel.onMount(parent);
+	publish(
+		Array.from({ length: 200 }, (_, index) => ({
+			...mount(index + 1),
+			name: String(index + 1).padStart(3, "0"),
+		})),
+	);
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	nav.registerGrid("mounts", () => panel.getNavGrid());
+	nav.setActiveGrid("mounts");
+	nav.refreshGrid("mounts", "mount-1");
+	panel.setNavigationChanged(() => nav.refreshGrid("mounts"));
+	for (let row = 1; row <= 19; row++) {
+		events.emit("NAV_DOWN");
+		flush();
+		expect(nav.focusedId).toBe(`mount-${row * 10 + 1}`);
+	}
+	top = 0;
+	vi.mocked(Frame.prototype.onVerticalScroll).mock.lastCall?.at(0)?.();
+	flush();
+	expect(top).toBe(0);
+	expect(nav.focusedId).toBe("mount-191");
+	nav.destroy();
+});
 
 it("logs mount render preparation and frame work so repeated idle refreshes can be identified", () => {
 	let time = 0;

@@ -1311,6 +1311,7 @@ vi.mock("./frame", () => ({
 			frames.set(id, this);
 		}
 		layout = vi.fn();
+		setNavigationFocus = vi.fn();
 		setAnimatedAtlas = vi.fn();
 		layoutVerticallyCentered = vi.fn();
 		onSizeChanged = vi.fn();

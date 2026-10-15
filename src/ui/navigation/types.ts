@@ -4,6 +4,8 @@ export interface NavigationScroll {
 }
 
 export interface INavigable {
+	/** Pointer surface that selects this logical node without activating it again. */
+	mouseTarget?: NavigationMouseTarget;
 	/** Hardware bindings for protected actions; never dispatch these via Click(). */
 	secureActions?(): SecureNavigationActions;
 	navId: string;
@@ -21,6 +23,10 @@ export interface INavigable {
 	onAlternate?(): void; // Maps to X button
 	/** Continuous controls consume directional input while retaining focus. */
 	onMove?(direction: NavDirection, pressed: boolean): void;
+}
+
+export interface NavigationMouseTarget {
+	setNavigationFocus(callback?: () => void): void;
 }
 
 export type NavGrid = INavigable[][];

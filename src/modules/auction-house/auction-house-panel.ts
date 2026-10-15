@@ -77,6 +77,7 @@ export class AuctionHousePanel implements IPanel {
 				frame,
 				nav: {
 					navId: frame.id,
+					mouseTarget: frame,
 					onFocus: () => frame.setFocused(true),
 					onBlur: () => frame.setFocused(false),
 					onInteract: activate,
@@ -140,6 +141,7 @@ export class AuctionHousePanel implements IPanel {
 			frame: input,
 			nav: {
 				navId: input.id,
+				mouseTarget: input,
 				onFocus: () => input.setFocused(true),
 				onBlur: () => {
 					input.setFocused(false);

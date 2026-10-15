@@ -15,6 +15,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setLabelWordWrap = vi.fn();
 		setColor = vi.fn();
 		setFocused = vi.fn();
+		setNavigationFocus = vi.fn();
 		setIcon = vi.fn();
 		setTooltip = vi.fn();
 		hideTooltip = vi.fn();

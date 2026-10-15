@@ -404,6 +404,7 @@ export class ScrollList {
 						secondary,
 						secondaryNav: {
 							navId: `${row.id}-secondary`,
+							mouseTarget: secondary,
 							navigationScroll: this.scroll,
 							onFocus: (refresh) => {
 								if (refresh) secondary.setFocused(true, false, true);
@@ -427,6 +428,7 @@ export class ScrollList {
 						},
 						nav: {
 							navId: row.id,
+							mouseTarget: frame,
 							navigationScroll: this.scroll,
 							onFocus: (refresh) => {
 								const focused = this.buttons.at(index);

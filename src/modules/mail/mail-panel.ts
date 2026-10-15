@@ -429,6 +429,7 @@ export class MailSendPanel implements IPanel {
 	private node(frame: Frame, interact: () => void): INavigable {
 		return {
 			navId: frame.id,
+			mouseTarget: frame,
 			onFocus: () => frame.setFocused(true),
 			onBlur: () => {
 				frame.setFocused(false);

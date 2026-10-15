@@ -112,6 +112,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 					GetStringHeight: () => 18,
 				}),
 				SetScript: vi.fn(),
+				SetHighlightAtlas: vi.fn(),
+				SetHighlightTexture: vi.fn(),
 				SetAutoFocus: vi.fn(),
 				SetMultiLine: vi.fn(),
 				SetMaxLetters: vi.fn(),

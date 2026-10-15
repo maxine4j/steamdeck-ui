@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { setBorder } from "./border";
 import {
@@ -9,6 +10,48 @@ import {
 
 vi.mock("./border", () => ({ setBorder: vi.fn() }));
 afterEach(() => vi.unstubAllGlobals());
+
+it("follows native left clicks without replacing scripts or accumulating hooks on refresh", () => {
+	let over = true;
+	const hooks = new Map<string, (frame: WowFrame, button: string) => void>();
+	const frame = {
+		IsMouseOver: () => over,
+		HookScript: vi.fn((script, handler) => hooks.set(script, handler)),
+	} as unknown as NativeNavigationFrame;
+	const control = new NativeNavigation({} as IFramePoolManager);
+	const activate = vi.fn();
+	const first = control.navigation(frame, undefined, "first", activate);
+	const focus = vi.fn();
+	first.mouseTarget?.setNavigationFocus(focus);
+	expect(hooks.get("OnMouseUp")).toBeTypeOf("function");
+	hooks.get("OnMouseUp")?.(frame, "RightButton");
+	expect(focus).not.toHaveBeenCalled();
+	over = false;
+	hooks.get("OnMouseUp")?.(frame, "LeftButton");
+	expect(focus).not.toHaveBeenCalled();
+	over = true;
+	hooks.get("OnMouseUp")?.(frame, "LeftButton");
+	expect(focus).toHaveBeenCalledOnce();
+	expect(activate).not.toHaveBeenCalled();
+	const refreshed = control.navigation(
+		frame,
+		undefined,
+		"replacement",
+		activate,
+	);
+	const next = vi.fn();
+	refreshed.mouseTarget?.setNavigationFocus(next);
+	hooks.get("OnMouseUp")?.(frame, "LeftButton");
+	expect(next).toHaveBeenCalledOnce();
+	expect(focus).toHaveBeenCalledOnce();
+	control.release();
+	hooks.get("OnMouseUp")?.(frame, "LeftButton");
+	expect(next).toHaveBeenCalledOnce();
+	expect(
+		(frame as NativeNavigationFrame & { HookScript: ReturnType<typeof vi.fn> })
+			.HookScript,
+	).toHaveBeenCalledOnce();
+});
 it("anchors native hover tooltips to the icon and clears hover when navigation is released", () => {
 	const outline = {
 		SetParent: vi.fn(),

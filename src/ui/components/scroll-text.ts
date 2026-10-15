@@ -25,6 +25,7 @@ export class ScrollText {
 		this.position = new Frame(`${id}-position`, pool);
 		this.node = {
 			navId: id,
+			mouseTarget: this.scroll,
 			navColumn: 0,
 			onFocus: (refresh) => {
 				if (refresh) this.scroll.setFocused(true, false, true);

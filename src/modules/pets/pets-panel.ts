@@ -19,8 +19,9 @@ import type {
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import { PreparedRanges } from "../../ui/prepared-ranges";
 import type { IPetActionMenu } from "./pet-action-menu";
-import { groupPets } from "./pet-display";
+import { groupPets, type PetGroup } from "./pet-display";
 
 const columns = 10;
 const spacing = 46;
@@ -52,6 +53,10 @@ export class PetsPanel implements IPanel {
 	private readonly loadingProgress: Frame;
 	private readonly cells: PetCell[] = [];
 	private readonly headers: Frame[] = [];
+	private groups?: PetGroup[];
+	private readonly preparedRanges = new PreparedRanges();
+	private cancelViewport?: () => void;
+	private laidOutHeight?: number;
 	private readonly view = new CollectionView<Pet>(
 		(row) => row.id,
 		(row) => row.present !== false && row.displayed !== false,
@@ -148,8 +153,13 @@ export class PetsPanel implements IPanel {
 		this.footer.show();
 		this.viewport.inset(this.frame, 16, 112, 16, 114);
 		this.viewport.onSizeChanged(() => {
-			if (this.mounted) this.layoutContent();
+			if (this.mounted) {
+				this.layoutContent();
+				this.viewport.clampScroll();
+				this.requestViewportRender();
+			}
 		});
+		this.viewport.onVerticalScroll(() => this.requestViewportRender());
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.viewport.show();
@@ -207,6 +217,8 @@ export class PetsPanel implements IPanel {
 				this.dirty = true;
 				this.viewComplete = false;
 				this.view.replace(pets);
+				this.groups = undefined;
+				this.preparedRanges.reset();
 				if (!this.client.isInCombat()) this.requestRender(generation);
 			},
 			(completed, total) => {
@@ -218,6 +230,10 @@ export class PetsPanel implements IPanel {
 			(changes, complete) => {
 				if (!this.mounted || generation !== this.generation) return;
 				const changed = this.view.update(changes);
+				if (changed) {
+					this.groups = undefined;
+					this.preparedRanges.reset();
+				}
 				const finished = complete !== this.snapshotComplete;
 				this.snapshotComplete = complete;
 				if (!changed && !finished) return;
@@ -246,6 +262,26 @@ export class PetsPanel implements IPanel {
 		}
 		this.render(generation, this.snapshotComplete);
 	}
+	private requestViewportRender(): void {
+		if (!this.mounted || this.isViewportPrepared()) return;
+		if (this.cancelViewport || this.cancelRender || this.client.isInCombat())
+			return;
+		this.cancelViewport = this.scheduler.nextFrame(() => {
+			this.cancelViewport = undefined;
+			if (
+				this.mounted &&
+				!this.client.isInCombat() &&
+				!this.cancelRender &&
+				!this.isViewportPrepared()
+			)
+				this.render(this.generation, this.snapshotComplete);
+		});
+	}
+	private isViewportPrepared(): boolean {
+		return this.preparedRanges.includes(
+			this.viewport.getVisibleVerticalRange(),
+		);
+	}
 	private render(generation: number, complete = true): void {
 		const measurement = new WorkMeasurement(
 			this.performance,
@@ -257,6 +293,10 @@ export class PetsPanel implements IPanel {
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		this.renderPending = false;
+		const range = this.viewport.getVisibleVerticalRange();
+		const firstVisible = range.top - 2 * spacing;
+		const lastVisible =
+			range.bottom + Math.max(2 * spacing, range.bottom - range.top);
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
@@ -264,20 +304,13 @@ export class PetsPanel implements IPanel {
 		);
 		const jobs: (() => void)[] = [];
 		let renderedPets = 0;
-		const groups = groupPets(this.view.values());
+		let updatedPets = 0;
+		this.groups ??= groupPets(this.view.values());
+		const groups = this.groups;
 		const cellsById = new Map<string, PetCell>();
 		for (const cell of this.cells) if (cell.key) cellsById.set(cell.key, cell);
-		const wanted = new Set(
-			groups.flatMap((group) =>
-				group.pets.map((pet) =>
-					group.id === -1 ? `pet-favourite-${pet.id}` : `pet-${pet.id}`,
-				),
-			),
-		);
+		const wanted = new Set<string>();
 		this.visibleIds = wanted;
-		const available = this.cells.filter(
-			(cell) => cell.visible && cell.navId && !wanted.has(cell.navId),
-		);
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -311,6 +344,18 @@ export class PetsPanel implements IPanel {
 				const cellKey = `${group.id === -1 ? "favourite" : "species"}-${pet.speciesId}`;
 				let cell = cellsById.get(cellKey);
 				const previous = retained.get(navId);
+				const row = Math.floor(index / columns);
+				const cellTop = top + 28 + row * spacing;
+				const nearby = cellTop + 42 >= firstVisible && cellTop <= lastVisible;
+				if (
+					!nearby &&
+					(!previous ||
+						cell?.top !== cellTop ||
+						cell.column !== index % columns ||
+						cell.source !== source)
+				)
+					return;
+				wanted.add(navId);
 				if (previous)
 					grid
 						.at(firstRow + Math.floor(index / columns))
@@ -319,8 +364,7 @@ export class PetsPanel implements IPanel {
 								? previous
 								: { ...previous, navColumn: index % columns },
 						);
-				const row = Math.floor(index / columns);
-				const cellTop = top + 28 + row * spacing;
+				if (!nearby) return;
 
 				if (
 					cell?.visible &&
@@ -433,6 +477,7 @@ export class PetsPanel implements IPanel {
 					});
 					navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
 					renderedPets++;
+					updatedPets++;
 				});
 			});
 			y += 28 + Math.ceil(group.pets.length / columns) * spacing + 14;
@@ -446,7 +491,8 @@ export class PetsPanel implements IPanel {
 			0,
 			-10,
 		);
-		for (const cell of available) {
+		for (const cell of this.cells) {
+			if (!cell.visible || !cell.navId || wanted.has(cell.navId)) continue;
 			jobs.push(() => {
 				cell.border.hide();
 				cell.icon.hide();
@@ -496,10 +542,13 @@ export class PetsPanel implements IPanel {
 			measurement.add("frames", this.performance.now() - pageStart);
 			measurement.page(pageStart);
 			if (cursor === jobs.length) {
+				if (!this.renderPending)
+					this.preparedRanges.remember(firstVisible, lastVisible);
 				measurement.finish(
-					`complete tiles=${renderedPets} merged=${this.renderPending}`,
+					`complete updatedTiles=${updatedPets} readyTiles=${renderedPets} merged=${this.renderPending}`,
 				);
 				this.renderMeasurement = undefined;
+				if (!this.renderPending) this.requestViewportRender();
 			}
 			if (cursor === jobs.length && this.renderPending) {
 				this.cancelRender = this.scheduler.nextFrame(() => {
@@ -516,13 +565,16 @@ export class PetsPanel implements IPanel {
 		step();
 	}
 	private layoutContent(): void {
+		if (this.laidOutHeight === this.contentHeight) return;
 		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
+		this.laidOutHeight = this.contentHeight;
 		this.viewport.clampScroll();
 	}
 	resume(): void {
 		if (!this.mounted || this.client.isInCombat()) return;
 		if (this.mountPending && this.parent) this.onMount(this.parent);
 		else if (this.dirty) this.render(this.generation, this.snapshotComplete);
+		else this.requestViewportRender();
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {
 		this.navigationChanged = callback;
@@ -547,6 +599,9 @@ export class PetsPanel implements IPanel {
 		this.cancelLoad = undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.viewport.onVerticalScroll();
 		this.menu.close();
 		this.frame.hide();
 	}

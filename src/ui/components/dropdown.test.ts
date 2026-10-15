@@ -149,6 +149,21 @@ it("bounds long filter menus and scrolls controller focus to offscreen options",
 	);
 });
 
+it("follows mouse-selected checkbox options before their refresh rebuilds the menu", () => {
+	const { dropdown, native, entries, changed } = setup();
+	const activate = vi.fn(() =>
+		expect(changed).toHaveBeenLastCalledWith("second"),
+	);
+	dropdown.setOptions([
+		{ id: "first", label: "First", checked: false, activate: vi.fn() },
+		{ id: "second", label: "Second", checked: false, activate },
+	]);
+	native.SetMenuOpen(true);
+	entries.at(1)?.pick();
+	expect(activate).toHaveBeenCalledOnce();
+	expect(dropdown.isOpen()).toBe(true);
+});
+
 it("uses Blizzard's dropdown and exposes native checkbox focus and activation to navigation", () => {
 	const { dropdown, pool, entries, changed } = setup();
 	let checked = false;

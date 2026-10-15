@@ -67,6 +67,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setInsetBackground = vi.fn();
 		setFocusBorder = vi.fn();
 		setFocused = vi.fn();
+		setNavigationFocus = vi.fn();
 		setTooltip = vi.fn();
 		setHoverTooltip = vi.fn();
 		showTooltip = vi.fn();

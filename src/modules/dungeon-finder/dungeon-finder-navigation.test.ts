@@ -24,6 +24,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setIconRing = vi.fn();
 		setCloseButtonBackground = vi.fn();
 		setFocused = vi.fn();
+		setNavigationFocus = vi.fn();
 		setLabel = vi.fn();
 		setLabelWordWrap = vi.fn();
 		labelHeight = () => 14;

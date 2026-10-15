@@ -119,6 +119,14 @@ export class ItemGrid {
 						icon,
 						nav: {
 							navId: item.id,
+							mouseTarget: this.options.secureIcons
+								? {
+										setNavigationFocus(callback) {
+											frame.setNavigationFocus(callback);
+											icon.setNavigationFocus(callback);
+										},
+									}
+								: frame,
 							navigationScroll: this.viewport,
 							onFocus: (refresh) => {
 								if (refresh)
@@ -146,6 +154,7 @@ export class ItemGrid {
 						},
 						secondaryNav: {
 							navId: `${item.id}-secondary`,
+							mouseTarget: secondary,
 							navigationScroll: this.viewport,
 							onFocus: (refresh) => {
 								if (refresh) secondary.setFocused(true, false, true);

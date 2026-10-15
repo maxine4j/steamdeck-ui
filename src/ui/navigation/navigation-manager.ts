@@ -4,7 +4,12 @@ import type {
 	IEventBus,
 } from "../../events/types";
 import { NavigationGrid } from "./navigation-grid";
-import type { INavigable, NavDirection, NavGrid } from "./types";
+import type {
+	INavigable,
+	NavDirection,
+	NavGrid,
+	NavigationMouseTarget,
+} from "./types";
 
 type GridSource = NavGrid | (() => NavGrid);
 export type GridNeighbors = Partial<Record<"left" | "right", string>>;
@@ -31,6 +36,7 @@ export class NavigationManager implements INavManager {
 	private readonly options = new Map<string, GridOptions>();
 	private readonly history: string[] = [];
 	private readonly remembered = new Map<string, string>();
+	private readonly mouseTargets = new Map<string, Set<NavigationMouseTarget>>();
 	private active?: string;
 	private readonly modals: {
 		id: string;
@@ -89,7 +95,7 @@ export class NavigationManager implements INavManager {
 		if (this.active === panelId) options.onActiveChanged?.(true);
 		this.refreshGrid(panelId);
 	}
-	setActiveGrid(panelId: string): void {
+	setActiveGrid(panelId: string, focusId?: string): void {
 		if (this.modal && panelId !== this.modal.id) return;
 		if (!this.grids.has(panelId)) return;
 		if (this.active !== panelId) {
@@ -101,7 +107,7 @@ export class NavigationManager implements INavManager {
 		const index = this.history.indexOf(panelId);
 		if (index >= 0) this.history.splice(index, 1);
 		this.history.push(panelId);
-		this.refreshGrid(panelId);
+		this.refreshGrid(panelId, focusId);
 	}
 	pushModal(
 		id: string,
@@ -128,17 +134,33 @@ export class NavigationManager implements INavManager {
 		if (wasTop && removed.previous) this.setActiveGrid(removed.previous);
 	}
 	refreshGrid(panelId: string, focusId?: string): void {
-		if (this.active !== panelId) return;
 		const source = this.grids.get(panelId);
-		this.graph = new NavigationGrid(
-			typeof source === "function" ? source() : (source ?? []),
-		);
+		const grid = typeof source === "function" ? source() : (source ?? []);
+		const targets = new Set<NavigationMouseTarget>();
+		for (const row of grid)
+			for (const control of row) {
+				const target = control.mouseTarget;
+				if (!target) continue;
+				targets.add(target);
+				target.setNavigationFocus(() => {
+					if (this.modal && this.modal.id !== panelId) return;
+					this.setActiveGrid(panelId, control.navId);
+				});
+			}
+		for (const target of this.mouseTargets.get(panelId) ?? [])
+			if (!targets.has(target)) target.setNavigationFocus(undefined);
+		this.mouseTargets.set(panelId, targets);
+		if (this.active !== panelId) return;
+		this.graph = new NavigationGrid(grid);
 		const id = focusId ?? this.focusedId ?? this.remembered.get(panelId);
 		const control = (id ? this.graph.get(id) : undefined) ?? this.graph.first;
 		this.setFocus(control, control?.navId === this.focusedId);
 		this.onActiveChanged?.(true);
 	}
 	unregisterGrid(panelId: string): void {
+		for (const target of this.mouseTargets.get(panelId) ?? [])
+			target.setNavigationFocus(undefined);
+		this.mouseTargets.delete(panelId);
 		if (this.active === panelId)
 			this.options.get(panelId)?.onActiveChanged?.(false);
 		this.grids.delete(panelId);
@@ -204,6 +226,9 @@ export class NavigationManager implements INavManager {
 		this.focused?.onInteract();
 	}
 	destroy(): void {
+		for (const targets of this.mouseTargets.values())
+			for (const target of targets) target.setNavigationFocus(undefined);
+		this.mouseTargets.clear();
 		this.events.unsubscribe("NAV_DIRECTION_CHANGED", this.directionChanged);
 		this.modals.length = 0;
 		for (const [event, handler] of this.handlers)

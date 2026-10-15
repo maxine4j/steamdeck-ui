@@ -19,8 +19,9 @@ import type {
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
+import { PreparedRanges } from "../../ui/prepared-ranges";
 import type { IMountActionMenu } from "./mount-action-menu";
-import { groupMounts } from "./mount-display";
+import { groupMounts, type MountGroup } from "./mount-display";
 
 const columns = 10;
 const spacing = 46;
@@ -54,6 +55,10 @@ export class MountsPanel implements IPanel {
 	private readonly loadingProgress: Frame;
 	private readonly cells: MountCell[] = [];
 	private readonly headers: Frame[] = [];
+	private groups?: MountGroup[];
+	private readonly preparedRanges = new PreparedRanges();
+	private cancelViewport?: () => void;
+	private laidOutHeight?: number;
 	private grid: NavGrid = [];
 	private visibleIds = new Set<string>();
 	private contentHeight = 1;
@@ -97,6 +102,7 @@ export class MountsPanel implements IPanel {
 		});
 		this.searchNavigation = {
 			navId: this.search.id,
+			mouseTarget: this.search,
 			onFocus: (refresh) => {
 				if (refresh) this.search.setFocused(true, false, true);
 				else this.search.setFocused(true);
@@ -195,6 +201,8 @@ export class MountsPanel implements IPanel {
 	}
 
 	private acceptSnapshot(mounts: readonly Mount[], complete = false): void {
+		this.groups = undefined;
+		this.preparedRanges.reset();
 		this.mounts = mounts.map((mount) => {
 			const favourite = this.favouriteOverrides.get(mount.id);
 			if (favourite === undefined) return mount;
@@ -230,6 +238,8 @@ export class MountsPanel implements IPanel {
 	}
 
 	private updateFavourite(id: number, favourite: boolean): void {
+		this.groups = undefined;
+		this.preparedRanges.reset();
 		this.mounts = this.mounts.map((mount) =>
 			mount.id === id && mount.favourite !== favourite
 				? { ...mount, favourite }
@@ -274,6 +284,25 @@ export class MountsPanel implements IPanel {
 		}
 	}
 
+	private requestViewportRender(): void {
+		if (
+			!this.mounted ||
+			this.isViewportPrepared() ||
+			this.cancelViewport ||
+			this.cancelRender
+		)
+			return;
+		this.cancelViewport = this.scheduler.nextFrame(() => {
+			this.cancelViewport = undefined;
+			if (this.mounted && !this.cancelRender && !this.isViewportPrepared())
+				this.render(this.mounts, this.loadGeneration, this.snapshotComplete);
+		});
+	}
+	private isViewportPrepared(): boolean {
+		return this.preparedRanges.includes(
+			this.viewport.getVisibleVerticalRange(),
+		);
+	}
 	private render(
 		mounts: readonly Mount[],
 		generation: number,
@@ -288,6 +317,10 @@ export class MountsPanel implements IPanel {
 		this.renderMeasurement = measurement;
 		const prepareStart = this.performance.now();
 		this.cancelRender?.();
+		const range = this.viewport.getVisibleVerticalRange();
+		const firstVisible = range.top - 2 * spacing;
+		const lastVisible =
+			range.bottom + Math.max(2 * spacing, range.bottom - range.top);
 		const renderGeneration = ++this.renderGeneration;
 		const grid: NavGrid = [];
 		const retained = new Map(
@@ -297,18 +330,11 @@ export class MountsPanel implements IPanel {
 		for (const cell of this.cells)
 			if (cell.navId) cellsById.set(cell.navId, cell);
 		const jobs: (() => void)[] = [];
-		const groups = groupMounts(mounts);
-		const wanted = new Set(
-			groups.flatMap((group) =>
-				group.mounts.map((mount) =>
-					group.id === -1 ? `mount-favourite-${mount.id}` : `mount-${mount.id}`,
-				),
-			),
-		);
+		this.groups ??= groupMounts(mounts);
+		const groups = this.groups;
+		let updatedMounts = 0;
+		const wanted = new Set<string>();
 		this.visibleIds = wanted;
-		const available = this.cells.filter(
-			(cell) => cell.visible && cell.navId && !wanted.has(cell.navId),
-		);
 		let y = 0;
 		groups.forEach((group, groupIndex) => {
 			const top = y;
@@ -343,10 +369,9 @@ export class MountsPanel implements IPanel {
 				let cell = cellsById.get(navId);
 				const row = firstRow + Math.floor(index / columns);
 				const previous = retained.get(navId);
-				if (previous)
-					grid.at(row)?.push({ ...previous, navColumn: index % columns });
 				const cellTop = top + 28 + Math.floor(index / columns) * spacing;
-				if (
+				const nearby = cellTop + 42 >= firstVisible && cellTop <= lastVisible;
+				const ready =
 					cell?.visible &&
 					cell.top === cellTop &&
 					cell.column === index % columns &&
@@ -357,9 +382,18 @@ export class MountsPanel implements IPanel {
 					cell.mount.name === mount.name &&
 					cell.mount.collected === mount.collected &&
 					cell.mount.favourite === mount.favourite &&
-					cell.mount.usable === mount.usable
-				)
-					return;
+					cell.mount.usable === mount.usable;
+				if (!nearby && !ready) return;
+				wanted.add(navId);
+				if (previous)
+					grid
+						.at(row)
+						?.push(
+							previous.navColumn === index % columns
+								? previous
+								: { ...previous, navColumn: index % columns },
+						);
+				if (!nearby || ready) return;
 				jobs.push(() => {
 					if (!cell) {
 						const slot = this.cells.length;
@@ -439,6 +473,7 @@ export class MountsPanel implements IPanel {
 						},
 					});
 					navRow?.sort((a, b) => (a.navColumn ?? 0) - (b.navColumn ?? 0));
+					updatedMounts++;
 				});
 			});
 			y += 28 + Math.ceil(group.mounts.length / columns) * spacing + 14;
@@ -452,7 +487,8 @@ export class MountsPanel implements IPanel {
 			0,
 			-10,
 		);
-		for (const cell of available) {
+		for (const cell of this.cells) {
+			if (!cell.visible || !cell.navId || wanted.has(cell.navId)) continue;
 			jobs.push(() => {
 				cell.border.hide();
 				cell.icon.hide();
@@ -492,15 +528,19 @@ export class MountsPanel implements IPanel {
 			measurement.add("frames", this.performance.now() - pageStart);
 			measurement.page(pageStart);
 			if (cursor === jobs.length) {
-				measurement.finish(`complete tiles=${mounts.length}`);
+				this.preparedRanges.remember(firstVisible, lastVisible);
+				measurement.finish(`complete updatedTiles=${updatedMounts}`);
 				this.renderMeasurement = undefined;
+				this.requestViewportRender();
 			}
 		};
 		step();
 	}
 
 	private layoutContent(): void {
+		if (this.laidOutHeight === this.contentHeight) return;
 		this.content.layout(460, this.contentHeight, "TOPLEFT", this.viewport);
+		this.laidOutHeight = this.contentHeight;
 		this.viewport.clampScroll();
 	}
 	setNavigationChanged(callback?: (focusId?: string) => void): void {
@@ -522,8 +562,13 @@ export class MountsPanel implements IPanel {
 		);
 		this.viewport.inset(this.frame, 16, 112, 16, 114);
 		this.viewport.onSizeChanged(() => {
-			if (this.mounted) this.layoutContent();
+			if (this.mounted) {
+				this.layoutContent();
+				this.viewport.clampScroll();
+				this.requestViewportRender();
+			}
 		});
+		this.viewport.onVerticalScroll(() => this.requestViewportRender());
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.viewport.show();
@@ -601,11 +646,15 @@ export class MountsPanel implements IPanel {
 		this.filters.hide();
 		this.cancelRender?.();
 		this.cancelRender = undefined;
+		this.cancelViewport?.();
+		this.cancelViewport = undefined;
+		this.viewport.onVerticalScroll();
 		this.frame.hide();
 	}
 	private nav(button: Frame, alternate = false): INavigable {
 		return {
 			navId: button.id,
+			mouseTarget: button,
 			secureActions:
 				button === this.flight
 					? () => ({ interact: this.mounted ? button : undefined })

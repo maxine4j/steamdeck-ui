@@ -12,6 +12,56 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("follows mouse focus across grids, continues movement there and traps modals", () => {
+	const manager = new NavigationManager(createTestEventBus());
+	let click: (() => void) | undefined;
+	const clicked = {
+		...node("clicked"),
+		mouseTarget: {
+			setNavigationFocus: (callback?: () => void) => {
+				click = callback;
+			},
+		},
+	};
+	manager.registerGrid("left", [[node("left")]]);
+	manager.registerGrid("right", [[node("first"), clicked, node("next")]]);
+	manager.setActiveGrid("left");
+	expect(click).toBeTypeOf("function");
+	click?.();
+	expect(manager.focusedId).toBe("clicked");
+	expect(clicked.onInteract).not.toHaveBeenCalled();
+	manager.moveRight();
+	expect(manager.focusedId).toBe("next");
+	manager.pushModal("dialog", [[node("confirm")]], vi.fn());
+	click?.();
+	expect(manager.focusedId).toBe("confirm");
+	manager.popModal("dialog");
+	expect(manager.focusedId).toBe("next");
+	manager.unregisterGrid("right");
+	expect(click).toBeUndefined();
+});
+
+it("unbinds removed mouse controls and rebinds recycled targets to their current node", () => {
+	const manager = new NavigationManager(createTestEventBus());
+	let click: (() => void) | undefined;
+	const mouseTarget = {
+		setNavigationFocus: (callback?: () => void) => {
+			click = callback;
+		},
+	};
+	let grid: NavGrid = [[{ ...node("old"), mouseTarget }]];
+	manager.registerGrid("panel", () => grid);
+	manager.setActiveGrid("panel");
+	grid = [[node("first"), { ...node("new"), mouseTarget }]];
+	manager.refreshGrid("panel");
+	click?.();
+	expect(manager.focusedId).toBe("new");
+	grid = [[node("first")]];
+	manager.refreshGrid("panel");
+	expect(click).toBeUndefined();
+	manager.destroy();
+});
+
 it("restores nested modal focus and safely removes a covered dialog", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

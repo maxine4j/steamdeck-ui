@@ -118,6 +118,12 @@ export class Frame implements IUIComponent {
 	private textureTinted = false;
 	private textureDesaturated = false;
 	private buttonSkinned = false;
+	private closeButtonSkinned = false;
+	private buttonSelected = false;
+	private buttonPressed = false;
+	private navigationFocus?: () => void;
+	private pointerReleaseConfigured = false;
+	private buttonFeedbackConfigured = false;
 	private iconRing = false;
 	private focusBorder?: WowFrame & { SetFrameLevel(level: number): void };
 	private readonly labels = new Map<string, WowFontString>();
@@ -156,6 +162,7 @@ export class Frame implements IUIComponent {
 		if (!this.native) {
 			this.native = this.pool.acquire(this.frameType);
 			this.texture = this.pool.getBackground(this.native);
+			if (this.navigationFocus) this.configurePointerRelease();
 		}
 		return this.native;
 	}
@@ -371,7 +378,7 @@ export class Frame implements IUIComponent {
 		viewport.SetScript("OnHide", () => this.scrollPan?.reset());
 		// Mouse-enabled frames need press/release scripts to consume world clicks.
 		viewport.SetScript("OnMouseDown", () => this.scrollPan?.update(0));
-		viewport.SetScript("OnMouseUp", () => this.scrollPan?.update(0));
+		this.configurePointerRelease();
 		native.EnableMouseWheel(true);
 		native.SetScript("OnMouseWheel", (_frame, delta) => {
 			native.SetVerticalScroll(
@@ -529,6 +536,7 @@ export class Frame implements IUIComponent {
 	): INavigable {
 		return {
 			navId,
+			mouseTarget: this,
 			onFocus: (refresh) => {
 				if (refresh) this.setFocused(true, animatedIcon, true);
 				else if (animatedIcon) this.setFocused(true, true);
@@ -541,6 +549,69 @@ export class Frame implements IUIComponent {
 			},
 			onInteract: () => interact(),
 		};
+	}
+	setNavigationFocus(callback?: () => void): void {
+		this.navigationFocus = callback;
+		if (callback && this.native) this.configurePointerRelease();
+	}
+	private configurePointerRelease(): void {
+		if (this.pointerReleaseConfigured) return;
+		const native = this.acquire() as WowFrame & {
+			IsMouseOver(): boolean;
+			SetScript(
+				script: "OnMouseUp",
+				handler: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		this.pointerReleaseConfigured = true;
+		native.SetScript("OnMouseUp", (_frame, button) => {
+			this.scrollPan?.update(0);
+			this.buttonPressed = false;
+			this.drawButtonState();
+			if (
+				button === "LeftButton" &&
+				native.IsMouseOver() &&
+				!this.findScrollPan()?.suppressClick()
+			)
+				this.navigationFocus?.();
+		});
+	}
+	private configureButtonFeedback(highlight: string): void {
+		const native = this.acquire() as WowFrame & {
+			SetHighlightAtlas(atlas: string, blend: string): void;
+			SetScript(
+				script: "OnMouseDown" | "OnHide",
+				handler: (this: void, frame: WowFrame, button: string) => void,
+			): void;
+		};
+		this.buttonFeedbackConfigured = true;
+		native.SetHighlightAtlas(highlight, "ADD");
+		native.SetScript("OnHide", () => this.resetButtonFeedback());
+		native.SetScript("OnMouseDown", (_frame, button) => {
+			if (button !== "LeftButton") return;
+			this.buttonPressed = true;
+			this.drawButtonState();
+		});
+		this.configurePointerRelease();
+	}
+	private resetButtonFeedback(): void {
+		this.buttonPressed = false;
+		this.drawButtonState();
+		this.hideTooltip();
+	}
+	private drawButtonState(): void {
+		if (!this.native) return;
+		if (this.buttonSkinned)
+			applyButtonSkin(
+				this.pool,
+				this.native,
+				this.buttonSelected || this.buttonPressed,
+			);
+		else if (this.closeButtonSkinned)
+			this.texture?.SetAtlas(
+				this.buttonPressed ? "RedButton-exit-pressed" : "RedButton-Exit",
+				false,
+			);
 	}
 	setGamePadInput(
 		callback?: (button: string) => boolean,
@@ -726,6 +797,15 @@ export class Frame implements IUIComponent {
 		this.clearAtlasSlices();
 		this.clearTextureTint();
 		this.acquire();
+		if (this.buttonSkinned || this.closeButtonSkinned) {
+			(
+				this.native as WowFrame & {
+					SetHighlightTexture(texture?: string): void;
+				}
+			).SetHighlightTexture(undefined);
+			this.closeButtonSkinned = false;
+			this.buttonPressed = false;
+		}
 		if (this.buttonSkinned && this.native) {
 			this.texture?.SetHorizTile(false);
 			for (const key of ["button-left", "button-right"])
@@ -1040,7 +1120,7 @@ export class Frame implements IUIComponent {
 			this.showTooltip(item);
 		});
 		native.SetScript("OnLeave", hide);
-		native.SetScript("OnHide", hide);
+		native.SetScript("OnHide", () => this.resetButtonFeedback());
 		this.hoverTooltipConfigured = true;
 	}
 	showTooltip(content: TooltipContent): void {
@@ -1290,8 +1370,12 @@ export class Frame implements IUIComponent {
 	}
 	setButtonBackground(selected = false): void {
 		this.clearAtlasSlices();
-		applyButtonSkin(this.pool, this.acquire(), selected);
+		this.acquire();
 		this.buttonSkinned = true;
+		this.closeButtonSkinned = false;
+		this.buttonSelected = selected;
+		this.drawButtonState();
+		this.configureButtonFeedback("128-RedButton-Highlight");
 	}
 	setInsetBackground(): void {
 		this.clearAtlasSlices();
@@ -1300,9 +1384,10 @@ export class Frame implements IUIComponent {
 		this.setBorder([0.45, 0.4, 0.3, 1], 1);
 	}
 	setCloseButtonBackground(): void {
-		this.clearAtlasSlices();
-		this.acquire();
-		this.texture?.SetAtlas("RedButton-Exit", false);
+		this.setColor(0, 0, 0, 0);
+		this.closeButtonSkinned = true;
+		this.drawButtonState();
+		this.configureButtonFeedback("RedButton-Highlight");
 	}
 	private clearAtlasSlices(): void {
 		if (!this.atlasSliced || !this.texture) return;
@@ -1335,6 +1420,8 @@ export class Frame implements IUIComponent {
 		if (this.animation && !this.animation.IsPlaying()) this.animation.Play();
 	}
 	hide(): void {
+		this.buttonPressed = false;
+		this.drawButtonState();
 		if (this.focusArrival) this.setFocused(false);
 		this.iconFocus?.setFocused(false);
 		this.scrollPan?.reset();
@@ -1348,6 +1435,31 @@ export class Frame implements IUIComponent {
 		this.parent = parent;
 	}
 	destroy(): void {
+		this.navigationFocus = undefined;
+		if (this.native) {
+			const pointer = this.native as WowFrame & {
+				SetScript(
+					script: "OnMouseDown" | "OnMouseUp" | "OnHide",
+					handler?: (this: void) => void,
+				): void;
+			};
+			if (this.pointerReleaseConfigured)
+				pointer.SetScript("OnMouseUp", undefined);
+			if (this.buttonFeedbackConfigured) {
+				pointer.SetScript("OnMouseDown", undefined);
+				pointer.SetScript("OnHide", undefined);
+			}
+		}
+		this.pointerReleaseConfigured = false;
+		this.buttonFeedbackConfigured = false;
+		if (this.buttonSkinned || this.closeButtonSkinned)
+			(
+				this.native as WowFrame & {
+					SetHighlightTexture(texture?: string): void;
+				}
+			).SetHighlightTexture(undefined);
+		this.closeButtonSkinned = false;
+		this.buttonPressed = false;
 		this.clearAtlasSlices();
 		this.focusArrival?.destroy();
 		this.focusArrival = undefined;
