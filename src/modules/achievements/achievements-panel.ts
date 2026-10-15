@@ -100,6 +100,7 @@ export class AchievementsPanel implements IPanel {
 			autoHeight: true,
 			background: false,
 			padding: 0,
+			viewportRight: -8,
 			top: 0,
 			bottom: 0,
 			gap: 12,
@@ -444,13 +445,9 @@ export class AchievementsPanel implements IPanel {
 		return [
 			{
 				id: "summary-progress",
-				label: "Overall progress",
-				detail: formatAchievementProgress(
-					this.summary.totals.completed,
-					this.summary.totals.total,
-				),
+				label: "",
 				heading: true,
-				height: 64,
+				height: 20,
 				progress: {
 					value:
 						this.summary.totals.total > 0
@@ -508,6 +505,7 @@ export class AchievementsPanel implements IPanel {
 		this.back.hide();
 		this.filter.hide();
 		const page = this.pages.find((p) => p.id === this.page);
+		this.body.inset(this.frame, 16, page ? 120 : 80, 16, 36);
 		if (page || this.loading) {
 			this.list.unmount();
 			this.summaryMounted = false;

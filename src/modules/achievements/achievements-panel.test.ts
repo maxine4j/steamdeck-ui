@@ -22,6 +22,7 @@ const { lists, frames, reveal, edges, resizeCallbacks, listOptions } =
 			{
 				visible: boolean;
 				layouts: number[][];
+				insets: number[][];
 				labels: Map<string, string>;
 				opacity: number;
 				click?: () => void;
@@ -33,6 +34,7 @@ vi.mock("../../ui/components/frame", () => ({
 		state = {
 			visible: false,
 			layouts: [] as number[][],
+			insets: [] as number[][],
 			labels: new Map<string, string>(),
 			opacity: 1,
 			click: undefined as (() => void) | undefined,
@@ -41,7 +43,9 @@ vi.mock("../../ui/components/frame", () => ({
 			frames.set(id, this.state);
 		}
 		fill() {}
-		inset() {}
+		inset(_parent: unknown, ...insets: number[]) {
+			this.state.insets.push(insets);
+		}
 		setParent() {}
 		setColor() {}
 		setWindowBackground() {}
@@ -171,6 +175,34 @@ it("uses modern textured progress bars on achievement tiles", () => {
 			track: "ui-journeys-progressbar-BG",
 		},
 	});
+});
+
+it("keeps only a compact overall bar below the summary count and raises the tiles", () => {
+	setup();
+	expect(frames.get("achievements")?.labels.get("overall-count")).toBe(
+		"5 / 20 achievements • 25%",
+	);
+	expect(lists.get("achievements-list")?.rows.at(0)).toMatchObject({
+		id: "summary-progress",
+		label: "",
+		height: 20,
+		progress: { value: 0.25 },
+	});
+	expect(lists.get("achievements-list")?.rows.at(0)?.detail).toBeUndefined();
+	expect(frames.get("achievements-body")?.insets.at(-1)).toEqual([
+		16, 80, 16, 36,
+	]);
+});
+
+it("moves the summary scrollbar outside the tile edge and preserves category controls", () => {
+	const { activate } = setup();
+	expect(listOptions.get("achievements-list")).toMatchObject({
+		viewportRight: -8,
+	});
+	activate("summary-category-Quests");
+	expect(frames.get("achievements-body")?.insets.at(-1)).toEqual([
+		16, 120, 16, 36,
+	]);
 });
 
 it("keeps a warm achievement page unchanged until reopening after cache updates", () => {
