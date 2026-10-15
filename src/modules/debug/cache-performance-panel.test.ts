@@ -26,6 +26,8 @@ vi.mock("../../ui/components/frame", () => ({
 		hide = vi.fn();
 		destroy = vi.fn();
 		clampScroll = vi.fn();
+		getVisibleVerticalRange = vi.fn(() => ({ top: 0, bottom: 100 }));
+		scrollBy = vi.fn();
 		setFocused = vi.fn();
 		setNavigationFocus = vi.fn();
 		setColor = vi.fn();
@@ -37,6 +39,85 @@ vi.mock("../../ui/components/frame", () => ({
 		revealVerticalRange = vi.fn();
 	},
 }));
+
+it.each(["grow", "shrink", "reorder", "clamp"] as const)(
+	"preserves a manually scrolled viewport when cache/work rows %s",
+	(change) => {
+		const pool = {} as IFramePoolManager;
+		const diagnostics = new Diagnostics(() => 120);
+		const job = {
+			id: 1,
+			label: "Scan",
+			reason: "login",
+			completed: 1,
+			total: 2,
+			elapsed: 5,
+			state: "running",
+		};
+		diagnostics.work(job);
+		let namespaces = ["mounts", "pets", "toys", "appearances", "achievements"];
+		const pending: (() => void)[] = [];
+		const panel = new CachePerformancePanel(
+			pool,
+			diagnostics,
+			() =>
+				namespaces.map((namespace) => ({
+					namespace,
+					entries: 20,
+					pending: 0,
+					updatedAt: 100,
+				})),
+			{
+				delay: (_seconds, callback) => {
+					pending.push(callback);
+					return vi.fn();
+				},
+			},
+			vi.fn(),
+		);
+		const navigation = new NavigationManager(createTestEventBus());
+		panel.onMount(new Frame("parent", pool));
+		navigation.registerGrid("debug", () => panel.getNavGrid());
+		navigation.setActiveGrid("debug");
+		panel.setNavigationChanged(() => navigation.refreshGrid("debug"));
+		const scroll = frames.get("debug-cache-list-scroll");
+		const content = frames.get("debug-cache-list-content");
+		if (!scroll || !content) throw new Error("Missing mounted viewport");
+		let offset = 180;
+		let height = panel.getNavGrid().flat().length * 72;
+		vi.mocked(scroll.getVisibleVerticalRange).mockImplementation(() => ({
+			top: offset,
+			bottom: offset + 100,
+		}));
+		vi.mocked(scroll.scrollBy).mockImplementation((delta) => {
+			offset = Math.max(0, Math.min(height - 100, offset + delta));
+			return { offset, range: height - 100 };
+		});
+		// Native scroll-child reanchoring can collapse the range during layout.
+		vi.mocked(content.layout).mockImplementation((_width, nextHeight) => {
+			height = nextHeight;
+			offset = 0;
+		});
+		vi.mocked(scroll.revealVerticalRange).mockImplementation(() => {
+			offset = 0;
+		});
+		if (change === "grow") {
+			namespaces = ["currency", ...namespaces];
+			diagnostics.work({ ...job, id: 2 });
+		} else if (change === "clamp") namespaces = [];
+		else if (change === "shrink") namespaces = namespaces.slice(1);
+		else namespaces = [...namespaces].reverse();
+		pending.shift()?.();
+		expect(offset).toBe(change === "clamp" ? height - 100 : 180);
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.some((node) => node.navId === "cache-mounts"),
+		).toBe(namespaces.includes("mounts"));
+		panel.onUnmount();
+	},
+);
 
 it("updates live performance cards without reanchoring the viewport or revealing the focused row", () => {
 	const pool = {} as IFramePoolManager;

@@ -23,6 +23,7 @@ export class CachePerformancePanel implements IPanel {
 	) {
 		this.list = new ScrollList("debug-cache-list", pool, this.title, close, {
 			padding: 16,
+			preserveScrollOnRefresh: true,
 			onChanged: (complete) => {
 				if (complete) this.changed?.();
 			},

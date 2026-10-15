@@ -138,6 +138,8 @@ export class ScrollList {
 			readonly centerText?: boolean;
 			readonly centerLabelsVertically?: boolean;
 			readonly centerContent?: boolean;
+			/** Keep manual scrolling in place through live data and navigation updates. */
+			readonly preserveScrollOnRefresh?: boolean;
 			readonly textColor?: readonly [number, number, number];
 		} = {},
 	) {
@@ -263,6 +265,9 @@ export class ScrollList {
 			);
 	}
 	private render(startRow = 0, retainReady = false): void {
+		const scrollTop = this.options.preserveScrollOnRefresh
+			? this.scroll.getVisibleVerticalRange().top
+			: undefined;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
 		const readyRows = retainReady
@@ -310,6 +315,7 @@ export class ScrollList {
 		this.contentHeight = contentHeight;
 		// Reanchoring an unchanged scroll child can reset its native scroll range.
 		if (!retainReady || heightChanged) this.layoutContent();
+		this.restoreScroll(scrollTop);
 		const groupLayouts = new Map<
 			string,
 			{
@@ -365,6 +371,9 @@ export class ScrollList {
 		let cursor = startRow;
 		const total = Math.max(this.rows.length, this.buttons.length);
 		const step = () => {
+			const scrollTop = this.options.preserveScrollOnRefresh
+				? this.scroll.getVisibleVerticalRange().top
+				: undefined;
 			this.cancelRender = undefined;
 			const end = Math.min(
 				total,
@@ -875,6 +884,7 @@ export class ScrollList {
 				this.dirty = false;
 			}
 			this.options.onChanged?.(!this.dirty);
+			this.restoreScroll(scrollTop);
 			if (!this.dirty && this.pendingUpdate) {
 				this.pendingUpdate = false;
 				this.render(0, true);
@@ -883,6 +893,11 @@ export class ScrollList {
 		if (this.options.scheduler)
 			this.cancelRender = this.options.scheduler.nextFrame(step);
 		else step();
+	}
+	private restoreScroll(top?: number): void {
+		if (top === undefined) return;
+		const delta = top - this.scroll.getVisibleVerticalRange().top;
+		if (delta !== 0) this.scroll.scrollBy(delta);
 	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
