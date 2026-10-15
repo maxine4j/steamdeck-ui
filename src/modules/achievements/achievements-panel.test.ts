@@ -167,9 +167,11 @@ beforeEach(() => {
 	resizeCallbacks.clear();
 });
 
-it("uses modern textured progress bars on achievement tiles", () => {
+it("spans achievement tile progress bars beneath icons with padded edges", () => {
 	setup();
 	expect(listOptions.get("achievements-list")).toMatchObject({
+		edgeProgress: true,
+		progressInset: { horizontal: 18, bottom: 12 },
 		progressTextures: {
 			fill: "ui-journeys-progressbar-fill",
 			track: "ui-journeys-progressbar-BG",
