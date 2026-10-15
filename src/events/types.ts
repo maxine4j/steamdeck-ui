@@ -20,6 +20,7 @@ export interface DialogueEventPayloads {
 	DIALOGUE_ERROR: { message: string };
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
+	APPEARANCES_CHANGED: { sourceId?: number; appearanceId?: number } | undefined;
 	AUCTION_HOUSE_CHANGED: import("../clients/auction-house-client").AuctionUpdate;
 	NAV_DIRECTION_CHANGED: {
 		direction: "up" | "down" | "left" | "right";
@@ -36,6 +37,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "APPEARANCES_VISIBILITY_CHANGED"
 	| "NATIVE_DIALOGS_CHANGED"
 	| "AUCTION_HOUSE_SHOW"
 	| "AUCTION_HOUSE_CLOSED"

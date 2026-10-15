@@ -165,6 +165,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetCamDistanceScale: vi.fn(),
 				SetFacing: vi.fn(),
 				ClearModel: vi.fn(),
+				SetUseTransmogChoices: vi.fn(),
+				SetKeepModelOnHide: vi.fn(),
+				TryOn: vi.fn(),
+				Undress: vi.fn(),
 				CreateTexture: () => texture,
 				CreateMaskTexture: () => ({
 					SetPoint: vi.fn(),
@@ -221,6 +225,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("WardrobeCollectionFrame", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("CollectionsJournal", {
 		IsShown: () => false,
 		HookScript: vi.fn(),
@@ -399,6 +407,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		setLocked: vi.fn(),
 		checkInbox: vi.fn(),
 		close: vi.fn(),
+	};
+	const appearances = {
+		getSlots: () => [],
+		load: vi.fn(() => vi.fn()),
+		refresh: vi.fn(),
+		refreshItem: vi.fn(),
+		stop: vi.fn(),
 	};
 	const app = startSteamDeckUI(
 		factory,
@@ -603,6 +618,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 			bind: vi.fn(),
 		},
 		new AuctionHouseClient(events),
+		appearances,
 	);
 	expect(frames).toHaveLength(6);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -638,6 +654,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(slashCommands.initialize).toHaveBeenCalledOnce();
 	expect(toys.prefetch).toHaveBeenCalledOnce();
 	expect(pets.prefetch).toHaveBeenCalledOnce();
+	expect(appearances.load).not.toHaveBeenCalled();
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
@@ -832,11 +849,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		["UI-HUD-MicroMenu-SpellbookAbilities-Up", 0, -29], // Spellbook
 		["UI-HUD-MicroMenu-Achievements-Up", 0, -107], // Achievements
 		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -165], // Group finder
-		[133633, 1, 126], // Bags
-		[133784, 1, 68], // Currency
-		[132261, 1, -10], // Mounts
-		[454046, 1, -68], // Toys
-		[132599, 1, -126], // Pets
+		[133633, 1, 155], // Bags
+		[133784, 1, 97], // Currency
+		[132261, 1, 19], // Mounts
+		[454046, 1, -39], // Toys
+		[132599, 1, -97], // Pets
+		[134400, 1, -155], // Appearances
 	] as const) {
 		const tabIndex = textures.findIndex((texture, index) => {
 			const tab = frames.at(index);
@@ -964,6 +982,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());
+	app.ui.openPanel("appearances", "right");
+	expect(app.ui.getContainer("right").activePanelId).toBe("appearances");
+	expect(app.navigation.focusedId).toBe("appearances-clear");
+	expect(appearances.load).not.toHaveBeenCalled();
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	app.ui.openPanel("bags", "right");
 	app.ui.openPanel("paper-doll", "left");
 	flush();

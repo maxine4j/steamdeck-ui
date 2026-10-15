@@ -20,7 +20,8 @@ export type FrameType =
 	| "SearchBox"
 	| "StatusBar"
 	| "ScrollFrame"
-	| "PlayerModel";
+	| "PlayerModel"
+	| "DressUpModel";
 export interface FrameFactory {
 	createFrame(type: FrameType): WowFrame;
 }

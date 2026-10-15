@@ -1,0 +1,36 @@
+import { expect, it, vi } from "vitest";
+import { createTestEventBus } from "../../events/test-event-bus";
+import { AppearancesModule } from "./appearances-module";
+
+it("routes wardrobe visibility, targeted and context-free events without login prefetch and restores on shutdown", () => {
+	const events = createTestEventBus();
+	const ui = { openPanel: vi.fn(), closePanel: vi.fn() };
+	let open = false;
+	const native = { disable: vi.fn(), restore: vi.fn(), isOpen: () => open };
+	const client = { refresh: vi.fn(), refreshItem: vi.fn(), stop: vi.fn() };
+	const module = new AppearancesModule(ui, events, native, client);
+	module.disableBuiltIn();
+	module.initialize();
+	expect(native.disable).toHaveBeenCalledOnce();
+	expect(client.refresh).not.toHaveBeenCalled();
+	open = true;
+	events.emit("APPEARANCES_VISIBILITY_CHANGED");
+	expect(ui.openPanel).toHaveBeenCalledWith("appearances", "right");
+	events.emit("APPEARANCES_CHANGED", { sourceId: 42 });
+	expect(client.refresh).toHaveBeenLastCalledWith(42);
+	events.emit("APPEARANCES_CHANGED", { appearanceId: 17 });
+	expect(client.refresh).toHaveBeenLastCalledWith(undefined, 17);
+	events.emit("APPEARANCES_CHANGED");
+	expect(client.refresh).toHaveBeenLastCalledWith(undefined);
+	events.emit("ITEM_DATA_LOAD_RESULT", { id: 17, success: true });
+	expect(client.refreshItem).toHaveBeenCalledWith(17);
+	open = false;
+	events.emit("APPEARANCES_VISIBILITY_CHANGED");
+	expect(ui.closePanel).toHaveBeenCalledWith("right", "appearances");
+	module.shutdown();
+	expect(client.stop).toHaveBeenCalledOnce();
+	expect(native.restore).toHaveBeenCalledOnce();
+	client.refresh.mockClear();
+	events.emit("APPEARANCES_CHANGED");
+	expect(client.refresh).not.toHaveBeenCalled();
+});

@@ -1,6 +1,7 @@
 import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { AddonConfigClient } from "./clients/addon-config-client";
+import { AppearancesClient } from "./clients/appearances-client";
 import { AuctionHouseClient } from "./clients/auction-house-client";
 import { BankClient } from "./clients/bank-client";
 import { CharacterClient } from "./clients/character-client";
@@ -94,5 +95,6 @@ startSteamDeckUI(
 	new PvpFinderClient(),
 	new SpellbookClient(),
 	auctionHouse,
+	new AppearancesClient(scheduler, collectionCache, performance),
 	performance,
 );

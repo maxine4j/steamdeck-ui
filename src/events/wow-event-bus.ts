@@ -254,6 +254,14 @@ export class WowEventBus implements IEventBus {
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
 		this.frame.RegisterEvent("NEW_TOY_ADDED");
+		for (const event of [
+			"TRANSMOG_COLLECTION_SOURCE_ADDED",
+			"TRANSMOG_COLLECTION_SOURCE_REMOVED",
+			"TRANSMOG_COLLECTION_UPDATED",
+			"TRANSMOG_COLLECTION_ITEM_UPDATE",
+			"TRANSMOG_SEARCH_UPDATED",
+		])
+			this.frame.RegisterEvent(event);
 		for (const event of petEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
@@ -411,6 +419,25 @@ export class WowEventBus implements IEventBus {
 					"TOYS_CHANGED",
 					typeof unit === "number" ? { id: unit } : undefined,
 				);
+			if (
+				event === "TRANSMOG_COLLECTION_SOURCE_ADDED" ||
+				event === "TRANSMOG_COLLECTION_SOURCE_REMOVED"
+			)
+				this.emit(
+					"APPEARANCES_CHANGED",
+					typeof unit === "number" ? { sourceId: unit } : undefined,
+				);
+			if (event === "TRANSMOG_COLLECTION_UPDATED") {
+				const appearanceId = args.at(2);
+				this.emit(
+					"APPEARANCES_CHANGED",
+					typeof appearanceId === "number" ? { appearanceId } : undefined,
+				);
+			}
+			if (event === "TRANSMOG_COLLECTION_ITEM_UPDATE")
+				this.emit("APPEARANCES_CHANGED");
+			if (event === "TRANSMOG_SEARCH_UPDATED" && unit === 1)
+				this.emit("APPEARANCES_CHANGED");
 			if (event === "ITEM_DATA_LOAD_RESULT")
 				this.emit(
 					"ITEM_DATA_LOAD_RESULT",

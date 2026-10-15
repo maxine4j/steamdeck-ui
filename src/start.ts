@@ -1,6 +1,7 @@
 import type { IAchievementsClient } from "./clients/achievements-client";
 import type { IActionBarClient } from "./clients/action-bar-client";
 import type { IAddonConfigClient } from "./clients/addon-config-client";
+import type { IAppearancesClient } from "./clients/appearances-client";
 import type { IAuctionHouseClient } from "./clients/auction-house-client";
 import type { IBankClient } from "./clients/bank-client";
 import type { ICharacterClient } from "./clients/character-client";
@@ -39,6 +40,7 @@ import { AbilityRing } from "./modules/action-bar/ability-ring";
 import { ActionBarModule } from "./modules/action-bar/action-bar-module";
 import { CrossBar } from "./modules/action-bar/cross-bar";
 import { CrossBarPreview } from "./modules/action-bar/cross-bar-preview";
+import { registerAppearances } from "./modules/appearances/register-appearances";
 import { registerAuctionHouse } from "./modules/auction-house/register-auction-house";
 import { BagsModule } from "./modules/bags/bags-module";
 import { BagsPanel } from "./modules/bags/bags-panel";
@@ -196,9 +198,19 @@ function registerCollections(
 	toys: IToysClient,
 	scheduler: ITaskScheduler,
 	pets: IPetsClient,
+	appearances: IAppearancesClient,
 	performance: IPerformanceClient,
 ) {
 	const collections = new CollectionsClient(new FrameSuppression(pool), events);
+	const appearancesPanel = registerAppearances(
+		pool,
+		events,
+		ui,
+		modules,
+		appearances,
+		collections,
+		scheduler,
+	);
 	const builtInMounts = new BuiltInMounts(collections);
 	const builtInToys = new BuiltInToys(collections);
 	const builtInPets = new BuiltInPets(collections);
@@ -244,7 +256,15 @@ function registerCollections(
 	modules.register(
 		new MountsModule(ui, events, mountsPanel, builtInMounts, mounts),
 	);
-	return { toyModal, mountModal, petModal, toysPanel, mountsPanel, petsPanel };
+	return {
+		toyModal,
+		mountModal,
+		petModal,
+		toysPanel,
+		mountsPanel,
+		petsPanel,
+		appearancesPanel,
+	};
 }
 
 function registerPlayerSpells(
@@ -343,6 +363,7 @@ export function startSteamDeckUI(
 	pvpFinder: IPvpFinderClient,
 	spellbook: ISpellbookClient,
 	auctionHouse: IAuctionHouseClient,
+	appearances: IAppearancesClient,
 	performance: IPerformanceClient = quietPerformance,
 ) {
 	const pool = new FramePoolManager(factory);
@@ -408,7 +429,7 @@ export function startSteamDeckUI(
 						: position === "right"
 							? [
 									["bags", "currency"],
-									["mounts", "toys", "pets"],
+									["mounts", "toys", "pets", "appearances"],
 								]
 							: [],
 				events,
@@ -593,6 +614,7 @@ export function startSteamDeckUI(
 		toys,
 		scheduler,
 		pets,
+		appearances,
 		performance,
 	);
 	const paperDoll = new PaperDollPanel(
@@ -710,6 +732,7 @@ export function startSteamDeckUI(
 			collectionsFeature.mountsPanel.destroy();
 			collectionsFeature.toysPanel.destroy();
 			collectionsFeature.petsPanel.destroy();
+			collectionsFeature.appearancesPanel.destroy();
 			playerSpells.destroy();
 			transmogPanel.destroy();
 			dungeonFinderPanel.destroy();

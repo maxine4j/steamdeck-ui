@@ -62,8 +62,8 @@ export class CollectionJournal<T> {
 	isScanning(): boolean {
 		return this.cancelScan !== undefined;
 	}
-	prefetch(): void {
-		this.start("login");
+	prefetch(reason = "login"): void {
+		this.start(reason);
 	}
 	refreshEntry(key?: string): void {
 		if (key === undefined) {

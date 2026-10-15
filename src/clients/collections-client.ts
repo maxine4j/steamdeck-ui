@@ -4,6 +4,7 @@ import type { IFrameSuppression } from "../ui/components/frame-suppression";
 
 declare global {
 	const PetJournal: typeof ToyBox;
+	const WardrobeCollectionFrame: typeof ToyBox;
 	const ToyBox: WowFrame & {
 		IsShown(): boolean;
 		HookScript(
@@ -12,7 +13,7 @@ declare global {
 		): void;
 	};
 }
-export type CollectionTab = "mounts" | "toys" | "pets";
+export type CollectionTab = "mounts" | "toys" | "pets" | "appearances";
 export interface ICollectionsClient {
 	disable(tab: CollectionTab): void;
 	restore(tab: CollectionTab): void;
@@ -35,7 +36,9 @@ export class CollectionsClient implements ICollectionsClient {
 				? MountJournal.IsShown()
 				: tab === "pets"
 					? PetJournal.IsShown()
-					: ToyBox.IsShown())
+					: tab === "appearances"
+						? WardrobeCollectionFrame.IsShown()
+						: ToyBox.IsShown())
 		);
 	}
 	close(): void {
@@ -50,6 +53,8 @@ export class CollectionsClient implements ICollectionsClient {
 			this.events.emit("MOUNTS_VISIBILITY_CHANGED");
 		if (this.enabled.has("toys")) this.events.emit("TOYS_VISIBILITY_CHANGED");
 		if (this.enabled.has("pets")) this.events.emit("PETS_VISIBILITY_CHANGED");
+		if (this.enabled.has("appearances"))
+			this.events.emit("APPEARANCES_VISIBILITY_CHANGED");
 	};
 	disable(tab: CollectionTab): void {
 		if (this.enabled.has(tab)) return;
@@ -62,6 +67,7 @@ export class CollectionsClient implements ICollectionsClient {
 				MountJournal,
 				ToyBox,
 				PetJournal,
+				WardrobeCollectionFrame,
 			]) {
 				frame.HookScript("OnShow", this.sync);
 				frame.HookScript("OnHide", this.sync);

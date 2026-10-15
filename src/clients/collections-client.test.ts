@@ -16,6 +16,7 @@ it("coordinates one window suppressor across mounts and toys and restores unsupp
 		["MountJournal", "mounts"],
 		["ToyBox", "toys"],
 		["PetJournal", "pets"],
+		["WardrobeCollectionFrame", "appearances"],
 	])
 		vi.stubGlobal(global, {
 			IsShown: () => selected === tab,
@@ -49,7 +50,7 @@ it("coordinates one window suppressor across mounts and toys and restores unsupp
 	hooks.at(0)?.();
 	expect(toys).toHaveBeenCalledTimes(calls);
 	client.disable("toys");
-	expect(hooks).toHaveLength(8);
+	expect(hooks).toHaveLength(10);
 	client.close();
 	expect(HideUIPanel).toHaveBeenCalledExactlyOnceWith(journal);
 });
@@ -61,6 +62,7 @@ it("suppresses pets through the shared owner and publishes visibility", () => {
 		"MountJournal",
 		"ToyBox",
 		"PetJournal",
+		"WardrobeCollectionFrame",
 	])
 		vi.stubGlobal(name, journal);
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
@@ -74,5 +76,35 @@ it("suppresses pets through the shared owner and publishes visibility", () => {
 	expect(frames.suppress).toHaveBeenCalledExactlyOnceWith([journal]);
 	expect(changed).toHaveBeenCalledOnce();
 	client.restore("pets");
+	expect(frames.restore).toHaveBeenCalledOnce();
+});
+
+it("suppresses the appearances collection and restores unsupported wardrobe tabs", () => {
+	let selected = "appearances";
+	const journal = { IsShown: () => true, HookScript: vi.fn() };
+	vi.stubGlobal("CollectionsJournal", journal);
+	for (const [name, tab] of [
+		["MountJournal", "mounts"],
+		["ToyBox", "toys"],
+		["PetJournal", "pets"],
+		["WardrobeCollectionFrame", "appearances"],
+	])
+		vi.stubGlobal(name, {
+			IsShown: () => selected === tab,
+			HookScript: vi.fn(),
+		});
+	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
+	const events = createTestEventBus();
+	const changed = vi.fn();
+	events.subscribe("APPEARANCES_VISIBILITY_CHANGED", changed);
+	const frames = { suppress: vi.fn(), restore: vi.fn() };
+	const client = new CollectionsClient(frames, events);
+	client.disable("appearances");
+	expect(client.isOpen("appearances")).toBe(true);
+	expect(frames.suppress).toHaveBeenCalledWith([journal]);
+	expect(changed).toHaveBeenCalledOnce();
+	selected = "heirlooms";
+	expect(client.isOpen("appearances")).toBe(false);
+	client.restore("appearances");
 	expect(frames.restore).toHaveBeenCalledOnce();
 });

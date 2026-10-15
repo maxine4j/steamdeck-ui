@@ -145,7 +145,8 @@ export class Frame implements IUIComponent {
 			| "EditBox"
 			| "SearchBox"
 			| "ScrollFrame"
-			| "PlayerModel" = "Frame",
+			| "PlayerModel"
+			| "DressUpModel" = "Frame",
 	) {}
 	/** Native menu access is restricted to the generic dropdown component. */
 	getDropdownButton(): NativeDropdownButton {
@@ -684,18 +685,38 @@ export class Frame implements IUIComponent {
 		}
 	}
 	setModelUnit(unit: string): void {
-		if (this.frameType !== "PlayerModel")
-			throw new Error("Model requires a PlayerModel frame");
+		if (this.frameType !== "PlayerModel" && this.frameType !== "DressUpModel")
+			throw new Error("Model requires a model frame");
 		const model = this.acquire() as WowFrame & {
 			SetUnit(unit: string): void;
 			SetPortraitZoom(zoom: number): void;
 			SetCamDistanceScale(scale: number): void;
 			SetFacing(facing: number): void;
+			SetUseTransmogChoices(enabled: boolean): void;
+			SetKeepModelOnHide(keep: boolean): void;
 		};
+		if (this.frameType === "DressUpModel") {
+			model.SetUseTransmogChoices(true);
+			model.SetKeepModelOnHide(true);
+		}
 		model.SetUnit(unit);
 		model.SetPortraitZoom(0);
 		model.SetCamDistanceScale(1);
 		model.SetFacing(0);
+	}
+	tryOnModel(sourceId: number, handSlot?: string): void {
+		if (this.frameType !== "DressUpModel")
+			throw new Error("Try-on requires a DressUpModel");
+		(
+			this.acquire() as WowFrame & {
+				TryOn(sourceId: number, handSlot?: string): void;
+			}
+		).TryOn(sourceId, handSlot);
+	}
+	undressModel(): void {
+		if (this.frameType !== "DressUpModel")
+			throw new Error("Undress requires a DressUpModel");
+		(this.acquire() as WowFrame & { Undress(): void }).Undress();
 	}
 	setBorder(color: BorderColor, width = 2): void {
 		setBorder(this.pool, this.acquire(), color, width);
@@ -1433,8 +1454,12 @@ export class Frame implements IUIComponent {
 		if (this.frameType === "Cooldown")
 			(this.native as WowFrame & { Clear(): void }).Clear();
 		this.onSizeChanged();
-		if (this.frameType === "PlayerModel")
+		if (this.frameType === "PlayerModel" || this.frameType === "DressUpModel")
 			(this.native as WowFrame & { ClearModel(): void }).ClearModel();
+		if (this.frameType === "DressUpModel")
+			(
+				this.native as WowFrame & { SetKeepModelOnHide(keep: boolean): void }
+			).SetKeepModelOnHide(false);
 		this.clearTextureTint();
 		this.texture?.SetColorTexture(0, 0, 0, 0);
 		for (const label of this.labels.values()) label.SetText("");
