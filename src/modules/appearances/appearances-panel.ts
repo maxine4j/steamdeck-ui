@@ -51,7 +51,7 @@ function slotPosition(id: number): { row: number; column: number } {
 export class AppearancesPanel implements IPanel {
 	readonly id = "appearances";
 	readonly title = "Appearances";
-	readonly icon = 134400;
+	readonly iconAtlas = "transmog-icon-ui";
 	private readonly frame: Frame;
 	private readonly body: Frame;
 	private readonly model: Frame;

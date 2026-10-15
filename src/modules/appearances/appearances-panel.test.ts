@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Appearance } from "../../clients/appearances-client";
 import { Frame } from "../../ui/components/frame";
 import { FramePoolManager } from "../../ui/frame-pool-manager";
+import type { IPanel } from "../../ui/panel/types";
 import { AppearancesPanel } from "./appearances-panel";
 
 beforeEach(() => {
@@ -139,6 +140,12 @@ function itemCount(panel: AppearancesPanel) {
 		.flat()
 		.filter((node) => node.navId.startsWith("appearance-item-")).length;
 }
+
+it("uses Blizzard's transmog helm atlas for its tab icon", () => {
+	const { panel }: { panel: IPanel } = setup();
+	expect(panel.iconAtlas).toBe("transmog-icon-ui");
+	expect(panel.icon).toBeUndefined();
+});
 
 it("prepares one page ahead, retains focused tiles and performs no rendering in prepared ranges", () => {
 	const { panel, parent, loaded, flush, scheduler } = setup();
