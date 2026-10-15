@@ -3,6 +3,35 @@ import { CollectionCache } from "./collection-cache";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("reports namespace size, queued work and persisted last-write age without scanning journals", () => {
+	vi.stubGlobal("SteamDeckUIConfig", undefined);
+	let time = 100;
+	const cache = new CollectionCache(
+		{ nextFrame: vi.fn() },
+		() => "player",
+		() => time,
+	);
+	const mounts = cache.create<number>("mounts");
+	mounts.put("1", 42);
+	time = 110;
+	mounts.put("2", 43);
+	expect(cache.stats()).toEqual([
+		expect.objectContaining({
+			namespace: "mounts",
+			entries: 2,
+			updatedAt: 110,
+			pending: 0,
+		}),
+	]);
+	const reopened = new CollectionCache(
+		{ nextFrame: vi.fn() },
+		() => "player",
+		() => 120,
+	);
+	reopened.create("mounts");
+	expect(reopened.stats().at(0)?.updatedAt).toBe(110);
+});
+
 it("persists versioned plain records across sessions and isolates character data", () => {
 	vi.stubGlobal("SteamDeckUIConfig", { currencyFavourites: [1] });
 	const scheduler = { nextFrame: vi.fn() };

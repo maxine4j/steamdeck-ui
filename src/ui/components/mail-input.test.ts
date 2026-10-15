@@ -14,6 +14,8 @@ it("sets editable text and configures bounded multiline fields without submittin
 		SetMultiLine: vi.fn(),
 		SetMaxLetters: vi.fn(),
 		SetText: vi.fn(),
+		SetFocus: vi.fn(),
+		HighlightText: vi.fn(),
 		GetText: () => "hello",
 		ClearFocus: vi.fn(),
 	};
@@ -31,6 +33,9 @@ it("sets editable text and configures bounded multiline fields without submittin
 	expect(scripts.get("OnEnterPressed")).toBeUndefined();
 	scripts.get("OnTextChanged")?.();
 	expect(change).toHaveBeenCalledWith("hello");
+	frame.selectInputText();
+	expect(native.SetFocus).toHaveBeenCalledOnce();
+	expect(native.HighlightText).toHaveBeenCalledWith(0, -1);
 });
 
 it("scrolls a multiline field to keep the cursor visible", () => {

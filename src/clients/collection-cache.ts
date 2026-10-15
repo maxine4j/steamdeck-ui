@@ -4,6 +4,12 @@ import type { ITaskScheduler } from "./task-scheduler";
 export interface ICollectionCache {
 	create<T>(namespace: string, character?: boolean): SavedVariableCache<T>;
 }
+export interface CacheStats {
+	readonly namespace: string;
+	readonly entries: number;
+	readonly pending: number;
+	readonly updatedAt?: number;
+}
 export class CollectionCache implements ICollectionCache {
 	private readonly stores = new Map<string, SavedVariableCache<unknown>>();
 	constructor(
@@ -12,7 +18,23 @@ export class CollectionCache implements ICollectionCache {
 			String(
 				(UnitGUID as unknown as (this: void, unit: string) => string)("player"),
 			),
+		private readonly clock: () => number = () => 0,
 	) {}
+	stats(): CacheStats[] {
+		return [...this.stores].map(([namespace, cache]) => ({
+			namespace,
+			...cache.stats(),
+			updatedAt:
+				SteamDeckUIConfig?.collectionCache?.updatedAt?.[
+					this.savedKey(namespace)
+				],
+		}));
+	}
+	private savedKey(namespace: string): string {
+		return namespace.endsWith(":character")
+			? `${namespace.slice(0, -10)}:${this.character()}`
+			: namespace;
+	}
 	create<T>(namespace: string, character = false): SavedVariableCache<T> {
 		const existing = this.stores.get(
 			namespace + (character ? ":character" : ""),
@@ -39,6 +61,14 @@ export class CollectionCache implements ICollectionCache {
 			namespace + (character ? ":character" : ""),
 			cache as SavedVariableCache<unknown>,
 		);
+		cache.subscribe(() => {
+			const saved = SteamDeckUIConfig?.collectionCache;
+			if (!saved) return;
+			saved.updatedAt ??= {};
+			saved.updatedAt[
+				character ? `${namespace}:${this.character()}` : namespace
+			] = this.clock();
+		});
 		return cache;
 	}
 }

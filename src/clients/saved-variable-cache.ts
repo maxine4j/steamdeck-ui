@@ -38,6 +38,12 @@ export class SavedVariableCache<T> {
 		}
 		return values;
 	}
+	stats(): { entries: number; pending: number } {
+		return {
+			entries: Object.keys(this.saved()).length,
+			pending: this.pending.size,
+		};
+	}
 	put(key: string, value: T): void {
 		this.putMany([{ key, value }]);
 	}

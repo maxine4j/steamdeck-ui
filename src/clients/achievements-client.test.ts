@@ -2,9 +2,42 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import { AchievementsClient } from "./achievements-client";
 import { CollectionCache } from "./collection-cache";
+import { Diagnostics } from "./diagnostics";
+import { PerformanceClient } from "./performance-client";
 import type { ITaskScheduler } from "./task-scheduler";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("reports category journal progress and cancels diagnostics with the scan", () => {
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return vi.fn();
+		},
+	};
+	setup(scheduler);
+	vi.stubGlobal("debugprofilestop", () => 0);
+	vi.stubGlobal("GetCategoryNumAchievements", () => [100, 0, 100]);
+	const diagnostics = new Diagnostics(() => 100);
+	const client = new AchievementsClient(
+		scheduler,
+		undefined,
+		undefined,
+		new PerformanceClient(diagnostics),
+	);
+	const cancel = client.loadCategory(92, vi.fn());
+	pending.shift()?.();
+	expect(diagnostics.jobs().at(0)).toMatchObject({
+		label: "achievements category 92",
+		reason: "empty-cache",
+		state: "running",
+		total: 100,
+	});
+	expect(diagnostics.jobs().at(0)?.completed).toBeGreaterThan(0);
+	cancel();
+	expect(diagnostics.jobs().at(0)?.state).toBe("cancelled");
+});
 
 it("returns a complete warm catalog without native lookups and rejects partial caches", () => {
 	vi.stubGlobal("SteamDeckUIConfig", {});

@@ -8,6 +8,27 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps D-pad owned by the active panel even while a modifier is held during a panel transition", () => {
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("IsModifierKeyDown", () => true);
+	const events = createTestEventBus();
+	const moved = vi.fn();
+	events.subscribe("NAV_DOWN", moved);
+	let down: ((key: string) => boolean) | undefined;
+	const client = new ControllerInputClient(events, {
+		setClickBindings: vi.fn(),
+		setGamePadInput: (callback) => {
+			down = callback;
+		},
+		destroy: vi.fn(),
+	});
+	client.setActive(true);
+	expect(down?.("PADDDOWN")).toBe(true);
+	expect(moved).toHaveBeenCalledOnce();
+	client.setActive(false);
+	expect(down).toBeUndefined();
+});
+
 it("captures modifier chords on release, consuming navigation and disabling secure casts until capture ends", () => {
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("IsModifierKeyDown", () => false);
@@ -217,9 +238,9 @@ it("captures navigation only while active, propagates other buttons and restores
 	}
 	expect(handler?.("PAD5")).toBe(false);
 	modifier = true;
-	expect(handler?.("PADDDOWN")).toBe(false);
+	expect(handler?.("PADDDOWN")).toBe(true);
 	expect(handler?.("PAD1")).toBe(false);
-	expect(down).toHaveBeenCalledOnce();
+	expect(down).toHaveBeenCalledTimes(2);
 	expect(interact).toHaveBeenCalledOnce();
 	modifier = false;
 	const staleHandler = handler;

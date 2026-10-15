@@ -609,7 +609,8 @@ export class Frame implements IUIComponent {
 				: undefined,
 		);
 		if (callback) {
-			native.SetFrameStrata("DIALOG");
+			// Own input above native fullscreen panels, independent of click/raise order.
+			native.SetFrameStrata("TOOLTIP");
 			native.SetFrameLevel(100);
 			this.docked = true;
 			native.SetPropagateKeyboardInput(true);
@@ -1114,6 +1115,14 @@ export class Frame implements IUIComponent {
 	}
 	focusInput(): void {
 		(this.acquire() as WowFrame & { SetFocus(): void }).SetFocus();
+	}
+	selectInputText(): void {
+		this.focusInput();
+		(
+			this.acquire() as WowFrame & {
+				HighlightText(start: number, end: number): void;
+			}
+		).HighlightText(0, -1);
 	}
 	configureTextInput(
 		change: (this: void, text: string) => void,

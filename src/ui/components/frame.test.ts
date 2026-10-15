@@ -917,6 +917,8 @@ it("captures handled gamepad buttons, propagates others and resets input before 
 		delaySeconds: 0.5,
 		intervalSeconds: 0.05,
 	});
+	// Input must outrank fullscreen/modal windows before any mouse click raises them.
+	expect(native.SetFrameStrata).toHaveBeenLastCalledWith("TOOLTIP");
 	const buttonScript = scripts.get("OnGamePadButtonDown") as
 		| ((frame: unknown, button: string) => void)
 		| undefined;

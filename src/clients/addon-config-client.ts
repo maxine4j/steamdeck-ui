@@ -9,6 +9,7 @@ declare global {
 				currencyFavourites?: number[];
 				collectionCache?: {
 					version: number;
+					updatedAt?: Record<string, number | undefined>;
 					namespaces: Record<string, unknown>;
 				};
 		  }

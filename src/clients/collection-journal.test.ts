@@ -1,5 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { CollectionJournal } from "./collection-journal";
+import { Diagnostics } from "./diagnostics";
+import { PerformanceClient } from "./performance-client";
 import { type CacheEntries, SavedVariableCache } from "./saved-variable-cache";
 
 interface Row {
@@ -7,6 +9,31 @@ interface Row {
 	value: number;
 	visible?: boolean;
 }
+
+it("reports scan progress through the diagnostics seam even with no panel subscribed", () => {
+	vi.stubGlobal("print", vi.fn());
+	vi.stubGlobal("debugprofilestop", () => 0);
+	const diagnostics = new Diagnostics(() => 100);
+	const { journal, pending, flush } = setup({
+		pageSize: 20,
+		label: "mounts",
+		performance: new PerformanceClient(diagnostics),
+	});
+	journal.prefetch("login");
+	pending.shift()?.();
+	expect(diagnostics.jobs().at(0)).toMatchObject({
+		completed: 20,
+		total: 45,
+		state: "running",
+	});
+	flush();
+	expect(diagnostics.jobs().at(0)).toMatchObject({
+		completed: 45,
+		total: 45,
+		state: "complete",
+	});
+	vi.unstubAllGlobals();
+});
 function setup(options?: {
 	pageSize: number;
 	label: string;

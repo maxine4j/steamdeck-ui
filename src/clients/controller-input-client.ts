@@ -206,12 +206,16 @@ export class ControllerInputClient implements IControllerInputClient {
 		events.subscribe("COMBAT_STARTED", this.sync);
 		events.subscribe("COMBAT_ENDED", this.sync);
 	}
-	private canHandleInput(): boolean {
-		return this.active && !InCombatLockdown() && !IsModifierKeyDown();
+	private canHandleInput(button: string): boolean {
+		return (
+			this.active &&
+			!InCombatLockdown() &&
+			(directions[button] !== undefined || !IsModifierKeyDown())
+		);
 	}
 	private handleButtonDown(button: string): boolean {
 		if (this.capture) return this.captureDown(button);
-		if (!this.canHandleInput()) return false;
+		if (!this.canHandleInput(button)) return false;
 		const event = buttons[button];
 		if (!event) return false;
 		const direction = directions[button];

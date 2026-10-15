@@ -8,6 +8,7 @@ import { CharacterClient } from "./clients/character-client";
 import { CollectionCache } from "./clients/collection-cache";
 import { ControllerInputClient } from "./clients/controller-input-client";
 import { CurrencyClient } from "./clients/currency-client";
+import { DebugClient } from "./clients/debug-client";
 import { DialogueCamera } from "./clients/dialogue-camera";
 import { DialogueClient } from "./clients/dialogue-client";
 import { DungeonFinderClient } from "./clients/dungeon-finder-client";
@@ -52,8 +53,11 @@ const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
 const scheduler = new TaskScheduler();
-const collectionCache = new CollectionCache(scheduler);
-const performance = new PerformanceClient();
+const debug = new DebugClient(events, scheduler);
+const collectionCache = new CollectionCache(scheduler, undefined, () =>
+	GetServerTime(),
+);
+const performance = new PerformanceClient(debug.diagnostics);
 startSteamDeckUI(
 	frameFactory,
 	events,
@@ -74,9 +78,9 @@ startSteamDeckUI(
 	new DialogueClient(),
 	new DialogueCamera(),
 	new VendorClient(),
-	new AchievementsClient(scheduler, collectionCache, events),
+	new AchievementsClient(scheduler, collectionCache, events, performance),
 	new ToysClient(scheduler, collectionCache, performance),
-	new SlashCommandsClient(),
+	new SlashCommandsClient(events),
 	new AddonConfigClient(),
 	new MapClient(
 		events,
@@ -97,4 +101,6 @@ startSteamDeckUI(
 	auctionHouse,
 	new AppearancesClient(scheduler, collectionCache, performance),
 	performance,
+	debug,
+	() => collectionCache.stats(),
 );

@@ -6,9 +6,11 @@ import type { IAuctionHouseClient } from "./clients/auction-house-client";
 import type { IBankClient } from "./clients/bank-client";
 import type { ICharacterClient } from "./clients/character-client";
 import { CharacterFrameClient } from "./clients/character-frame-client";
+import type { CacheStats } from "./clients/collection-cache";
 import { CollectionsClient } from "./clients/collections-client";
 import type { IControllerInputClient } from "./clients/controller-input-client";
 import type { ICurrencyClient } from "./clients/currency-client";
+import type { DebugClient } from "./clients/debug-client";
 import type { IDialogueCamera } from "./clients/dialogue-camera";
 import type { IDialogueClient } from "./clients/dialogue-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
@@ -55,6 +57,7 @@ import { BuiltInCurrency } from "./modules/currency/built-in-currency";
 import { CurrencyModule } from "./modules/currency/currency-module";
 import { CurrencyOptions } from "./modules/currency/currency-options";
 import { CurrencyPanel } from "./modules/currency/currency-panel";
+import { registerDebug } from "./modules/debug/register-debug";
 import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
 import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
@@ -365,7 +368,10 @@ export function startSteamDeckUI(
 	auctionHouse: IAuctionHouseClient,
 	appearances: IAppearancesClient,
 	performance: IPerformanceClient = quietPerformance,
+	debug?: DebugClient,
+	cacheStats: () => readonly CacheStats[] = () => [],
 ) {
+	debug?.initialize();
 	const pool = new FramePoolManager(factory);
 	const itemTooltip = new ItemTooltip(pool, events);
 	const navigation = new NavigationManager(
@@ -467,6 +473,9 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const debugFeature = debug
+		? registerDebug(pool, events, ui, modules, debug, cacheStats, scheduler)
+		: undefined;
 	const auctionHouseFeature = registerAuctionHouse(
 		pool,
 		events,
@@ -709,6 +718,7 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			debugFeature?.destroy();
 			auctionHouseFeature.destroy();
 			bankFeature.destroy();
 			mailFeature.destroy();

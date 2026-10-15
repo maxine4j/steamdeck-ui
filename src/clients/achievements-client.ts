@@ -1,5 +1,10 @@
 import type { IEventBus } from "../events/types";
 import type { ICollectionCache } from "./collection-cache";
+import {
+	type IPerformanceClient,
+	quietPerformance,
+	WorkMeasurement,
+} from "./performance-client";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
 export interface AchievementTotals {
@@ -78,6 +83,7 @@ export class AchievementsClient implements IAchievementsClient {
 		private readonly scheduler: ITaskScheduler,
 		cache?: ICollectionCache,
 		private readonly events?: IEventBus,
+		private readonly performance: IPerformanceClient = quietPerformance,
 	) {
 		this.items = cache?.create("achievements.items", true);
 		this.categoryRows = cache?.create("achievements.categories", true);
@@ -99,9 +105,14 @@ export class AchievementsClient implements IAchievementsClient {
 				this.cancelBackfill = undefined;
 				return;
 			}
-			this.cancelBackfill = this.scanCategory(category.id, () => {
-				this.cancelBackfill = this.scheduler.nextFrame(step);
-			});
+			this.cancelBackfill = this.scanCategory(
+				category.id,
+				() => {
+					this.cancelBackfill = this.scheduler.nextFrame(step);
+				},
+				undefined,
+				"login",
+			);
 		};
 		this.cancelBackfill = this.scheduler.nextFrame(step);
 	}
@@ -183,8 +194,15 @@ export class AchievementsClient implements IAchievementsClient {
 			total: number,
 			rows: readonly Achievement[],
 		) => void,
+		reason = "empty-cache",
 	): () => void {
+		const measurement = new WorkMeasurement(
+			this.performance,
+			`achievements category ${category}`,
+			reason,
+		);
 		let cancelled = false;
+		let finished = false;
 		let cancelNext: (() => void) | undefined;
 		let phase:
 			| "count"
@@ -204,6 +222,7 @@ export class AchievementsClient implements IAchievementsClient {
 		let visited = new Set<number>();
 		const step = () => {
 			if (cancelled) return;
+			const started = this.performance.now();
 			cancelNext = undefined;
 			for (let operation = 0; operation < 60; operation++) {
 				if (phase === "count") {
@@ -212,6 +231,10 @@ export class AchievementsClient implements IAchievementsClient {
 				} else if (phase === "row") {
 					if (index > count) {
 						this.categoryRows?.put(String(category), rows);
+						measurement.page(started);
+						measurement.progress(count, count);
+						measurement.finish("complete");
+						finished = true;
 						complete(rows);
 						return;
 					}
@@ -259,13 +282,20 @@ export class AchievementsClient implements IAchievementsClient {
 				}
 			}
 			progress?.(Math.min(index - 1, count), count, rows.slice(published));
+			measurement.page(started);
+			measurement.progress(Math.min(index - 1, count), count);
 			published = rows.length;
-			cancelNext = this.scheduler.nextFrame(step);
+			cancelNext = this.scheduler.nextFrame(run);
 		};
-		cancelNext = this.scheduler.nextFrame(step);
+		const run = () => measurement.measure("journal", step);
+		cancelNext = this.scheduler.nextFrame(run);
 		return () => {
 			cancelled = true;
 			cancelNext?.();
+			if (!finished) {
+				measurement.finish("cancelled");
+				finished = true;
+			}
 		};
 	}
 	categories(): AchievementCategory[] {

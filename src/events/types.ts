@@ -37,6 +37,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "DEBUG_OPEN_REQUESTED"
 	| "APPEARANCES_VISIBILITY_CHANGED"
 	| "NATIVE_DIALOGS_CHANGED"
 	| "AUCTION_HOUSE_SHOW"

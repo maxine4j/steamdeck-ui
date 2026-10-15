@@ -1,7 +1,50 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { PerformanceClient } from "./performance-client";
+import { Diagnostics } from "./diagnostics";
+import { PerformanceClient, WorkMeasurement } from "./performance-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("marks failed work in diagnostics and preserves the exception for WoW's error handler", () => {
+	vi.stubGlobal("debugprofilestop", () => 0);
+	const diagnostics = new Diagnostics(() => 100);
+	const scan = new WorkMeasurement(
+		new PerformanceClient(diagnostics),
+		"pets scan",
+		"login",
+	);
+	const error = new Error("journal failed");
+	expect(() =>
+		scan.measure("journal", () => {
+			throw error;
+		}),
+	).toThrow(error);
+	expect(diagnostics.jobs().at(0)?.state).toBe("failed");
+});
+
+it("routes logs and live work progress to central diagnostics including completion and cancellation", () => {
+	vi.stubGlobal("print", vi.fn());
+	let time = 0;
+	vi.stubGlobal("debugprofilestop", () => time);
+	const diagnostics = new Diagnostics(() => 100);
+	const performance = new PerformanceClient(diagnostics);
+	const scan = new WorkMeasurement(performance, "mounts scan", "server-event");
+	scan.progress(20, 45);
+	expect(diagnostics.report()).toContain(
+		"mounts scan start reason=server-event",
+	);
+	expect(diagnostics.jobs().at(0)).toMatchObject({
+		completed: 20,
+		total: 45,
+		reason: "server-event",
+		state: "running",
+	});
+	time = 25;
+	scan.finish("cancelled");
+	expect(diagnostics.jobs().at(0)).toMatchObject({
+		state: "cancelled",
+		elapsed: 25,
+	});
+});
 
 it("prints diagnostics locally and reads the existing profiling clock without resetting it", () => {
 	const output = vi.fn();

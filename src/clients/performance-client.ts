@@ -1,23 +1,36 @@
+import type { Diagnostics, WorkProgress } from "./diagnostics";
+
 export interface IPerformanceClient {
 	now(): number;
 	log(message: string): void;
+	work?(progress: WorkProgress): void;
 }
 export const quietPerformance: IPerformanceClient = {
 	now: () => 0,
 	log: () => {},
 };
 
-/** Local WoW chat output only; never uses a chat transport or resets the profiler. */
+/** Central diagnostics with local chat fallback; never resets the profiler. */
 export class PerformanceClient implements IPerformanceClient {
+	constructor(private readonly diagnostics?: Diagnostics) {}
 	now(): number {
 		return debugprofilestop();
 	}
 	log(message: string): void {
-		print(`[SteamDeckUI performance] ${message}`);
+		if (this.diagnostics) this.diagnostics.log("info", message);
+		else print(`[SteamDeckUI performance] ${message}`);
+	}
+	work(progress: WorkProgress): void {
+		this.diagnostics?.work(progress);
 	}
 }
 
+let nextWorkId = 0;
 export class WorkMeasurement {
+	private finished = false;
+	private readonly id = ++nextWorkId;
+	private completed = 0;
+	private total = 0;
 	private readonly started: number;
 	private readonly timings = new Map<string, number>();
 	private pages = 0;
@@ -29,11 +42,28 @@ export class WorkMeasurement {
 	) {
 		this.started = performance.now();
 		performance.log(`${label} start reason=${reason}`);
+		this.progress(0, 0);
+	}
+	progress(completed: number, total: number, state = "running"): void {
+		this.completed = completed;
+		this.total = total;
+		this.performance.work?.({
+			id: this.id,
+			label: this.label,
+			reason: this.reason,
+			completed,
+			total,
+			state,
+			elapsed: this.performance.now() - this.started,
+		});
 	}
 	measure<T>(stage: string, work: () => T): T {
 		const start = this.performance.now();
 		try {
 			return work();
+		} catch (error) {
+			this.finish("failed");
+			throw error;
 		} finally {
 			this.add(stage, this.performance.now() - start);
 		}
@@ -46,6 +76,13 @@ export class WorkMeasurement {
 		this.maxPage = Math.max(this.maxPage, this.performance.now() - start);
 	}
 	finish(result: string): void {
+		if (this.finished) return;
+		this.finished = true;
+		this.progress(
+			this.completed,
+			this.total,
+			result.split(" ").at(0) ?? result,
+		);
 		const stages = [...this.timings]
 			.map(([stage, milliseconds]) => `${stage}=${milliseconds.toFixed(2)}ms`)
 			.join(" ");

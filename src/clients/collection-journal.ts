@@ -114,6 +114,7 @@ export class CollectionJournal<T> {
 			const page = reader;
 			if (!page) return;
 			if (generation !== this.generation) return;
+			measurement.progress(index, page.count);
 			for (const observer of [...this.progress]) observer(index, page.count);
 			if (index < page.count) this.cancelScan = this.scheduler.nextFrame(step);
 			else {
@@ -164,6 +165,10 @@ export class CollectionJournal<T> {
 				this.options.performance.now() - started - journalTime,
 			);
 			measurement.page(started);
+			measurement.progress(
+				this.targetCount,
+				this.targetCount + this.targets.size,
+			);
 			if (generation === this.generation && this.targets.size > 0)
 				this.scheduleTargets();
 			else if (generation === this.generation) {
@@ -204,6 +209,7 @@ export class CollectionJournal<T> {
 			measurement.page(started);
 			const page = reader;
 			if (!page) return;
+			measurement.progress(index, page.count);
 			if (
 				generation !== this.generation ||
 				revision !== this.projectionGeneration
