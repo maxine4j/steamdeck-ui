@@ -84,7 +84,7 @@ it("stacks vendor pages in two columns, exposes purchase actions and reuses cont
 	).not.toContain("vendor-close");
 	expect(labels.get("vendor-items-cell-0")).toHaveBeenCalledWith(
 		"detail",
-		"1g 23s 45c",
+		"1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  23|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  45|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t",
 		"BOTTOMLEFT",
 		56,
 		6,
@@ -134,6 +134,19 @@ it("routes repair and junk controls, guards unavailable actions, and isolates bu
 	const panel = new VendorPanel("vendor", pool, client, vi.fn());
 	panel.onMount(parent);
 	const footer = panel.getNavGrid().at(-1);
+	const repair = footer?.at(0);
+	repair?.onFocus();
+	expect(
+		vi.mocked(repair?.mouseTarget as Frame).setFocused,
+	).toHaveBeenCalledWith(true);
+	repair?.onFocus(true);
+	expect(
+		vi.mocked(repair?.mouseTarget as Frame).setFocused,
+	).toHaveBeenCalledWith(true, false, true);
+	repair?.onBlur();
+	expect(
+		vi.mocked(repair?.mouseTarget as Frame).setFocused,
+	).toHaveBeenCalledWith(false);
 	footer?.at(0)?.onInteract();
 	footer?.at(1)?.onInteract();
 	footer?.at(2)?.onInteract();

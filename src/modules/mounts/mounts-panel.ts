@@ -10,6 +10,7 @@ import { controllerIcon } from "../../ui/components/controller-icon";
 import { DebouncedInput } from "../../ui/components/debounced-input";
 import { Dropdown } from "../../ui/components/dropdown";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -560,7 +561,7 @@ export class MountsPanel implements IPanel {
 			16,
 			12,
 		);
-		this.viewport.inset(this.frame, 16, 112, 16, 114);
+		this.viewport.inset(this.frame, 16, 112, SCROLL_VIEWPORT_RIGHT, 114);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) {
 				this.layoutContent();
@@ -659,8 +660,11 @@ export class MountsPanel implements IPanel {
 				button === this.flight
 					? () => ({ interact: this.mounted ? button : undefined })
 					: undefined,
-			onFocus: () => button.setLabel("focus", ">", "BOTTOM", 0, 0),
-			onBlur: () => button.setLabel("focus", ""),
+			onFocus: (refresh) => {
+				if (refresh) button.setFocused(true, false, true);
+				else button.setFocused(true);
+			},
+			onBlur: () => button.setFocused(false),
 			onInteract: () => {
 				if (this.mounted && !alternate && button !== this.flight)
 					button.click();

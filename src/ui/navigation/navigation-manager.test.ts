@@ -12,6 +12,68 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("activates one immediate action, falling back to regular selection", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const immediate = { ...node("mount"), onAlternate: vi.fn() };
+	const selection = node("filter");
+	manager.registerGrid("panel", [[immediate, selection]]);
+	manager.setActiveGrid("panel");
+	events.emit("NAV_INTERACT");
+	expect(immediate.onAlternate).toHaveBeenCalledOnce();
+	expect(immediate.onInteract).not.toHaveBeenCalled();
+	manager.moveRight();
+	events.emit("NAV_INTERACT");
+	expect(selection.onInteract).toHaveBeenCalledOnce();
+});
+
+it("traps an open control's scope until cancel dismisses it", () => {
+	const events = createTestEventBus();
+	const manager = new NavigationManager(events);
+	const cancel = vi.fn();
+	const cycle = vi.fn();
+	const closePanel = vi.fn();
+	const scope = { cancel };
+	let grid: NavGrid = [
+		[node("search")],
+		[{ ...node("checkbox"), navigationScope: scope }],
+		[{ ...node("radio"), navigationScope: scope }],
+		[node("footer")],
+	];
+	manager.registerGrid("panel", () => grid, {
+		right: "other",
+		onPanelCycle: cycle,
+		onCancel: closePanel,
+	});
+	manager.registerGrid("other", [[node("other")]]);
+	manager.setActiveGrid("panel");
+	expect(manager.focusedId).toBe("checkbox");
+	manager.moveUp();
+	expect(manager.focusedId).toBe("checkbox");
+	manager.moveDown();
+	manager.moveDown();
+	expect(manager.focusedId).toBe("radio");
+	events.emit("NAV_CONTAINER_RIGHT");
+	events.emit("NAV_PANEL_NEXT");
+	manager.setActiveGrid("other");
+	expect(manager.focusedId).toBe("radio");
+	expect(cycle).not.toHaveBeenCalled();
+	events.emit("NAV_CANCEL");
+	expect(cancel).toHaveBeenCalledOnce();
+	expect(closePanel).not.toHaveBeenCalled();
+	grid = [[node("search")]];
+	manager.refreshGrid("panel");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(manager.focusedId).toBe("other");
+	manager.setActiveGrid("panel");
+	grid = [[{ ...node("checkbox"), navigationScope: scope }]];
+	manager.refreshGrid("panel");
+	manager.destroy();
+	manager.registerGrid("reused", [[node("reused")]]);
+	manager.setActiveGrid("reused");
+	expect(manager.focusedId).toBe("reused");
+});
+
 it("follows mouse focus across grids, continues movement there and traps modals", () => {
 	const manager = new NavigationManager(createTestEventBus());
 	let click: (() => void) | undefined;

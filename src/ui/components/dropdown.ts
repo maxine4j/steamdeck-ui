@@ -22,6 +22,7 @@ export class Dropdown {
 	private options: DropdownOption[] = [];
 	private nodes: INavigable[][] = [];
 	private focusedId?: string;
+	private readonly navigationScope = { cancel: () => this.hide() };
 	constructor(
 		id: string,
 		pool: IFramePoolManager,
@@ -87,6 +88,7 @@ export class Dropdown {
 				return [
 					{
 						navId: option.id,
+						navigationScope: this.navigationScope,
 						onFocus: () => {
 							this.focusedId = option.id;
 							if (this.isOpen() && frame) {

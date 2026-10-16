@@ -9,7 +9,13 @@ import { TalentTreeClient } from "./talent-tree-client";
 afterEach(() => vi.unstubAllGlobals());
 
 function setup() {
-	const button = (id: number, x: number, y: number, visible = true) => ({
+	const button = (
+		id: number,
+		x: number,
+		y: number,
+		visible = true,
+		selections = false,
+	) => ({
 		GetNodeID: () => id,
 		GetEntryID: () => id + 100,
 		GetCenter: () => [x, y],
@@ -20,11 +26,11 @@ function setup() {
 		OnEnter: vi.fn(),
 		OnLeave: vi.fn(),
 		ShowSelections: vi.fn(),
-		talentSelections: [1, 2],
+		talentSelections: selections ? [1, 2] : undefined,
 	});
 	const nodes = [
 		button(1, 10, 100),
-		button(2, 90, 100),
+		button(2, 90, 100, true, true),
 		button(3, 50, 60),
 		button(4, 50, 20),
 		button(5, 10, 30, false),
@@ -165,12 +171,16 @@ function setup() {
 	};
 }
 
-it("unassigns focused talent ranks with X through Blizzard's right click action", () => {
-	const { client, parent, nodes, changed } = setup();
+it("learns with X and refunds with Y through Blizzard's click actions", () => {
+	const { client, parent, nodes, events } = setup();
 	client.mount(parent);
-	client.navigation().at(0)?.at(0)?.onAlternate?.();
+	const manager = new NavigationManager(events);
+	manager.registerGrid("talents", () => client.navigation());
+	manager.setActiveGrid("talents");
+	events.emit("NAV_INTERACT");
+	expect(nodes.at(0)?.OnClick).toHaveBeenCalledExactlyOnceWith("LeftButton");
+	events.emit("NAV_CONTEXT");
 	expect(nodes.at(0)?.OnClick).toHaveBeenCalledWith("RightButton");
-	expect(changed).toHaveBeenCalledOnce();
 });
 
 it("navigates reset's left/right/all menu and undo after pending changes", () => {
@@ -332,7 +342,7 @@ it.each(["LoadTalentTreeInternal", "UpdateAllTalentButtonPositions"])(
 		expect(manager.focusedId).toBe("talent-node-1");
 		events.emit("NAV_RIGHT");
 		events.emit("NAV_INTERACT");
-		expect(nodes.at(1)?.OnClick).toHaveBeenCalledWith("LeftButton");
+		expect(nodes.at(1)?.ShowSelections).toHaveBeenCalledOnce();
 		client.unmount();
 		changed.mockClear();
 		hooks.get(`method-${method}`)?.();
@@ -341,10 +351,13 @@ it.each(["LoadTalentTreeInternal", "UpdateAllTalentButtonPositions"])(
 	},
 );
 
-it("opens choices with Y, navigates their tooltips and actions, and dismisses them before leaving the tree", () => {
+it("opens choices with X, navigates their tooltips and actions, and dismisses them before leaving the tree", () => {
 	const { client, parent, choices, nodes, tree, hooks, changed } = setup();
 	client.mount(parent);
 	client.navigation().at(0)?.at(1)?.onContext?.();
+	expect(nodes.at(1)?.OnClick).toHaveBeenCalledExactlyOnceWith("RightButton");
+	expect(nodes.at(1)?.ShowSelections).not.toHaveBeenCalled();
+	client.navigation().at(0)?.at(1)?.onInteract();
 	expect(nodes.at(1)?.ShowSelections).toHaveBeenCalledOnce();
 	const grid = client.navigation();
 	expect(grid.flat().map((node) => node.navId)).toEqual([

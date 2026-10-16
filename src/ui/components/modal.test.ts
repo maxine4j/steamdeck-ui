@@ -63,7 +63,7 @@ it("activates secure toy options before dismissing and reuses their pooled contr
 	);
 	expect(Frame.prototype.setLabel).toHaveBeenCalledWith(
 		"hint",
-		expect.stringContaining("xbox_r_a.blp:18:18|t Select"),
+		expect.stringContaining("xbox_r_x.blp:18:18|t Select"),
 		"BOTTOMRIGHT",
 		-20,
 		16,

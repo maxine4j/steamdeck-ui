@@ -461,7 +461,7 @@ it("searches toys and refreshes native checkbox filters through the header contr
 		expect.any(Frame),
 		16,
 		104,
-		16,
+		8,
 		48,
 	);
 });

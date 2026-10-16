@@ -61,7 +61,15 @@ vi.mock("../../ui/components/frame", () => ({
 }));
 vi.mock("../../ui/components/scroll-list", () => ({
 	ScrollList: class {
-		constructor(readonly id: string) {}
+		constructor(
+			readonly id: string,
+			_pool: unknown,
+			_title: unknown,
+			_close: unknown,
+			options: { bottom: number },
+		) {
+			widths.set(`${id}-bottom`, options.bottom);
+		}
 		mount() {}
 		unmount() {}
 		destroy() {}
@@ -155,7 +163,15 @@ it("uses plain browse rows and navigation, neutral selectors, and compact primar
 		rows.get("auction-buy-list")?.every((row) => row.background === false),
 	).toBe(true);
 	expect(skins.get("auction-buy-more")).toBe("plain");
-	expect(skins.get("auction-buy-scroll--1")).toBe("plain");
+	expect(instances).not.toContain("auction-buy-scroll--1");
+	expect(widths.get("auction-buy-list-bottom")).toBe(16);
+	expect(widths.get("auction-buy-prices-bottom")).toBe(16);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId.includes("scroll-")),
+	).toBe(false);
 	panel
 		.getNavGrid()
 		.flat()

@@ -70,9 +70,8 @@ const buttons: Readonly<Record<string, ApplicationEvent | undefined>> = {
 	PADRSHOULDER: "NAV_PANEL_NEXT",
 	PADLTRIGGER: "NAV_CONTAINER_LEFT",
 	PADRTRIGGER: "NAV_CONTAINER_RIGHT",
-	PAD1: "NAV_INTERACT",
 	PAD4: "NAV_CONTEXT",
-	PAD3: "NAV_ALTERNATE",
+	PAD3: "NAV_INTERACT",
 	PAD2: "NAV_CANCEL",
 };
 
@@ -150,14 +149,14 @@ export class ControllerInputClient implements IControllerInputClient {
 	private syncBindings(): void {
 		const bindings: ClickBinding[] = [];
 		if (this.listening && !this.capture) {
-			if (this.secureActions?.interact)
-				bindings.push({ key: "PAD1", target: this.secureActions.interact });
-			if (this.secureActions?.alternate) {
+			const target =
+				this.secureActions?.alternate ?? this.secureActions?.interact;
+			if (target) {
 				const binding: ClickBinding = {
 					key: "PAD3",
-					target: this.secureActions.alternate,
+					target,
 				};
-				if (this.secureActions.alternateButton)
+				if (this.secureActions?.alternate && this.secureActions.alternateButton)
 					binding.button = this.secureActions.alternateButton;
 				bindings.push(binding);
 			}
@@ -225,8 +224,8 @@ export class ControllerInputClient implements IControllerInputClient {
 		}
 		// Let the hardware event reach its secure binding, bypassing addon dispatch.
 		if (
-			(button === "PAD1" && this.secureActions?.interact) ||
-			(button === "PAD3" && this.secureActions?.alternate)
+			button === "PAD3" &&
+			(this.secureActions?.alternate || this.secureActions?.interact)
 		)
 			return false;
 		this.events.emit(event);

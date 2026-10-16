@@ -7,6 +7,7 @@ import {
 	type IconRing,
 	type TextureRegion,
 } from "./frame";
+import { SCROLL_VIEWPORT_RIGHT } from "./scroll-indicator";
 import type { TooltipContent } from "./tooltip-content";
 import type { IUIComponent } from "./types";
 import { setWindowTitle } from "./window-title";
@@ -222,7 +223,7 @@ export class ScrollList {
 			this.frame,
 			padding ?? 12,
 			this.options.top ?? (padding === undefined ? 52 : 40 + padding),
-			this.options.viewportRight ?? padding ?? 12,
+			this.options.viewportRight ?? SCROLL_VIEWPORT_RIGHT,
 			this.options.bottom ?? padding ?? 16,
 		);
 		this.content.setParent(this.scroll);

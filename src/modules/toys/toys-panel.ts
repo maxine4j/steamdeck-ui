@@ -9,6 +9,7 @@ import { toysConfig } from "../../clients/toys-config";
 import { CollectionView } from "../../ui/collection-view";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -126,7 +127,7 @@ export class ToysPanel implements IPanel {
 		);
 		this.frame.show();
 		this.controls.mount(this.frame);
-		this.viewport.inset(this.frame, 16, 104, 16, 48);
+		this.viewport.inset(this.frame, 16, 104, SCROLL_VIEWPORT_RIGHT, 48);
 		this.viewport.onSizeChanged(() => {
 			if (this.mounted) {
 				this.layoutContent();

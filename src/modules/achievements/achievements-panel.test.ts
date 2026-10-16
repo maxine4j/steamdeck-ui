@@ -237,6 +237,9 @@ it("keeps the overall progress above the scrolling categories and only on the su
 
 it("moves the summary scrollbar outside the tile edge and preserves category controls", () => {
 	const { activate } = setup();
+	expect(frames.get("achievements-scroll")?.insets.at(-1)).toEqual([
+		16, 120, 8, 36,
+	]);
 	expect(listOptions.get("achievements-list")).toMatchObject({
 		viewportRight: -8,
 	});
@@ -597,7 +600,7 @@ it("does not publish stale page jobs after switching categories before scrolling
 it("shows controller graphics beside achievement actions", () => {
 	setup();
 	expect(frames.get("achievements")?.labels.get("actions")).toContain(
-		"xbox_r_a.blp:18:18|t Open category",
+		"xbox_r_x.blp:18:18|t Open category",
 	);
 });
 

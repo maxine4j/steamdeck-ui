@@ -7,6 +7,7 @@ import type {
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -147,7 +148,7 @@ export class AchievementsPanel implements IPanel {
 			autoHeight: true,
 			background: false,
 			padding: 0,
-			viewportRight: -8,
+			viewportRight: SCROLL_VIEWPORT_RIGHT - 16,
 			top: 0,
 			bottom: 0,
 			gap: 12,
@@ -582,8 +583,8 @@ export class AchievementsPanel implements IPanel {
 		this.frame.setLabel(
 			"actions",
 			this.page
-				? `${controllerIcon("A")} Details   ${controllerIcon("B")} Back`
-				: `${controllerIcon("A")} Open category   ${controllerIcon("B")} Close`,
+				? `${controllerIcon("X")} Details   ${controllerIcon("B")} Back`
+				: `${controllerIcon("X")} Open category   ${controllerIcon("B")} Close`,
 			"BOTTOMLEFT",
 			16,
 			12,
@@ -1025,7 +1026,7 @@ export class AchievementsPanel implements IPanel {
 		this.body.inset(this.frame, 16, 120, 16, 36);
 		this.body.show();
 		this.list.setWidth(this.width);
-		this.viewport.inset(this.frame, 16, 120, 16, 36);
+		this.viewport.inset(this.frame, 16, 120, SCROLL_VIEWPORT_RIGHT, 36);
 		this.viewport.onVerticalScroll(() => this.requestViewportRender());
 		this.viewport.onSizeChanged(() => {
 			if (!this.mounted) return;

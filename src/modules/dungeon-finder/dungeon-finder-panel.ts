@@ -12,6 +12,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
 import { IconCheckbox } from "../../ui/components/icon-checkbox";
 import type { IModal } from "../../ui/components/modal";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
@@ -192,7 +193,7 @@ export class DungeonFinderPanel implements IPanel {
 			centerContent: false,
 			buttonWidth: 420,
 			top: 72,
-			viewportRight: 10,
+			viewportRight: SCROLL_VIEWPORT_RIGHT - 16,
 			bottom: 30,
 			background: false,
 			scheduler,

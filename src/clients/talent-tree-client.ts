@@ -250,7 +250,9 @@ export class TalentTreeClient implements ITalentTreeClient {
 				else control?.GetScript("OnLeave")?.(control);
 			};
 			const node = this.focus.navigation(button, undefined, id, () => {
-				if (talent) talent.OnClick("LeftButton");
+				if (!choice && talent?.talentSelections && talent.ShowSelections)
+					talent.ShowSelections();
+				else if (talent) talent.OnClick("LeftButton");
 				else if (control?.IsEnabled()) {
 					if (control.OpenMenu) control.OpenMenu();
 					else control.Click("LeftButton");
@@ -260,7 +262,7 @@ export class TalentTreeClient implements ITalentTreeClient {
 			grid.at(-1)?.push({
 				...node,
 				navColumn: x,
-				onAlternate:
+				onContext:
 					!choice && talent
 						? () => {
 								talent.OnClick("RightButton");
@@ -283,13 +285,6 @@ export class TalentTreeClient implements ITalentTreeClient {
 						this.leaveFocused = undefined;
 					}
 				},
-				onContext:
-					!choice && talent?.talentSelections && talent.ShowSelections
-						? () => {
-								talent.ShowSelections?.();
-								this.changed();
-							}
-						: undefined,
 			});
 		}
 		return grid;

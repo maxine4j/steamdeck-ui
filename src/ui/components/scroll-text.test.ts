@@ -30,41 +30,18 @@ vi.mock("./frame", () => ({
 		setFocused = vi.fn();
 	},
 }));
-it("can hide reading progress while retaining controller scrolling", () => {
+it("leaves prose to mouse scrolling, preserves reading on refresh and reuses its frames", () => {
 	state.labels.mockClear();
-	const reader = new ScrollText("read", {} as IFramePoolManager, {
-		showPosition: false,
-	});
-	reader.mount(new Frame("parent", {} as IFramePoolManager), 450, 400);
-	reader.setText("Long text", true);
-	reader.node.onInteract();
-	expect(state.offset).toBeGreaterThan(0);
-	expect(
-		state.labels.mock.calls.some((call) => call.at(0) === "position"),
-	).toBe(false);
-});
-it("offers controller scrolling with position feedback and preserves reading during refresh", () => {
-	state.offset = 0;
+	state.offset = 300;
 	state.created = 0;
 	const reader = new ScrollText("read", {} as IFramePoolManager);
 	reader.mount(new Frame("parent", {} as IFramePoolManager), 450, 400);
-	reader.setText("Long text", true);
-	reader.node.onInteract();
-	expect(state.offset).toBe(300);
-	expect(state.labels).toHaveBeenCalledWith(
-		"position",
-		expect.stringContaining("xbox_r_a.blp:18:18|t Down"),
-		"CENTER",
-		0,
-		0,
-		13,
-		450,
-	);
+	expect("node" in reader).toBe(false);
 	reader.setText("Updated text", false);
 	expect(state.offset).toBe(300);
-	reader.node.onContext?.();
-	expect(state.offset).toBe(0);
-	reader.node.onInteract();
+	expect(
+		state.labels.mock.calls.some((call) => call.at(0) === "position"),
+	).toBe(false);
 	reader.setText("New quest", true);
 	expect(state.offset).toBe(0);
 	const count = state.created;

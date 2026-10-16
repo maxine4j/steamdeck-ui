@@ -6,7 +6,8 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { CachePerformancePanel } from "./cache-performance-panel";
 import { DebugLogsPanel } from "./debug-logs-panel";
 
-const { frames, rows } = vi.hoisted(() => ({
+const { frames, rows, insets } = vi.hoisted(() => ({
+	insets: vi.fn(),
 	frames: new Map<
 		string,
 		{ text: string; selected: boolean; click?: () => void }
@@ -24,7 +25,7 @@ vi.mock("../../ui/components/frame", () => ({
 			frames.set(id, this.state);
 		}
 		fill() {}
-		inset() {}
+		inset = insets;
 		setParent() {}
 		layout() {}
 		setWindowBackground() {}
@@ -87,6 +88,7 @@ it("selects a fresh full report on mouse or controller activation and preserves 
 		{ delay: vi.fn() },
 	);
 	panel.onMount({} as Frame);
+	expect(insets).toHaveBeenCalledWith(expect.anything(), 12, 110, 8, 12);
 	frames.get("debug-select-logs")?.click?.();
 	expect(frames.get("debug-log-text")?.selected).toBe(true);
 	expect(frames.get("debug-log-text")?.text).toContain("traceback");

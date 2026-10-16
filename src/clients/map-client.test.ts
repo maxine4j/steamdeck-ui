@@ -1110,7 +1110,7 @@ it("toggles the active navigation quest without changing ordinary tracking", () 
 	expect(QuestMapQuestOptions_TrackQuest).not.toHaveBeenCalled();
 });
 it("focuses a quest without opening details, uses native details and safe abandon confirmation, and validates sharing", () => {
-	const { client, frame, layout, quests } = setup();
+	const { client, frame } = setup();
 	vi.stubGlobal("C_QuestLog", {
 		GetLogIndexForQuestID: () => 1,
 		CanAbandonQuest: () => true,
@@ -1128,11 +1128,6 @@ it("focuses a quest without opening details, uses native details and safe abando
 	expect(QuestMapFrame_ShowQuestDetails).not.toHaveBeenCalled();
 	client.showDetails(12);
 	expect(QuestMapFrame_ShowQuestDetails).toHaveBeenCalledWith(12);
-	client.scrollDetails(1);
-	expect(layout.scroll).toHaveBeenCalledWith(
-		quests.DetailsFrame.ScrollFrame.ScrollBar,
-		1,
-	);
 	client.hideDetails();
 	expect(QuestMapFrame_ReturnFromQuestDetails).toHaveBeenCalled();
 	client.track(12);

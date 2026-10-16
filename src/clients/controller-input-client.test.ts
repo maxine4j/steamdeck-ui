@@ -73,7 +73,7 @@ it("propagates secure actions to hardware bindings without emitting addon naviga
 	vi.stubGlobal("IsModifierKeyDown", () => false);
 	const events = createTestEventBus();
 	const alternate = vi.fn();
-	events.subscribe("NAV_ALTERNATE", alternate);
+	events.subscribe("NAV_INTERACT", alternate);
 	let handle: ((button: string) => boolean) | undefined;
 	const surface: IGamePadInput = {
 		setClickBindings: vi.fn(),
@@ -106,7 +106,14 @@ it("propagates secure actions to hardware bindings without emitting addon naviga
 	expect(alternate).toHaveBeenCalledOnce();
 	client.setSecureActions({ interact: target });
 	expect(surface.setClickBindings).toHaveBeenLastCalledWith([
-		{ key: "PAD1", target },
+		{ key: "PAD3", target },
+	]);
+	expect(handle?.("PAD1")).toBe(false);
+	expect(handle?.("PAD3")).toBe(false);
+	const preferred = {} as import("../ui/components/frame").Frame;
+	client.setSecureActions({ interact: target, alternate: preferred });
+	expect(surface.setClickBindings).toHaveBeenLastCalledWith([
+		{ key: "PAD3", target: preferred },
 	]);
 	client.setActive(false);
 	expect(surface.setClickBindings).toHaveBeenLastCalledWith([]);
@@ -209,8 +216,8 @@ it("captures navigation only while active, propagates other buttons and restores
 	client.setActive(true);
 	expect(handler?.("PADDDOWN")).toBe(true);
 	expect(down).toHaveBeenCalledOnce();
-	expect(handler?.("PAD1")).toBe(true);
-	expect(interact).toHaveBeenCalledOnce();
+	expect(handler?.("PAD1")).toBe(false);
+	expect(interact).not.toHaveBeenCalled();
 	for (const [key, listener] of [
 		["PADDUP", up],
 		["PADDLEFT", left],
@@ -224,7 +231,8 @@ it("captures navigation only while active, propagates other buttons and restores
 	expect(handler?.("PAD2")).toBe(true);
 	expect(cancel).toHaveBeenCalledOnce();
 	expect(handler?.("PAD3")).toBe(true);
-	expect(alternate).toHaveBeenCalledOnce();
+	expect(alternate).not.toHaveBeenCalled();
+	expect(interact).toHaveBeenCalledOnce();
 	for (const [key, event] of [
 		["PADLTRIGGER", "NAV_CONTAINER_LEFT"],
 		["PADRTRIGGER", "NAV_CONTAINER_RIGHT"],
@@ -321,7 +329,7 @@ it("configures quick repeats for D-pad directions only", () => {
 		delaySeconds: 0.5,
 		intervalSeconds: 0.05,
 	});
-	expect(downHandler?.("PAD1")).toBe(true);
+	expect(downHandler?.("PAD1")).toBe(false);
 	expect(up).toHaveBeenCalledOnce();
 	client.shutdown();
 });

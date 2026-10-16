@@ -19,6 +19,7 @@ const records = vi.hoisted(() => ({
 	parents: new Map<string, string>(),
 	textColors: new Map<string, readonly number[]>(),
 	colors: new Map<string, readonly number[]>(),
+	insets: new Map<string, number[]>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
@@ -81,7 +82,8 @@ vi.mock("../../ui/components/frame", () => ({
 		clearInput = vi.fn();
 		focusInput = vi.fn();
 		fill = vi.fn();
-		inset = vi.fn();
+		inset = (_parent: unknown, ...values: number[]) =>
+			records.insets.set(this.id, values);
 		onClick = vi.fn();
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
@@ -143,7 +145,7 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 it("shows controller graphics beside conversation actions", () => {
 	setup(display(page));
 	expect(records.labels.get("dialogue-surface")?.get("hint")).toContain(
-		"xbox_r_a.blp:18:18|t Select",
+		"xbox_r_x.blp:18:18|t Select",
 	);
 	expect(records.labels.get("dialogue-surface")?.get("hint")).not.toContain(
 		"Read",
@@ -389,6 +391,7 @@ it("fits rewards in two columns and grows upward before scrolling, reserving a t
 	}));
 	const d = display({ ...page, kind: "rewards", rewards, choices: [] });
 	const { panel } = setup(d);
+	expect(records.insets.get("dialogue-choices-scroll")).toEqual([0, 0, -20, 0]);
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
 	).toEqual([

@@ -41,6 +41,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+it("aligns its scrollbar with the shared panel edge", () => {
+	const { panel, parent } = setup();
+	panel.onMount(parent);
+	openSlot(panel);
+	expect(
+		vi
+			.mocked(Frame.prototype.inset)
+			.mock.calls.some((call) => call.at(3) === 8),
+	).toBe(true);
+});
+
 function setup() {
 	const pending: (() => void)[] = [];
 	const scheduler = {

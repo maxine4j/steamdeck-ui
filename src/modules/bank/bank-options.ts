@@ -4,7 +4,7 @@ import type {
 	MoneyDirection,
 } from "../../clients/bank-client";
 import type { IModal, ModalOption } from "../../ui/components/modal";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 
 export class BankOptions {
 	constructor(

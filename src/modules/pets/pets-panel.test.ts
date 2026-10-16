@@ -398,7 +398,7 @@ it("searches pets and refreshes native family filters without removing the summo
 		expect.any(Frame),
 		16,
 		112,
-		16,
+		8,
 		114,
 	);
 });

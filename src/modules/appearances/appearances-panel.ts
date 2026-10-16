@@ -6,6 +6,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { CollectionView } from "../../ui/collection-view";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -205,7 +206,13 @@ export class AppearancesPanel implements IPanel {
 		}
 		const view = state;
 		this.layout();
-		this.viewport.inset(this.frame, 16, 80 + modelHeight * 0.7 + 16, 16, 48);
+		this.viewport.inset(
+			this.frame,
+			16,
+			80 + modelHeight * 0.7 + 16,
+			SCROLL_VIEWPORT_RIGHT,
+			48,
+		);
 		view.content.setParent(this.viewport);
 		this.viewport.setScrollContent(view.content);
 		this.viewport.onSizeChanged(() => {

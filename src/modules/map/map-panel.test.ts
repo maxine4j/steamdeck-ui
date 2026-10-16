@@ -442,13 +442,12 @@ it("puts Blizzard's unified quest hierarchy on the right without custom tabs or 
 	panel.refresh();
 	expect(changed).toHaveBeenLastCalledWith("map-quest-3");
 });
-it("maps X to focus, A to native details, and B back to the previous list and selected quest", () => {
+it("maps X to native details and B back to the previous list and selected quest", () => {
 	const { panel, client, changed, close } = setup();
 	const quest = panel.getNavGrid().at(3)?.at(0);
 	quest?.onFocus();
-	quest?.onAlternate?.();
-	expect(client.focus).toHaveBeenCalledWith(3);
-	expect(client.showDetails).not.toHaveBeenCalled();
+	expect(quest?.onAlternate).toBeUndefined();
+	expect(client.focus).not.toHaveBeenCalled();
 	quest?.onInteract();
 	expect(client.showDetails).toHaveBeenCalledWith(3);
 	expect(
@@ -468,9 +467,8 @@ it("maps X to focus, A to native details, and B back to the previous list and se
 	expect(state.frames.has("map-details-up")).toBe(false);
 	expect(details?.onMove).toBeUndefined();
 	details?.onAlternate?.();
-	expect(client.scrollDetails).toHaveBeenCalledWith(1);
 	details?.onContext?.();
-	expect(client.scrollDetails).toHaveBeenCalledWith(-1);
+	expect(client.scrollDetails).not.toHaveBeenCalled();
 	panel.onBack();
 	expect(client.hideDetails).toHaveBeenCalled();
 	expect(changed).toHaveBeenLastCalledWith("map-quest-3");

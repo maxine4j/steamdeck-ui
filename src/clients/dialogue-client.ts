@@ -1,3 +1,5 @@
+import { formatMoney as dialogueMoney } from "../utils/money";
+
 /** Narrow legacy API declarations, kept at the client boundary. */
 declare global {
 	function GetQuestID(this: void): number;
@@ -213,9 +215,8 @@ const offerAPI = () =>
 			this: void,
 		): ReputationReward[] | undefined;
 	};
-export function dialogueMoney(copper: number): string {
-	return `${Math.floor(copper / 10000)}g ${Math.floor(copper / 100) % 100}s ${copper % 100}c`;
-}
+
+export { formatMoney as dialogueMoney } from "../utils/money";
 
 /** Authoritative snapshots and guarded original API actions. No native UI visibility state. */
 export class DialogueClient implements IDialogueClient {

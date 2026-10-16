@@ -10,6 +10,25 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { MountsPanel } from "./mounts-panel";
 
+it("uses shared focus arrival styling for footer actions", () => {
+	const { panel, parent } = setup();
+	panel.onMount(parent);
+	expect(Frame.prototype.inset).toHaveBeenCalledWith(
+		expect.anything(),
+		16,
+		112,
+		8,
+		114,
+	);
+	const footer = panel.getNavGrid().at(-1)?.at(0);
+	footer?.onFocus();
+	expect(Frame.prototype.setFocused).toHaveBeenCalledWith(true);
+	footer?.onFocus(true);
+	expect(Frame.prototype.setFocused).toHaveBeenCalledWith(true, false, true);
+	footer?.onBlur();
+	expect(Frame.prototype.setFocused).toHaveBeenCalledWith(false);
+});
+
 it("uses mount journal tooltip data for mouse hover and controller focus, including uncollected mounts", () => {
 	const { panel, parent, publish } = setup();
 	panel.onMount(parent);

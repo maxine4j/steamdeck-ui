@@ -1,6 +1,7 @@
 import type { Diagnostics } from "../../clients/diagnostics";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
@@ -85,7 +86,7 @@ export class DebugLogsPanel implements IPanel {
 		this.closeButton.setParent(this.window);
 		this.closeButton.layout(24, 24, "TOPRIGHT", this.window, -2, -2);
 		this.closeButton.setCloseButtonBackground();
-		this.scroll.inset(this.window, 12, 110, 12, 12);
+		this.scroll.inset(this.window, 12, 110, SCROLL_VIEWPORT_RIGHT, 12);
 		this.text.setParent(this.scroll);
 		this.scroll.setScrollContent(this.text);
 		this.text.configureTextInput(() => {}, true, 0, this.scroll);

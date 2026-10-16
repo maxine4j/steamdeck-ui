@@ -2,6 +2,7 @@ import type { DialogueEntry } from "../../clients/dialogue-client";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
 import type { IModalNavigation } from "../../ui/components/modal";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
@@ -53,7 +54,6 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		this.choicesHost = new Frame("dialogue-choices-host", pool);
 		this.input = new Frame("dialogue-code", pool, "EditBox");
 		this.reading = new ScrollText("dialogue-reading", pool, {
-			showPosition: false,
 			textColor: this.ink,
 		});
 		this.choices = new ScrollList(
@@ -64,6 +64,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			{
 				width: 464,
 				padding: 0,
+				viewportRight: SCROLL_VIEWPORT_RIGHT - 28,
 				top: 0,
 				bottom: 0,
 				gap: 6,
@@ -161,7 +162,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			display.suspended
 				? "Dialogue paused during combat. Actions resume after combat."
 				: (display.feedback ??
-						`${controllerIcon("D-pad")} Focus · ${controllerIcon("A")} Select · ${controllerIcon("B")} Cancel / Close`),
+						`${controllerIcon("D-pad")} Focus · ${controllerIcon("X")} Select · ${controllerIcon("B")} Cancel / Close`),
 			"BOTTOMLEFT",
 			16,
 			4,
@@ -246,7 +247,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 					{
 						id: "dialogue-input",
 						label: "Enter code",
-						detail: `${controllerIcon("A")} Focus · ${controllerIcon("Steam")}+${controllerIcon("X")} Keyboard`,
+						detail: `${controllerIcon("X")} Focus · ${controllerIcon("Steam")}+${controllerIcon("X")} Keyboard`,
 					},
 					() => this.input.focusInput(),
 				);

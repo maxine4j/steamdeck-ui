@@ -10,7 +10,7 @@ import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 
 interface Control {
 	readonly frame: Frame;
@@ -39,7 +39,6 @@ export class AuctionHousePanel implements IPanel {
 	private generation = 0;
 	private layoutMode?: string;
 	private displayedTotal = 0;
-	private scrollControls: Control[] = [];
 	constructor(
 		readonly id: "auction-buy" | "auction-sell" | "auction-owned",
 		pool: IFramePoolManager,
@@ -55,12 +54,12 @@ export class AuctionHousePanel implements IPanel {
 		this.frame = new Frame(`${id}-root`, pool);
 		this.list = new ScrollList(`${id}-list`, pool, "", () => {}, {
 			top: id === "auction-buy" ? 154 : id === "auction-sell" ? 322 : 112,
-			bottom: 58,
+			bottom: 16,
 			background: false,
 		});
 		this.detailList = new ScrollList(`${id}-prices`, pool, "", () => {}, {
 			top: 310,
-			bottom: 58,
+			bottom: 16,
 			background: false,
 		});
 		this.searchInput = new Frame(`${id}-search`, pool, "SearchBox");
@@ -105,14 +104,6 @@ export class AuctionHousePanel implements IPanel {
 		button("confirm-post", () =>
 			this.client.confirmPost(this.sellQuantity, this.sellPrice, this.duration),
 		);
-		for (const direction of [-1, 1])
-			button(`scroll-${direction}`, () => {
-				const list =
-					this.id === "auction-buy" && this.client.getPurchase()
-						? this.detailList
-						: this.list;
-				list.scrollBy(direction * 180);
-			});
 		for (const hours of [12, 24, 48])
 			button(`duration-${hours}`, () => {
 				this.duration = hours === 12 ? 1 : hours === 24 ? 2 : 3;
@@ -243,24 +234,6 @@ export class AuctionHousePanel implements IPanel {
 				})),
 			);
 		}
-		this.scrollControls = [-1, 1].map((direction) => {
-			const control = this.button(
-				`scroll-${direction}`,
-				direction < 0 ? "Scroll up" : "Scroll down",
-				direction < 0 ? 16 : 244,
-				0,
-				220,
-			);
-			control.frame.layout(
-				220,
-				32,
-				"BOTTOMLEFT",
-				this.frame,
-				direction < 0 ? 16 : 244,
-				14,
-			);
-			return control;
-		});
 		this.navigationChanged?.();
 	}
 	private renderBuy(): void {
@@ -489,7 +462,6 @@ export class AuctionHousePanel implements IPanel {
 					),
 					...this.list.getNavGrid(),
 					...this.detailList.getNavGrid(),
-					this.scrollControls.map((control) => control.nav),
 				]
 			: [];
 	}

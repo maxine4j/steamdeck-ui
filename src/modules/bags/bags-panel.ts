@@ -6,12 +6,14 @@ import type {
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { controllerIcon } from "../../ui/components/controller-icon";
 import { Frame } from "../../ui/components/frame";
+import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-import { commaNumber, formatMoney, groupItems } from "./bag-display";
+import { commaNumber, formatMoney } from "../../utils/money";
+import { groupItems } from "./bag-display";
 import type { IItemActionMenu } from "./item-action-menu";
 import { ItemGrouping } from "./item-grouping";
 
@@ -148,7 +150,7 @@ export class BagsPanel implements IPanel {
 			this.frame,
 			16,
 			58,
-			16,
+			SCROLL_VIEWPORT_RIGHT,
 			this.presentation.bottomInset ?? 48,
 		);
 		this.viewport.onSizeChanged(() => {

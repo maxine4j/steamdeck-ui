@@ -9,6 +9,7 @@ import type {
 	NavDirection,
 	NavGrid,
 	NavigationMouseTarget,
+	NavigationScope,
 } from "./types";
 
 type GridSource = NavGrid | (() => NavGrid);
@@ -47,6 +48,7 @@ export class NavigationManager implements INavManager {
 		return this.modals.at(-1);
 	}
 	private focused?: INavigable;
+	private scope?: NavigationScope;
 	private graph = new NavigationGrid([]);
 	private readonly directionChanged: (
 		this: void,
@@ -68,7 +70,8 @@ export class NavigationManager implements INavManager {
 		[
 			"NAV_CANCEL",
 			() => {
-				if (this.modal) this.modal.cancel();
+				if (this.scope) this.scope.cancel();
+				else if (this.modal) this.modal.cancel();
 				else if (this.active) this.options.get(this.active)?.onCancel?.();
 			},
 		],
@@ -97,6 +100,7 @@ export class NavigationManager implements INavManager {
 	}
 	setActiveGrid(panelId: string, focusId?: string): void {
 		if (this.modal && panelId !== this.modal.id) return;
+		if (this.scope && !this.modal && this.active !== panelId) return;
 		if (!this.grids.has(panelId)) return;
 		if (this.active !== panelId) {
 			this.setFocus(undefined);
@@ -135,7 +139,15 @@ export class NavigationManager implements INavManager {
 	}
 	refreshGrid(panelId: string, focusId?: string): void {
 		const source = this.grids.get(panelId);
-		const grid = typeof source === "function" ? source() : (source ?? []);
+		let grid = typeof source === "function" ? source() : (source ?? []);
+		let scope: NavigationScope | undefined;
+		for (const row of grid)
+			for (const control of row)
+				if (control.navigationScope) scope = control.navigationScope;
+		if (scope)
+			grid = grid.map((row) =>
+				row.filter((control) => control.navigationScope === scope),
+			);
 		const targets = new Set<NavigationMouseTarget>();
 		for (const row of grid)
 			for (const control of row) {
@@ -151,6 +163,7 @@ export class NavigationManager implements INavManager {
 			if (!targets.has(target)) target.setNavigationFocus(undefined);
 		this.mouseTargets.set(panelId, targets);
 		if (this.active !== panelId) return;
+		this.scope = scope;
 		this.graph = new NavigationGrid(grid);
 		const id = focusId ?? this.focusedId ?? this.remembered.get(panelId);
 		const control = (id ? this.graph.get(id) : undefined) ?? this.graph.first;
@@ -170,6 +183,7 @@ export class NavigationManager implements INavManager {
 		if (this.active !== panelId) return;
 		this.setFocus(undefined);
 		this.active = undefined;
+		this.scope = undefined;
 		this.graph = new NavigationGrid([]);
 		const previous = this.history.at(-1);
 		if (previous) this.setActiveGrid(previous);
@@ -202,11 +216,11 @@ export class NavigationManager implements INavManager {
 		if (next) this.setFocus(next);
 	}
 	private cyclePanel(direction: -1 | 1): void {
-		if (this.active && !this.modal)
+		if (this.active && !this.modal && !this.scope)
 			this.options.get(this.active)?.onPanelCycle?.(direction);
 	}
 	private switchContainer(direction: "left" | "right"): void {
-		if (!this.active || this.modal) return;
+		if (!this.active || this.modal || this.scope) return;
 		const neighbor = this.options.get(this.active)?.[direction];
 		if (neighbor) this.setActiveGrid(neighbor);
 	}
@@ -223,7 +237,8 @@ export class NavigationManager implements INavManager {
 		this.move("right");
 	}
 	interact(): void {
-		this.focused?.onInteract();
+		if (this.focused?.onAlternate) this.focused.onAlternate();
+		else this.focused?.onInteract();
 	}
 	destroy(): void {
 		for (const targets of this.mouseTargets.values())
@@ -240,6 +255,7 @@ export class NavigationManager implements INavManager {
 		this.history.length = 0;
 		this.remembered.clear();
 		this.active = undefined;
+		this.scope = undefined;
 		this.onActiveChanged?.(false);
 	}
 }

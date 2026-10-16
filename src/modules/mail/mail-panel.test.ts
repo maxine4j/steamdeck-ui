@@ -195,6 +195,12 @@ it("reads mail, confirms COD and return, replies, goes back and stops collection
 	panel.onMount(parent);
 	activate(panel, "mail-message-1");
 	expect(client.read).toHaveBeenCalledWith(mail);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("mail-body");
 	activate(panel, "mail-take-2");
 	expect(client.takeItem).not.toHaveBeenCalled();
 	const confirm = vi.mocked(modal.open).mock.calls.at(-1)?.at(1);

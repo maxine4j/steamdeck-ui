@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { DialogueClient } from "./dialogue-client";
+import { DialogueClient, dialogueMoney } from "./dialogue-client";
+
+it("formats dialogue costs with grouped coin textures", () => {
+	expect(dialogueMoney(123456789)).toBe(
+		"12,345|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  67|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  89|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t",
+	);
+});
 
 const gossip = {
 	GetText: () => "Greetings",

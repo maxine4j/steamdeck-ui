@@ -97,7 +97,7 @@ export class Modal implements IModal {
 		setWindowTitle(this.window, title);
 		this.window.setLabel(
 			"hint",
-			`${controllerIcon("A")} Select   ${controllerIcon("B")} Cancel`,
+			`${controllerIcon("X")} Select   ${controllerIcon("B")} Cancel`,
 			"BOTTOMRIGHT",
 			-20,
 			16,

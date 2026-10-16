@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import type { InventoryItem } from "../../clients/inventory-client";
-import { formatMoney, groupItems } from "./bag-display";
+import { formatMoney } from "../../utils/money";
+import { groupItems } from "./bag-display";
 
 const item = (overrides: Partial<InventoryItem> = {}): InventoryItem => ({
 	bagId: 0,

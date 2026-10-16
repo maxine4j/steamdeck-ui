@@ -140,7 +140,7 @@ it("unifies tab stacks in the bag-sized two-column grid with a fixed bank footer
 		),
 	).toBe(true);
 	const inset = vi.mocked(Frame.prototype.inset);
-	expect(inset).toHaveBeenCalledWith(expect.any(Frame), 16, 58, 16, 112);
+	expect(inset).toHaveBeenCalledWith(expect.any(Frame), 16, 58, 8, 112);
 	const layout = vi.mocked(Frame.prototype.layout);
 	expect(layout).toHaveBeenCalledWith(
 		180,

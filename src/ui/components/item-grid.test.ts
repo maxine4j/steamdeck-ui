@@ -3,8 +3,9 @@ import type { IFramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 import { ItemGrid } from "./item-grid";
 
-const { layouts } = vi.hoisted(() => ({
+const { layouts, insets } = vi.hoisted(() => ({
 	layouts: new Map<string, ReturnType<typeof vi.fn>>(),
+	insets: vi.fn(),
 }));
 const { reveals } = vi.hoisted(() => ({ reveals: vi.fn() }));
 const { edges } = vi.hoisted(() => ({ edges: vi.fn() }));
@@ -35,7 +36,7 @@ vi.mock("./frame", () => ({
 		clearTooltip = vi.fn();
 		onClick = vi.fn();
 		destroy = vi.fn();
-		inset = vi.fn();
+		inset = insets;
 		setScrollContent = vi.fn();
 		clampScroll = vi.fn();
 		scrollToEdge = edges;
@@ -46,6 +47,8 @@ vi.mock("./frame", () => ({
 it("lays out two columns under group headers, routes actions and reuses cells", () => {
 	const pool = {} as IFramePoolManager;
 	const grid = new ItemGrid("items", pool);
+	grid.mount(new Frame("parent", pool));
+	expect(insets).toHaveBeenCalledWith(expect.anything(), 16, 112, 8, 16);
 	const activate = vi.fn();
 	const favourite = vi.fn();
 	grid.setGroups([

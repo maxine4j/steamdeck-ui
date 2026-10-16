@@ -5,6 +5,22 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it.each([12, 16, 20, 30])(
+	"keeps the scrollbar 11px from the panel edge with %ipx content padding",
+	(padding) => {
+		const pool = {} as IFramePoolManager;
+		const list = new ScrollList("edge", pool, "", vi.fn(), { padding });
+		list.mount(new Frame("parent", pool));
+		expect(frames.get("edge-scroll")?.inset).toHaveBeenCalledWith(
+			expect.anything(),
+			padding,
+			40 + padding,
+			8,
+			padding,
+		);
+	},
+);
+
 it("moves the viewport edge outwards while retaining the content gutter", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("gutter", pool, "", vi.fn(), {

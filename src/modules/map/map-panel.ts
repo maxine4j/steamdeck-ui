@@ -149,7 +149,7 @@ export class MapPanel implements IPanel {
 				"hint",
 				this.section === "map"
 					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-					: `Quests · ${controllerIcon("A")} Select  ${controllerIcon("X")}/${controllerIcon("Y")} Scroll  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+					: `Quests · ${controllerIcon("X")} Select  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 				"BOTTOMLEFT",
 				12,
 				14,
@@ -168,7 +168,7 @@ export class MapPanel implements IPanel {
 			"hint",
 			this.section === "map"
 				? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-				: `Quests · ${controllerIcon("A")} Details  ${controllerIcon("X")} Focus  ${controllerIcon("Y")} Options  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+				: `Quests · ${controllerIcon("X")} Details  ${controllerIcon("Y")} Options  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
 			"BOTTOMLEFT",
 			12,
 			14,
@@ -242,8 +242,6 @@ export class MapPanel implements IPanel {
 													this.confirmAbandon(this.details);
 											}
 										: () => node.onInteract(),
-							onAlternate: () => this.client.scrollDetails(1),
-							onContext: () => this.client.scrollDetails(-1),
 						}) satisfies INavigable,
 				),
 			);
@@ -264,8 +262,6 @@ export class MapPanel implements IPanel {
 						// completed native layout refresh restores focus after that rebuild.
 					}
 				},
-				onAlternate:
-					questID !== undefined ? () => this.client.focus(questID) : undefined,
 				onContext:
 					questID !== undefined ? () => this.options(questID) : undefined,
 			} satisfies INavigable,

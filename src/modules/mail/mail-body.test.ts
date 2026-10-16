@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 import { formatMailBody } from "./mail-body";
 
 it("renders sale invoices, pending funds and crafting orders alongside message text", () => {

@@ -1,5 +1,5 @@
 import type { MailDetail } from "../../clients/mail-client";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 
 export function formatMailBody(detail: MailDetail): string {
 	let text = detail.body;

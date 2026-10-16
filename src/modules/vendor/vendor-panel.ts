@@ -14,10 +14,7 @@ import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-
-function price(copper: number): string {
-	return `${Math.floor(copper / 10000)}g ${Math.floor(copper / 100) % 100}s ${copper % 100}c`;
-}
+import { formatMoney } from "../../utils/money";
 
 export class VendorPanel implements IPanel {
 	readonly title: string;
@@ -84,8 +81,11 @@ export class VendorPanel implements IPanel {
 				nav: {
 					navId: frame.id,
 					mouseTarget: frame,
-					onFocus: () => frame.setLabel("focus", ">", "BOTTOM", 0, 0),
-					onBlur: () => frame.setLabel("focus", ""),
+					onFocus: (refresh) => {
+						if (refresh) frame.setFocused(true, false, true);
+						else frame.setFocused(true);
+					},
+					onBlur: () => frame.setFocused(false),
 					onInteract: () => this.activate(control.key, control.action),
 				},
 			};
@@ -131,7 +131,7 @@ export class VendorPanel implements IPanel {
 			this.actions = this.client.getActions();
 			this.footer.setLabel(
 				"cost",
-				`Repair cost: ${price(this.actions.repairCost)}`,
+				`Repair cost: ${formatMoney(this.actions.repairCost)}`,
 				"TOPLEFT",
 				12,
 				-8,
@@ -160,7 +160,7 @@ export class VendorPanel implements IPanel {
 		const costs = item.costs
 			.map((cost) => `${cost.count}|T${cost.icon}:12:12|t`)
 			.join(" ");
-		const detail = `${price(item.price)}${costs.length > 0 ? ` + ${costs}` : ""}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
+		const detail = `${formatMoney(item.price)}${costs.length > 0 ? ` + ${costs}` : ""}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
 		return {
 			id: `${this.id}-item-${item.index}`,
 			name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,

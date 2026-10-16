@@ -71,7 +71,6 @@ export interface IMapClient {
 	focus(id: number): void;
 	showDetails(id: number): void;
 	hideDetails(): void;
-	scrollDetails(direction: -1 | 1): void;
 	track(id: number): void;
 	superTrack(id: number): void;
 	abandon(id: number): void;
@@ -285,7 +284,7 @@ export class MapClient implements IMapClient {
 		private readonly events: IEventBus,
 		private readonly layout: Pick<
 			NativeLayout,
-			"bind" | "release" | "scroll" | "scrollToEnd"
+			"bind" | "release" | "scrollToEnd"
 		>,
 		private readonly controls: Pick<NativeNavigation, "navigation" | "release">,
 		private readonly cursor: Pick<
@@ -925,12 +924,6 @@ export class MapClient implements IMapClient {
 		QuestMapFrame_ReturnFromQuestDetails();
 		this.details = false;
 		this.applyQuestLayout();
-	}
-	scrollDetails(direction: -1 | 1): void {
-		this.layout.scroll(
-			QuestMapFrame.DetailsFrame.ScrollFrame.ScrollBar,
-			direction,
-		);
 	}
 	track(id: number): void {
 		if (this.exists(id)) QuestMapQuestOptions_TrackQuest(id);

@@ -7,7 +7,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 import { BagsPanel } from "../bags/bags-panel";
 import type { ItemGrouping } from "../bags/item-grouping";
 import { BankOptions } from "./bank-options";

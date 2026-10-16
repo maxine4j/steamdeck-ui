@@ -101,6 +101,13 @@ it.each(["category", "expansion"] as const)(
 		const visibilityChanged = vi.fn();
 		panel.setVisibilityChanged(visibilityChanged);
 		panel.onMount(new Frame("parent", pool));
+		expect(Frame.prototype.inset).toHaveBeenCalledWith(
+			expect.anything(),
+			16,
+			58,
+			8,
+			48,
+		);
 		expect(vi.mocked(Frame.prototype.layout)).toHaveBeenCalledWith(
 			180,
 			30,

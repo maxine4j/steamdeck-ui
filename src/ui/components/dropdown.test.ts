@@ -1,5 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { createTestEventBus } from "../../events/test-event-bus";
 import type { IFramePoolManager } from "../frame-pool-manager";
+import { NavigationManager } from "../navigation/navigation-manager";
 import { Dropdown } from "./dropdown";
 import { Frame } from "./frame";
 
@@ -149,6 +151,75 @@ it("bounds long filter menus and scrolls controller focus to offscreen options",
 	);
 });
 
+it("traps filters through checkbox refresh and restores the button on B without closing the panel", () => {
+	const { dropdown, changed } = setup();
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const closePanel = vi.fn();
+	const switchPanel = vi.fn();
+	const outside = {
+		navId: "outside",
+		onFocus: vi.fn(),
+		onBlur: vi.fn(),
+		onInteract: vi.fn(),
+	};
+	let checked = false;
+	const options = () => [
+		{
+			id: "collected",
+			label: "Collected",
+			checked,
+			activate: () => {
+				checked = !checked;
+				dropdown.setOptions(options());
+			},
+		},
+	];
+	dropdown.setOptions(options());
+	changed.mockImplementation((focusId?: string) =>
+		navigation.refreshGrid("panel", focusId),
+	);
+	navigation.registerGrid("other", [[{ ...outside, navId: "other" }]]);
+	navigation.registerGrid(
+		"panel",
+		() => [
+			[outside],
+			...dropdown.getNavGrid(),
+			[{ ...outside, navId: "footer" }],
+		],
+		{
+			left: "other",
+			right: "other",
+			onCancel: closePanel,
+			onPanelCycle: switchPanel,
+		},
+	);
+	navigation.setActiveGrid("panel", "filters");
+	events.emit("NAV_INTERACT");
+	expect(navigation.focusedId).toBe("collected");
+	events.emit("NAV_INTERACT");
+	expect(checked).toBe(true);
+	expect(dropdown.isOpen()).toBe(true);
+	for (const event of [
+		"NAV_UP",
+		"NAV_DOWN",
+		"NAV_LEFT",
+		"NAV_RIGHT",
+		"NAV_PANEL_PREVIOUS",
+		"NAV_PANEL_NEXT",
+		"NAV_CONTAINER_LEFT",
+		"NAV_CONTAINER_RIGHT",
+	] as const) {
+		events.emit(event);
+		expect(navigation.focusedId).toBe("collected");
+	}
+	expect(switchPanel).not.toHaveBeenCalled();
+	events.emit("NAV_CANCEL");
+	expect(dropdown.isOpen()).toBe(false);
+	expect(navigation.focusedId).toBe("filters");
+	expect(closePanel).not.toHaveBeenCalled();
+});
+
 it("follows mouse-selected checkbox options before their refresh rebuilds the menu", () => {
 	const { dropdown, native, entries, changed } = setup();
 	const activate = vi.fn(() =>
@@ -186,6 +257,7 @@ it("uses Blizzard's dropdown and exposes native checkbox focus and activation to
 		.getNavGrid()
 		.flat()
 		.find((node) => node.navId === "collected");
+	expect(node?.navigationScope).toBeDefined();
 	node?.onFocus();
 	expect(entries.at(0)?.enter).toHaveBeenCalled();
 	node?.onBlur();
@@ -197,6 +269,8 @@ it("uses Blizzard's dropdown and exposes native checkbox focus and activation to
 	expect(entries.at(0)?.checked?.()).toBe(true);
 	expect(entries.at(0)?.label).toBe("Collected");
 	expect(entries.at(0)?.enter).toHaveBeenCalled();
+	node?.navigationScope?.cancel();
+	expect(dropdown.isOpen()).toBe(false);
 });
 
 it.each([undefined, false])(

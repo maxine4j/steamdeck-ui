@@ -1,6 +1,9 @@
 import type { WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 
+/** The shared thumb adds 3px, putting it 11px inside the panel's right edge. */
+export const SCROLL_VIEWPORT_RIGHT = 8;
+
 export interface IndicatorScroll extends WowFrame {
 	SetFrameStrata(strata: string): void;
 	GetHeight(): number;

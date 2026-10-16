@@ -13,7 +13,7 @@ import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { INavigable, NavGrid } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
-import { formatMoney } from "../bags/bag-display";
+import { formatMoney } from "../../utils/money";
 import { formatMailBody } from "./mail-body";
 
 function confirm(modal: IModal, title: string, action: () => void): void {
@@ -320,7 +320,7 @@ export class MailInboxPanel implements IPanel {
 		return !this.mounted
 			? []
 			: this.selected
-				? [[this.body.node], ...this.actions.getNavGrid()]
+				? this.actions.getNavGrid()
 				: this.list.getNavGrid();
 	}
 	destroy(): void {

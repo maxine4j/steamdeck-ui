@@ -1,6 +1,7 @@
 import type { IFramePoolManager } from "../frame-pool-manager";
 import type { INavigable } from "../navigation/types";
 import { Frame } from "./frame";
+import { SCROLL_VIEWPORT_RIGHT } from "./scroll-indicator";
 import type { TooltipContent } from "./tooltip-content";
 
 export interface GridItem {
@@ -62,7 +63,7 @@ export class ItemGrid {
 		if (this.mounted) this.render();
 	}
 	mount(parent: Frame, top = 112, bottom = 16): void {
-		this.viewport.inset(parent, 16, top, 16, bottom);
+		this.viewport.inset(parent, 16, top, SCROLL_VIEWPORT_RIGHT, bottom);
 		this.content.setParent(this.viewport);
 		this.viewport.setScrollContent(this.content);
 		this.viewport.show();

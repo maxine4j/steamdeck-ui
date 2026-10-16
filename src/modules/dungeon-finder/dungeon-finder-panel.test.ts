@@ -573,7 +573,7 @@ it("hosts the list and Back in an inset content container below the square roles
 	);
 	expect(listOptions.mock.lastCall?.at(0)).toMatchObject({
 		top: 72,
-		viewportRight: 10,
+		viewportRight: -8,
 		centerContent: false,
 	});
 	expect(setWidth).toHaveBeenCalledWith(448);

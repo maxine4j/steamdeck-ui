@@ -4,6 +4,8 @@ export interface NavigationScroll {
 }
 
 export interface INavigable {
+	/** Open menus restrict navigation to controls sharing this scope. */
+	navigationScope?: NavigationScope;
 	/** Pointer surface that selects this logical node without activating it again. */
 	mouseTarget?: NavigationMouseTarget;
 	/** Hardware bindings for protected actions; never dispatch these via Click(). */
@@ -18,11 +20,15 @@ export interface INavigable {
 	/** Shared viewport identity and generic scrolling operations for this control. */
 	navigationScroll?: NavigationScroll;
 	onBlur(): void;
-	onInteract(): void; // Maps to A button
+	onInteract(): void; // X selects when no immediate alternate action exists.
 	onContext?(): void; // Maps to Y button
-	onAlternate?(): void; // Maps to X button
+	onAlternate?(): void; // X prefers this immediate action over selection.
 	/** Continuous controls consume directional input while retaining focus. */
 	onMove?(direction: NavDirection, pressed: boolean): void;
+}
+
+export interface NavigationScope {
+	cancel(): void;
 }
 
 export interface NavigationMouseTarget {
