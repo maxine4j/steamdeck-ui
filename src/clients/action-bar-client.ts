@@ -457,6 +457,12 @@ if pos then return pos.x, pos.y, pos.len end`,
 		// Generated declarations currently flatten LuaDurationObject into number.
 		return {
 			icon: C_ActionBar.GetActionTexture(slot),
+			// Match Retail ActionButton UpdateCount/UpdateState, including macro slots.
+			count: C_ActionBar.GetActionDisplayCount(slot, 9999, "*"),
+			active:
+				(C_ActionBar.IsCurrentAction(slot) ||
+					C_ActionBar.IsAutoRepeatAction(slot)) &&
+				!C_ActionBar.IsAutoCastPetAction(slot),
 			cooldown: C_ActionBar.GetActionCooldownDuration(slot, false) as unknown as
 				| CooldownDuration
 				| undefined,

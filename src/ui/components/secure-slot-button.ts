@@ -1,4 +1,4 @@
-import type { WowFrame } from "../../types";
+import type { WowFrame, WowTexture } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
 import { type CooldownDuration, CooldownOverlay } from "./cooldown-overlay";
 import { applyIconOutline } from "./skin";
@@ -14,6 +14,8 @@ export interface SlotVisual {
 	icon?: number | string;
 	cooldown?: CooldownDuration;
 	recharge?: CooldownDuration;
+	count?: string;
+	active?: boolean;
 }
 export type SlotReader = (this: void, slot: number) => SlotVisual;
 export interface SlotDriver {
@@ -48,6 +50,8 @@ export class SecureSlotButton {
 	private readonly frame: SecureFrame;
 	private readonly cooldowns: CooldownOverlay;
 	private readonly label;
+	private readonly count;
+	private readonly active: WowTexture & { SetShown(shown: boolean): void };
 	private read?: SlotReader;
 	constructor(private readonly pool: IFramePoolManager) {
 		this.frame = pool.acquire("SecureStateButton") as SecureFrame;
@@ -60,6 +64,20 @@ export class SecureSlotButton {
 		);
 		this.label.SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE");
 		this.label.SetPoint("TOPLEFT", this.frame, "TOPLEFT", 4, -4);
+		this.count = this.frame.CreateFontString(
+			undefined,
+			"OVERLAY",
+			"NumberFontNormal",
+		);
+		this.count.SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE");
+		this.count.SetPoint("BOTTOMRIGHT", this.frame, "BOTTOMRIGHT", -3, 3);
+		this.active = pool.getDecoration(
+			this.frame,
+			"action-slot-active",
+		) as typeof this.active;
+		this.active.SetAllPoints();
+		this.active.SetAtlas("UI-HUD-ActionBar-IconFrame-Mouseover", false);
+		this.active.SetShown(false);
 		// Preserve the secure template's state handler; replacing it breaks combat paging.
 		this.frame.HookScript("OnAttributeChanged", (_frame, name) => {
 			if (name === "action" && this.read) this.refresh(this.read);
@@ -121,6 +139,8 @@ end`,
 		texture.SetAtlas("UI-HUD-ActionBar-IconFrame-Background", false);
 		if (visual.icon !== undefined) texture.SetTexture(visual.icon);
 		texture.SetTexCoord(0, 1, 0, 1);
+		this.count.SetText(visual.count ?? "");
+		this.active.SetShown(visual.active ?? false);
 		this.cooldowns.refresh(visual.cooldown, visual.recharge);
 	}
 	destroy(): void {
@@ -140,6 +160,8 @@ end`,
 		this.frame.RegisterForClicks("LeftButtonUp");
 		this.frame.RegisterForDrag();
 		this.label.SetText("");
+		this.count.SetText("");
+		this.active.SetShown(false);
 		this.cooldowns.destroy();
 		this.pool.release("SecureStateButton", this.frame);
 	}

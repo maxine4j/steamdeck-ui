@@ -299,14 +299,21 @@ it("passes opaque native cooldown durations through without arithmetic", () => {
 		GetActionTexture: vi.fn(() => 123),
 		GetActionCooldownDuration: vi.fn(() => duration),
 		GetActionChargeDuration: vi.fn(() => charge),
+		GetActionDisplayCount: vi.fn(() => "2"),
+		IsCurrentAction: () => true,
+		IsAutoRepeatAction: () => false,
+		IsAutoCastPetAction: () => false,
 	});
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	expect(client.read(61)).toEqual({
 		icon: 123,
 		cooldown: duration,
 		recharge: charge,
+		count: "2",
+		active: true,
 	});
 	expect(C_ActionBar.GetActionCooldownDuration).toHaveBeenCalledWith(61, false);
+	expect(C_ActionBar.GetActionDisplayCount).toHaveBeenCalledWith(61, 9999, "*");
 });
 
 it("preserves absent durations for actions without an active cooldown or charges", () => {
@@ -314,11 +321,17 @@ it("preserves absent durations for actions without an active cooldown or charges
 		GetActionTexture: () => 236165,
 		GetActionCooldownDuration: () => undefined,
 		GetActionChargeDuration: () => undefined,
+		GetActionDisplayCount: () => "",
+		IsCurrentAction: () => false,
+		IsAutoRepeatAction: () => false,
+		IsAutoCastPetAction: () => false,
 	});
 	const client = new ActionBarClient({ suppress: vi.fn(), restore: vi.fn() });
 	expect(client.read(1)).toEqual({
 		icon: 236165,
 		cooldown: undefined,
 		recharge: undefined,
+		count: "",
+		active: false,
 	});
 });
