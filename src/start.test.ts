@@ -227,6 +227,10 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	});
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("HeirloomsJournal", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("WardrobeCollectionFrame", {
 		IsShown: () => false,
@@ -417,6 +421,17 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		refresh: vi.fn(),
 		refreshItem: vi.fn(),
 		stop: vi.fn(),
+	};
+	const heirlooms = {
+		load: vi.fn(() => vi.fn()),
+		search: vi.fn(),
+		getFilters: () => [],
+		toggleFilter: vi.fn(),
+		prefetch: vi.fn(),
+		refreshEntry: vi.fn(),
+		stop: vi.fn(),
+		create: vi.fn(),
+		isInCombat: () => false,
 	};
 	const app = startSteamDeckUI(
 		factory,
@@ -622,6 +637,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		},
 		new AuctionHouseClient(events),
 		appearances,
+		heirlooms,
 	);
 	expect(frames).toHaveLength(6);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);
@@ -852,12 +868,13 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		["UI-HUD-MicroMenu-SpellbookAbilities-Up", 0, -29], // Spellbook
 		["UI-HUD-MicroMenu-Achievements-Up", 0, -107], // Achievements
 		["UI-HUD-MicroMenu-Groupfinder-Up", 0, -165], // Group finder
-		[133633, 1, 155], // Bags
-		[133784, 1, 97], // Currency
-		[132261, 1, 19], // Mounts
-		[454046, 1, -39], // Toys
-		[132599, 1, -97], // Pets
-		["transmog-icon-ui", 1, -155], // Appearances
+		[133633, 1, 184], // Bags
+		[133784, 1, 126], // Currency
+		[132261, 1, 48], // Mounts
+		[454046, 1, -10], // Toys
+		[132599, 1, -68], // Pets
+		["transmog-icon-ui", 1, -126], // Appearances
+		["Interface\\Icons\\inv_misc_enggizmos_19", 1, -184], // Heirlooms
 	] as const) {
 		const tabIndex = textures.findIndex((texture, index) => {
 			const tab = frames.at(index);
@@ -878,7 +895,11 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		const texture = textures.at(tabIndex);
 		if (!texture) throw new Error(`Missing tab texture ${icon}`);
 		expect(vi.mocked(texture.SetWidth).mock.lastCall?.at(0)).toBe(
-			typeof icon === "string" && icon !== "player" ? 8 : 32,
+			typeof icon === "string" &&
+				icon !== "player" &&
+				!icon.startsWith("Interface")
+				? 8
+				: 32,
 		);
 		expect(vi.mocked(texture.SetHeight).mock.lastCall?.at(0)).toBe(32);
 		const border = vi.mocked(tab.SetParent).mock.lastCall?.at(0) as WowFrame;
@@ -985,6 +1006,12 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(HideUIPanel).toHaveBeenCalledWith(CollectionsJournal);
 	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	vi.stubGlobal("PVEFrame_ShowFrame", vi.fn());
+	app.ui.openPanel("bags", "right");
+	clickTab("Interface\\Icons\\inv_misc_enggizmos_19");
+	expect(app.ui.getContainer("right").activePanelId).toBe("heirlooms");
+	expect(heirlooms.load).toHaveBeenCalledOnce();
+	events.emit("NAV_CANCEL");
+	expect(app.ui.getContainer("right").activePanelId).toBeUndefined();
 	app.ui.openPanel("appearances", "right");
 	expect(app.ui.getContainer("right").activePanelId).toBe("appearances");
 	expect(app.navigation.focusedId).toBe("appearances-clear");
@@ -1235,6 +1262,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
 	app.stop();
 	expect(pets.stop).toHaveBeenCalledOnce();
+	expect(heirlooms.stop).toHaveBeenCalledOnce();
 	expect(map.disable).toHaveBeenCalledOnce();
 	expect(map.restore).toHaveBeenCalledOnce();
 	expect(controller.shutdown).toHaveBeenCalledOnce();

@@ -18,6 +18,10 @@ it("suppresses collections only for toys, restores other tabs and ignores hooks 
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
 	vi.stubGlobal("MountJournal", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("HeirloomsJournal", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("WardrobeCollectionFrame", {
 		IsShown: () => false,
 		HookScript: vi.fn(),

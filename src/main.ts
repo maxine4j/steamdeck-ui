@@ -12,6 +12,7 @@ import { DebugClient } from "./clients/debug-client";
 import { DialogueCamera } from "./clients/dialogue-camera";
 import { DialogueClient } from "./clients/dialogue-client";
 import { DungeonFinderClient } from "./clients/dungeon-finder-client";
+import { HeirloomsClient } from "./clients/heirlooms-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MailClient } from "./clients/mail-client";
 import { MapClient } from "./clients/map-client";
@@ -100,6 +101,7 @@ startSteamDeckUI(
 	new SpellbookClient(),
 	auctionHouse,
 	new AppearancesClient(scheduler, collectionCache, performance),
+	new HeirloomsClient(scheduler, collectionCache, performance),
 	performance,
 	debug,
 	() => collectionCache.stats(),

@@ -10,6 +10,10 @@ it("suppresses collections only for mounts and restores it on tab changes and sh
 	vi.stubGlobal("C_AddOns", { LoadAddOn: vi.fn() });
 	vi.stubGlobal("ToyBox", { IsShown: () => false, HookScript: vi.fn() });
 	vi.stubGlobal("PetJournal", { IsShown: () => false, HookScript: vi.fn() });
+	vi.stubGlobal("HeirloomsJournal", {
+		IsShown: () => false,
+		HookScript: vi.fn(),
+	});
 	vi.stubGlobal("WardrobeCollectionFrame", {
 		IsShown: () => false,
 		HookScript: vi.fn(),

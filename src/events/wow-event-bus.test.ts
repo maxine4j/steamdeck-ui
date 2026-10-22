@@ -3,6 +3,26 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("translates heirloom collection and upgrade updates into targeted application events", () => {
+	let dispatch: (frame: WowEventFrame, event: string, id?: number) => void =
+		() => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const changed = vi.fn();
+	bus.subscribe("HEIRLOOMS_CHANGED", changed);
+	expect(frame.RegisterEvent).toHaveBeenCalledWith("HEIRLOOMS_UPDATED");
+	dispatch(frame, "HEIRLOOMS_UPDATED", 122350);
+	expect(changed).toHaveBeenLastCalledWith({ id: 122350 });
+	dispatch(frame, "HEIRLOOMS_UPDATED");
+	expect(changed).toHaveBeenLastCalledWith(undefined);
+});
+
 it("publishes spellbook updates for learned spells and specialization changes", () => {
 	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
 	const frame = {

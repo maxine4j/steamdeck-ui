@@ -6,7 +6,7 @@ export type DockPosition = "left" | "right" | "fullscreen";
 export interface IPanel {
 	id: string;
 	title: string;
-	readonly icon?: number;
+	readonly icon?: number | string;
 	readonly iconAtlas?: string;
 	readonly iconPortrait?: string;
 

@@ -14,6 +14,7 @@ import type { DebugClient } from "./clients/debug-client";
 import type { IDialogueCamera } from "./clients/dialogue-camera";
 import type { IDialogueClient } from "./clients/dialogue-client";
 import type { IDungeonFinderClient } from "./clients/dungeon-finder-client";
+import type { IHeirloomsClient } from "./clients/heirlooms-client";
 import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMailClient } from "./clients/mail-client";
 import type { IMapClient } from "./clients/map-client";
@@ -61,6 +62,7 @@ import { registerDebug } from "./modules/debug/register-debug";
 import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
 import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
 import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
+import { registerHeirlooms } from "./modules/heirlooms/register-heirlooms";
 import { registerMail } from "./modules/mail/register-mail";
 import { MapModule } from "./modules/map/map-module";
 import { MapPanel } from "./modules/map/map-panel";
@@ -203,9 +205,19 @@ function registerCollections(
 	scheduler: ITaskScheduler,
 	pets: IPetsClient,
 	appearances: IAppearancesClient,
+	heirlooms: IHeirloomsClient,
 	performance: IPerformanceClient,
 ) {
 	const collections = new CollectionsClient(new FrameSuppression(pool), events);
+	const heirloomsPanel = registerHeirlooms(
+		pool,
+		events,
+		ui,
+		modules,
+		heirlooms,
+		collections,
+		scheduler,
+	);
 	const appearancesPanel = registerAppearances(
 		pool,
 		events,
@@ -268,6 +280,7 @@ function registerCollections(
 		mountsPanel,
 		petsPanel,
 		appearancesPanel,
+		heirloomsPanel,
 	};
 }
 
@@ -368,6 +381,7 @@ export function startSteamDeckUI(
 	spellbook: ISpellbookClient,
 	auctionHouse: IAuctionHouseClient,
 	appearances: IAppearancesClient,
+	heirlooms: IHeirloomsClient,
 	performance: IPerformanceClient = quietPerformance,
 	debug?: DebugClient,
 	cacheStats: () => readonly CacheStats[] = () => [],
@@ -436,7 +450,7 @@ export function startSteamDeckUI(
 						: position === "right"
 							? [
 									["bags", "currency"],
-									["mounts", "toys", "pets", "appearances"],
+									["mounts", "toys", "pets", "appearances", "heirlooms"],
 								]
 							: [],
 				events,
@@ -632,6 +646,7 @@ export function startSteamDeckUI(
 		scheduler,
 		pets,
 		appearances,
+		heirlooms,
 		performance,
 	);
 	const paperDoll = new PaperDollPanel(
@@ -751,6 +766,7 @@ export function startSteamDeckUI(
 			collectionsFeature.toysPanel.destroy();
 			collectionsFeature.petsPanel.destroy();
 			collectionsFeature.appearancesPanel.destroy();
+			collectionsFeature.heirloomsPanel.destroy();
 			playerSpells.destroy();
 			transmogPanel.destroy();
 			tradingPostPanel.destroy();

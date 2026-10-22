@@ -254,6 +254,7 @@ export class WowEventBus implements IEventBus {
 		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_LOGIN");
 		this.frame.RegisterEvent("TOYS_UPDATED");
+		this.frame.RegisterEvent("HEIRLOOMS_UPDATED");
 		this.frame.RegisterEvent("NEW_TOY_ADDED");
 		for (const event of [
 			"TRANSMOG_COLLECTION_SOURCE_ADDED",
@@ -415,6 +416,11 @@ export class WowEventBus implements IEventBus {
 					event === "ACHIEVEMENT_EARNED" && typeof unit === "number"
 						? { id: unit }
 						: undefined,
+				);
+			if (event === "HEIRLOOMS_UPDATED")
+				this.emit(
+					"HEIRLOOMS_CHANGED",
+					typeof unit === "number" ? { id: unit } : undefined,
 				);
 			if (event === "TOYS_UPDATED" || event === "NEW_TOY_ADDED")
 				this.emit(

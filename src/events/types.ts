@@ -20,6 +20,7 @@ export interface DialogueEventPayloads {
 	DIALOGUE_ERROR: { message: string };
 }
 interface ApplicationEventPayloads extends DialogueEventPayloads {
+	HEIRLOOMS_CHANGED: { id?: number } | undefined;
 	APPEARANCES_CHANGED: { sourceId?: number; appearanceId?: number } | undefined;
 	AUCTION_HOUSE_CHANGED: import("../clients/auction-house-client").AuctionUpdate;
 	NAV_DIRECTION_CHANGED: {
@@ -37,6 +38,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "HEIRLOOMS_VISIBILITY_CHANGED"
 	| "DEBUG_OPEN_REQUESTED"
 	| "APPEARANCES_VISIBILITY_CHANGED"
 	| "NATIVE_DIALOGS_CHANGED"

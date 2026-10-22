@@ -3,6 +3,7 @@ import type { WowFrame } from "../types";
 import type { IFrameSuppression } from "../ui/components/frame-suppression";
 
 declare global {
+	const HeirloomsJournal: typeof ToyBox;
 	const PetJournal: typeof ToyBox;
 	const WardrobeCollectionFrame: typeof ToyBox;
 	const ToyBox: WowFrame & {
@@ -13,7 +14,12 @@ declare global {
 		): void;
 	};
 }
-export type CollectionTab = "mounts" | "toys" | "pets" | "appearances";
+export type CollectionTab =
+	| "mounts"
+	| "toys"
+	| "pets"
+	| "appearances"
+	| "heirlooms";
 export interface ICollectionsClient {
 	disable(tab: CollectionTab): void;
 	restore(tab: CollectionTab): void;
@@ -36,9 +42,11 @@ export class CollectionsClient implements ICollectionsClient {
 				? MountJournal.IsShown()
 				: tab === "pets"
 					? PetJournal.IsShown()
-					: tab === "appearances"
-						? WardrobeCollectionFrame.IsShown()
-						: ToyBox.IsShown())
+					: tab === "heirlooms"
+						? HeirloomsJournal.IsShown()
+						: tab === "appearances"
+							? WardrobeCollectionFrame.IsShown()
+							: ToyBox.IsShown())
 		);
 	}
 	close(): void {
@@ -53,6 +61,8 @@ export class CollectionsClient implements ICollectionsClient {
 			this.events.emit("MOUNTS_VISIBILITY_CHANGED");
 		if (this.enabled.has("toys")) this.events.emit("TOYS_VISIBILITY_CHANGED");
 		if (this.enabled.has("pets")) this.events.emit("PETS_VISIBILITY_CHANGED");
+		if (this.enabled.has("heirlooms"))
+			this.events.emit("HEIRLOOMS_VISIBILITY_CHANGED");
 		if (this.enabled.has("appearances"))
 			this.events.emit("APPEARANCES_VISIBILITY_CHANGED");
 	};
@@ -68,6 +78,7 @@ export class CollectionsClient implements ICollectionsClient {
 				ToyBox,
 				PetJournal,
 				WardrobeCollectionFrame,
+				HeirloomsJournal,
 			]) {
 				frame.HookScript("OnShow", this.sync);
 				frame.HookScript("OnHide", this.sync);
