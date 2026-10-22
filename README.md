@@ -1,6 +1,6 @@
 # SteamDeck UI
 
-Our mission is to make Retail World of Warcraft comfortable to play on Steam Deck with a controller-first interface.
+SteamDeck UI is a controller-first interface for Retail World of Warcraft, built for Steam Deck.
 
 Written in TypeScript and compiled to Lua with TypeScriptToLua.
 
