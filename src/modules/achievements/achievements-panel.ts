@@ -411,6 +411,7 @@ export class AchievementsPanel implements IPanel {
 	private resolveSelection(): void {
 		if (this.loading) return;
 		if (this.selectedAchievement !== undefined) {
+			this.pendingFocus = `achievement-${this.selectedAchievement}`;
 			this.page = this.pages.find((p) =>
 				p.sections.some((s) =>
 					s.groups.some((g) =>
@@ -455,8 +456,11 @@ export class AchievementsPanel implements IPanel {
 		this.pendingCategory = undefined;
 	}
 	selectAchievement(id: number): void {
-		this.selectedAchievement = this.client.selection(id);
-		this.pendingFocus = `achievement-${this.selectedAchievement}`;
+		this.openAchievement(this.client.selection(id));
+	}
+	private openAchievement(id: number): void {
+		this.selectedAchievement = id;
+		this.pendingFocus = `achievement-${id}`;
 		this.incomplete = false;
 		if (this.summary) {
 			this.resolveSelection();
@@ -492,6 +496,26 @@ export class AchievementsPanel implements IPanel {
 	private summaryRows(): ListRow[] {
 		if (!this.summary) return [];
 		return [
+			...(this.summary.recent.length > 0
+				? [
+						{
+							id: "recent-achievements",
+							label: "Recent Achievements",
+							heading: true,
+							activate: () => {},
+						},
+						...this.summary.recent.map((achievement) => ({
+							id: `recent-achievement-${achievement.id}`,
+							label: achievement.name,
+							icon: achievement.icon,
+							fullWidth: true,
+							wrapLabel: true,
+							tooltip: this.tooltip(achievement),
+							trailingLabel: `${formatAchievementNumber(achievement.points)} points`,
+							activate: () => this.openAchievement(achievement.id),
+						})),
+					]
+				: []),
 			...this.pages.map((p) => ({
 				id: `summary-category-${p.id}`,
 				label: p.name,
@@ -913,6 +937,13 @@ export class AchievementsPanel implements IPanel {
 			this.width,
 		);
 		this.viewport.clampScroll();
+		const target = jobs.find((job) => job.navId === this.pendingFocus);
+		if (target?.top !== undefined && target.bottom !== undefined)
+			this.viewport.revealVerticalRange(
+				target.top,
+				target.bottom,
+				this.contentHeight,
+			);
 		this.renderViewport();
 	}
 	private requestViewportRender(): void {
