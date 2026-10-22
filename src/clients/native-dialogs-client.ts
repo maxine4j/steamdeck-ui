@@ -1,9 +1,10 @@
 import type { IEventBus } from "../events/types";
+import type { AddonsDialogFrame } from "../modules/system-dialogs/wow-addons-globals";
 import type {
 	NativeDialogFrame,
 	NativeDialogNavigation,
 } from "../ui/components/native-dialog-navigation";
-import type { NavGrid } from "../ui/navigation/types";
+import type { INavigable, NavGrid } from "../ui/navigation/types";
 import type { ITaskScheduler } from "./task-scheduler";
 
 export interface NativeDialog {
@@ -27,11 +28,12 @@ export class NativeDialogsClient implements INativeDialogsClient {
 	private sequence = 0;
 	private cancelPending?: () => void;
 	private readonly hookedMenus = new Set<NativeDialogFrame>();
+	private readonly hookedAddons = new Set<NativeDialogFrame>();
 	constructor(
 		private readonly events: IEventBus,
 		private readonly controls: Pick<
 			NativeDialogNavigation,
-			"watch" | "grid" | "release" | "addMenuAction"
+			"watch" | "grid" | "release" | "addMenuAction" | "control" | "list"
 		>,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
 	) {}
@@ -53,7 +55,11 @@ export class NativeDialogsClient implements INativeDialogsClient {
 				this.watch(frame, frame.GetName() ?? `special-${this.dialogs.size}`);
 				this.changed(frame);
 			});
-			for (const name of ["StaticPopup_Show", "GameMenuFrame_Show"])
+			for (const name of [
+				"StaticPopup_Show",
+				"GameMenuFrame_Show",
+				"ShowUIPanel",
+			])
 				hook(name, () => {
 					if (this.active) this.discover();
 				});
@@ -66,6 +72,7 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		>;
 		for (const name of [
 			"GameMenuFrame",
+			"AddonList",
 			"StaticPopup1",
 			"StaticPopup2",
 			"StaticPopup3",
@@ -82,6 +89,10 @@ export class NativeDialogsClient implements INativeDialogsClient {
 	}
 	private watch(frame: NativeDialogFrame, name: string): void {
 		if (name === "GameMenuFrame") this.watchMenu(frame);
+		if (name === "AddonList" && !this.hookedAddons.has(frame)) {
+			this.hookedAddons.add(frame);
+			hooksecurefunc("AddonList_Update", () => this.changed(frame));
+		}
 		if (this.dialogs.has(frame)) return;
 		this.dialogs.set(frame, {
 			id: `native-${name}`,
@@ -90,7 +101,57 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			order: 0,
 		});
 		this.controls.watch(frame, () => this.changed(frame));
+		if (name === "AddonList")
+			this.controls.watch((frame as AddonsDialogFrame).Dropdown, () =>
+				this.changed(frame),
+			);
 		this.changed(frame);
+	}
+	private addonsGrid(id: string, frame: AddonsDialogFrame): NavGrid {
+		if (frame.Dropdown.IsMenuOpen() && frame.Dropdown.menu) {
+			this.controls.watch(frame.Dropdown.menu, () => this.changed(frame));
+			return this.controls.grid(`${id}:characters`, frame.Dropdown.menu, true);
+		}
+		const row = (
+			names: readonly (
+				| "Dropdown"
+				| "ForceLoad"
+				| "SearchBox"
+				| "EnableAllButton"
+				| "DisableAllButton"
+				| "OkayButton"
+				| "CancelButton"
+			)[],
+		) =>
+			names.flatMap((name) => {
+				const control = frame[name];
+				return control.IsVisible() && control.IsEnabled()
+					? [this.controls.control(`${id}:${name}`, control)]
+					: [];
+			});
+		const grid = [
+			row(["Dropdown", "ForceLoad", "SearchBox"]),
+			...this.controls.list(
+				id,
+				frame.ScrollBox,
+				(node) => {
+					const data = node.GetData();
+					return data.addonIndex !== undefined
+						? `addon-${data.addonIndex}`
+						: `category-${data.category}`;
+				},
+				(entry) =>
+					(entry as NativeDialogFrame & { LoadAddonButton?: NativeDialogFrame })
+						.LoadAddonButton,
+			),
+			row([
+				"EnableAllButton",
+				"DisableAllButton",
+				"OkayButton",
+				"CancelButton",
+			]),
+		];
+		return grid.filter((row) => row.length > 0);
 	}
 	private watchMenu(frame: NativeDialogFrame): void {
 		if (this.hookedMenus.has(frame)) return;
@@ -146,14 +207,20 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			.map(
 				([frame, dialog]): NativeDialog => ({
 					id: dialog.id,
-					grid: this.controls.grid(dialog.id, frame, dialog.menu),
+					grid: this.dialogGrid(dialog.id, frame, dialog.menu),
 					cancel: () => {
 						const globals = _G as unknown as {
 							GameMenuFrame_EscapePressed(this: void): void;
 							StaticPopup_EscapePressed(this: void): void;
+							AddonList_OnCancel(this: void): void;
 						};
 						if (!frame.IsVisible()) return;
-						if (dialog.menu) globals.GameMenuFrame_EscapePressed();
+						if (dialog.id === "native-AddonList") {
+							const addons = frame as AddonsDialogFrame;
+							if (addons.Dropdown.IsMenuOpen()) addons.Dropdown.CloseMenu();
+							else globals.AddonList_OnCancel();
+							this.changed(frame);
+						} else if (dialog.menu) globals.GameMenuFrame_EscapePressed();
 						else if (
 							(frame as NativeDialogFrame & { hideOnEscape?: boolean })
 								.hideOnEscape
@@ -162,6 +229,34 @@ export class NativeDialogsClient implements INativeDialogsClient {
 					},
 				}),
 			);
+	}
+	private dialogGrid(
+		id: string,
+		frame: NativeDialogFrame,
+		menu: boolean,
+	): NavGrid {
+		const grid =
+			id === "native-AddonList"
+				? this.addonsGrid(id, frame as AddonsDialogFrame)
+				: this.controls.grid(id, frame, menu);
+		if (id !== "native-AddonList") return grid;
+		return grid.map((row) =>
+			row.map(
+				(node): INavigable => ({
+					...node,
+					onInteract: () => {
+						node.onInteract();
+						this.changed(frame);
+					},
+					onContext: node.onContext
+						? () => {
+								node.onContext?.();
+								this.changed(frame);
+							}
+						: undefined,
+				}),
+			),
+		);
 	}
 	shutdown(): void {
 		this.active = false;

@@ -16,7 +16,7 @@ function frame(
 	return {
 		GetChildren: () => children,
 		IsVisible: vi.fn(() => true),
-		IsObjectType: () => button,
+		IsObjectType: (type: string) => button && type === "Button",
 		IsEnabled: vi.fn(() => true),
 		GetTop: () => y,
 		GetLeft: () => x,
@@ -163,4 +163,107 @@ it("observes visibility and enabled changes, discovers new controls and stops af
 	root.scripts.get("OnShow")?.();
 	expect(changed).toHaveBeenCalledTimes(3);
 	expect(native.release).toHaveBeenCalledOnce();
+});
+
+it("reveals virtual rows before focusing and resolves recycled controls on interaction", () => {
+	const { adapter, native } = setup();
+	const data = [{ id: "first" }, { id: "offscreen" }];
+	let current = frame(true);
+	const scroll = {
+		ForEachElementData: (callback: (data: { id: string }) => void) =>
+			data.forEach(callback),
+		ScrollToElementData: vi.fn(),
+		FindFrame: vi.fn(() => current as unknown as NativeDialogFrame),
+	};
+	const grid = adapter.list("list", scroll, (item) => item.id);
+	expect(grid).toHaveLength(2);
+	expect(scroll.ScrollToElementData).not.toHaveBeenCalled();
+	const node = grid.at(1)?.at(0);
+	node?.onFocus();
+	expect(scroll.ScrollToElementData).toHaveBeenCalledWith(
+		data.at(1),
+		0.5,
+		0,
+		true,
+	);
+	expect(native.navigation).toHaveBeenLastCalledWith(
+		current,
+		undefined,
+		"list:offscreen",
+		expect.any(Function),
+		expect.any(Object),
+	);
+	scroll.ScrollToElementData.mockClear();
+	node?.onFocus(true);
+	expect(scroll.ScrollToElementData).not.toHaveBeenCalled();
+	current = frame(true);
+	node?.onInteract();
+	expect(current.Click).toHaveBeenCalledWith("LeftButton");
+	node?.onBlur();
+});
+
+it("activates dropdowns and edit boxes through their native APIs", () => {
+	const { adapter } = setup();
+	const dropdown = {
+		...frame(true),
+		IsObjectType: (type: string) => type === "DropdownButton",
+		OpenMenu: vi.fn(),
+	};
+	const edit = {
+		...frame(),
+		IsObjectType: (type: string) => type === "EditBox",
+		SetFocus: vi.fn(),
+	};
+	const root = frame(false, 0, 0, [
+		dropdown,
+		edit,
+	] as unknown as NativeDialogFrame[]);
+	const grid = adapter.grid("dialog", root as unknown as NativeDialogFrame);
+	expect(grid.at(0)).toHaveLength(2);
+	grid.at(0)?.at(0)?.onInteract();
+	grid.at(0)?.at(1)?.onInteract();
+	expect(dropdown.OpenMenu).toHaveBeenCalledOnce();
+	expect(edit.SetFocus).toHaveBeenCalledOnce();
+});
+
+it("routes a logical row's context action to its current visible child control", () => {
+	const { adapter } = setup();
+	const load = frame(true);
+	const row = { ...frame(true), load };
+	const scroll = {
+		ForEachElementData: (callback: (data: string) => void) => callback("addon"),
+		ScrollToElementData: vi.fn(),
+		FindFrame: () => row as unknown as NativeDialogFrame,
+	};
+	const node = adapter
+		.list(
+			"list",
+			scroll,
+			(data) => data,
+			() => load as unknown as NativeDialogFrame,
+		)
+		.at(0)
+		?.at(0);
+	node?.onContext?.();
+	expect(load.Click).toHaveBeenCalledWith("LeftButton");
+	expect(row.Click).not.toHaveBeenCalled();
+	load.IsVisible.mockReturnValue(false);
+	node?.onContext?.();
+	expect(load.Click).toHaveBeenCalledOnce();
+});
+
+it("notifies when a watched dropdown opens so detached menu buttons can take focus", () => {
+	const { adapter } = setup();
+	const dropdown = { ...frame(), OpenMenu: vi.fn(), CloseMenu: vi.fn() };
+	const changed = vi.fn();
+	adapter.watch(dropdown as unknown as NativeDialogFrame, changed);
+	const hooks = vi.mocked(hooksecurefunc).mock.calls as unknown as [
+		unknown,
+		string,
+		() => void,
+	][];
+	hooks
+		.find((call) => call.at(0) === dropdown && call.at(1) === "OpenMenu")
+		?.at(2)?.();
+	expect(changed).toHaveBeenCalledOnce();
 });

@@ -1,4 +1,4 @@
-import type { NavGrid } from "../navigation/types";
+import type { INavigable, NavGrid } from "../navigation/types";
 import type {
 	NativeNavigation,
 	NativeNavigationFrame,
@@ -10,11 +10,25 @@ export interface NativeDialogFrame extends NativeNavigationFrame {
 	IsObjectType(type: string): boolean;
 	IsEnabled(): boolean;
 	GetLeft(): number;
-	Click(): void;
+	Click(button?: string): void;
+	OpenMenu?(): void;
+	CloseMenu?(): void;
+	SetFocus?(): void;
 	HookScript(script: string, callback: (this: void) => void): void;
 	GetScript(
 		script: string,
 	): ((this: void, frame: NativeDialogFrame) => void) | undefined;
+}
+
+export interface NativeDialogList<T> {
+	ForEachElementData(callback: (this: void, data: T) => void): void;
+	ScrollToElementData(
+		data: T,
+		alignment: number,
+		offset: number,
+		instant: boolean,
+	): void;
+	FindFrame(data: T): NativeDialogFrame | undefined;
 }
 
 interface NativeActionMenu extends NativeDialogFrame {
@@ -54,6 +68,16 @@ export class NativeDialogNavigation {
 		const notify = () => this.observers.get(root)?.();
 		frame.HookScript("OnShow", notify);
 		frame.HookScript("OnHide", notify);
+		if (frame.OpenMenu) {
+			const hook = hooksecurefunc as unknown as (
+				this: void,
+				frame: NativeDialogFrame,
+				method: string,
+				callback: (this: void) => void,
+			) => void;
+			hook(frame, "OpenMenu", notify);
+			if (frame.CloseMenu) hook(frame, "CloseMenu", notify);
+		}
 		if (frame.IsObjectType("Button")) {
 			const hook = hooksecurefunc as unknown as (
 				this: void,
@@ -70,7 +94,12 @@ export class NativeDialogNavigation {
 		const visit = (frame: NativeDialogFrame) => {
 			this.observe(frame, root);
 			if (!frame.IsVisible()) return;
-			if (frame !== root && frame.IsObjectType("Button")) {
+			if (
+				frame !== root &&
+				(frame.IsObjectType("Button") ||
+					frame.IsObjectType("DropdownButton") ||
+					frame.IsObjectType("EditBox"))
+			) {
 				if (frame.IsEnabled()) buttons.push(frame);
 				// Focus outlines and other button decorations are not controls.
 				return;
@@ -95,23 +124,69 @@ export class NativeDialogNavigation {
 				grid.push([]);
 				top = button.GetTop();
 			}
-			grid.at(-1)?.push(
-				this.navigation.navigation(
-					button,
-					undefined,
-					`${id}:${this.ids.get(button)}`,
-					() => this.click(button),
-					{
-						enter: () => button.GetScript("OnEnter")?.(button),
-						leave: () => button.GetScript("OnLeave")?.(button),
-					},
-				),
-			);
+			grid.at(-1)?.push(this.control(`${id}:${this.ids.get(button)}`, button));
 		}
 		return grid;
 	}
+	control(id: string, frame: NativeDialogFrame): INavigable {
+		return this.navigation.navigation(
+			frame,
+			undefined,
+			id,
+			() => this.click(frame),
+			{
+				enter: () => frame.GetScript("OnEnter")?.(frame),
+				leave: () => frame.GetScript("OnLeave")?.(frame),
+			},
+		);
+	}
+	/** Logical nodes survive ScrollBox recycling; resolve frames only when used. */
+	list<T>(
+		id: string,
+		scroll: NativeDialogList<T>,
+		key: (data: T) => string,
+		context?: (frame: NativeDialogFrame) => NativeDialogFrame | undefined,
+	): NavGrid {
+		const grid: NavGrid = [];
+		scroll.ForEachElementData((data) => {
+			const navId = `${id}:${key(data)}`;
+			let focused: INavigable | undefined;
+			grid.push([
+				{
+					navId,
+					onFocus: (refresh) => {
+						if (!refresh || !scroll.FindFrame(data))
+							scroll.ScrollToElementData(data, 0.5, 0, true);
+						const frame = scroll.FindFrame(data);
+						if (!frame) return;
+						focused = this.control(navId, frame);
+						focused.onFocus(refresh);
+					},
+					onBlur: () => {
+						focused?.onBlur();
+						focused = undefined;
+					},
+					onInteract: () => {
+						const frame = scroll.FindFrame(data);
+						if (frame) this.click(frame);
+					},
+					onContext: context
+						? () => {
+								const row = scroll.FindFrame(data);
+								const frame = row && context(row);
+								if (frame) this.click(frame);
+							}
+						: undefined,
+				},
+			]);
+		});
+		return grid;
+	}
 	click(frame: NativeDialogFrame): void {
-		if (frame.IsVisible() && frame.IsEnabled()) frame.Click();
+		if (!frame.IsVisible() || !frame.IsEnabled()) return;
+		if (frame.IsObjectType("EditBox")) frame.SetFocus?.();
+		else if (frame.OpenMenu) frame.OpenMenu();
+		else frame.Click("LeftButton");
 	}
 	release(): void {
 		this.observers.clear();

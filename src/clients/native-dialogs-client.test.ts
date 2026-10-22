@@ -20,6 +20,22 @@ function setup() {
 			observers.set(frame, callback),
 		),
 		grid: vi.fn(() => []),
+		control: vi.fn((id: string) => ({
+			navId: id,
+			onFocus: vi.fn(),
+			onBlur: vi.fn(),
+			onInteract: vi.fn(),
+		})),
+		list: vi.fn(() => [
+			[
+				{
+					navId: "row",
+					onFocus: vi.fn(),
+					onBlur: vi.fn(),
+					onInteract: vi.fn(),
+				},
+			],
+		]),
 		click: vi.fn(),
 		addMenuAction: vi.fn(),
 		release: vi.fn(),
@@ -83,6 +99,74 @@ it("discovers menu, static and queue dialogs, orders popups above the menu, and 
 	expect(s.client.getDialogs().map((dialog) => dialog.id)).not.toContain(
 		"native-StaticPopup1",
 	);
+});
+
+it("discovers the late-loaded AddOns manager and exposes its header, logical rows and footer", () => {
+	const s = setup();
+	s.client.initialize();
+	const button = () => ({ IsVisible: () => true, IsEnabled: () => true });
+	const addon = {
+		...dialog(),
+		Dropdown: {
+			...button(),
+			IsMenuOpen: vi.fn(() => false),
+			CloseMenu: vi.fn(),
+			menu: {},
+		},
+		ForceLoad: button(),
+		SearchBox: button(),
+		EnableAllButton: button(),
+		DisableAllButton: button(),
+		OkayButton: button(),
+		CancelButton: button(),
+		ScrollBox: {},
+	};
+	addon.IsVisible.mockReturnValue(true);
+	const cancel = vi.fn();
+	Object.assign(s.globals, { AddonList: addon, AddonList_OnCancel: cancel });
+	s.hooks.get("ShowUIPanel")?.(addon as unknown as NativeDialogFrame);
+	const dialogState = s.client.getDialogs().at(0);
+	expect(dialogState?.id).toBe("native-AddonList");
+	expect(dialogState?.grid.map((row) => row.map((node) => node.navId))).toEqual(
+		[
+			[
+				"native-AddonList:Dropdown",
+				"native-AddonList:ForceLoad",
+				"native-AddonList:SearchBox",
+			],
+			["row"],
+			[
+				"native-AddonList:EnableAllButton",
+				"native-AddonList:DisableAllButton",
+				"native-AddonList:OkayButton",
+				"native-AddonList:CancelButton",
+			],
+		],
+	);
+	expect(s.controls.list).toHaveBeenCalledWith(
+		"native-AddonList",
+		addon.ScrollBox,
+		expect.any(Function),
+		expect.any(Function),
+	);
+	addon.Dropdown.IsMenuOpen.mockReturnValue(true);
+	s.client.getDialogs();
+	expect(s.controls.grid).toHaveBeenLastCalledWith(
+		"native-AddonList:characters",
+		addon.Dropdown.menu,
+		true,
+	);
+	expect(s.observers.has(addon.Dropdown.menu as NativeDialogFrame)).toBe(true);
+	dialogState?.cancel();
+	expect(addon.Dropdown.CloseMenu).toHaveBeenCalledOnce();
+	expect(cancel).not.toHaveBeenCalled();
+	addon.Dropdown.IsMenuOpen.mockReturnValue(false);
+	dialogState?.cancel();
+	expect(cancel).toHaveBeenCalledOnce();
+	s.client.shutdown();
+	s.hooks.get("AddonList_Update")?.(addon as unknown as NativeDialogFrame);
+	s.flush();
+	expect(s.changed).not.toHaveBeenCalled();
 });
 
 it("discovers special popups and preserves native cancel behaviour without accepting a prompt", () => {
