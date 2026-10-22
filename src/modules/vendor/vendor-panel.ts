@@ -52,6 +52,7 @@ export class VendorPanel implements IPanel {
 			`${id}-items`,
 			pool,
 			id === "vendor" ? "No items for sale" : "No items to buy back",
+			{ backgroundColor: [0.12, 0.12, 0.12, 1] },
 		);
 		this.footer = new Frame(`${id}-footer`, pool);
 		this.controls = [
