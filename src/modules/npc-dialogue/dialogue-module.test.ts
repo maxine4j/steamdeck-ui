@@ -4,6 +4,9 @@ import type {
 	IDialogueClient,
 } from "../../clients/dialogue-client";
 import { createTestEventBus } from "../../events/test-event-bus";
+import type { IEventBus } from "../../events/types";
+import { WowEventBus } from "../../events/wow-event-bus";
+import type { WowEventFrame } from "../../types";
 import { DialogueModule } from "./dialogue-module";
 
 function current(module: DialogueModule): DialoguePage {
@@ -11,8 +14,7 @@ function current(module: DialogueModule): DialoguePage {
 	return module.page;
 }
 
-function setup() {
-	const events = createTestEventBus();
+function setup(events: IEventBus = createTestEventBus()) {
 	let revision = 0;
 	let combat = false;
 	const queue: (() => void)[] = [];
@@ -156,6 +158,69 @@ it("does not resurrect a conversation that ended during combat", () => {
 	expect(s.module.page).toBeUndefined();
 	expect(s.view.hide).toHaveBeenCalled();
 });
+it.each(["open", "closed", "reopened"])(
+	"resumes dialogue after native combat events with the conversation %s",
+	(conversation) => {
+		const registered = new Set<string>();
+		let dispatch: (
+			frame: WowEventFrame,
+			event: string,
+			...args: unknown[]
+		) => void = () => {};
+		const frame = {
+			Hide: vi.fn(),
+			RegisterEvent: (event: string) => registered.add(event),
+			SetScript: (_name: string, handler: typeof dispatch) => {
+				dispatch = handler;
+			},
+		} as unknown as WowEventFrame;
+		const s = setup(new WowEventBus({ createEventFrame: () => frame }));
+		const nativeEvent = (event: string, ...args: unknown[]) => {
+			if (registered.has(event)) dispatch(frame, event, ...args);
+		};
+		nativeEvent("GOSSIP_SHOW");
+		s.flush();
+		s.combat(true);
+		nativeEvent("PLAYER_REGEN_DISABLED");
+		s.flush();
+		expect(s.view.show).toHaveBeenLastCalledWith(
+			expect.objectContaining({ suspended: true }),
+		);
+		s.module.select(current(s.module), "option:8");
+		expect(s.client.select).not.toHaveBeenCalled();
+		if (conversation !== "open") {
+			vi.mocked(s.client.read).mockReturnValue({
+				...current(s.module),
+				session: 2,
+				source: "Creature-2",
+				speaker: "Another keeper",
+			});
+			nativeEvent("GOSSIP_CLOSED", false);
+			s.flush();
+			expect(s.module.page).toBeUndefined();
+		}
+		if (conversation === "reopened") {
+			nativeEvent("GOSSIP_SHOW");
+			s.flush();
+		}
+		s.combat(false);
+		nativeEvent("PLAYER_REGEN_ENABLED");
+		s.flush();
+		if (conversation === "closed") {
+			expect(s.module.page).toBeUndefined();
+			nativeEvent("GOSSIP_SHOW");
+			s.flush();
+		}
+		expect(s.view.show).toHaveBeenLastCalledWith(
+			expect.objectContaining({ suspended: false }),
+		);
+		s.module.select(current(s.module), "option:8");
+		expect(s.client.select).toHaveBeenCalledExactlyOnceWith(
+			current(s.module),
+			"option:8",
+		);
+	},
+);
 it("shutdown cancels pending renders, removes subscriptions, and restores camera and native UI", () => {
 	const s = setup();
 	s.events.emit("GOSSIP_SHOW");
