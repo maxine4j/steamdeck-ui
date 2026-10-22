@@ -1,4 +1,5 @@
 import type { INavigable, NavGrid } from "../navigation/types";
+import type { Frame } from "./frame";
 import type {
 	NativeNavigation,
 	NativeNavigationFrame,
@@ -42,6 +43,7 @@ export class NativeDialogNavigation {
 	private readonly hooked = new Set<NativeDialogFrame>();
 	private readonly ids = new Map<NativeDialogFrame, number>();
 	private readonly menus = new Set<NativeActionMenu>();
+	private readonly secure = new Map<NativeDialogFrame, Frame | undefined>();
 	constructor(
 		private readonly navigation: Pick<
 			NativeNavigation,
@@ -98,6 +100,7 @@ export class NativeDialogNavigation {
 				frame !== root &&
 				(frame.IsObjectType("Button") ||
 					frame.IsObjectType("DropdownButton") ||
+					frame.IsObjectType("Slider") ||
 					frame.IsObjectType("EditBox"))
 			) {
 				if (frame.IsEnabled()) buttons.push(frame);
@@ -129,15 +132,53 @@ export class NativeDialogNavigation {
 		return grid;
 	}
 	control(id: string, frame: NativeDialogFrame): INavigable {
-		return this.navigation.navigation(
+		const slider = frame.IsObjectType("Slider");
+		const node = this.navigation.navigation(
 			frame,
 			undefined,
 			id,
-			() => this.click(frame),
+			() => {
+				if (this.secure.has(frame)) return;
+				if (slider) this.adjustSlider(frame, 1);
+				else this.click(frame);
+			},
 			{
 				enter: () => frame.GetScript("OnEnter")?.(frame),
 				leave: () => frame.GetScript("OnLeave")?.(frame),
 			},
+		);
+		if (slider) node.onContext = () => this.adjustSlider(frame, -1);
+		if (this.secure.has(frame))
+			node.secureActions = () => ({ interact: this.secure.get(frame) });
+		return node;
+	}
+	/** Protected menu entries use the controller's hardware binding path only. */
+	bindSecureAction(frame: NativeDialogFrame, action: Frame | undefined): void {
+		this.secure.set(frame, action);
+	}
+	clearSecureAction(frame: NativeDialogFrame): void {
+		this.secure.delete(frame);
+	}
+	/** Select increases and Context decreases without trapping directional focus. */
+	private adjustSlider(frame: NativeDialogFrame, direction: number): void {
+		if (!frame.IsVisible() || !frame.IsEnabled()) return;
+		const slider = frame as NativeDialogFrame & {
+			GetValue(): number;
+			GetValueStep(): number;
+			GetMinMaxValues(): LuaMultiReturn<[number, number]>;
+			SetValue(value: number): void;
+		};
+		const [minimum, maximum] = slider.GetMinMaxValues();
+		const step = slider.GetValueStep();
+		slider.SetValue(
+			Math.max(
+				minimum,
+				Math.min(
+					maximum,
+					slider.GetValue() +
+						direction * (step > 0 ? step : (maximum - minimum) / 20),
+				),
+			),
 		);
 	}
 	/** Logical nodes survive ScrollBox recycling; resolve frames only when used. */
@@ -190,6 +231,7 @@ export class NativeDialogNavigation {
 	}
 	release(): void {
 		this.observers.clear();
+		this.secure.clear();
 		for (const menu of this.menus) menu.InitButtons();
 		this.menus.clear();
 		this.navigation.release();

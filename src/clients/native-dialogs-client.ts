@@ -16,6 +16,8 @@ export interface INativeDialogsClient {
 	initialize(): void;
 	getDialogs(): NativeDialog[];
 	shutdown(): void;
+	decorateGameMenu?(grid: NavGrid): NavGrid;
+	cancelGameMenu?(): boolean;
 }
 
 export class NativeDialogsClient implements INativeDialogsClient {
@@ -222,8 +224,10 @@ export class NativeDialogsClient implements INativeDialogsClient {
 							if (addons.Dropdown.IsMenuOpen()) addons.Dropdown.CloseMenu();
 							else globals.AddonList_OnCancel();
 							this.changed(frame);
-						} else if (dialog.menu) globals.GameMenuFrame_EscapePressed();
-						else if (
+						} else if (dialog.menu) {
+							if (!this.sources.some((source) => source.cancelGameMenu?.()))
+								globals.GameMenuFrame_EscapePressed();
+						} else if (
 							(frame as NativeDialogFrame & { hideOnEscape?: boolean })
 								.hideOnEscape
 						)
@@ -241,6 +245,12 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		frame: NativeDialogFrame,
 		menu: boolean,
 	): NavGrid {
+		if (menu) {
+			let grid = this.controls.grid(id, frame, true);
+			for (const source of this.sources)
+				grid = source.decorateGameMenu?.(grid) ?? grid;
+			return grid;
+		}
 		const grid =
 			id === "native-AddonList"
 				? this.addonsGrid(id, frame as AddonsDialogFrame)

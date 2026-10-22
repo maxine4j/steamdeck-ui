@@ -1026,6 +1026,35 @@ it("configures secure spells through the global combat guard and leaves attribut
 	expect(native.SetAttribute).toHaveBeenLastCalledWith("spell", undefined);
 });
 
+it("configures protected unit actions for hardware release and never mutates attributes in combat", () => {
+	const combat = vi.fn(() => false);
+	vi.stubGlobal("InCombatLockdown", combat);
+	const native = {
+		Hide: vi.fn(),
+		RegisterForClicks: vi.fn(),
+		SetAttribute: vi.fn(),
+		CreateTexture: () => ({ SetAllPoints: vi.fn() }),
+	};
+	const frame = new Frame(
+		"focus",
+		new FramePoolManager({ createFrame: () => native as unknown as WowFrame }),
+		"SecureButton",
+	);
+	frame.setUnitAction("focus", "player");
+	expect(native.RegisterForClicks).toHaveBeenCalledWith("AnyUp");
+	expect(native.SetAttribute.mock.calls).toEqual([
+		["useOnKeyDown", false],
+		["type", "focus"],
+		["unit", "player"],
+	]);
+	combat.mockReturnValue(true);
+	frame.setUnitAction("leavevehicle");
+	expect(native.SetAttribute).toHaveBeenCalledTimes(3);
+	combat.mockReturnValue(false);
+	frame.setUnitAction();
+	expect(native.SetAttribute).toHaveBeenLastCalledWith("unit", undefined);
+});
+
 it("crops the baked icon rim and restores full texture coordinates for pooled reuse", () => {
 	const texture = {
 		SetVertexColor: vi.fn(),
