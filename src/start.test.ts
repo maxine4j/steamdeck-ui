@@ -10,6 +10,8 @@ import type { FrameType } from "./ui/frame-pool-manager";
 afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
+	const getGlidingInfo = vi.fn(() => [false, false, 0]);
+	vi.stubGlobal("C_PlayerInfo", { GetGlidingInfo: getGlidingInfo });
 	vi.stubGlobal("_G", {});
 	vi.stubGlobal("C_CVar", { GetCVar: () => "0.6" });
 	vi.stubGlobal("TransmogFrame", undefined);
@@ -670,6 +672,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		0,
 	);
 	events.emit("PLAYER_LOGIN");
+	expect(getGlidingInfo).toHaveBeenCalledOnce();
 	expect(slashCommands.initialize).toHaveBeenCalledOnce();
 	expect(toys.prefetch).toHaveBeenCalledOnce();
 	expect(pets.prefetch).toHaveBeenCalledOnce();
