@@ -70,6 +70,18 @@ const pet = (id: number, expansionId = 10, favourite = false): Pet => ({
 	favourite,
 	expansionId,
 });
+it("shows loaded pets against the full journal count", () => {
+	const { panel, parent, client } = setup();
+	panel.onMount(parent);
+	vi.mocked(client.load).mock.calls.at(-1)?.at(1)?.(30, 40);
+	expect(Frame.prototype.layout).toHaveBeenCalledWith(
+		105,
+		4,
+		"TOPLEFT",
+		expect.anything(),
+	);
+});
+
 function setup(performance?: { now(): number; log(message: string): void }) {
 	vi.spyOn(Frame.prototype, "getVisibleVerticalRange").mockReturnValue({
 		top: 0,

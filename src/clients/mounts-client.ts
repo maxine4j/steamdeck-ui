@@ -62,6 +62,7 @@ export interface IMountsClient extends IMountJournal {
 export class MountsClient implements IMountsClient {
 	private readonly items: SavedVariableCache<Mount>;
 	private cancelScan?: () => void;
+	private scanProgress?: { completed: number; total: number };
 	private scanStarted = false;
 	private rescan = false;
 	private cancelTargets?: () => void;
@@ -124,6 +125,7 @@ export class MountsClient implements IMountsClient {
 		if (this.cancelScan) return;
 		const generation = this.generation;
 		this.scanStarted = false;
+		this.scanProgress = undefined;
 		const measurement = new WorkMeasurement(
 			this.performance,
 			"mounts scan",
@@ -151,6 +153,7 @@ export class MountsClient implements IMountsClient {
 			measurement.measure("publish", () => this.items.putMany(changes));
 			measurement.page(pageStart);
 			if (generation !== this.generation) return;
+			this.scanProgress = { completed: index, total: ids.length };
 			for (const observer of this.progress) observer(index, ids.length);
 			if (index < ids.length) this.cancelScan = this.scheduler.nextFrame(step);
 			else {
@@ -267,6 +270,12 @@ export class MountsClient implements IMountsClient {
 		if (onProgress) this.progress.add(onProgress);
 		if (this.items.values().length > 0) publish();
 		else this.startScan("empty-cache");
+		if (this.scanProgress)
+			onProgress?.(this.scanProgress.completed, this.scanProgress.total);
+		else if (!this.cancelScan) {
+			const count = this.items.values().length;
+			onProgress?.(count, count);
+		}
 		return () => {
 			detach();
 			this.subscriptions.delete(detach);
@@ -283,6 +292,7 @@ export class MountsClient implements IMountsClient {
 		this.generation++;
 		this.cancelScan?.();
 		this.cancelScan = undefined;
+		this.scanProgress = undefined;
 		this.scanStarted = false;
 		this.rescan = false;
 		this.cancelTargets?.();

@@ -788,7 +788,7 @@ it("keeps a first page usable, displays bottom progress, rejects stale loads and
 	const initial = vi.mocked(client.load).mock.calls.at(-1);
 	initial?.[1]?.(20, 40);
 	expect(Frame.prototype.layout).toHaveBeenCalledWith(
-		35,
+		70,
 		4,
 		"TOPLEFT",
 		expect.anything(),

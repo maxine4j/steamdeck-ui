@@ -31,6 +31,7 @@ interface CollectionJournalOptions {
 export class CollectionJournal<T> {
 	private cancelScan?: () => void;
 	private started = false;
+	private scanProgress?: { completed: number; total: number };
 	private repeat = false;
 	private cancelTargets?: () => void;
 	private readonly targets = new Set<string>();
@@ -90,6 +91,7 @@ export class CollectionJournal<T> {
 		if (this.cancelScan) return;
 		const generation = this.generation;
 		this.started = false;
+		this.scanProgress = undefined;
 		const measurement = new WorkMeasurement(
 			this.options.performance,
 			`${this.options.label} scan`,
@@ -115,6 +117,7 @@ export class CollectionJournal<T> {
 			if (!page) return;
 			if (generation !== this.generation) return;
 			measurement.progress(index, page.count);
+			this.scanProgress = { completed: index, total: page.count };
 			for (const observer of [...this.progress]) observer(index, page.count);
 			if (index < page.count) this.cancelScan = this.scheduler.nextFrame(step);
 			else {
@@ -258,12 +261,15 @@ export class CollectionJournal<T> {
 		this.options.performance.log(
 			`${this.options.label} open cached=${cached.length} scanning=${this.isScanning()}`,
 		);
+		if (cached.length === 0) this.start("empty-cache");
+		if (this.scanProgress)
+			progressObserver?.(this.scanProgress.completed, this.scanProgress.total);
+		else if (complete()) progressObserver?.(cached.length, cached.length);
 		if (cached.length > 0)
 			done(
 				cached.filter((row) => this.included(row)),
 				complete(),
 			);
-		else this.start("empty-cache");
 		return () => {
 			detach();
 			this.subscriptions.delete(detach);
@@ -282,6 +288,7 @@ export class CollectionJournal<T> {
 		this.generation++;
 		this.cancelScan?.();
 		this.cancelScan = undefined;
+		this.scanProgress = undefined;
 		this.cancelTargets?.();
 		this.cancelTargets = undefined;
 		this.cancelProjection?.();

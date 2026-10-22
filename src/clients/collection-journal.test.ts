@@ -10,6 +10,41 @@ interface Row {
 	visible?: boolean;
 }
 
+it("replays full scan progress immediately after hidden warming and resubscription", () => {
+	const { journal, pending, flush } = setup();
+	const first = vi.fn();
+	const detach = journal.load(vi.fn(), first);
+	pending.shift()?.();
+	expect(first).toHaveBeenLastCalledWith(20, 45);
+	detach();
+	pending.shift()?.();
+	const reopened = vi.fn();
+	journal.load(vi.fn(), reopened);
+	expect(reopened).toHaveBeenCalledExactlyOnceWith(40, 45);
+	flush();
+	expect(reopened).toHaveBeenLastCalledWith(45, 45);
+});
+
+it("reports a completed full count when reopening a populated saved cache without a scan", () => {
+	const { journal, cache, begin } = setup();
+	cache.put("1", { id: 1, value: 1 });
+	const progress = vi.fn();
+	journal.load(vi.fn(), progress);
+	expect(progress).toHaveBeenCalledExactlyOnceWith(1, 1);
+	expect(begin).not.toHaveBeenCalled();
+});
+
+it("restores progress before publishing a completed snapshot so rendering can dismiss loading", () => {
+	const { journal, cache } = setup();
+	cache.put("1", { id: 1, value: 1 });
+	const updates: string[] = [];
+	journal.load(
+		() => updates.push("complete"),
+		() => updates.push("progress"),
+	);
+	expect(updates).toEqual(["progress", "complete"]);
+});
+
 it("reports scan progress through the diagnostics seam even with no panel subscribed", () => {
 	vi.stubGlobal("print", vi.fn());
 	vi.stubGlobal("debugprofilestop", () => 0);

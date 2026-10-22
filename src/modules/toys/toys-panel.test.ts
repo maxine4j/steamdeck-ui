@@ -801,7 +801,7 @@ it("cancels cached render continuations when fresher data arrives in the same lo
 	expect(Frame.prototype.setToy).toHaveBeenCalledExactlyOnceWith(99);
 });
 
-it("shows loading progress through scanning and rendering, then hides the bar", () => {
+it("shows loaded toys against the full journal count without renormalizing pending render jobs", () => {
 	const { panel, parent, client, pending, flush } = setup();
 	const widths = () =>
 		vi
@@ -815,15 +815,15 @@ it("shows loading progress through scanning and rendering, then hides the bar", 
 	panel.onMount(parent);
 	const progress = vi.mocked(client.load).mock.calls.at(-1)?.[1];
 	progress?.(20, 40);
-	expect(widths().at(-1)).toBe(35);
-	progress?.(40, 40);
 	expect(widths().at(-1)).toBe(70);
+	progress?.(40, 40);
+	expect(widths().at(-1)).toBe(140);
 	vi.mocked(client.load).mock.calls.at(-1)?.[0](
 		Array.from({ length: 25 }, (_, index) => toy(index + 1)),
 	);
-	expect(widths().at(-1)).toBeCloseTo(70 + 70 * (10 / 26));
+	expect(widths().at(-1)).toBe(140);
 	pending.shift()?.();
-	expect(widths().at(-1)).toBeCloseTo(70 + 70 * (20 / 26));
+	expect(widths().at(-1)).toBe(140);
 	flush();
 	expect(widths().at(-1)).toBe(140);
 	expect(Frame.prototype.setLabel).toHaveBeenLastCalledWith(
