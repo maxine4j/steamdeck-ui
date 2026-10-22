@@ -93,6 +93,43 @@ it("keeps injected feature dialogs below native prompts and owns their lifecycle
 	s.client.shutdown();
 	expect(s.additional.shutdown).toHaveBeenCalledOnce();
 });
+
+it("composes feature menus beside Escape and lets them consume cancel before closing Escape", () => {
+	const s = setup();
+	const menu = dialog();
+	menu.IsVisible.mockReturnValue(true);
+	s.globals.GameMenuFrame = menu;
+	const cancel = vi.fn();
+	s.globals.GameMenuFrame_EscapePressed = cancel;
+	const node = {
+		navId: "portrait-action",
+		onFocus: vi.fn(),
+		onBlur: vi.fn(),
+		onInteract: vi.fn(),
+	};
+	const companion = {
+		initialize: vi.fn(),
+		getDialogs: () => [],
+		shutdown: vi.fn(),
+		decorateGameMenu: vi.fn(() => [[node]]),
+		cancelGameMenu: vi.fn(() => true),
+	};
+	const client = new NativeDialogsClient(
+		createTestEventBus(),
+		s.controls,
+		{ nextFrame: () => vi.fn() },
+		[companion],
+	);
+	client.initialize();
+	const state = client.getDialogs().at(0);
+	expect(state?.grid).toEqual([[node]]);
+	state?.cancel();
+	expect(companion.cancelGameMenu).toHaveBeenCalledOnce();
+	expect(cancel).not.toHaveBeenCalled();
+	companion.cancelGameMenu.mockReturnValue(false);
+	state?.cancel();
+	expect(cancel).toHaveBeenCalledOnce();
+});
 function dialog() {
 	return { IsVisible: vi.fn(() => false), hideOnEscape: true };
 }

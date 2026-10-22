@@ -1,8 +1,10 @@
 import { NativeDialogsClient } from "../../clients/native-dialogs-client";
+import { PlayerMenuClient } from "../../clients/player-menu-client";
 import { PreyMapClient } from "../../clients/prey-map-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IEventBus } from "../../events/types";
 import { NativeDialogNavigation } from "../../ui/components/native-dialog-navigation";
+import { NativeMenuHost } from "../../ui/components/native-menu-host";
 import { NativeNavigation } from "../../ui/components/native-navigation";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavigationManager } from "../../ui/navigation/navigation-manager";
@@ -24,6 +26,11 @@ export function registerSystemDialogs(
 				new NativeDialogNavigation(new NativeNavigation(pool)),
 				scheduler,
 				[
+					new PlayerMenuClient(
+						events,
+						new NativeDialogNavigation(new NativeNavigation(pool)),
+						new NativeMenuHost(pool),
+					),
 					new PreyMapClient(
 						events,
 						preyNavigation,

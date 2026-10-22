@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import type { Frame } from "./frame";
 import {
 	type NativeDialogFrame,
 	NativeDialogNavigation,
@@ -41,6 +42,58 @@ function setup() {
 	vi.stubGlobal("hooksecurefunc", vi.fn());
 	return { native, adapter: new NativeDialogNavigation(native) };
 }
+
+it("routes protected menu actions to hardware bindings without synthesizing native clicks", () => {
+	const { adapter } = setup();
+	const button = frame(true) as unknown as NativeDialogFrame;
+	const secure = {} as Frame;
+	adapter.bindSecureAction(button, secure);
+	const node = adapter.control("focus", button);
+	node.onInteract();
+	expect(button.Click).not.toHaveBeenCalled();
+	expect(node.secureActions?.()).toEqual({ interact: secure });
+	adapter.bindSecureAction(button, undefined);
+	const blocked = adapter.control("focus", button);
+	blocked.onInteract();
+	expect(button.Click).not.toHaveBeenCalled();
+	expect(blocked.secureActions?.().interact).toBeUndefined();
+	adapter.clearSecureAction(button);
+	const reused = adapter.control("loot-spec", button);
+	reused.onInteract();
+	expect(button.Click).toHaveBeenCalledOnce();
+	expect(reused.secureActions).toBeUndefined();
+});
+
+it("includes native sliders and adjusts them with select/context while clamping their range", () => {
+	const { adapter } = setup();
+	let value = 50;
+	const slider = {
+		...frame(),
+		IsObjectType: (type: string) => type === "Slider",
+		GetValue: () => value,
+		GetValueStep: () => 10,
+		GetMinMaxValues: () => [0, 100],
+		SetValue: vi.fn((next: number) => {
+			value = next;
+		}),
+	};
+	const root = frame(false, 0, 0, [slider] as unknown as NativeDialogFrame[]);
+	const node = adapter
+		.grid("volume", root as unknown as NativeDialogFrame)
+		.at(0)
+		?.at(0);
+	expect(node).toBeDefined();
+	node?.onInteract();
+	expect(value).toBe(60);
+	node?.onContext?.();
+	expect(value).toBe(50);
+	value = 100;
+	node?.onInteract();
+	expect(value).toBe(100);
+	slider.IsEnabled.mockReturnValue(false);
+	node?.onContext?.();
+	expect(value).toBe(100);
+});
 
 it("does not observe focus decorations attached beneath native buttons", () => {
 	const { adapter } = setup();

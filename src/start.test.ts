@@ -10,7 +10,7 @@ import type { FrameType } from "./ui/frame-pool-manager";
 afterEach(() => vi.unstubAllGlobals());
 
 it("docks full-height side containers and refreshes a grouped, pooled one-bag grid", () => {
-	vi.stubGlobal("_G", {});
+	vi.stubGlobal("_G", { Menu: { ModifyMenu: vi.fn() } });
 	vi.stubGlobal("C_CVar", { GetCVar: () => "0.6" });
 	vi.stubGlobal("TransmogFrame", undefined);
 	vi.stubGlobal("SearchBoxTemplate_OnTextChanged", vi.fn());

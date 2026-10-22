@@ -1025,6 +1025,19 @@ export class Frame implements IUIComponent {
 		native.SetAttribute("spell", spell);
 		if (spell) this.configurePanAction();
 	}
+	/** Configure hardware-only secure unit actions before entering combat. */
+	setUnitAction(action?: "focus" | "leavevehicle", unit?: string): void {
+		if (this.frameType !== "SecureButton")
+			throw new Error("Unit actions require a secure button");
+		if (InCombatLockdown()) return;
+		const native = this.acquire() as WowFrame & {
+			SetAttribute(name: string, value?: string | boolean): void;
+		};
+		native.RegisterForClicks("AnyUp");
+		native.SetAttribute("useOnKeyDown", action ? false : undefined);
+		native.SetAttribute("type", action);
+		native.SetAttribute("unit", unit);
+	}
 	setToy(toy?: number): void {
 		if (this.frameType !== "SecureButton")
 			throw new Error("Toy requires a secure button");
@@ -1564,6 +1577,7 @@ export class Frame implements IUIComponent {
 					SetScript(script: "PreClick", handler?: (this: void) => void): void;
 				}
 			).SetScript("PreClick", undefined);
+			this.setUnitAction();
 			this.setSpell();
 			this.setToy();
 			this.setItem();
