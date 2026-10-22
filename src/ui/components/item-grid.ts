@@ -35,6 +35,7 @@ export interface ItemGridOptions {
 	readonly focusIcon?: boolean;
 	readonly backgroundAtlas?: string;
 	readonly backgroundOpacity?: number;
+	readonly backgroundColor?: readonly [number, number, number, number];
 	readonly outlineIcons?: boolean;
 }
 
@@ -264,7 +265,9 @@ export class ItemGrid {
 		if (!cell) return;
 		if (this.options.focusIcon) cell.icon.setFocused(false, true);
 		else cell.frame.setFocused(false);
-		if (this.options.backgroundAtlas) {
+		if (this.options.backgroundColor) {
+			cell.frame.setColor(...this.options.backgroundColor);
+		} else if (this.options.backgroundAtlas) {
 			cell.frame.setAtlasBackground(this.options.backgroundAtlas);
 			if (this.options.backgroundOpacity !== undefined)
 				cell.frame.setBackgroundOpacity(this.options.backgroundOpacity);

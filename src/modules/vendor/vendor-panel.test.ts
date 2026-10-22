@@ -4,10 +4,12 @@ import { Frame } from "../../ui/components/frame";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { VendorPanel } from "./vendor-panel";
 
-const { labels, layouts, clicks } = vi.hoisted(() => ({
+const { labels, layouts, clicks, colors, backgrounds } = vi.hoisted(() => ({
 	labels: new Map<string, ReturnType<typeof vi.fn>>(),
 	layouts: new Map<string, ReturnType<typeof vi.fn>>(),
 	clicks: new Map<string, ReturnType<typeof vi.fn>>(),
+	colors: new Map<string, ReturnType<typeof vi.fn>>(),
+	backgrounds: new Map<string, ReturnType<typeof vi.fn>>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
@@ -15,6 +17,8 @@ vi.mock("../../ui/components/frame", () => ({
 			labels.set(id, this.setLabel);
 			layouts.set(id, this.layout);
 			clicks.set(id, this.onClick);
+			colors.set(id, this.setColor);
+			backgrounds.set(id, this.setButtonBackground);
 		}
 		setLabel = vi.fn();
 		layout = vi.fn();
@@ -69,6 +73,29 @@ function setup() {
 	const pool = {} as IFramePoolManager;
 	return { pool, client, items, parent: new Frame("parent", pool) };
 }
+
+it.each(["vendor", "buyback"] as const)(
+	"uses plain charcoal item backgrounds in %s and restores them after focus",
+	(id) => {
+		const { pool, client, parent } = setup();
+		const panel = new VendorPanel(id, pool, client, vi.fn());
+		panel.onMount(parent);
+		const cellId = `${id}-items-cell-0`;
+		expect(colors.get(cellId)).toHaveBeenLastCalledWith(0.12, 0.12, 0.12, 1);
+		expect(backgrounds.get(cellId)).not.toHaveBeenCalled();
+		const item = panel.getNavGrid().at(0)?.at(0);
+		item?.onFocus();
+		expect(
+			vi.mocked(item?.mouseTarget as Frame).setFocused,
+		).toHaveBeenLastCalledWith(true);
+		item?.onBlur();
+		expect(
+			vi.mocked(item?.mouseTarget as Frame).setFocused,
+		).toHaveBeenLastCalledWith(false);
+		expect(colors.get(cellId)).toHaveBeenCalledTimes(2);
+		expect(colors.get(cellId)).toHaveBeenLastCalledWith(0.12, 0.12, 0.12, 1);
+	},
+);
 
 it("stacks vendor pages in two columns, exposes purchase actions and reuses controls", () => {
 	const { pool, client, parent, items } = setup();
