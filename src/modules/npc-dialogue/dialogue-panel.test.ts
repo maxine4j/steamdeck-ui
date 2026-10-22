@@ -216,6 +216,76 @@ it("keeps selected reward text legible against its highlight", () => {
 	]);
 });
 
+it.each([
+	{ rewards: [] },
+	{ rewards: [{ id: "guaranteed", label: "100 XP" }] },
+])(
+	"focuses quest completion without claiming when rewards require no choice: %j",
+	({ rewards }) => {
+		const d = display({ ...page, kind: "rewards", rewards, choices: [] });
+		const { panel, actions, navigation } = setup(d);
+		expect(navigation.pushModal.mock.lastCall?.at(3)).toBe("dialogue-primary");
+		expect(actions.primary).not.toHaveBeenCalled();
+		panel.show({ ...d, resetReading: false, page: { ...d.page, revision: 2 } });
+		expect(navigation.pushModal.mock.lastCall?.at(3)).toBeUndefined();
+	},
+);
+
+it("leaves rewards requiring a choice focused on the reward list", () => {
+	const { actions, navigation } = setup(display({ ...page, kind: "rewards" }));
+	expect(navigation.pushModal.mock.lastCall?.at(3)).toBe("xp");
+	expect(actions.choose).not.toHaveBeenCalled();
+	expect(actions.primary).not.toHaveBeenCalled();
+});
+
+it("focuses completion when the only reward choice is already selected", () => {
+	const { actions, navigation } = setup({
+		...display({ ...page, kind: "rewards", choices: page.choices.slice(0, 1) }),
+		selected: 1,
+	});
+	expect(navigation.pushModal.mock.lastCall?.at(3)).toBe("dialogue-primary");
+	expect(actions.primary).not.toHaveBeenCalled();
+});
+
+it("keeps a sole reward needing selection focused on the reward list", () => {
+	const { navigation } = setup(
+		display({ ...page, kind: "rewards", choices: page.choices.slice(0, 1) }),
+	);
+	expect(navigation.pushModal.mock.lastCall?.at(3)).toBe("xp");
+});
+
+it.each(["offer", "rewards"] as const)(
+	"compacts %s reward rows and icons to reduce overflow while keeping rewards reachable",
+	(kind) => {
+		const rewards = Array.from({ length: 4 }, (_, i) => ({
+			id: `reward:${i}`,
+			label: "Reward",
+			icon: 123,
+		}));
+		const { panel } = setup(
+			display({
+				...page,
+				kind,
+				rewards,
+				choices: [],
+				autoAccepted: false,
+				pvp: false,
+			}),
+		);
+		expect(records.layouts.get("dialogue-choices-row-1")?.at(1)).toBe(56);
+		expect(records.layouts.get("dialogue-choices-icon-1")).toEqual([28, 28]);
+		const content = records.layouts.get("dialogue-choices-content")?.at(1) ?? 0;
+		const viewport = records.layouts.get("dialogue-choices-host")?.at(1) ?? 0;
+		expect(content - viewport).toBeLessThan(30);
+		expect(
+			panel
+				.getNavGrid()
+				.flat()
+				.map((node) => node.navId),
+		).toContain("reward:3");
+	},
+);
+
 it("hosts dialogue content inside the shared window", () => {
 	setup(display(page));
 	expect(records.labels.get("dialogue-window")?.get("window-title")).toBe(
