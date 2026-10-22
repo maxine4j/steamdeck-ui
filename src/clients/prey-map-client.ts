@@ -1,5 +1,9 @@
 import type { IEventBus } from "../events/types";
 import type {
+	PreyMapPresentation,
+	PreyMarkerTarget,
+} from "../modules/prey/prey-map-presentation";
+import type {
 	PreyGlobals,
 	PreyMapFrame,
 	PreyMapPin,
@@ -14,6 +18,7 @@ import type {
 	INativeDialogsClient,
 	NativeDialog,
 } from "./native-dialogs-client";
+import type { PreyTargetsClient } from "./prey-targets-client";
 import type { ITaskScheduler } from "./task-scheduler";
 
 /** Adapts the Midnight scouting table without replacing Blizzard's quest flow. */
@@ -29,12 +34,23 @@ export class PreyMapClient implements INativeDialogsClient {
 			"watch" | "grid" | "release"
 		>,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
+		private readonly targets: Pick<PreyTargetsClient, "target" | "invalidate">,
+		private readonly presentation: Pick<
+			PreyMapPresentation,
+			"sync" | "release"
+		>,
 	) {}
 	initialize(): void {
 		this.active = true;
+		this.targets.invalidate();
 		this.events.subscribe("DIALOGUE_ADDON_LOADED", this.discover);
+		this.events.subscribe("ACHIEVEMENTS_CHANGED", this.achievementChanged);
 		this.discover();
 	}
+	private readonly achievementChanged = () => {
+		this.targets.invalidate();
+		this.changed();
+	};
 	private readonly changed = () => {
 		if (!this.active || this.cancelPending) return;
 		this.cancelPending = this.scheduler.nextFrame(() => {
@@ -70,14 +86,14 @@ export class PreyMapClient implements INativeDialogsClient {
 	getDialogs(): NativeDialog[] {
 		const { CovenantMissionFrame: host, AdventureMapQuestChoiceDialog: quest } =
 			_G as unknown as PreyGlobals;
-		if (!this.active || !host?.IsVisible() || !host.MapTab.IsVisible())
+		if (!this.active || !host?.IsVisible() || !host.MapTab.IsVisible()) {
+			this.presentation.sync([]);
 			return [];
-		// Texture kits are string keys in Blizzard_CovenantMissionUI; generated
-		// declarations currently represent textureKit as a number.
-		const adventureMap = C_AdventureMap as unknown as {
-			GetAdventureMapTextureKit(this: void): string;
-		};
-		if (adventureMap.GetAdventureMapTextureKit() !== "midnight") return [];
+		}
+		if (!this.isPreyMap()) {
+			this.presentation.sync([]);
+			return [];
+		}
 		const dialogs: NativeDialog[] = [
 			{
 				id: "native-prey-map",
@@ -98,8 +114,16 @@ export class PreyMapClient implements INativeDialogsClient {
 			});
 		return dialogs;
 	}
+	private isPreyMap(): boolean {
+		// Blizzard texture kits are string keys; generated declarations say number.
+		const adventureMap = C_AdventureMap as unknown as {
+			GetAdventureMapTextureKit(this: void): string;
+		};
+		return adventureMap.GetAdventureMapTextureKit() === "midnight";
+	}
 	private mapGrid(map: PreyMapFrame): NavGrid {
 		const pins: { pin: PreyMapPin; kind: string; x: number; y: number }[] = [];
+		const markers: PreyMarkerTarget[] = [];
 		for (const kind of ["offer", "choice"]) {
 			const template =
 				kind === "offer"
@@ -109,8 +133,13 @@ export class PreyMapClient implements INativeDialogsClient {
 				if (!pin.IsVisible()) continue;
 				const [x, y] = pin.GetGlobalPosition();
 				pins.push({ pin, kind, x, y });
+				if (kind === "offer") {
+					const target = this.targets.target(pin.questID);
+					if (target) markers.push({ pin, target });
+				}
 			}
 		}
+		this.presentation.sync(markers);
 		pins.sort(
 			(a, b) => a.y - b.y || a.x - b.x || a.pin.questID - b.pin.questID,
 		);
@@ -130,7 +159,8 @@ export class PreyMapClient implements INativeDialogsClient {
 						this.active &&
 						map.IsVisible() &&
 						pin.IsVisible() &&
-						pin.questID === questID;
+						pin.questID === questID &&
+						this.isPreyMap();
 					return this.navigation.navigation(
 						pin,
 						undefined,
@@ -151,8 +181,11 @@ export class PreyMapClient implements INativeDialogsClient {
 	shutdown(): void {
 		this.active = false;
 		this.events.unsubscribe("DIALOGUE_ADDON_LOADED", this.discover);
+		this.events.unsubscribe("ACHIEVEMENTS_CHANGED", this.achievementChanged);
 		this.cancelPending?.();
 		this.cancelPending = undefined;
 		this.controls.release();
+		this.presentation.release();
+		this.targets.invalidate();
 	}
 }

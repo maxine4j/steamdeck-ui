@@ -1,8 +1,11 @@
 import type { NativeDialogFrame } from "../../ui/components/native-dialog-navigation";
 import type { NativeNavigationFrame } from "../../ui/components/native-navigation";
+import type { NativeVisibleRegion } from "../../ui/components/native-visibility";
 
 /** Blizzard_AdventureMap and Blizzard_CovenantMissionUI, Retail. */
 export interface PreyMapPin extends NativeNavigationFrame {
+	Icon?: NativeVisibleRegion;
+	IconHighlight?: NativeVisibleRegion;
 	questID: number;
 	IsVisible(): boolean;
 	GetGlobalPosition(): LuaMultiReturn<[number, number]>;

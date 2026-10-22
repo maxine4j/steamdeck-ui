@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import { PreyMapClient } from "./prey-map-client";
+import type { PreyTarget } from "./prey-targets-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -16,13 +17,14 @@ function setup() {
 		OnMouseLeave: vi.fn(),
 	});
 	const pins = [pin(30, 0.8, 0.7), pin(20, 0.7, 0.2), pin(10, 0.2, 0.2)];
+	const choices = [pin(40, 0.4, 0.5)];
 	const host = {
 		...visible(),
 		CloseButton: { Click: vi.fn() },
 		MapTab: {
 			...visible(),
 			EnumeratePinsByTemplate: (template: string) =>
-				template === "AdventureMap_QuestOfferPinTemplate" ? pins : [],
+				template === "AdventureMap_QuestOfferPinTemplate" ? pins : choices,
 		},
 	};
 	const quest = {
@@ -80,14 +82,32 @@ function setup() {
 		},
 	};
 	const events = createTestEventBus();
+	const targets = {
+		target: vi.fn((_questID: number): PreyTarget | undefined => ({
+			difficulty: 3,
+			needed: true,
+		})),
+		invalidate: vi.fn(),
+	};
+	const presentation = { sync: vi.fn(), release: vi.fn() };
 	const changed = vi.fn();
 	events.subscribe("NATIVE_DIALOGS_CHANGED", changed);
-	const client = new PreyMapClient(events, navigation, controls, scheduler);
+	const client = new PreyMapClient(
+		events,
+		navigation,
+		controls,
+		scheduler,
+		targets,
+		presentation,
+	);
 	return {
 		client,
 		host,
 		quest,
 		pins,
+		choices,
+		targets,
+		presentation,
 		globals,
 		texture,
 		hooks,
@@ -108,6 +128,7 @@ it("navigates Prey offers in map order with stable quest identities and native a
 	expect(dialog?.id).toBe("native-prey-map");
 	expect(dialog?.grid.map((row) => row.map((node) => node.navId))).toEqual([
 		["prey:offer:10", "prey:offer:20"],
+		["prey:choice:40"],
 		["prey:offer:30"],
 	]);
 	const node = dialog?.grid.at(0)?.at(0);
@@ -119,6 +140,70 @@ it("navigates Prey offers in map order with stable quest identities and native a
 	expect(s.pins.at(2)?.OnMouseLeave).toHaveBeenCalledOnce();
 	dialog?.cancel();
 	expect(s.host.CloseButton.Click).toHaveBeenCalledWith("LeftButton");
+});
+
+it("refreshes exact target decorations on achievement progress and removes them outside Prey", () => {
+	const s = setup();
+	s.client.initialize();
+	s.client.getDialogs();
+	expect(s.presentation.sync).toHaveBeenLastCalledWith(
+		s.pins.map((pin) => ({ pin, target: { difficulty: 3, needed: true } })),
+	);
+	s.flush();
+	s.changed.mockClear();
+	s.targets.target.mockReturnValue({ difficulty: 3, needed: false });
+	s.events.emit("ACHIEVEMENTS_CHANGED");
+	expect(s.targets.invalidate).toHaveBeenCalled();
+	s.flush();
+	expect(s.changed).toHaveBeenCalledOnce();
+	s.client.getDialogs();
+	expect(s.presentation.sync).toHaveBeenLastCalledWith(
+		s.pins.map((pin) => ({ pin, target: { difficulty: 3, needed: false } })),
+	);
+	s.texture.mockReturnValue("other");
+	s.client.getDialogs();
+	expect(s.presentation.sync).toHaveBeenLastCalledWith([]);
+	s.client.shutdown();
+	expect(s.presentation.release).toHaveBeenCalledOnce();
+});
+
+it("keeps choice hover and actions native and rejects nodes after a pin is recycled", () => {
+	const s = setup();
+	s.client.initialize();
+	const node = s.client
+		.getDialogs()
+		.at(0)
+		?.grid.flat()
+		.find((node) => node.navId === "prey:choice:40");
+	node?.onFocus();
+	node?.onInteract();
+	node?.onBlur();
+	const choice = s.choices.at(0);
+	expect(choice?.OnMouseEnter).toHaveBeenCalledOnce();
+	expect(choice?.OnClick).toHaveBeenCalledWith("LeftButton");
+	if (!choice) throw new Error("Missing choice");
+	choice.questID = 50;
+	node?.onFocus();
+	node?.onInteract();
+	expect(choice.OnClick).toHaveBeenCalledOnce();
+	expect(choice.OnMouseEnter).toHaveBeenCalledOnce();
+});
+
+it("rejects stale map actions after switching texture kits and removes recycled target decorations", () => {
+	const s = setup();
+	s.client.initialize();
+	const node = s.client.getDialogs().at(0)?.grid.at(0)?.at(0);
+	s.texture.mockReturnValue("other");
+	node?.onFocus();
+	node?.onInteract();
+	expect(s.pins.at(2)?.OnClick).not.toHaveBeenCalled();
+	expect(s.pins.at(2)?.OnMouseEnter).not.toHaveBeenCalled();
+	s.texture.mockReturnValue("midnight");
+	s.targets.target.mockReturnValue(undefined);
+	s.hooks.get(s.host.MapTab)?.get("AcquirePin")?.();
+	s.flush();
+	s.client.getDialogs();
+	expect(s.presentation.sync).toHaveBeenLastCalledWith([]);
 });
 
 it("puts quest confirmation above the map, declines on cancel, and excludes other adventure maps", () => {
