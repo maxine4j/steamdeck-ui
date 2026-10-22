@@ -705,7 +705,7 @@ it("yields between cached categories so loading progress is visible before compl
 	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
 	expect(
 		frames.get("achievements-loading-progress")?.layouts.at(-1)?.at(0),
-	).toBeCloseTo(140 / 6);
+	).toBeCloseTo(140 * (2 / 20));
 	expect(
 		lists
 			.get("achievements-list")
@@ -937,6 +937,9 @@ it("keeps the corner loading bar visible until deferred grid rendering finishes"
 		.find((n) => n.navId === "summary-category-Quests")
 		?.onInteract();
 	expect(frames.get("achievements-loading-track")?.visible).toBe(true);
+	expect(
+		frames.get("achievements-loading-progress")?.layouts.at(-1)?.at(0),
+	).toBe(140);
 	expect(frames.get("achievements")?.labels.get("loading")).toBe(
 		"Loading achievements...",
 	);
@@ -1400,7 +1403,7 @@ it("keeps the current page usable while refreshing completion data in the backgr
 			.find((node) => node.navId === "achievement-503"),
 	).toBeDefined();
 });
-it("restarts an interrupted scan when reopened instead of retaining a partial catalog", () => {
+it("continues an interrupted scan while hidden and retains the complete catalog on reopening", () => {
 	const { panel, client, parent, step, flush } = setup();
 	panel.refresh();
 	step();
@@ -1408,7 +1411,7 @@ it("restarts an interrupted scan when reopened instead of retaining a partial ca
 	const calls = vi.mocked(client.achievements).mock.calls.length;
 	panel.onUnmount();
 	flush();
-	expect(client.achievements).toHaveBeenCalledTimes(calls);
+	expect(client.achievements).toHaveBeenCalledTimes(calls + 3);
 	panel.onMount(parent);
 	flush();
 	expect(client.achievements).toHaveBeenCalledTimes(calls + 3);
@@ -1418,6 +1421,53 @@ it("restarts an interrupted scan when reopened instead of retaining a partial ca
 			.flat()
 			.some((n) => n.navId === "summary-category-Quests"),
 	).toBe(true);
+});
+
+it("retains loaded achievements and progress when reopening before the scan finishes", () => {
+	const { panel, client, parent, step, flush } = setup(false);
+	step();
+	step();
+	step();
+	const progress = frames
+		.get("achievements-loading-progress")
+		?.layouts.at(-1)
+		?.at(0);
+	expect(progress).toBe(14);
+	panel.onUnmount();
+	panel.onMount(parent);
+	expect(
+		frames.get("achievements-loading-progress")?.layouts.at(-1)?.at(0),
+	).toBe(progress);
+	flush();
+	expect(client.loadCategory).toHaveBeenCalledTimes(3);
+});
+
+it("cancels hidden achievement data work when destroyed", () => {
+	const { panel, client, step, flush } = setup(false);
+	step();
+	step();
+	panel.onUnmount();
+	panel.destroy();
+	flush();
+	expect(client.achievements).not.toHaveBeenCalled();
+});
+
+it("keeps hidden scan completion away from native loading controls and clears them on reopening", () => {
+	const { panel, parent, step, flush } = setup(false);
+	step();
+	step();
+	panel.onUnmount();
+	const track = frames.get("achievements-loading-track");
+	expect(track?.visible).toBe(true);
+	flush();
+	expect(track?.visible).toBe(true);
+	panel.onMount(parent);
+	expect(track?.visible).toBe(false);
+	expect(
+		lists
+			.get("achievements-list")
+			?.rows.find((row) => row.id === "summary-category-Quests")?.trailingLabel,
+	).toBe("0/3 0%");
 });
 it("formats section percentages and large numbers and puts category counts on line two", () => {
 	const { panel, client, flush, activate } = setup();

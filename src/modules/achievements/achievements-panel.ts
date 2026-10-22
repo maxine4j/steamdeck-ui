@@ -79,6 +79,7 @@ export class AchievementsPanel implements IPanel {
 	private pendingFocus?: string;
 	private incomplete = false;
 	private loading = false;
+	private loadProgress = 0;
 	private scanning = false;
 	private queuedRefresh = false;
 	private width = 468;
@@ -264,13 +265,14 @@ export class AchievementsPanel implements IPanel {
 					const value = totals.get(page.id);
 					return value ? { ...page, ...value, pending: false } : page;
 				});
-				if (this.page === undefined) this.list.updateRows(this.summaryRows());
+				if (this.mounted && this.page === undefined)
+					this.list.updateRows(this.summaryRows());
 			}
 		};
 		const generation = this.generation;
 		let cursor = 0;
 		const step = () => {
-			if (!this.mounted || generation !== this.generation) return;
+			if (generation !== this.generation) return;
 			this.cancelScan = undefined;
 			if (this.page !== undefined) {
 				const offset = categories
@@ -292,7 +294,7 @@ export class AchievementsPanel implements IPanel {
 				const cancel = this.client.loadCategory(
 					category.id,
 					(achievements) => {
-						if (!this.mounted || generation !== this.generation) return;
+						if (generation !== this.generation) return;
 						completed = true;
 						entries.set(category.id, achievements);
 						cursor++;
@@ -316,12 +318,12 @@ export class AchievementsPanel implements IPanel {
 							}
 						}
 						this.setLoadingProgress(
-							(0.5 * cursor) / Math.max(1, categories.length),
+							seen.size / Math.max(1, summary.totals.total),
 						);
 						this.cancelScan = this.scheduler.nextFrame(step);
 					},
-					(completed, total, rows) => {
-						if (!this.mounted || generation !== this.generation) return;
+					(_completed, _total, rows) => {
+						if (generation !== this.generation) return;
 						entries.set(category.id, [
 							...(entries.get(category.id) ?? []),
 							...rows,
@@ -329,8 +331,7 @@ export class AchievementsPanel implements IPanel {
 						if (firstLoad) this.entries = entries;
 						publish(category, rows);
 						this.setLoadingProgress(
-							(0.5 * (cursor + (total > 0 ? completed / total : 1))) /
-								Math.max(1, categories.length),
+							seen.size / Math.max(1, summary.totals.total),
 						);
 					},
 					false,
@@ -354,6 +355,8 @@ export class AchievementsPanel implements IPanel {
 		this.cancelScan = this.scheduler.nextFrame(step);
 	}
 	private setLoadingProgress(progress: number): void {
+		this.loadProgress = progress;
+		if (!this.mounted) return;
 		this.frame.setLabel(
 			"loading",
 			"Loading achievements...",
@@ -380,6 +383,7 @@ export class AchievementsPanel implements IPanel {
 		}
 	}
 	private finishLoading(): void {
+		if (!this.mounted) return;
 		this.loadingTrack.hide();
 		this.frame.setLabel("loading", "", "BOTTOMRIGHT", -16, 16, 12);
 		this.flushInvalidation();
@@ -397,6 +401,7 @@ export class AchievementsPanel implements IPanel {
 		this.refreshPageRecords();
 	}
 	private refreshPageRecords(): void {
+		if (!this.mounted) return;
 		const page = this.pages.find((page) => page.id === this.page);
 		if (!page) return;
 		const seen = new Set<number>();
@@ -527,8 +532,8 @@ export class AchievementsPanel implements IPanel {
 		];
 	}
 	private render(): void {
-		if (!this.mounted || !this.summary) return;
 		this.renderDirty = true;
+		if (!this.mounted || !this.summary) return;
 		this.renderRevision++;
 		this.cancelRender?.();
 		this.cancelRender = undefined;
@@ -662,7 +667,7 @@ export class AchievementsPanel implements IPanel {
 		this.navigationChanged?.();
 	}
 	private renderGrid(page: AchievementPage): void {
-		if (!this.scanning) this.setLoadingProgress(0.5);
+		if (!this.scanning) this.setLoadingProgress(1);
 		const groupWidth = (this.width - 16) / 2;
 		const columns = Math.max(
 			1,
@@ -981,10 +986,6 @@ export class AchievementsPanel implements IPanel {
 					job.ready = true;
 				}
 			}
-			if (!this.scanning)
-				this.setLoadingProgress(
-					0.5 + 0.5 * (jobs.length > 0 ? cursor / jobs.length : 1),
-				);
 			this.viewport.show();
 			this.grid = presentation.grid.filter((row) => row.length > 0);
 			const focusId = this.grid
@@ -1057,6 +1058,8 @@ export class AchievementsPanel implements IPanel {
 		else if (this.page === undefined) this.list.mount(this.body);
 		else this.requestViewportRender();
 		this.update.setActive(true);
+		if (this.scanning) this.setLoadingProgress(this.loadProgress);
+		else if (this.page === undefined) this.finishLoading();
 	}
 	private toggleFilter(): void {
 		this.incomplete = !this.incomplete;
@@ -1067,15 +1070,12 @@ export class AchievementsPanel implements IPanel {
 		this.summaryMounted = false;
 		this.mounted = false;
 		this.update.setActive(false);
-		this.cancelScan?.();
 		this.cancelRender?.();
-		this.cancelScan = undefined;
 		this.cancelRender = undefined;
 		this.cancelViewport?.();
 		this.cancelViewport = undefined;
 		this.viewport.onVerticalScroll();
-		this.generation++;
-		if (this.scanning) this.update.invalidate();
+		this.renderRevision++;
 		this.list.unmount();
 		this.frame.hide();
 	}
@@ -1108,6 +1108,9 @@ export class AchievementsPanel implements IPanel {
 	}
 	destroy(): void {
 		this.onUnmount();
+		this.cancelScan?.();
+		this.cancelScan = undefined;
+		this.generation++;
 		this.list.destroy();
 		for (const cell of this.cells) {
 			cell.icon.destroy();

@@ -186,7 +186,6 @@ export class ToysPanel implements IPanel {
 		this.loadingProgress.setParent(this.loadingTrack);
 		this.loadingProgress.setColor(1, 0.82, 0);
 		this.loadingTrack.show();
-		this.setLoadingProgress(0);
 		this.cancelLoad = this.client.load(
 			(toys, complete = true) => {
 				if (!this.mounted || generation !== this.generation) return;
@@ -210,9 +209,7 @@ export class ToysPanel implements IPanel {
 			},
 			(completed, total) => {
 				if (!this.mounted || generation !== this.generation) return;
-				// Scanning and rendering each occupy half the bar. These are work
-				// fractions, not an estimate of elapsed time.
-				this.setLoadingProgress(total === 0 ? 0.5 : (completed / total) * 0.5);
+				this.setLoadingProgress(total === 0 ? 1 : completed / total);
 			},
 			(changes, complete) => {
 				if (!this.mounted || generation !== this.generation) return;
@@ -260,7 +257,7 @@ export class ToysPanel implements IPanel {
 			this.renderPending = true;
 			return;
 		}
-		this.render(generation, this.snapshotComplete);
+		this.render(generation);
 	}
 	private requestViewportRender(): void {
 		if (!this.mounted) return;
@@ -275,14 +272,14 @@ export class ToysPanel implements IPanel {
 				!this.cancelRender &&
 				!this.isViewportPrepared()
 			)
-				this.render(this.generation, this.snapshotComplete);
+				this.render(this.generation);
 		});
 	}
 	private isViewportPrepared(): boolean {
 		const range = this.viewport.getVisibleVerticalRange();
 		return this.preparedRanges.includes(range);
 	}
-	private render(generation: number, complete = true): void {
+	private render(generation: number): void {
 		const measurement = new WorkMeasurement(
 			this.performance,
 			"toys render",
@@ -529,10 +526,6 @@ export class ToysPanel implements IPanel {
 			const previousCount = renderedToys;
 			const end = Math.min(jobs.length, cursor + toysConfig.renderPageSize);
 			while (cursor < end) jobs.at(cursor++)?.();
-			if (complete)
-				this.setLoadingProgress(
-					jobs.length === 0 ? 1 : 0.5 + (cursor / jobs.length) * 0.5,
-				);
 			if (cursor < jobs.length)
 				this.cancelRender = this.scheduler.nextFrame(step);
 			else if (this.snapshotComplete && !this.renderPending) {
@@ -565,7 +558,7 @@ export class ToysPanel implements IPanel {
 						generation === this.generation &&
 						!this.client.isInCombat()
 					)
-						this.render(generation, this.snapshotComplete);
+						this.render(generation);
 				});
 			}
 		};
@@ -628,7 +621,7 @@ export class ToysPanel implements IPanel {
 	resume(): void {
 		if (!this.mounted || this.client.isInCombat()) return;
 		if (this.mountPending && this.parent) this.onMount(this.parent);
-		else if (this.dirty) this.render(this.generation, this.snapshotComplete);
+		else if (this.dirty) this.render(this.generation);
 		else this.requestViewportRender();
 		this.refreshCooldowns();
 	}

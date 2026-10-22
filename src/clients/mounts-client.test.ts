@@ -75,6 +75,28 @@ function setup(
 	return { pending, scheduler, saved, cache, client, info, api, ids, flush };
 }
 
+it("replays full mount scan progress on reopening after hidden warming", () => {
+	const { client, pending, flush } = setup();
+	const detach = client.load(vi.fn());
+	pending.shift()?.();
+	detach();
+	pending.shift()?.();
+	const progress = vi.fn();
+	client.load(vi.fn(), progress);
+	expect(progress).toHaveBeenCalledExactlyOnceWith(40, 45);
+	flush();
+	expect(progress).toHaveBeenLastCalledWith(45, 45);
+});
+
+it("reports full progress for saved mounts without starting a scan", () => {
+	const { client, saved, api } = setup();
+	saved.put("1", mount(1));
+	const progress = vi.fn();
+	client.load(vi.fn(), progress);
+	expect(progress).toHaveBeenCalledExactlyOnceWith(1, 1);
+	expect(api.GetMountIDs).not.toHaveBeenCalled();
+});
+
 it("logs mount warming and broad-event repeat timings independently of other collections", () => {
 	let time = 0;
 	const performance = { now: () => time++, log: vi.fn() };

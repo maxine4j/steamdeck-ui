@@ -156,7 +156,6 @@ export class MountsPanel implements IPanel {
 		this.loadingProgress.setParent(this.loadingTrack);
 		this.loadingProgress.setColor(1, 0.82, 0);
 		this.loadingTrack.show();
-		this.setLoadingProgress(0);
 		this.cancelLoad = this.client.load(
 			(mounts, count, complete = true) => {
 				if (!this.mounted || generation !== this.loadGeneration) return;
@@ -174,9 +173,7 @@ export class MountsPanel implements IPanel {
 			},
 			(completed, total) => {
 				if (this.mounted && generation === this.loadGeneration)
-					this.setLoadingProgress(
-						total === 0 ? 0.5 : (completed / total) * 0.5,
-					);
+					this.setLoadingProgress(total === 0 ? 1 : completed / total);
 			},
 		);
 		this.filters.setOptions(
@@ -514,10 +511,6 @@ export class MountsPanel implements IPanel {
 			const pageStart = this.performance.now();
 			const end = Math.min(jobs.length, cursor + mountsConfig.renderPageSize);
 			while (cursor < end) jobs.at(cursor++)?.();
-			if (complete)
-				this.setLoadingProgress(
-					jobs.length > 0 ? 0.5 + (cursor / jobs.length) * 0.5 : 1,
-				);
 			this.grid = grid.filter((row) => row.length > 0);
 			this.navigationChanged?.();
 			if (cursor < jobs.length)
