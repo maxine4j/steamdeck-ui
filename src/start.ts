@@ -98,6 +98,7 @@ import { BuiltInToys } from "./modules/toys/built-in-toys";
 import { ToyActionMenu } from "./modules/toys/toy-action-menu";
 import { ToysModule } from "./modules/toys/toys-module";
 import { ToysPanel } from "./modules/toys/toys-panel";
+import { registerTradingPost } from "./modules/trading-post/register-trading-post";
 import { TransmogModule } from "./modules/transmog/transmog-module";
 import { TransmogPanel } from "./modules/transmog/transmog-panel";
 import { BuiltInVendor } from "./modules/vendor/built-in-vendor";
@@ -485,6 +486,13 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	const transmogPanel = registerTransmog(pool, events, ui, modules, scheduler);
+	const tradingPostPanel = registerTradingPost(
+		pool,
+		events,
+		ui,
+		modules,
+		scheduler,
+	);
 	const bankFeature = registerBank(
 		pool,
 		navigation,
@@ -745,6 +753,7 @@ export function startSteamDeckUI(
 			collectionsFeature.appearancesPanel.destroy();
 			playerSpells.destroy();
 			transmogPanel.destroy();
+			tradingPostPanel.destroy();
 			dungeonFinderPanel.destroy();
 			vendorPanel.destroy();
 			buybackPanel.destroy();
