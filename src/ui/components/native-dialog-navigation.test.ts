@@ -43,6 +43,29 @@ function setup() {
 	return { native, adapter: new NativeDialogNavigation(native) };
 }
 
+it("activates mouse-down controls only while visible and enabled and dismisses flyouts", () => {
+	const { adapter } = setup();
+	const down = vi.fn();
+	const native = {
+		...frame(true),
+		GetScript: (script: string) =>
+			script === "OnMouseDown" ? down : undefined,
+		Hide: vi.fn(),
+	};
+	const target = native as unknown as NativeDialogFrame;
+	adapter.press(target);
+	expect(down).toHaveBeenCalledWith(native);
+	expect(native.Click).not.toHaveBeenCalled();
+	native.IsEnabled.mockReturnValue(false);
+	adapter.press(target);
+	native.IsEnabled.mockReturnValue(true);
+	native.IsVisible.mockReturnValue(false);
+	adapter.press(target);
+	expect(down).toHaveBeenCalledOnce();
+	adapter.hide(target);
+	expect(native.Hide).toHaveBeenCalledOnce();
+});
+
 it("routes protected menu actions to hardware bindings without synthesizing native clicks", () => {
 	const { adapter } = setup();
 	const button = frame(true) as unknown as NativeDialogFrame;

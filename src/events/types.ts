@@ -40,6 +40,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 export type ApplicationEvent =
 	| "SKYRIDING_STATE_CHANGED"
 	| "SKYRIDING_SUSPENDED"
+	| "LOOT_UPDATED"
 	| "HEIRLOOMS_VISIBILITY_CHANGED"
 	| "DEBUG_OPEN_REQUESTED"
 	| "APPEARANCES_VISIBILITY_CHANGED"

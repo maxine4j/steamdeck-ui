@@ -267,6 +267,14 @@ export class NativeDialogNavigation {
 		});
 		return grid;
 	}
+	/** Some native controls intentionally handle mouse-down instead of clicks. */
+	press(frame: NativeDialogFrame): void {
+		if (frame.IsVisible() && frame.IsEnabled())
+			frame.GetScript("OnMouseDown")?.(frame);
+	}
+	hide(frame: NativeDialogFrame): void {
+		frame.Hide();
+	}
 	click(frame: NativeDialogFrame): void {
 		if (!frame.IsVisible() || !frame.IsEnabled()) return;
 		if (frame.IsObjectType("EditBox")) frame.SetFocus?.();

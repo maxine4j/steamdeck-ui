@@ -14,6 +14,12 @@ const petEvents = [
 	"PET_JOURNAL_PET_REVOKED",
 	"PET_JOURNAL_PET_RESTORED",
 ];
+const lootEvents = [
+	"LOOT_OPENED",
+	"LOOT_CLOSED",
+	"LOOT_SLOT_CHANGED",
+	"LOOT_SLOT_CLEARED",
+];
 const dialogueEvents = [
 	"GOSSIP_SHOW",
 	"GOSSIP_OPTIONS_REFRESHED",
@@ -263,6 +269,7 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		for (const event of dialogueEvents) this.frame.RegisterEvent(event);
+		for (const event of lootEvents) this.frame.RegisterEvent(event);
 		for (const event of bankEvents) this.frame.RegisterEvent(event);
 		for (const event of mailEvents) this.frame.RegisterEvent(event);
 		for (const event of bankContentEvents) this.frame.RegisterEvent(event);
@@ -390,6 +397,7 @@ export class WowEventBus implements IEventBus {
 				(characterIdentityUnitEvents.includes(event) && unit === "player")
 			)
 				this.emit("CHARACTER_IDENTITY_CHANGED");
+			if (lootEvents.includes(event)) this.emit("LOOT_UPDATED");
 			if (event === "PLAYER_REGEN_DISABLED") this.emit("COMBAT_STARTED");
 			if (spellbookEvents.includes(event)) this.emit("SPELLBOOK_CHANGED");
 			if (
