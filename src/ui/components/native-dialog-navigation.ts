@@ -17,17 +17,33 @@ export interface NativeDialogFrame extends NativeNavigationFrame {
 	): ((this: void, frame: NativeDialogFrame) => void) | undefined;
 }
 
-/** Adapts existing native controls without changing their layout or scripts. */
+interface NativeActionMenu extends NativeDialogFrame {
+	AddButton(text: string, callback: (this: void) => void): void;
+	InitButtons(): void;
+}
+
+/** Adapts native dialogs and pooled menu actions for controller navigation. */
 export class NativeDialogNavigation {
 	private readonly observers = new Map<NativeDialogFrame, () => void>();
 	private readonly hooked = new Set<NativeDialogFrame>();
 	private readonly ids = new Map<NativeDialogFrame, number>();
+	private readonly menus = new Set<NativeActionMenu>();
 	constructor(
 		private readonly navigation: Pick<
 			NativeNavigation,
 			"navigation" | "release"
 		>,
 	) {}
+	/** Uses the host menu's pooled template, layout and narration support. */
+	addMenuAction(
+		frame: NativeDialogFrame,
+		label: string,
+		action: (this: void) => void,
+	): void {
+		const menu = frame as NativeActionMenu;
+		this.menus.add(menu);
+		menu.AddButton(label, action);
+	}
 	watch(frame: NativeDialogFrame, changed: () => void): void {
 		this.observers.set(frame, changed);
 		this.observe(frame, frame);
@@ -99,6 +115,8 @@ export class NativeDialogNavigation {
 	}
 	release(): void {
 		this.observers.clear();
+		for (const menu of this.menus) menu.InitButtons();
+		this.menus.clear();
 		this.navigation.release();
 	}
 }

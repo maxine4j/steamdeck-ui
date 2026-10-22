@@ -26,11 +26,12 @@ export class NativeDialogsClient implements INativeDialogsClient {
 	private hooked = false;
 	private sequence = 0;
 	private cancelPending?: () => void;
+	private readonly hookedMenus = new Set<NativeDialogFrame>();
 	constructor(
 		private readonly events: IEventBus,
 		private readonly controls: Pick<
 			NativeDialogNavigation,
-			"watch" | "grid" | "release"
+			"watch" | "grid" | "release" | "addMenuAction"
 		>,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
 	) {}
@@ -80,6 +81,7 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		}
 	}
 	private watch(frame: NativeDialogFrame, name: string): void {
+		if (name === "GameMenuFrame") this.watchMenu(frame);
 		if (this.dialogs.has(frame)) return;
 		this.dialogs.set(frame, {
 			id: `native-${name}`,
@@ -89,6 +91,36 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		});
 		this.controls.watch(frame, () => this.changed(frame));
 		this.changed(frame);
+	}
+	private watchMenu(frame: NativeDialogFrame): void {
+		if (this.hookedMenus.has(frame)) return;
+		this.hookedMenus.add(frame);
+		let inserted = false;
+		const hook = hooksecurefunc as unknown as (
+			this: void,
+			frame: NativeDialogFrame,
+			method: string,
+			callback: (this: void, frame: NativeDialogFrame, text?: string) => void,
+		) => void;
+		hook(frame, "Reset", () => {
+			inserted = false;
+		});
+		hook(frame, "AddButton", (_menu, text) => {
+			const globals = _G as unknown as {
+				ADDONS: string;
+				GAMEMENU_SUPPORT: string;
+			};
+			if (
+				!this.active ||
+				inserted ||
+				(text !== globals.ADDONS && text !== globals.GAMEMENU_SUPPORT)
+			)
+				return;
+			inserted = true;
+			this.controls.addMenuAction(frame, "Reload UI", () => {
+				if (this.active) C_UI.Reload();
+			});
+		});
 	}
 	private changed(frame: NativeDialogFrame): void {
 		if (!this.active) return;
