@@ -14,6 +14,10 @@ export interface NativeDialogFrame extends NativeNavigationFrame {
 	OpenMenu?(): void;
 	CloseMenu?(): void;
 	SetFocus?(): void;
+	GetElementDescription?(): {
+		CanOpenSubmenu(): boolean;
+		ForceOpenSubmenu(): void;
+	};
 	HookScript(script: string, callback: (this: void) => void): void;
 	GetScript(
 		script: string,
@@ -29,6 +33,11 @@ export interface NativeDialogList<T> {
 		instant: boolean,
 	): void;
 	FindFrame(data: T): NativeDialogFrame | undefined;
+}
+
+export interface NativeDialogMenu extends NativeDialogFrame {
+	Close?(): void;
+	ScrollBox?: NativeDialogFrame & NativeDialogList<NativeDialogFrame>;
 }
 
 interface NativeActionMenu extends NativeDialogFrame {
@@ -140,12 +149,46 @@ export class NativeDialogNavigation {
 			},
 		);
 	}
+	/** Retail menus store the actual controls as ScrollBox data, inside wrappers. */
+	menu(id: string, menu: NativeDialogMenu): NavGrid {
+		const scroll = menu.ScrollBox;
+		if (!scroll?.IsVisible()) return this.grid(id, menu, true);
+		return this.list<{ data: NativeDialogFrame; control: NativeDialogFrame }>(
+			id,
+			{
+				ForEachElementData: (callback) =>
+					scroll.ForEachElementData((data) => {
+						const visit = (frame: NativeDialogFrame) => {
+							if (
+								frame.IsObjectType("Button") ||
+								frame.IsObjectType("DropdownButton") ||
+								frame.IsObjectType("EditBox")
+							) {
+								if (frame.IsEnabled()) callback({ data, control: frame });
+								return;
+							}
+							for (const child of [...frame.GetChildren()]) visit(child);
+						};
+						visit(data);
+					}),
+				ScrollToElementData: (entry, alignment, offset, instant) =>
+					scroll.ScrollToElementData(entry.data, alignment, offset, instant),
+				FindFrame: (entry) =>
+					entry.control.IsVisible() ? entry.control : undefined,
+			},
+			({ control: frame }) => {
+				if (!this.ids.has(frame)) this.ids.set(frame, this.ids.size + 1);
+				return `${this.ids.get(frame)}`;
+			},
+		);
+	}
 	/** Logical nodes survive ScrollBox recycling; resolve frames only when used. */
 	list<T>(
 		id: string,
 		scroll: NativeDialogList<T>,
 		key: (data: T) => string,
 		context?: (frame: NativeDialogFrame) => NativeDialogFrame | undefined,
+		primary?: (frame: NativeDialogFrame) => NativeDialogFrame | undefined,
 	): NavGrid {
 		const grid: NavGrid = [];
 		scroll.ForEachElementData((data) => {
@@ -167,7 +210,8 @@ export class NativeDialogNavigation {
 						focused = undefined;
 					},
 					onInteract: () => {
-						const frame = scroll.FindFrame(data);
+						const row = scroll.FindFrame(data);
+						const frame = row && (primary ? primary(row) : row);
 						if (frame) this.click(frame);
 					},
 					onContext: context
@@ -186,6 +230,8 @@ export class NativeDialogNavigation {
 		if (!frame.IsVisible() || !frame.IsEnabled()) return;
 		if (frame.IsObjectType("EditBox")) frame.SetFocus?.();
 		else if (frame.OpenMenu) frame.OpenMenu();
+		else if (frame.GetElementDescription?.().CanOpenSubmenu())
+			frame.GetElementDescription().ForceOpenSubmenu();
 		else frame.Click("LeftButton");
 	}
 	release(): void {

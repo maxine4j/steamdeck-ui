@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import type { IDungeonFinderClient } from "../../clients/dungeon-finder-client";
+import type { IPremadeFinderClient } from "../../clients/premade-finder-client";
 import type { IPvpFinderClient } from "../../clients/pvp-finder-client";
 import { Frame } from "../../ui/components/frame";
 import type { ModalOption } from "../../ui/components/modal";
@@ -120,6 +121,7 @@ function setup(
 	canTank = true,
 	canHeal = true,
 	page = "dungeons",
+	premades?: IPremadeFinderClient,
 ) {
 	const callbacks: (() => void)[] = [];
 	let options: readonly ModalOption[] = [];
@@ -254,6 +256,7 @@ function setup(
 		},
 		modal,
 		pvp,
+		premades,
 	);
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	callbacks.shift()?.();
@@ -268,6 +271,56 @@ function setup(
 	const rows = setRows.mock.lastCall?.at(0) as ListRow[];
 	return { panel, client, pvp, rows, callbacks, modal, confirm, cancel };
 }
+
+it.each(["premades", "pvp-premades"])(
+	"hosts the %s browser, forwards nested Back, and releases it on exit",
+	(page) => {
+		const native = {
+			mount: vi.fn(),
+			resize: vi.fn(),
+			unmount: vi.fn(),
+			navigation: vi.fn(() => [
+				[
+					{
+						navId: "premade-search",
+						onInteract: vi.fn(),
+						onFocus: vi.fn(),
+						onBlur: vi.fn(),
+					},
+				],
+			]),
+			back: vi.fn(() => true),
+		};
+		const s = setup(
+			false,
+			true,
+			true,
+			page === "premades" ? "premades" : "pvp",
+			native,
+		);
+		if (page === "pvp-premades") {
+			activate(s.rows.find((row) => row.id === page));
+			s.callbacks.shift()?.();
+		}
+		expect(native.mount).toHaveBeenCalledWith(
+			expect.any(Frame),
+			page === "pvp-premades",
+		);
+		expect(
+			s.panel
+				.getNavGrid()
+				.flat()
+				.map((node) => node.navId),
+		).toContain("premade-search");
+		s.panel.onBack();
+		expect(native.back).toHaveBeenCalledOnce();
+		expect(native.unmount).not.toHaveBeenCalled();
+		native.back.mockReturnValue(false);
+		s.panel.onBack();
+		s.callbacks.shift()?.();
+		expect(native.unmount).toHaveBeenCalledOnce();
+	},
+);
 
 it("flattens PvP sections with exactly five Quick Match controls, native details and PvP roles", () => {
 	const { panel, rows, pvp, client } = setup(false, true, true, "pvp");
@@ -322,7 +375,7 @@ it("hides the PvP leader control, restores it on Back and sizes wrapped PvP deta
 	expect(checkboxes.get("role-leader")?.mount).toHaveBeenCalledOnce();
 });
 
-it("opens specific battlegrounds and premade placeholder with nested Back and restored pinned headers", () => {
+it("opens specific battlegrounds with nested Back and restored pinned headers", () => {
 	const { panel, rows, callbacks, pvp } = setup(false, true, true, "pvp");
 	activate(rows.find((row) => row.id === "pvp-specific"));
 	callbacks.shift()?.();
@@ -345,12 +398,6 @@ it("opens specific battlegrounds and premade placeholder with nested Back and re
 	callbacks.shift()?.();
 	current = setRows.mock.lastCall?.at(0) as ListRow[];
 	expect(current.at(0)?.label).toBe("Quick Match");
-	activate(current.find((row) => row.id === "pvp-premades"));
-	callbacks.shift()?.();
-	expect(currentRows().at(0)?.label).toContain("coming soon");
-	panel.onBack();
-	callbacks.shift()?.();
-	expect(currentRows().at(0)?.label).toBe("Quick Match");
 });
 
 it("confirms PvP queue departure and rechecks the queue before leaving", () => {

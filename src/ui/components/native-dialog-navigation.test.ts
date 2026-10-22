@@ -226,6 +226,32 @@ it("activates dropdowns and edit boxes through their native APIs", () => {
 	expect(edit.SetFocus).toHaveBeenCalledOnce();
 });
 
+it("resolves a virtual row's primary action against its recycled child", () => {
+	const { adapter } = setup();
+	let invite = frame(true);
+	const scroll = {
+		ForEachElementData: (callback: (data: string) => void) =>
+			callback("applicant"),
+		ScrollToElementData: vi.fn(),
+		FindFrame: () => frame(true) as unknown as NativeDialogFrame,
+	};
+	const node = adapter
+		.list(
+			"applicants",
+			scroll,
+			(id) => id,
+			undefined,
+			() => invite as unknown as NativeDialogFrame,
+		)
+		.at(0)
+		?.at(0);
+	node?.onInteract();
+	expect(invite.Click).toHaveBeenCalledOnce();
+	invite = frame(true);
+	node?.onInteract();
+	expect(invite.Click).toHaveBeenCalledOnce();
+});
+
 it("routes a logical row's context action to its current visible child control", () => {
 	const { adapter } = setup();
 	const load = frame(true);
@@ -266,4 +292,70 @@ it("notifies when a watched dropdown opens so detached menu buttons can take foc
 		.find((call) => call.at(0) === dropdown && call.at(1) === "OpenMenu")
 		?.at(2)?.();
 	expect(changed).toHaveBeenCalledOnce();
+});
+
+it("reveals a scrollable native menu's actual button before interacting", () => {
+	const { adapter } = setup();
+	const button = frame(true);
+	button.IsVisible.mockReturnValue(false);
+	const scroll = {
+		...frame(),
+		ForEachElementData: (callback: (data: NativeDialogFrame) => void) =>
+			callback(button as unknown as NativeDialogFrame),
+		ScrollToElementData: vi.fn(() => button.IsVisible.mockReturnValue(true)),
+	};
+	const menu = { ...frame(), ScrollBox: scroll };
+	const node = adapter
+		.menu(
+			"menu",
+			menu as unknown as import("./native-dialog-navigation").NativeDialogMenu,
+		)
+		.at(0)
+		?.at(0);
+	node?.onFocus();
+	node?.onInteract();
+	expect(scroll.ScrollToElementData).toHaveBeenCalledWith(button, 0.5, 0, true);
+	expect(button.Click).toHaveBeenCalledWith("LeftButton");
+});
+
+it("includes nested edit fields in a scrollable native filter template", () => {
+	const { adapter } = setup();
+	const edit = {
+		...frame(),
+		IsObjectType: (type: string) => type === "EditBox",
+		SetFocus: vi.fn(),
+	};
+	const template = frame(false, 0, 100, [edit as unknown as NativeDialogFrame]);
+	const scroll = {
+		...frame(),
+		ForEachElementData: (callback: (data: NativeDialogFrame) => void) =>
+			callback(template as unknown as NativeDialogFrame),
+		ScrollToElementData: vi.fn(),
+	};
+	const node = adapter
+		.menu("filters", {
+			...frame(),
+			ScrollBox: scroll,
+		} as unknown as import("./native-dialog-navigation").NativeDialogMenu)
+		.at(0)
+		?.at(0);
+	node?.onInteract();
+	expect(edit.SetFocus).toHaveBeenCalledOnce();
+});
+
+it("opens a native menu description's submenu when controller input selects it", () => {
+	const { adapter } = setup();
+	const open = vi.fn();
+	const button = {
+		...frame(true),
+		GetElementDescription: () => ({
+			CanOpenSubmenu: () => true,
+			ForceOpenSubmenu: open,
+		}),
+	};
+	adapter
+		.control("submenu", button as unknown as NativeDialogFrame)
+		.onInteract();
+	expect(open).toHaveBeenCalledOnce();
+	expect(button.Click).not.toHaveBeenCalled();
 });

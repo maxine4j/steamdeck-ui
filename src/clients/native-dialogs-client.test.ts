@@ -7,6 +7,52 @@ import {
 } from "./native-dialogs-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("acknowledges an informational group invite on Back", () => {
+	const s = setup();
+	const native = dialog(),
+		decline = dialog(),
+		acknowledge = dialog();
+	native.IsVisible.mockReturnValue(true);
+	decline.IsVisible.mockReturnValue(false);
+	Object.assign(native, {
+		DeclineButton: decline,
+		AcknowledgeButton: acknowledge,
+	});
+	s.globals.LFGListInviteDialog = native;
+	s.client.initialize();
+	s.client
+		.getDialogs()
+		.find((entry) => entry.id === "native-LFGListInviteDialog")
+		?.cancel();
+	expect(s.controls.control).toHaveBeenCalledWith(
+		"native-LFGListInviteDialog:cancel",
+		acknowledge,
+	);
+});
+
+it.each(["LFGListApplicationDialog", "LFGListInviteDialog"])(
+	"traps and cancels the native %s through its own cancel action",
+	(name) => {
+		const s = setup();
+		const native = dialog();
+		native.IsVisible.mockReturnValue(true);
+		const cancel = dialog();
+		cancel.IsVisible.mockReturnValue(true);
+		Object.assign(native, { CancelButton: cancel, DeclineButton: cancel });
+		s.globals[name] = native;
+		s.client.initialize();
+		const prompt = s.client
+			.getDialogs()
+			.find((entry) => entry.id === `native-${name}`);
+		expect(prompt).toBeDefined();
+		prompt?.cancel();
+		expect(s.controls.control).toHaveBeenCalledWith(
+			`native-${name}:cancel`,
+			cancel,
+		);
+	},
+);
 function setup() {
 	const globals: Record<string, unknown> = {};
 	vi.stubGlobal("_G", globals);

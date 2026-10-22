@@ -58,9 +58,7 @@ import { CurrencyModule } from "./modules/currency/currency-module";
 import { CurrencyOptions } from "./modules/currency/currency-options";
 import { CurrencyPanel } from "./modules/currency/currency-panel";
 import { registerDebug } from "./modules/debug/register-debug";
-import { BuiltInDungeonFinder } from "./modules/dungeon-finder/built-in-dungeon-finder";
-import { DungeonFinderModule } from "./modules/dungeon-finder/dungeon-finder-module";
-import { DungeonFinderPanel } from "./modules/dungeon-finder/dungeon-finder-panel";
+import { registerDungeonFinder } from "./modules/dungeon-finder/register-dungeon-finder";
 import { registerMail } from "./modules/mail/register-mail";
 import { MapModule } from "./modules/map/map-module";
 import { MapPanel } from "./modules/map/map-panel";
@@ -391,10 +389,6 @@ export function startSteamDeckUI(
 	const builtInCurrency = new BuiltInCurrency(characterFrame);
 	const currencyModal = new Modal("currency-options", pool, navigation, events);
 	const builtInTalents = new BuiltInTalents(new FrameSuppression(pool), events);
-	const builtInDungeonFinder = new BuiltInDungeonFinder(
-		new FrameSuppression(pool),
-		events,
-	);
 	const ui = new UIOrchestrator(
 		(position, containerId = position) =>
 			new PanelContainer(
@@ -413,7 +407,7 @@ export function startSteamDeckUI(
 						builtInTalents.close();
 					if (selected.id === "spellbook") builtInTalents.openSpellbook();
 					else if (selected.id === "dungeon-finder")
-						builtInDungeonFinder.open();
+						dungeonFinderFeature.open();
 					else if (selected.id === "talents") builtInTalents.open();
 					else if (selected.id === "reputation") builtInReputation.open();
 					else if (selected.id === "currency") builtInCurrency.open();
@@ -574,30 +568,15 @@ export function startSteamDeckUI(
 			dialogueCamera,
 		),
 	);
-	const dungeonQueueConfirmation = new Modal(
-		"dungeon-queue-confirmation",
+	const dungeonFinderFeature = registerDungeonFinder(
 		pool,
 		navigation,
 		events,
-	);
-	const dungeonFinderPanel = new DungeonFinderPanel(
-		pool,
+		ui,
+		modules,
 		dungeonFinder,
-		() => {
-			builtInDungeonFinder.close();
-			ui.closePanel("left", "dungeon-finder");
-		},
-		scheduler,
-		dungeonQueueConfirmation,
 		pvpFinder,
-	);
-	modules.register(
-		new DungeonFinderModule(
-			ui,
-			events,
-			dungeonFinderPanel,
-			builtInDungeonFinder,
-		),
+		scheduler,
 	);
 	modules.register(new ControllerInputModule(controller));
 	const crossBar = new CrossBar(pool, actions);
@@ -699,7 +678,7 @@ export function startSteamDeckUI(
 		actions,
 	);
 	ui.registerPanel(achievementsPanel, "left");
-	ui.registerPanel(dungeonFinderPanel, "left");
+	ui.registerPanel(dungeonFinderFeature.panel, "left");
 	modules.register(
 		new ReputationModule(ui, events, reputationPanel, builtInReputation),
 	);
@@ -736,7 +715,6 @@ export function startSteamDeckUI(
 			itemModal.destroy();
 			currencyModal.destroy();
 			reputationModal.destroy();
-			dungeonQueueConfirmation.destroy();
 			collectionsFeature.toyModal.destroy();
 			collectionsFeature.petModal.destroy();
 			collectionsFeature.mountModal.destroy();
@@ -754,7 +732,7 @@ export function startSteamDeckUI(
 			playerSpells.destroy();
 			transmogPanel.destroy();
 			tradingPostPanel.destroy();
-			dungeonFinderPanel.destroy();
+			dungeonFinderFeature.destroy();
 			vendorPanel.destroy();
 			buybackPanel.destroy();
 			achievementsPanel.destroy();

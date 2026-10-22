@@ -319,11 +319,19 @@ it("forwards native login events through the hidden event frame", () => {
 		"PLAYER_SPECIALIZATION_CHANGED",
 		"LFG_LIST_ACTIVE_ENTRY_UPDATE",
 		"LFG_LIST_SEARCH_RESULT_UPDATED",
+		"LFG_LIST_SEARCH_RESULTS_RECEIVED",
+		"LFG_LIST_SEARCH_FAILED",
+		"LFG_LIST_APPLICATION_STATUS_UPDATED",
+		"LFG_LIST_APPLICANT_LIST_UPDATED",
+		"LFG_LIST_APPLICANT_UPDATED",
+		"LFG_LIST_ENTRY_CREATION_FAILED",
+		"LFG_LIST_AVAILABILITY_UPDATE",
+		"LFG_LIST_UPDATE_SEARCH_RESULTS",
 	]) {
 		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
 		dispatch(frame, event);
 	}
-	expect(finderUpdate).toHaveBeenCalledTimes(19);
+	expect(finderUpdate).toHaveBeenCalledTimes(27);
 	const opened = vi.fn();
 	const closed = vi.fn();
 	bus.subscribe("BAG_OPEN", opened);
