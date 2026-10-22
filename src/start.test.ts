@@ -147,6 +147,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 				SetParent: vi.fn(),
 				SetFrameStrata: vi.fn(),
 				SetFrameLevel: vi.fn(),
+				SetIgnoreParentAlpha: vi.fn(),
 				GetFrameLevel: () => 0,
 				ClearAllPoints: vi.fn(),
 				SetPoint: vi.fn(),
@@ -856,7 +857,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		[132261, 1, 19], // Mounts
 		[454046, 1, -39], // Toys
 		[132599, 1, -97], // Pets
-		[134400, 1, -155], // Appearances
+		["transmog-icon-ui", 1, -155], // Appearances
 	] as const) {
 		const tabIndex = textures.findIndex((texture, index) => {
 			const tab = frames.at(index);
