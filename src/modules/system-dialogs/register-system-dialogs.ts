@@ -1,4 +1,5 @@
 import { NativeDialogsClient } from "../../clients/native-dialogs-client";
+import { PreyMapClient } from "../../clients/prey-map-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IEventBus } from "../../events/types";
 import { NativeDialogNavigation } from "../../ui/components/native-dialog-navigation";
@@ -15,12 +16,21 @@ export function registerSystemDialogs(
 	navigation: NavigationManager,
 	scheduler: ITaskScheduler,
 ): void {
+	const preyNavigation = new NativeNavigation(pool);
 	modules.register(
 		new SystemDialogsModule(
 			new NativeDialogsClient(
 				events,
 				new NativeDialogNavigation(new NativeNavigation(pool)),
 				scheduler,
+				[
+					new PreyMapClient(
+						events,
+						preyNavigation,
+						new NativeDialogNavigation(preyNavigation),
+						scheduler,
+					),
+				],
 			),
 			events,
 			navigation,
