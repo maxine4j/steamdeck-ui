@@ -1,0 +1,182 @@
+import { beforeEach, expect, it, vi } from "vitest";
+import type { ControllerOption } from "../../clients/controller-options-client";
+import { createTestEventBus } from "../../events/test-event-bus";
+import type { ListRow } from "../../ui/components/scroll-list";
+import type { IUIComponent } from "../../ui/components/types";
+import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import { ControllerOptionsModule } from "./controller-options-module";
+import { ControllerOptionsPanel } from "./controller-options-panel";
+
+const state = vi.hoisted(() => ({
+	rows: [] as readonly ListRow[],
+	mounts: 0,
+	destroys: 0,
+	width: 0,
+	viewportWidth: 1200,
+	resized: undefined as (() => void) | undefined,
+}));
+beforeEach(() => {
+	state.mounts = 0;
+	state.destroys = 0;
+});
+vi.mock("../../ui/components/frame", () => ({
+	Frame: class {
+		fill() {}
+		show() {}
+		hide() {}
+		destroy() {}
+		onSizeChanged(callback?: () => void) {
+			state.resized = callback;
+		}
+		getSize() {
+			return { width: state.viewportWidth, height: 720 };
+		}
+	},
+}));
+vi.mock("../../ui/components/scroll-list", () => ({
+	ScrollList: class {
+		updateRows(rows: readonly ListRow[]) {
+			state.rows = rows;
+		}
+		mount() {
+			state.mounts++;
+		}
+		unmount() {}
+		destroy() {
+			state.destroys++;
+		}
+		getNavGrid() {
+			return state.rows
+				.filter((row) => !row.heading && row.enabled !== false)
+				.map((row) => [{ navId: row.id, onInteract: row.activate }]);
+		}
+		setWidth(width: number) {
+			state.width = width;
+		}
+	},
+}));
+
+it("fits the fullscreen viewport and updates row width when the window resizes", () => {
+	const panel = new ControllerOptionsPanel(
+		{} as IFramePoolManager,
+		{ getOptions: () => [], set: vi.fn(), reset: vi.fn() },
+		vi.fn(),
+	);
+	panel.onMount({} as IUIComponent);
+	expect(state.width).toBe(1200);
+	state.viewportWidth = 950;
+	state.resized?.();
+	expect(state.width).toBe(950);
+	panel.onUnmount();
+	expect(state.resized).toBeUndefined();
+	state.viewportWidth = 1200;
+});
+
+it("edits and reverses every supported option with controller actions, refreshes values, resets and closes", () => {
+	let current = "never";
+	const choices = [
+		{ value: "never", label: "Never" },
+		{ value: "always", label: "Always" },
+	];
+	const client = {
+		getOptions: (): ControllerOption[] => [
+			{
+				id: "facing",
+				label: "Camera turns character",
+				description: "When to face",
+				category: "Camera control",
+				choices,
+				value: current,
+				supported: true,
+			},
+			{
+				id: "missing",
+				label: "Unavailable option",
+				description: "Missing",
+				category: "Camera control",
+				choices,
+				value: current,
+				supported: false,
+			},
+		],
+		set: vi.fn((_id: string, value: string) => {
+			current = value;
+		}),
+		reset: vi.fn(() => {
+			current = "never";
+		}),
+	};
+	const close = vi.fn();
+	const panel = new ControllerOptionsPanel(
+		{} as IFramePoolManager,
+		client,
+		close,
+	);
+	panel.onMount({} as IUIComponent);
+	panel
+		.getNavGrid()
+		.find((row) => row.at(0)?.navId === "option-facing")
+		?.at(0)
+		?.onInteract();
+	expect(client.set).toHaveBeenLastCalledWith("facing", "always");
+	expect(state.rows.find((row) => row.id === "option-facing")?.label).toContain(
+		"Always",
+	);
+	state.rows.find((row) => row.id === "option-facing")?.secondary?.activate();
+	expect(client.set).toHaveBeenLastCalledWith("facing", "never");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "option-missing"),
+	).toBe(false);
+	expect(
+		state.rows.find((row) => row.id === "option-missing")?.detail,
+	).toContain("Unavailable");
+	state.rows.find((row) => row.id === "options-reset")?.activate();
+	expect(client.reset).toHaveBeenCalledOnce();
+	state.rows.find((row) => row.id === "options-close")?.activate();
+	expect(close).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	panel.onMount({} as IUIComponent);
+	expect(state.mounts).toBe(2);
+	panel.destroy();
+	expect(state.destroys).toBe(1);
+});
+
+it("registers a fullscreen options window, opens on menu request and detaches on shutdown", () => {
+	const events = createTestEventBus();
+	const ui = {
+		registerPanel: vi.fn(),
+		openPanel: vi.fn(),
+		closePanel: vi.fn(),
+	};
+	const panel = new ControllerOptionsPanel(
+		{} as IFramePoolManager,
+		{ getOptions: () => [], set: vi.fn(), reset: vi.fn() },
+		vi.fn(),
+	);
+	const module = new ControllerOptionsModule(ui, events, panel);
+	module.disableBuiltIn();
+	module.initialize();
+	expect(ui.registerPanel).toHaveBeenCalledWith(
+		panel,
+		"fullscreen",
+		"controller-options",
+	);
+	events.emit("CONTROLLER_OPTIONS_OPEN_REQUESTED");
+	expect(ui.openPanel).toHaveBeenCalledWith(
+		"controller-options",
+		"fullscreen",
+		"controller-options",
+	);
+	module.shutdown();
+	expect(ui.closePanel).toHaveBeenCalledWith(
+		"fullscreen",
+		undefined,
+		"controller-options",
+	);
+	ui.openPanel.mockClear();
+	events.emit("CONTROLLER_OPTIONS_OPEN_REQUESTED");
+	expect(ui.openPanel).not.toHaveBeenCalled();
+});

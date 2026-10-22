@@ -7,6 +7,7 @@ import { BankClient } from "./clients/bank-client";
 import { CharacterClient } from "./clients/character-client";
 import { CollectionCache } from "./clients/collection-cache";
 import { ControllerInputClient } from "./clients/controller-input-client";
+import { ControllerOptionsClient } from "./clients/controller-options-client";
 import { CurrencyClient } from "./clients/currency-client";
 import { DebugClient } from "./clients/debug-client";
 import { DialogueCamera } from "./clients/dialogue-camera";
@@ -71,6 +72,7 @@ startSteamDeckUI(
 	new ControllerInputClient(
 		events,
 		new Frame("navigation-input", new FramePoolManager(frameFactory)),
+		new ControllerOptionsClient(events),
 	),
 	scheduler,
 	new TalentsClient(),

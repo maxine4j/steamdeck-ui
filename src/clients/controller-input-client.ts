@@ -5,6 +5,7 @@ import type {
 	NavDirection,
 	SecureNavigationActions,
 } from "../ui/navigation/types";
+import type { IControllerOptionsClient } from "./controller-options-client";
 
 // Undocumented globals used by Blizzard's UIParentPanelManager/Game.lua.
 declare global {
@@ -27,6 +28,7 @@ export interface IGamePadInput {
 	destroy(): void;
 }
 export interface IControllerInputClient {
+	readonly options: IControllerOptionsClient;
 	disableBuiltIn(): void;
 	initialize(): void;
 	setActive(active: boolean): void;
@@ -45,15 +47,7 @@ const cursorSettings: Readonly<Record<string, string>> = {
 };
 const controllerSettings: Readonly<Record<string, string>> = {
 	GamePadEnable: "1",
-	GamePadAnalogMovement: "1",
-	// Retail's facing CVars: 0 always faces movement, including in combat.
-	GamePadFaceMovementMaxAngle: "0",
-	GamePadFaceMovementMaxAngleCombat: "0",
-	GamePadTurnWithCamera: "0",
-	GamePadTankTurnSpeed: "0",
 	GamePadStickAxisButtons: "0",
-	GamePadCameraYawSpeed: "1",
-	GamePadCameraPitchSpeed: "1",
 	GamePadEmulateShift: "PADLTRIGGER",
 	GamePadEmulateCtrl: "PADLSHOULDER",
 	// Native modifier taps fire their action on release; chords cancel the tap.
@@ -201,6 +195,7 @@ export class ControllerInputClient implements IControllerInputClient {
 	constructor(
 		private readonly events: IEventBus,
 		private readonly surface: IGamePadInput,
+		readonly options: IControllerOptionsClient,
 	) {
 		events.subscribe("COMBAT_STARTED", this.sync);
 		events.subscribe("COMBAT_ENDED", this.sync);
@@ -235,7 +230,7 @@ export class ControllerInputClient implements IControllerInputClient {
 		for (const [name, value] of Object.entries(settings)) {
 			if (this.originalCVars.has(name)) continue;
 			const original = C_CVar.GetCVar(name);
-			if (original === null) continue;
+			if (original === null || original === undefined) continue;
 			this.originalCVars.set(name, original);
 			C_CVar.SetCVar(name, value);
 		}
@@ -255,6 +250,7 @@ export class ControllerInputClient implements IControllerInputClient {
 			});
 		}
 		this.configure(controllerSettings);
+		this.options.initialize();
 		if (this.listening) this.syncModifiers();
 		// Enabling the device must not put the right stick back into cursor mode.
 		SetGamePadCursorControl(false);
@@ -264,6 +260,7 @@ export class ControllerInputClient implements IControllerInputClient {
 		this.sync();
 	}
 	shutdown(): void {
+		this.options.shutdown();
 		this.setBindingCapture();
 		this.configured = false;
 		this.events.unsubscribe("COMBAT_STARTED", this.sync);

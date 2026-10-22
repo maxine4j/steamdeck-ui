@@ -12,6 +12,10 @@ export interface NativeDialog {
 	readonly grid: NavGrid;
 	cancel(): void;
 }
+export interface NativeGameMenuAction {
+	readonly label: string;
+	activate(): void;
+}
 export interface INativeDialogsClient {
 	initialize(): void;
 	getDialogs(): NativeDialog[];
@@ -39,6 +43,7 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		>,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
 		private readonly sources: readonly INativeDialogsClient[] = [],
+		private readonly menuActions: readonly NativeGameMenuAction[] = [],
 	) {}
 	initialize(): void {
 		this.active = true;
@@ -187,6 +192,10 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			this.controls.addMenuAction(frame, "Reload UI", () => {
 				if (this.active) C_UI.Reload();
 			});
+			for (const action of this.menuActions)
+				this.controls.addMenuAction(frame, action.label, () => {
+					if (this.active) action.activate();
+				});
 		});
 	}
 	private changed(frame: NativeDialogFrame): void {

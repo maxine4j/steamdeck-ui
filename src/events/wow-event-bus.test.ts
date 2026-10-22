@@ -3,6 +3,25 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("refreshes skyriding movement settings on mount display changes", () => {
+	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame });
+	const changed = vi.fn();
+	bus.subscribe("SKYRIDING_STATE_CHANGED", changed);
+	expect(frame.RegisterEvent).toHaveBeenCalledWith(
+		"PLAYER_MOUNT_DISPLAY_CHANGED",
+	);
+	dispatch(frame, "PLAYER_MOUNT_DISPLAY_CHANGED");
+	expect(changed).toHaveBeenCalledOnce();
+});
+
 it("translates heirloom collection and upgrade updates into targeted application events", () => {
 	let dispatch: (frame: WowEventFrame, event: string, id?: number) => void =
 		() => {};

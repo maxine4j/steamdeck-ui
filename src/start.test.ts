@@ -312,7 +312,30 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		getTitles: vi.fn(() => [{ id: -1, name: "None", selected: true }]),
 		select: vi.fn(),
 	};
+	let controllerFacing = "never";
 	const controller = {
+		options: {
+			initialize: vi.fn(),
+			shutdown: vi.fn(),
+			getOptions: () => [
+				{
+					id: "facing",
+					category: "Camera control",
+					label: "Camera turns character",
+					description: "Choose when camera input turns the character.",
+					choices: [
+						{ value: "never", label: "Never" },
+						{ value: "always", label: "Always" },
+					],
+					value: controllerFacing,
+					supported: true,
+				},
+			],
+			set: vi.fn((_id: string, value: string) => {
+				controllerFacing = value;
+			}),
+			reset: vi.fn(),
+		},
 		disableBuiltIn: vi.fn(),
 		initialize: vi.fn(),
 		setActive: vi.fn(),
@@ -680,8 +703,8 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(controller.disableBuiltIn).toHaveBeenCalledOnce();
 	expect(controller.initialize).toHaveBeenCalledOnce();
 	expect(inventory.getItems).not.toHaveBeenCalled();
-	expect(frames).toHaveLength(8);
-	const reticle = frames.at(7);
+	expect(frames).toHaveLength(9);
+	const reticle = frames.at(8);
 	expect(reticle?.SetFrameStrata).toHaveBeenCalledWith("BACKGROUND");
 	expect(reticle?.SetPoint).toHaveBeenCalledWith(
 		"CENTER",
@@ -691,7 +714,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		648,
 	);
 	for (const frame of builtIns)
-		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(6));
+		expect(frame.SetParent).toHaveBeenCalledWith(frames.at(7));
 	inventory.isOpen.mockReturnValue(true);
 	events.emit("BAG_VISIBILITY_CHANGED");
 	flush();
@@ -1263,6 +1286,24 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(app.ui.getContainer("fullscreen").activePanelId).toBe("transmog");
 	events.emit("NAV_CANCEL");
 	expect(app.ui.getContainer("fullscreen").activePanelId).toBeUndefined();
+	events.emit("CONTROLLER_OPTIONS_OPEN_REQUESTED");
+	expect(
+		app.ui.getContainer("fullscreen", "controller-options").activePanelId,
+	).toBe("controller-options");
+	expect(app.navigation.focusedId).toBe("option-facing");
+	events.emit("NAV_INTERACT");
+	expect(controller.options.set).toHaveBeenLastCalledWith("facing", "always");
+	events.emit("NAV_RIGHT");
+	events.emit("NAV_INTERACT");
+	expect(controller.options.set).toHaveBeenLastCalledWith("facing", "never");
+	const optionsFrames = frames.length;
+	events.emit("NAV_CANCEL");
+	expect(
+		app.ui.getContainer("fullscreen", "controller-options").activePanelId,
+	).toBeUndefined();
+	events.emit("CONTROLLER_OPTIONS_OPEN_REQUESTED");
+	expect(frames).toHaveLength(optionsFrames);
+	events.emit("NAV_CANCEL");
 	app.stop();
 	expect(pets.stop).toHaveBeenCalledOnce();
 	expect(heirlooms.stop).toHaveBeenCalledOnce();

@@ -1,6 +1,9 @@
 import { DelvesClient } from "../../clients/delves-client";
 import { LootClient } from "../../clients/loot-client";
-import { NativeDialogsClient } from "../../clients/native-dialogs-client";
+import {
+	NativeDialogsClient,
+	type NativeGameMenuAction,
+} from "../../clients/native-dialogs-client";
 import { PlayerMenuClient } from "../../clients/player-menu-client";
 import { PreyMapClient } from "../../clients/prey-map-client";
 import { PreyTargetsClient } from "../../clients/prey-targets-client";
@@ -22,6 +25,7 @@ export function registerSystemDialogs(
 	events: IEventBus,
 	navigation: NavigationManager,
 	scheduler: ITaskScheduler,
+	menuActions: readonly NativeGameMenuAction[] = [],
 ): void {
 	const preyNavigation = new NativeNavigation(pool);
 	const delveNavigation = new NativeNavigation(pool);
@@ -57,6 +61,7 @@ export function registerSystemDialogs(
 						new PreyMapPresentation(new NativeMarkers(pool)),
 					),
 				],
+				menuActions,
 			),
 			events,
 			navigation,

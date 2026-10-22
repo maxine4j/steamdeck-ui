@@ -8,6 +8,60 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("inserts injected game menu actions alongside Reload once per menu rebuild and disables them on shutdown", () => {
+	const events = createTestEventBus();
+	const menu = dialog();
+	vi.stubGlobal("_G", {
+		GameMenuFrame: menu,
+		ADDONS: "AddOns",
+		GAMEMENU_SUPPORT: "Support",
+	});
+	const methods = new Map<string, (...args: unknown[]) => void>();
+	vi.stubGlobal(
+		"hooksecurefunc",
+		(
+			frame: unknown,
+			method: unknown,
+			callback: (...args: unknown[]) => void,
+		) => {
+			if (frame === menu) methods.set(method as string, callback);
+		},
+	);
+	const actions = new Map<string, () => void>();
+	const add = vi.fn((_frame, label: string, callback: () => void) =>
+		actions.set(label, callback),
+	);
+	const controls = {
+		watch: vi.fn(),
+		grid: vi.fn(() => []),
+		release: vi.fn(),
+		addMenuAction: add,
+		control: vi.fn(),
+		list: vi.fn(() => []),
+	};
+	const activate = vi.fn();
+	const client = new NativeDialogsClient(
+		events,
+		controls,
+		{ nextFrame: vi.fn() },
+		[],
+		[{ label: "SteamDeck UI options", activate }],
+	);
+	client.initialize();
+	methods.get("AddButton")?.(menu, "AddOns");
+	methods.get("AddButton")?.(menu, "Support");
+	expect([...actions.keys()]).toEqual(["Reload UI", "SteamDeck UI options"]);
+	expect(add).toHaveBeenCalledTimes(2);
+	actions.get("SteamDeck UI options")?.();
+	expect(activate).toHaveBeenCalledOnce();
+	methods.get("Reset")?.();
+	methods.get("AddButton")?.(menu, "AddOns");
+	expect(add).toHaveBeenCalledTimes(4);
+	client.shutdown();
+	actions.get("SteamDeck UI options")?.();
+	expect(activate).toHaveBeenCalledOnce();
+});
+
 it("acknowledges an informational group invite on Back", () => {
 	const s = setup();
 	const native = dialog(),

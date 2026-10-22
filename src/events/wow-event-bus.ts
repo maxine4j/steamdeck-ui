@@ -259,6 +259,7 @@ export class WowEventBus implements IEventBus {
 		for (const event of [
 			"PLAYER_IS_GLIDING_CHANGED",
 			"PLAYER_CAN_GLIDE_CHANGED",
+			"PLAYER_MOUNT_DISPLAY_CHANGED",
 			"PLAYER_LEAVING_WORLD",
 		])
 			this.frame.RegisterEvent(event);
@@ -325,6 +326,7 @@ export class WowEventBus implements IEventBus {
 			if (
 				event === "PLAYER_IS_GLIDING_CHANGED" ||
 				event === "PLAYER_CAN_GLIDE_CHANGED" ||
+				event === "PLAYER_MOUNT_DISPLAY_CHANGED" ||
 				event === "PLAYER_ENTERING_WORLD"
 			)
 				this.emit("SKYRIDING_STATE_CHANGED");

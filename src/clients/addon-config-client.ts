@@ -7,6 +7,7 @@ declare global {
 	var SteamDeckUIConfig:
 		| {
 				currencyFavourites?: number[];
+				controllerOptions?: Record<string, string>;
 				collectionCache?: {
 					version: number;
 					updatedAt?: Record<string, number | undefined>;

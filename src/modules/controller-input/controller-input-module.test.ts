@@ -3,6 +3,13 @@ import { ControllerInputModule } from "./controller-input-module";
 
 it("configures input through its client without registering panels", () => {
 	const client = {
+		options: {
+			initialize: vi.fn(),
+			shutdown: vi.fn(),
+			getOptions: () => [],
+			set: vi.fn(),
+			reset: vi.fn(),
+		},
 		disableBuiltIn: vi.fn(),
 		initialize: vi.fn(),
 		setActive: vi.fn(),

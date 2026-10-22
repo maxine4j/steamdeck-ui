@@ -54,6 +54,7 @@ import { BankModule } from "./modules/bank/bank-module";
 import { BankPanel } from "./modules/bank/bank-panel";
 import { BuiltInBank } from "./modules/bank/built-in-bank";
 import { ControllerInputModule } from "./modules/controller-input/controller-input-module";
+import { registerControllerOptions } from "./modules/controller-options/register-controller-options";
 import { BuiltInCurrency } from "./modules/currency/built-in-currency";
 import { CurrencyModule } from "./modules/currency/currency-module";
 import { CurrencyOptions } from "./modules/currency/currency-options";
@@ -493,6 +494,13 @@ export function startSteamDeckUI(
 	);
 	ui.registerPanel(currencyPanel, "right");
 	const modules = new ModuleManager();
+	const controllerOptions = registerControllerOptions(
+		pool,
+		events,
+		ui,
+		modules,
+		controller.options,
+	);
 	const debugFeature = debug
 		? registerDebug(pool, events, ui, modules, debug, cacheStats, scheduler)
 		: undefined;
@@ -722,7 +730,9 @@ export function startSteamDeckUI(
 		),
 	);
 	registerHud(pool, modules, events, scheduler);
-	registerSystemDialogs(pool, modules, events, navigation, scheduler);
+	registerSystemDialogs(pool, modules, events, navigation, scheduler, [
+		controllerOptions.menuAction,
+	]);
 	const login = () => modules.start();
 	events.subscribe("PLAYER_LOGIN", login);
 	return {
@@ -731,6 +741,7 @@ export function startSteamDeckUI(
 		stop(): void {
 			events.unsubscribe("PLAYER_LOGIN", login);
 			modules.stop();
+			controllerOptions.panel.destroy();
 			debugFeature?.destroy();
 			auctionHouseFeature.destroy();
 			bankFeature.destroy();

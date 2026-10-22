@@ -1,12 +1,63 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import type { GamePadRepeatOptions } from "../ui/components/gamepad-input";
 import {
-	ControllerInputClient,
 	type IGamePadInput,
+	ControllerInputClient as InputClient,
 } from "./controller-input-client";
+import {
+	ControllerOptionsClient,
+	type IControllerOptionsClient,
+} from "./controller-options-client";
+
+// Tests inject a real settings owner against the same mocked WoW globals.
+class ControllerInputClient extends InputClient {
+	constructor(
+		events: import("../events/types").IEventBus,
+		surface: IGamePadInput,
+		options: IControllerOptionsClient = new ControllerOptionsClient(events),
+	) {
+		super(events, surface, options);
+	}
+}
 
 afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => vi.stubGlobal("SteamDeckUIConfig", undefined));
+
+it("delegates movement preferences to their sole owner without overwriting edits when input changes", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {
+		controllerOptions: { yawSpeed: "2", travelStyle: "tank" },
+	});
+	vi.stubGlobal("InCombatLockdown", () => false);
+	vi.stubGlobal("hooksecurefunc", vi.fn());
+	vi.stubGlobal("IsGamePadCursorControlEnabled", () => false);
+	vi.stubGlobal("SetGamePadCursorControl", vi.fn());
+	const values = new Map<string, string>();
+	const set = vi.fn((name: string, value: string) => values.set(name, value));
+	vi.stubGlobal("C_CVar", { GetCVar: () => "original", SetCVar: set });
+	const events = createTestEventBus();
+	const options = new ControllerOptionsClient(events);
+	const input = new ControllerInputClient(
+		events,
+		{ setClickBindings: vi.fn(), setGamePadInput: vi.fn(), destroy: vi.fn() },
+		options,
+	);
+	input.initialize();
+	expect(values.get("GamePadCameraYawSpeed")).toBe("2");
+	options.set("yawSpeed", "3");
+	input.setActive(true);
+	input.setActive(false);
+	input.initialize();
+	expect(values.get("GamePadCameraYawSpeed")).toBe("3");
+	input.shutdown();
+	expect(values.get("GamePadCameraYawSpeed")).toBe("original");
+	expect(
+		set.mock.calls.filter(
+			([name, value]) =>
+				name === "GamePadCameraYawSpeed" && value === "original",
+		),
+	).toHaveLength(1);
+});
 
 it("keeps D-pad owned by the active panel even while a modifier is held during a panel transition", () => {
 	vi.stubGlobal("InCombatLockdown", () => false);

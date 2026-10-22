@@ -38,6 +38,7 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "CONTROLLER_OPTIONS_OPEN_REQUESTED"
 	| "SKYRIDING_STATE_CHANGED"
 	| "SKYRIDING_SUSPENDED"
 	| "LOOT_UPDATED"
