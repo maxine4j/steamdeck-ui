@@ -265,6 +265,7 @@ export class WowEventBus implements IEventBus {
 			this.frame.RegisterEvent(event);
 		for (const event of petEvents) this.frame.RegisterEvent(event);
 		this.frame.RegisterEvent("PLAYER_REGEN_DISABLED");
+		this.frame.RegisterEvent("PLAYER_REGEN_ENABLED");
 		this.frame.RegisterEvent("BAG_UPDATE_DELAYED");
 		this.frame.RegisterEvent("BAG_UPDATE_COOLDOWN");
 		this.frame.RegisterEvent("BAG_OPEN");
