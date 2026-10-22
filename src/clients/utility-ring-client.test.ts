@@ -85,6 +85,10 @@ it("provides spell and pet command names for the ring center", () => {
 	vi.stubGlobal("GetActionInfo", () => ["spell", 789]);
 	vi.stubGlobal("C_ActionBar", {
 		GetActionTexture: () => 1,
+		GetActionDisplayCount: () => "",
+		IsCurrentAction: () => false,
+		IsAutoRepeatAction: () => false,
+		IsAutoCastPetAction: () => false,
 		GetActionCooldownDuration: () => undefined,
 		GetActionChargeDuration: () => undefined,
 	});
