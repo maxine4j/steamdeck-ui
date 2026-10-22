@@ -336,6 +336,107 @@ const achievement = (id: number, completed = false): Achievement => ({
 	reward: "Title",
 	icon: 1,
 });
+
+it("puts recent achievements before categories and opens their exact achievement", () => {
+	const { panel, client, flush, activate } = setup();
+	vi.mocked(client.summary).mockReturnValue({
+		points: 100,
+		totals: { total: 20, completed: 5 },
+		recent: [achievement(6, true), achievement(503)],
+		categories: [],
+	});
+	vi.spyOn(client, "selection").mockReturnValue(7);
+	panel.refresh();
+	flush();
+	const rows = lists.get("achievements-list")?.rows ?? [];
+	expect(rows.slice(0, 3).map((row) => row.id)).toEqual([
+		"recent-achievements",
+		"recent-achievement-6",
+		"recent-achievement-503",
+	]);
+	expect(rows.at(0)).toMatchObject({
+		label: "Recent Achievements",
+		heading: true,
+	});
+	expect(rows.at(1)).toMatchObject({ label: "Achievement 6", icon: 1 });
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	activate("recent-achievement-6");
+	expect(frames.get("achievements")?.labels.get("selected")).toBe("Characters");
+	expect(changed).toHaveBeenCalledWith("achievement-6");
+	expect(client.selection).not.toHaveBeenCalled();
+	panel.onBack();
+	activate("recent-achievement-503");
+	expect(frames.get("achievements")?.labels.get("selected")).toBe("Quests");
+	expect(changed).toHaveBeenCalledWith("achievement-503");
+});
+
+it("keeps a recent achievement focused when its category finishes loading", () => {
+	const { panel, client, step, flush } = setup(false);
+	vi.mocked(client.summary).mockReturnValue({
+		points: 100,
+		totals: { total: 20, completed: 5 },
+		recent: [achievement(900001)],
+		categories: [],
+	});
+	step();
+	const row = lists
+		.get("achievements-list")
+		?.rows.find((row) => row.id === "recent-achievement-900001");
+	expect(row).toBeDefined();
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	nav.registerGrid("achievements", () => panel.getNavGrid());
+	nav.setActiveGrid("achievements");
+	panel.setNavigationChanged((id) => nav.refreshGrid("achievements", id));
+	expect(nav.focusedId).toBe("recent-achievement-900001");
+	events.emit("NAV_INTERACT");
+	flush();
+	expect(frames.get("achievements")?.labels.get("selected")).toBe("Quests");
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.some((node) => node.navId === "achievement-900001"),
+	).toBe(true);
+	expect(nav.focusedId).toBe("achievement-900001");
+	nav.destroy();
+});
+
+it("reveals an offscreen recent achievement after leaving an incomplete filter", () => {
+	const { panel, client, flush, activate } = setup();
+	viewport.bottom = 100;
+	vi.mocked(client.achievements).mockImplementation((category) =>
+		category === 92
+			? Array.from({ length: 200 }, (_, index) =>
+					achievement(990000 + index, true),
+				)
+			: [],
+	);
+	vi.mocked(client.summary).mockReturnValue({
+		points: 100,
+		totals: { total: 200, completed: 200 },
+		recent: [achievement(990199, true)],
+		categories: [],
+	});
+	panel.refresh();
+	flush();
+	activate("summary-category-Characters");
+	activate("achievements-filter");
+	panel.onBack();
+	const changed = vi.fn();
+	panel.setNavigationChanged(changed);
+	activate("recent-achievement-990199");
+	expect(changed).toHaveBeenCalledWith("achievement-990199");
+	expect(reveal).toHaveBeenCalledWith(
+		expect.any(Number),
+		expect.any(Number),
+		expect.any(Number),
+	);
+	expect(frames.get("achievements-filter")?.labels.get("label")).toBe(
+		"All achievements",
+	);
+});
 function setup(flushLoad = true) {
 	const pending: { callback: () => void; cancelled: boolean }[] = [];
 	const client: IAchievementsClient = {
