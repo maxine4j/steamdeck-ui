@@ -19,6 +19,7 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 	let action: number | undefined;
 	let changed: (frame: unknown, name: string) => void = () => {};
 	const texture = {
+		SetShown: vi.fn(),
 		ClearAllPoints: vi.fn(),
 		SetPoint: vi.fn(),
 		SetWidth: vi.fn(),
@@ -31,7 +32,11 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 		SetColorTexture: vi.fn(),
 		SetTexCoord: vi.fn(),
 	};
-	const label = { SetText: vi.fn(), SetFont: vi.fn(), SetPoint: vi.fn() };
+	const labels: {
+		SetText: ReturnType<typeof vi.fn>;
+		SetFont: ReturnType<typeof vi.fn>;
+		SetPoint: ReturnType<typeof vi.fn>;
+	}[] = [];
 	const makeFrame = () => {
 		// CooldownFrameTemplate starts with anchors to its original parent.
 		const anchors = new Map<string, unknown>([
@@ -54,7 +59,11 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 			ClearAllPoints: vi.fn(() => anchors.clear()),
 			CreateTexture: () => texture,
 			CreateMaskTexture: () => texture,
-			CreateFontString: () => label,
+			CreateFontString: () => {
+				const label = { SetText: vi.fn(), SetFont: vi.fn(), SetPoint: vi.fn() };
+				labels.push(label);
+				return label;
+			},
 			GetName: () => "SecureSlot",
 			GetAttribute: () => action,
 			SetAttribute: vi.fn((name: string, value?: number) => {
@@ -101,6 +110,8 @@ it("refreshes the actual secure slot on page changes and cleans pooled frames fo
 		icon: slot,
 		cooldown: duration,
 		recharge,
+		count: "2",
+		active: true,
 	}));
 	button.refresh(read);
 	expect(read).not.toHaveBeenCalled();
@@ -169,6 +180,9 @@ end`,
 	expect(read).toHaveBeenLastCalledWith(145);
 	expect(texture.SetTexture).toHaveBeenLastCalledWith(145);
 	expect(texture.SetTexCoord).toHaveBeenLastCalledWith(0, 1, 0, 1);
+	expect(labels).toHaveLength(2);
+	expect(labels.at(1)?.SetText).toHaveBeenLastCalledWith("2");
+	expect(texture.SetShown).toHaveBeenLastCalledWith(true);
 	expect(frames.at(1)?.SetCooldownFromDurationObject).toHaveBeenLastCalledWith(
 		recharge,
 		true,
@@ -189,12 +203,19 @@ end`,
 	const before =
 		frames.at(1)?.SetCooldownFromDurationObject.mock.calls.length ?? 0;
 	button.refresh(() => ({ icon: 236165 }));
+	expect(labels.at(1)?.SetText).toHaveBeenLastCalledWith("");
+	expect(texture.SetShown).toHaveBeenLastCalledWith(false);
 	expect(frames.at(1)?.SetCooldownFromDurationObject).toHaveBeenCalledTimes(
 		before,
 	);
 	expect(frames.at(1)?.Clear).toHaveBeenCalledOnce();
 	expect(frames.at(2)?.Clear).toHaveBeenCalledOnce();
+	// An ability can remain in use before its cooldown starts (for example Feign Death).
+	button.refresh(() => ({ count: "1", active: true }));
+	expect(labels.at(1)?.SetText).toHaveBeenLastCalledWith("1");
+	expect(texture.SetShown).toHaveBeenLastCalledWith(true);
 	button.refresh(() => ({ cooldown: duration }));
+	expect(texture.SetShown).toHaveBeenLastCalledWith(false);
 	expect(frames.at(1)?.SetCooldownFromDurationObject).toHaveBeenCalledTimes(
 		before,
 	);
@@ -219,7 +240,7 @@ end`,
 		undefined,
 	);
 	expect(frames.at(0)?.RegisterForDrag).toHaveBeenLastCalledWith();
-	expect(frames.at(1)?.Clear).toHaveBeenCalledTimes(3);
+	expect(frames.at(1)?.Clear).toHaveBeenCalledTimes(4);
 	const reused = new SecureSlotButton(pool);
 	const response = 'self:SetAttribute("action", 121)';
 	const jumpIcon = "Interface\\AddOns\\SteamDeckUI\\assets\\Jump.png";
