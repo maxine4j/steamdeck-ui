@@ -1,3 +1,5 @@
+import { DelvesClient } from "../../clients/delves-client";
+import { LootClient } from "../../clients/loot-client";
 import { NativeDialogsClient } from "../../clients/native-dialogs-client";
 import { PlayerMenuClient } from "../../clients/player-menu-client";
 import { PreyMapClient } from "../../clients/prey-map-client";
@@ -19,6 +21,7 @@ export function registerSystemDialogs(
 	scheduler: ITaskScheduler,
 ): void {
 	const preyNavigation = new NativeNavigation(pool);
+	const delveNavigation = new NativeNavigation(pool);
 	modules.register(
 		new SystemDialogsModule(
 			new NativeDialogsClient(
@@ -26,6 +29,17 @@ export function registerSystemDialogs(
 				new NativeDialogNavigation(new NativeNavigation(pool)),
 				scheduler,
 				[
+					new DelvesClient(
+						events,
+						delveNavigation,
+						new NativeDialogNavigation(delveNavigation),
+						scheduler,
+					),
+					new LootClient(
+						events,
+						new NativeDialogNavigation(new NativeNavigation(pool)),
+						scheduler,
+					),
 					new PlayerMenuClient(
 						events,
 						new NativeDialogNavigation(new NativeNavigation(pool)),
