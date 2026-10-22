@@ -215,12 +215,12 @@ export class DialoguePanel implements IPanel, IDialogueView {
 						? `|T${dialogueArt}CloseButton.png:24:24:0:0:256:128:16:48:80:112|t ${entry.label}`
 						: entry.label,
 				icon,
-				iconSize: typeof icon === "string" ? 24 : undefined,
+				iconSize: reward ? 28 : typeof icon === "string" ? 24 : undefined,
 				fullWidth: !reward,
-				height: reward ? 70 : undefined,
+				height: reward ? 56 : undefined,
 				wrapLabel: true,
 				selected,
-				fontSize: 17,
+				fontSize: reward ? 16 : 17,
 				background: selected ? [0.24, 0.22, 0.14] : false,
 				detail: entry.detail,
 				tooltipContent: entry.tooltipLink,
@@ -431,11 +431,21 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private syncNavigation(focusFirst = false): void {
 		if (!this.mounted || !this.display) return;
 		const grid = this.getNavGrid();
+		const { page, selected } = this.display;
+		const initialFocus =
+			!this.display.confirmation &&
+			page.kind === "rewards" &&
+			(page.choices.length === 0 ||
+				(page.choices.length === 1 &&
+					selected !== undefined &&
+					page.choices.at(0)?.index === selected))
+				? "dialogue-primary"
+				: grid.at(0)?.at(0)?.navId;
 		this.navigation.pushModal(
 			this.id,
 			grid,
 			() => this.actions?.cancel(),
-			focusFirst ? grid.at(0)?.at(0)?.navId : undefined,
+			focusFirst ? initialFocus : undefined,
 		);
 		this.navigationChanged?.();
 	}
