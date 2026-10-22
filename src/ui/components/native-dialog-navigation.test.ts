@@ -56,6 +56,37 @@ it("does not observe focus decorations attached beneath native buttons", () => {
 	expect(changed).not.toHaveBeenCalled();
 });
 
+it("makes added native menu actions controller accessible and restores the host menu on release", () => {
+	const { adapter } = setup();
+	const children: NativeDialogFrame[] = [];
+	const action = vi.fn();
+	const menu = {
+		...frame(false, 0, 0, children),
+		AddButton: vi.fn((_label: string, callback: () => void) => {
+			children.push({
+				...frame(true),
+				Click: callback,
+			} as unknown as NativeDialogFrame);
+		}),
+		InitButtons: vi.fn(() => {
+			children.splice(0);
+		}),
+	};
+	adapter.addMenuAction(menu as unknown as NativeDialogFrame, "Action", action);
+	expect(menu.AddButton).toHaveBeenCalledWith("Action", action);
+	adapter
+		.grid("menu", menu as unknown as NativeDialogFrame, true)
+		.at(0)
+		?.at(0)
+		?.onInteract();
+	expect(action).toHaveBeenCalledOnce();
+	adapter.release();
+	expect(menu.InitButtons).toHaveBeenCalledOnce();
+	expect(
+		adapter.grid("menu", menu as unknown as NativeDialogFrame, true),
+	).toEqual([]);
+});
+
 it("builds a vertical menu and preserves native hover scripts", () => {
 	const { adapter } = setup();
 	const top = frame(true, 0, 100),

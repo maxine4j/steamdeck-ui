@@ -21,6 +21,7 @@ function setup() {
 		),
 		grid: vi.fn(() => []),
 		click: vi.fn(),
+		addMenuAction: vi.fn(),
 		release: vi.fn(),
 	};
 	const hooks = new Map<string, (frame: NativeDialogFrame) => void>();
@@ -116,4 +117,48 @@ it("discovers special popups and preserves native cancel behaviour without accep
 	s.flush();
 	expect(s.controls.release).toHaveBeenCalledOnce();
 	expect(s.changed).not.toHaveBeenCalled();
+});
+
+it("adds one reload action beside AddOns on each menu rebuild, with a Support fallback", () => {
+	const s = setup();
+	const menu = dialog();
+	Object.assign(s.globals, {
+		GameMenuFrame: menu,
+		ADDONS: "AddOns",
+		GAMEMENU_SUPPORT: "Support",
+	});
+	const reload = vi.fn();
+	vi.stubGlobal("C_UI", { Reload: reload });
+	const methods = new Map<string, (...args: unknown[]) => void>();
+	vi.stubGlobal(
+		"hooksecurefunc",
+		(
+			target: unknown,
+			method: unknown,
+			callback?: (...args: unknown[]) => void,
+		) => {
+			if (target === menu && typeof method === "string" && callback)
+				methods.set(method, callback);
+		},
+	);
+	s.client.initialize();
+	methods.get("AddButton")?.(menu, "AddOns");
+	methods.get("AddButton")?.(menu, "Support");
+	expect(s.controls.addMenuAction).toHaveBeenCalledExactlyOnceWith(
+		menu,
+		"Reload UI",
+		expect.any(Function),
+	);
+	const action = s.controls.addMenuAction.mock.calls.at(0)?.at(2) as
+		| (() => void)
+		| undefined;
+	action?.();
+	expect(reload).toHaveBeenCalledOnce();
+	methods.get("Reset")?.(menu);
+	methods.get("AddButton")?.(menu, "Support");
+	expect(s.controls.addMenuAction).toHaveBeenCalledTimes(2);
+	s.client.shutdown();
+	methods.get("Reset")?.(menu);
+	methods.get("AddButton")?.(menu, "AddOns");
+	expect(s.controls.addMenuAction).toHaveBeenCalledTimes(2);
 });
