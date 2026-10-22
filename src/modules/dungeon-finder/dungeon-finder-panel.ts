@@ -4,6 +4,7 @@ import type {
 	DungeonSection,
 	IDungeonFinderClient,
 } from "../../clients/dungeon-finder-client";
+import type { IPremadeFinderClient } from "../../clients/premade-finder-client";
 import type {
 	IPvpFinderClient,
 	PvpActivity,
@@ -153,6 +154,7 @@ export class DungeonFinderPanel implements IPanel {
 	private readonly back: Frame;
 	private readonly checkboxes: IconCheckbox[];
 	private mounted = false;
+	private premadesMounted = false;
 	private page?: FinderPage;
 	private rolesMounted = false;
 	private pvpRolesMounted = false;
@@ -168,6 +170,7 @@ export class DungeonFinderPanel implements IPanel {
 		scheduler: ITaskScheduler,
 		private readonly confirmation: IModal,
 		private readonly pvp: IPvpFinderClient,
+		private readonly premades?: IPremadeFinderClient,
 	) {
 		this.frame = new Frame(`${this.id}-root`, pool);
 		this.container = new Frame(`${this.id}-container`, pool);
@@ -684,7 +687,7 @@ export class DungeonFinderPanel implements IPanel {
 						},
 						false,
 						"Browse",
-						"Premade Groups — coming soon",
+						"Browse premade PvP groups",
 					),
 					marginTop: 28,
 				});
@@ -703,6 +706,17 @@ export class DungeonFinderPanel implements IPanel {
 		);
 	}
 	private render(): void {
+		const showPremades =
+			this.page === "premades" || this.page === "pvp-premades";
+		if (showPremades && this.premades && !this.premadesMounted) {
+			this.list.unmount();
+			this.premadesMounted = true;
+			this.premades.mount(this.container, this.page === "pvp-premades");
+		} else if (!showPremades && this.premadesMounted) {
+			this.premades?.unmount();
+			this.premadesMounted = false;
+			this.list.mount(this.container);
+		}
 		this.renderHeader();
 		if (this.page) this.back.show();
 		else this.back.hide();
@@ -717,16 +731,7 @@ export class DungeonFinderPanel implements IPanel {
 							? this.choiceRows(this.page)
 							: this.isPvp()
 								? this.pvpRows()
-								: this.page === "pvp-premades"
-									? [
-											{
-												id: "premade-placeholder",
-												label: "Premade Groups — coming soon",
-												heading: true,
-												activate: () => {},
-											},
-										]
-									: [];
+								: [];
 		setWindowTitle(
 			this.frame,
 			this.page
@@ -766,7 +771,8 @@ export class DungeonFinderPanel implements IPanel {
 					?.setChecked(roles[role], !queued && availableRoles[role]);
 			});
 		}
-		this.list.setRows(rows);
+		if (this.premadesMounted) this.notifyNavigationChanged();
+		else this.list.setRows(rows);
 	}
 	private renderHeader(): void {
 		const category = pages.find(
@@ -811,6 +817,7 @@ export class DungeonFinderPanel implements IPanel {
 	}
 	onBack(): void {
 		if (!this.mounted || !this.page) return;
+		if (this.premadesMounted && this.premades?.back()) return;
 		this.dismissLeave();
 		this.page =
 			this.page === "specific" || this.page === "follower"
@@ -834,6 +841,7 @@ export class DungeonFinderPanel implements IPanel {
 			if (this.mounted) {
 				this.list.setWidth(this.container.getSize().width);
 				this.renderHeader();
+				if (this.premadesMounted) this.premades?.resize();
 			}
 		});
 		this.list.mount(this.container);
@@ -851,6 +859,8 @@ export class DungeonFinderPanel implements IPanel {
 		this.dismissLeave();
 		this.mounted = false;
 		this.update.setActive(false);
+		if (this.premadesMounted) this.premades?.unmount();
+		this.premadesMounted = false;
 		this.list.unmount();
 		this.back.hide();
 		this.header.hide();
@@ -874,7 +884,9 @@ export class DungeonFinderPanel implements IPanel {
 					...(this.page
 						? [[this.back.navigationNode("dungeon-back", () => this.onBack())]]
 						: []),
-					...this.list.getNavGrid(),
+					...(this.premadesMounted
+						? (this.premades?.navigation() ?? [])
+						: this.list.getNavGrid()),
 				]
 			: [];
 	}

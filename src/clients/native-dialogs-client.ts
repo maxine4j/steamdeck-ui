@@ -86,6 +86,8 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			"LFGReadyCheckPopup",
 			"PVPRoleCheckPopup",
 			"ReadyCheckFrame",
+			"LFGListApplicationDialog",
+			"LFGListInviteDialog",
 		]) {
 			const frame = globals[name];
 			if (frame) this.watch(frame, name);
@@ -224,6 +226,25 @@ export class NativeDialogsClient implements INativeDialogsClient {
 							if (addons.Dropdown.IsMenuOpen()) addons.Dropdown.CloseMenu();
 							else globals.AddonList_OnCancel();
 							this.changed(frame);
+						} else if (
+							dialog.id === "native-LFGListApplicationDialog" ||
+							dialog.id === "native-LFGListInviteDialog"
+						) {
+							const prompt = frame as NativeDialogFrame & {
+								CancelButton?: NativeDialogFrame;
+								DeclineButton?: NativeDialogFrame;
+								AcknowledgeButton?: NativeDialogFrame;
+							};
+							const cancel =
+								dialog.id === "native-LFGListApplicationDialog"
+									? prompt.CancelButton
+									: prompt.DeclineButton?.IsVisible()
+										? prompt.DeclineButton
+										: prompt.AcknowledgeButton;
+							if (cancel)
+								this.controls
+									.control(`${dialog.id}:cancel`, cancel)
+									.onInteract();
 						} else if (dialog.menu) {
 							if (!this.sources.some((source) => source.cancelGameMenu?.()))
 								globals.GameMenuFrame_EscapePressed();
