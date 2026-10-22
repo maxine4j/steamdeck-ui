@@ -22,7 +22,10 @@ type GlowTexture = WowTexture & {
 	SetAlpha(alpha: number): void;
 	CreateAnimationGroup(): GlowAnimation;
 };
-type OutlineFrame = WowFrame & { SetFrameLevel(level: number): void };
+type OutlineFrame = WowFrame & {
+	SetFrameLevel(level: number): void;
+	SetIgnoreParentAlpha(ignore: boolean): void;
+};
 
 /** A raised icon outline with an independently pulsing glow. */
 export class IconFocus {
@@ -36,6 +39,8 @@ export class IconFocus {
 	) {
 		this.outline = pool.acquire("Frame") as OutlineFrame;
 		this.outline.SetParent(owner);
+		// Content opacity must not dim navigation feedback.
+		this.outline.SetIgnoreParentAlpha(true);
 		this.outline.SetPoint("TOPLEFT", owner, "TOPLEFT", -2, 2);
 		this.outline.SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 2, -2);
 		this.arrival = new FocusArrival(pool, this.outline, (outset) => {
@@ -96,6 +101,7 @@ export class IconFocus {
 		this.glow.SetVertexColor(1, 1, 1);
 		this.glow.SetBlendMode("BLEND");
 		this.outline.SetFrameLevel(0);
+		this.outline.SetIgnoreParentAlpha(false);
 		this.pool.release("Frame", this.outline);
 	}
 }

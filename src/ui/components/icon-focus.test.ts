@@ -3,7 +3,7 @@ import type { WowFrame } from "../../types";
 import { FramePoolManager } from "../frame-pool-manager";
 import { Frame } from "./frame";
 
-it("raises an expanded icon outline above quality artwork and pulses only its glow", () => {
+it("keeps a raised pulsing icon outline bright over dimmed content and resets it for reuse", () => {
 	const alpha = {
 		SetFromAlpha: vi.fn(),
 		SetToAlpha: vi.fn(),
@@ -28,12 +28,25 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 	}[] = [];
 	const natives: ReturnType<typeof create>[] = [];
 	function create() {
+		let opacity = 1;
+		let ignoresParentAlpha = false;
+		let parent: ReturnType<typeof create> | undefined;
 		return {
 			Hide: vi.fn(),
 			Show: vi.fn(),
 			ClearAllPoints: vi.fn(),
 			SetSize: vi.fn(),
-			SetParent: vi.fn(),
+			SetParent: vi.fn((value?: ReturnType<typeof create>) => {
+				parent = value;
+			}),
+			SetAlpha: vi.fn((value: number) => {
+				opacity = value;
+			}),
+			SetIgnoreParentAlpha: vi.fn((value: boolean) => {
+				ignoresParentAlpha = value;
+			}),
+			GetEffectiveAlpha: (): number =>
+				opacity * (ignoresParentAlpha ? 1 : (parent?.GetEffectiveAlpha() ?? 1)),
 			SetPoint: vi.fn(),
 			GetFrameLevel: () => 5,
 			SetFrameLevel: vi.fn(),
@@ -67,9 +80,16 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 	});
 	const pool = new FramePoolManager({ createFrame: factory });
 	const icon = new Frame("icon", pool, "Button");
+	icon.setOpacity(0.2);
 	icon.setFocused(true, true);
 	expect(natives).toHaveLength(3);
 	const outline = natives.at(1);
+	expect(natives.at(0)?.GetEffectiveAlpha()).toBe(0.2);
+	expect(outline?.GetEffectiveAlpha()).toBe(1);
+	icon.setOpacity(1);
+	expect(outline?.GetEffectiveAlpha()).toBe(1);
+	icon.setOpacity(0.2);
+	expect(outline?.GetEffectiveAlpha()).toBe(1);
 	expect(outline?.SetFrameLevel).toHaveBeenLastCalledWith(15);
 	expect(outline?.SetPoint).toHaveBeenCalledWith(
 		"TOPLEFT",
@@ -104,6 +124,11 @@ it("raises an expanded icon outline above quality artwork and pulses only its gl
 	icon.destroy();
 	expect(playing).toBe(false);
 	expect(outline?.SetFrameLevel).toHaveBeenLastCalledWith(0);
+	const reused = pool.acquire("Frame");
+	expect(reused).toBe(outline);
+	reused.SetParent(natives.at(0) as unknown as WowFrame);
+	natives.at(0)?.SetAlpha(0.2);
+	expect(outline?.GetEffectiveAlpha()).toBe(0.2);
 	expect(
 		textures.every(
 			(texture) => texture.SetColorTexture.mock.lastCall?.at(3) === 0,
