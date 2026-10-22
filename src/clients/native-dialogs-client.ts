@@ -34,9 +34,11 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			"watch" | "grid" | "release" | "addMenuAction"
 		>,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
+		private readonly sources: readonly INativeDialogsClient[] = [],
 	) {}
 	initialize(): void {
 		this.active = true;
+		for (const source of this.sources) source.initialize();
 		this.discover();
 		if (!this.hooked) {
 			this.hooked = true;
@@ -137,7 +139,7 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		});
 	}
 	getDialogs(): NativeDialog[] {
-		return [...this.dialogs]
+		const dialogs = [...this.dialogs]
 			.filter(([frame]) => frame.IsVisible())
 			.sort(([, a], [, b]) => {
 				if (a.menu !== b.menu) return a.menu ? -1 : 1;
@@ -162,12 +164,17 @@ export class NativeDialogsClient implements INativeDialogsClient {
 					},
 				}),
 			);
+		return [
+			...this.sources.flatMap((source) => source.getDialogs()),
+			...dialogs,
+		];
 	}
 	shutdown(): void {
 		this.active = false;
 		this.cancelPending?.();
 		this.cancelPending = undefined;
 		this.dialogs.clear();
+		for (const source of this.sources) source.shutdown();
 		this.controls.release();
 	}
 }

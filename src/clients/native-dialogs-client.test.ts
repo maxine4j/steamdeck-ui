@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import type { NativeDialogFrame } from "../ui/components/native-dialog-navigation";
-import { NativeDialogsClient } from "./native-dialogs-client";
+import {
+	type NativeDialog,
+	NativeDialogsClient,
+} from "./native-dialogs-client";
 
 afterEach(() => vi.unstubAllGlobals());
 function setup() {
@@ -33,7 +36,14 @@ function setup() {
 	const events = createTestEventBus();
 	const changed = vi.fn();
 	events.subscribe("NATIVE_DIALOGS_CHANGED", changed);
-	const client = new NativeDialogsClient(events, controls, scheduler);
+	const additional = {
+		initialize: vi.fn(),
+		getDialogs: vi.fn((): NativeDialog[] => []),
+		shutdown: vi.fn(),
+	};
+	const client = new NativeDialogsClient(events, controls, scheduler, [
+		additional,
+	]);
 	return {
 		globals,
 		observers,
@@ -41,11 +51,32 @@ function setup() {
 		hooks,
 		client,
 		changed,
+		additional,
 		flush: () => {
 			for (const callback of callbacks.splice(0)) callback();
 		},
 	};
 }
+
+it("keeps injected feature dialogs below native prompts and owns their lifecycle", () => {
+	const s = setup();
+	const popup = dialog();
+	popup.IsVisible.mockReturnValue(true);
+	s.globals.StaticPopup1 = popup;
+	s.additional.getDialogs.mockReturnValue([
+		{ id: "native-prey-map", grid: [], cancel: vi.fn() },
+		{ id: "native-prey-quest", grid: [], cancel: vi.fn() },
+	]);
+	s.client.initialize();
+	expect(s.additional.initialize).toHaveBeenCalledOnce();
+	expect(s.client.getDialogs().map((dialog) => dialog.id)).toEqual([
+		"native-prey-map",
+		"native-prey-quest",
+		"native-StaticPopup1",
+	]);
+	s.client.shutdown();
+	expect(s.additional.shutdown).toHaveBeenCalledOnce();
+});
 function dialog() {
 	return { IsVisible: vi.fn(() => false), hideOnEscape: true };
 }
