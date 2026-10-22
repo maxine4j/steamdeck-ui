@@ -35,12 +35,14 @@ export class DebugModule implements IModule {
 		>,
 		private readonly logs: IPanel,
 		private readonly cache: IPanel,
+		private readonly errors: IPanel,
 	) {}
 	disableBuiltIn(): void {}
 	initialize(): void {
 		if (!this.registered) {
 			this.ui.registerPanel(this.logs, "left", "debug");
 			this.ui.registerPanel(this.cache, "left", "debug");
+			this.ui.registerPanel(this.errors, "left", "debug");
 			this.registered = true;
 		}
 		this.events.subscribe("DEBUG_OPEN_REQUESTED", this.open);

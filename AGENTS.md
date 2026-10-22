@@ -47,4 +47,6 @@ Before handing off a change, run the focused tests available for the changed beh
 
 ## Code reference
 
+Error capture references: `.libraries/BugGrabber-source` (official CurseForge Subversion source downloaded over HTTPS), `.libraries/bug-grabber` (GitHub mirror tooling), and `.libraries/BugSack` (display source). `yarn setup` obtains these references. Do not embed either addon.
+
 You can find a few reference AddOns developed by other people under the .libraries directory, including ConsolePort, BetterBags, and the full official blizzard ui under wow-ui-source. Please use these as reference while working but remember we're writing TypeScript code and they are in lua.

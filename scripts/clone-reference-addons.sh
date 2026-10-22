@@ -20,6 +20,21 @@ clone_reference https://github.com/seblindfors/ConsolePort .libraries/ConsolePor
 # Clone BetterBags for reference.
 clone_reference https://github.com/Cidan/BetterBags .libraries/BetterBags
 
+# Error capture and display references only; never bundled with the addon.
+clone_reference https://github.com/curseforge-mirror/bug-grabber .libraries/bug-grabber
+clone_reference https://github.com/funkydude/BugSack .libraries/BugSack
+
+# The GitHub mirror contains tooling, not Lua. CurseForge's official source
+# repository is Subversion, with these source files available over HTTPS.
+mkdir -p .libraries/BugGrabber-source
+for file in BugGrabber.lua '!BugGrabber.toc' load.xml .pkgmeta .luacheckrc; do
+  if [[ ! -s ".libraries/BugGrabber-source/$file" ]]; then
+    curl --fail --location --silent --show-error \
+      "https://repos.curseforge.com/wow/bug-grabber/trunk/$file" \
+      --output ".libraries/BugGrabber-source/$file"
+  fi
+done
+
 # Clone DialogueUI for refernece.
 clone_reference https://github.com/Peterodox/YUI-Dialogue .libraries/DialogueUI
 

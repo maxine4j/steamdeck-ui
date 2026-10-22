@@ -6,6 +6,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { ModuleManager } from "../module-manager";
 import { CachePerformancePanel } from "./cache-performance-panel";
+import { DebugErrorsPanel } from "./debug-errors-panel";
 import { DebugLogsPanel } from "./debug-logs-panel";
 import { DebugModule } from "./debug-module";
 
@@ -39,11 +40,13 @@ export function registerDebug(
 		scheduler,
 		close,
 	);
-	modules.register(new DebugModule(ui, events, client, logs, cache));
+	const errors = new DebugErrorsPanel(pool, client, close);
+	modules.register(new DebugModule(ui, events, client, logs, cache, errors));
 	return {
 		destroy(): void {
 			logs.destroy();
 			cache.destroy();
+			errors.destroy();
 		},
 	};
 }

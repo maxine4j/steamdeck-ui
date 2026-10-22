@@ -4,6 +4,7 @@ import type { Frame } from "../../ui/components/frame";
 import type { ListRow } from "../../ui/components/scroll-list";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import { CachePerformancePanel } from "./cache-performance-panel";
+import { DebugErrorsPanel } from "./debug-errors-panel";
 import { DebugLogsPanel } from "./debug-logs-panel";
 
 const { frames, rows, insets } = vi.hoisted(() => ({
@@ -175,4 +176,90 @@ it("shows scan reasons, progress, retained cache size/age and pending work; poll
 	expect(cancelled).toHaveBeenCalledOnce();
 	pending.shift()?.();
 	expect(pending).toHaveLength(0);
+});
+
+it("loads errors on opening, separates seen from new chronologically, opens full details and returns without marking again", () => {
+	const errors = [
+		{ id: 1, timestamp: 100, message: "old bug", stack: "old stack" },
+		{
+			id: 2,
+			timestamp: 101,
+			message: "new bug\nsecond line",
+			stack: "complete stack\naddon.lua:42",
+		},
+	];
+	const loadErrors = vi.fn(() => ({
+		errors,
+		isNew: (error: { id: number }) => error.id === 2,
+	}));
+	const changed = vi.fn();
+	const close = vi.fn();
+	const panel = new DebugErrorsPanel(
+		{} as IFramePoolManager,
+		{ loadErrors },
+		close,
+	);
+	panel.setNavigationChanged(changed);
+	panel.onMount({} as Frame);
+	const rendered = rows.get("debug-errors-list") ?? [];
+	expect(rendered.map((row) => row.id)).toEqual([
+		"error-1",
+		"errors-new-divider",
+		"error-2",
+	]);
+	expect(rendered.at(1)).toMatchObject({
+		heading: true,
+		label: expect.stringContaining("|cffff3333"),
+	});
+	expect(rendered.at(2)?.label).toContain("new bug");
+	rendered.at(2)?.activate();
+	expect(frames.get("debug-error-detail-text")?.text).toContain(
+		"complete stack\naddon.lua:42",
+	);
+	expect(frames.get("debug-error-detail-text")?.text).toContain(
+		"new bug\nsecond line",
+	);
+	expect(frames.get("debug-error-detail-text")?.text).toContain("101");
+	panel.getNavGrid().at(0)?.at(1)?.onInteract();
+	expect(frames.get("debug-error-detail-text")?.selected).toBe(true);
+	panel.onBack();
+	expect(loadErrors).toHaveBeenCalledOnce();
+	expect(changed).toHaveBeenCalled();
+	panel.onBack();
+	expect(close).toHaveBeenCalledOnce();
+	panel.onUnmount();
+	panel.onMount({} as Frame);
+	expect(loadErrors).toHaveBeenCalledTimes(2);
+	panel.destroy();
+});
+
+it("shows an empty error history and places the new boundary after all seen errors", () => {
+	const loadErrors = vi.fn(() => ({
+		errors: [] as {
+			id: number;
+			timestamp: number;
+			message: string;
+			stack: string;
+		}[],
+		isNew: () => false,
+	}));
+	const panel = new DebugErrorsPanel(
+		{} as IFramePoolManager,
+		{ loadErrors },
+		vi.fn(),
+	);
+	panel.onMount({} as Frame);
+	expect(rows.get("debug-errors-list")?.at(0)?.label).toContain(
+		"No Lua errors",
+	);
+	panel.onUnmount();
+	loadErrors.mockReturnValue({
+		errors: [{ id: 1, timestamp: 100, message: "seen", stack: "stack" }],
+		isNew: () => false,
+	});
+	panel.onMount({} as Frame);
+	expect(rows.get("debug-errors-list")?.map((row) => row.id)).toEqual([
+		"error-1",
+		"errors-new-divider",
+	]);
 });

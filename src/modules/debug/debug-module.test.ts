@@ -15,10 +15,12 @@ it("opens the logs tab in its own left container on request, records collection 
 	};
 	const logs = { id: "debug-logs" } as IPanel;
 	const cache = { id: "debug-cache" } as IPanel;
-	const module = new DebugModule(ui, events, client, logs, cache);
+	const errors = { id: "debug-errors" } as IPanel;
+	const module = new DebugModule(ui, events, client, logs, cache, errors);
 	module.initialize();
 	expect(ui.registerPanel).toHaveBeenCalledWith(logs, "left", "debug");
 	expect(ui.registerPanel).toHaveBeenCalledWith(cache, "left", "debug");
+	expect(ui.registerPanel).toHaveBeenCalledWith(errors, "left", "debug");
 	events.emit("DEBUG_OPEN_REQUESTED");
 	expect(ui.openPanel).toHaveBeenCalledWith("debug-logs", "left", "debug");
 	events.emit("MOUNTS_CHANGED", { id: 7, source: "new-mount" });

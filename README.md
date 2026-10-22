@@ -41,6 +41,14 @@ yarn build     # Compile and package the addon
 
 Use `yarn test:watch` to rerun tests as you edit. Test controller input and UI behaviour in WoW after installing the addon.
 
+## Lua error history
+
+Open `/sdui debug` and select **Errors**. The list runs oldest to newest; the red divider marks errors captured since the previous visit. Select an error to view its complete message and stack trace, or select the details for copying. Returning from details preserves the list's viewed boundary; reopening the Errors tab loads a fresh snapshot and saves a new viewed timestamp.
+
+`SteamDeckUIErrors` stores the latest 100 occurrences (including repeated errors), with an ID, Unix timestamp, message and stack trace. Older occurrences are discarded. Capture starts when SteamDeckUI loads; errors from before its handler was installed cannot be recovered.
+
+WoW writes SavedVariables on `/reload` or normal logout. The file is `_retail_/WTF/Account/<account>/SavedVariables/SteamDeckUI-dev.lua` for development installs, or `SteamDeckUI.lua` for release installs. Both the error history and regular configuration live in this addon file. Changes are in memory until WoW flushes them; a crash may lose recent errors.
+
 ## License
 
 See [LICENSE](LICENSE). Third-party asset credits are listed in [assets/README.md](assets/README.md).

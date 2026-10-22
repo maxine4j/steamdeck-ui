@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+./scripts/clone-reference-addons.sh
+
 WOW_RETAIL_VERSION="12.1.0"
 OUTPUT_FILE='../../src/wow.d.ts' # relative to .libraries/wow-ts-decl
 
