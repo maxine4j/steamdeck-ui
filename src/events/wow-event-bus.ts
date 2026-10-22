@@ -251,6 +251,12 @@ export class WowEventBus implements IEventBus {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
 		for (const event of [
+			"PLAYER_IS_GLIDING_CHANGED",
+			"PLAYER_CAN_GLIDE_CHANGED",
+			"PLAYER_LEAVING_WORLD",
+		])
+			this.frame.RegisterEvent(event);
+		for (const event of [
 			...auctionUpdateEvents,
 			"AUCTION_HOUSE_SHOW",
 			"AUCTION_HOUSE_CLOSED",
@@ -309,6 +315,14 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			if (
+				event === "PLAYER_IS_GLIDING_CHANGED" ||
+				event === "PLAYER_CAN_GLIDE_CHANGED" ||
+				event === "PLAYER_ENTERING_WORLD"
+			)
+				this.emit("SKYRIDING_STATE_CHANGED");
+			if (event === "PLAYER_LEAVING_WORLD" || event === "PLAYER_LOGOUT")
+				this.emit("SKYRIDING_SUSPENDED");
 			if (event === "AUCTION_HOUSE_SHOW" || event === "AUCTION_HOUSE_CLOSED")
 				this.emit(event);
 			if ((auctionUpdateEvents as readonly string[]).includes(event))

@@ -84,6 +84,7 @@ import { BuiltInReputation } from "./modules/reputation/built-in-reputation";
 import { ReputationActionMenu } from "./modules/reputation/reputation-action-menu";
 import { ReputationModule } from "./modules/reputation/reputation-module";
 import { ReputationPanel } from "./modules/reputation/reputation-panel";
+import { registerSkyriding } from "./modules/skyriding/register-skyriding";
 import { SlashCommandsModule } from "./modules/slash-commands/slash-commands-module";
 import { SpellBindingPrompt } from "./modules/spellbook/spell-binding-prompt";
 import { SpellbookModule } from "./modules/spellbook/spellbook-module";
@@ -348,6 +349,16 @@ function registerPlayerSpells(
 			talentTreePanel.destroy();
 		},
 	};
+}
+
+function registerHud(
+	pool: FramePoolManager,
+	modules: ModuleManager,
+	events: IEventBus,
+	scheduler: ITaskScheduler,
+): void {
+	registerTargeting(pool, modules);
+	registerSkyriding(pool, modules, events, scheduler);
 }
 
 export function startSteamDeckUI(
@@ -710,7 +721,7 @@ export function startSteamDeckUI(
 			scheduler,
 		),
 	);
-	registerTargeting(pool, modules);
+	registerHud(pool, modules, events, scheduler);
 	registerSystemDialogs(pool, modules, events, navigation, scheduler);
 	const login = () => modules.start();
 	events.subscribe("PLAYER_LOGIN", login);

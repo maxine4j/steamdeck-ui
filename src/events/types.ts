@@ -38,6 +38,8 @@ interface ApplicationEventPayloads extends DialogueEventPayloads {
 	ITEM_DATA_LOAD_RESULT: { id: number; success: boolean } | undefined;
 }
 export type ApplicationEvent =
+	| "SKYRIDING_STATE_CHANGED"
+	| "SKYRIDING_SUSPENDED"
 	| "HEIRLOOMS_VISIBILITY_CHANGED"
 	| "DEBUG_OPEN_REQUESTED"
 	| "APPEARANCES_VISIBILITY_CHANGED"
