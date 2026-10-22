@@ -8,6 +8,7 @@ export interface LuaErrorRecord {
 export interface LuaErrorSnapshot {
 	readonly errors: readonly LuaErrorRecord[];
 	readonly isNew: (error: LuaErrorRecord) => boolean;
+	readonly suppressedCount?: number;
 }
 
 declare global {
@@ -17,6 +18,8 @@ declare global {
 				errors: LuaErrorRecord[];
 				lastViewedAt?: number;
 				lastViewedId?: number;
+				suppressedCount?: number;
+				lastSuppressedAt?: number;
 		  }
 		| undefined;
 }
@@ -36,6 +39,11 @@ export class LuaErrorHistory {
 		saved.errors.push({ id, timestamp, message, stack });
 		if (saved.errors.length > 100) saved.errors.shift();
 	}
+	suppress(timestamp: number): void {
+		const saved = this.saved();
+		saved.suppressedCount = (saved.suppressedCount ?? 0) + 1;
+		saved.lastSuppressedAt = timestamp;
+	}
 	load(timestamp: number): LuaErrorSnapshot {
 		const saved = this.saved();
 		const viewedAt = saved.lastViewedAt;
@@ -45,6 +53,7 @@ export class LuaErrorHistory {
 		saved.lastViewedId = errors.at(-1)?.id ?? viewedId;
 		return {
 			errors,
+			suppressedCount: saved.suppressedCount ?? 0,
 			// Sequence breaks ties when multiple errors occur in one server second.
 			isNew: (error) =>
 				viewedAt === undefined ||

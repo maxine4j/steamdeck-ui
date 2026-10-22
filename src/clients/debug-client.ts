@@ -22,15 +22,30 @@ export class DebugClient {
 	readonly diagnostics = new Diagnostics(() => GetServerTime());
 	private readonly errors = new LuaErrorHistory();
 	private previous?: (this: void, message: unknown) => void;
-	private cancelOpen?: () => void;
 	private handling = false;
-	private opening = false;
+	private allowance = 10;
+	private lastErrorAt?: number;
+	private autoOpenRequested = false;
+	private cancelOpen?: () => void;
 	private readonly handleError: (this: void, message: unknown) => void = (
 		message,
 	) => {
 		if (this.handling) return;
 		this.handling = true;
 		try {
+			// Bound stack generation, diagnostics and Blizzard's previous handler.
+			// A 100-record storage cap alone does not bound work during a flood.
+			const now = GetTime();
+			this.allowance = Math.min(
+				10,
+				this.allowance + Math.max(0, now - (this.lastErrorAt ?? now)) * 10,
+			);
+			this.lastErrorAt = now;
+			if (this.allowance < 1) {
+				this.errors.suppress(GetServerTime());
+				return;
+			}
+			this.allowance--;
 			// Retail exposes the original failure's stack height even while this
 			// handler is executing through TSTL's pcall wrapper.
 			const currentHeight = GetCallstackHeight();
@@ -54,17 +69,15 @@ export class DebugClient {
 				: (rawStack ?? "Stack trace unavailable");
 			this.errors.capture(safeMessage, stack, GetServerTime());
 			this.diagnostics.log("error", `${safeMessage}\n${stack}`);
-			if (!this.cancelOpen && !this.opening)
+			if (!this.autoOpenRequested) {
+				// Keep this latched after dispatch, including when opening the UI
+				// itself raises errors. Later frames must not reopen that same UI.
+				this.autoOpenRequested = true;
 				this.cancelOpen = this.scheduler.nextFrame(() => {
 					this.cancelOpen = undefined;
-					// Capture UI failures, but do not recursively reopen the broken UI.
-					this.opening = true;
-					try {
-						this.events.emit("DEBUG_OPEN_REQUESTED");
-					} finally {
-						this.opening = false;
-					}
+					this.events.emit("DEBUG_OPEN_REQUESTED");
 				});
+			}
 			this.previous?.(message);
 		} finally {
 			this.handling = false;
@@ -79,6 +92,9 @@ export class DebugClient {
 	}
 	initialize(): void {
 		if (this.previous) return;
+		this.allowance = 10;
+		this.lastErrorAt = undefined;
+		this.autoOpenRequested = false;
 		this.previous = geterrorhandler();
 		seterrorhandler(this.handleError);
 	}

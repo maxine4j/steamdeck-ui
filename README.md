@@ -43,9 +43,9 @@ Use `yarn test:watch` to rerun tests as you edit. Test controller input and UI b
 
 ## Lua error history
 
-Open `/sdui debug` and select **Errors**. The list runs oldest to newest; the red divider marks errors captured since the previous visit. Select an error to view its complete message and stack trace, or select the details for copying. Returning from details preserves the list's viewed boundary; reopening the Errors tab loads a fresh snapshot and saves a new viewed timestamp.
+The first captured error each session automatically opens **Errors**; later errors do not reopen the window. `/sdui debug` also opens this tab directly. The list runs oldest to newest; the red divider marks errors captured since the previous visit. Select an error to view its complete message and stack trace, or select the details for copying. Returning from details preserves the list's viewed boundary; reopening the Errors tab loads a fresh snapshot and saves a new viewed timestamp.
 
-`SteamDeckUIErrors` stores the latest 100 occurrences (including repeated errors), with an ID, Unix timestamp, message and stack trace. Older occurrences are discarded. Capture starts when SteamDeckUI loads; errors from before its handler was installed cannot be recovered.
+`SteamDeckUIErrors` stores the latest 100 captured occurrences (including repeated errors), with an ID, Unix timestamp, message and stack trace. Older occurrences are discarded. Flood protection permits a burst of 10 captures and refills at 10 per second; excess errors increment `suppressedCount` and update `lastSuppressedAt` without generating stacks or invoking the previous error handler. The Errors tab shows the suppressed count. Capture starts when SteamDeckUI loads; errors from before its handler was installed cannot be recovered.
 
 WoW writes SavedVariables on `/reload` or normal logout. The file is `_retail_/WTF/Account/<account>/SavedVariables/SteamDeckUI-dev.lua` for development installs, or `SteamDeckUI.lua` for release installs. Both the error history and regular configuration live in this addon file. Changes are in memory until WoW flushes them; a crash may lose recent errors.
 

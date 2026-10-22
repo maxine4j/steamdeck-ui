@@ -40,7 +40,7 @@ export function registerDebug(
 		scheduler,
 		close,
 	);
-	const errors = new DebugErrorsPanel(pool, client, close);
+	const errors = new DebugErrorsPanel(pool, client, close, scheduler);
 	modules.register(new DebugModule(ui, events, client, logs, cache, errors));
 	return {
 		destroy(): void {

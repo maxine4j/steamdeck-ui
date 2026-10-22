@@ -8,7 +8,7 @@ export class DebugModule implements IModule {
 	readonly id = "debug";
 	private registered = false;
 	private readonly open = () =>
-		this.ui.openPanel(this.logs.id, "left", "debug");
+		this.ui.openPanel(this.errors.id, "left", "debug");
 	private readonly eventHandlers: [ApplicationEvent, () => void][] = [
 		"PLAYER_LOGIN",
 		"COMBAT_STARTED",

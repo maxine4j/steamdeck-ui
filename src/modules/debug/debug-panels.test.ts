@@ -198,6 +198,7 @@ it("loads errors on opening, separates seen from new chronologically, opens full
 		{} as IFramePoolManager,
 		{ loadErrors },
 		close,
+		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
 	panel.setNavigationChanged(changed);
 	panel.onMount({} as Frame);
@@ -247,6 +248,7 @@ it("shows an empty error history and places the new boundary after all seen erro
 		{} as IFramePoolManager,
 		{ loadErrors },
 		vi.fn(),
+		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
 	panel.onMount({} as Frame);
 	expect(rows.get("debug-errors-list")?.at(0)?.label).toContain(
@@ -262,4 +264,35 @@ it("shows an empty error history and places the new boundary after all seen erro
 		"error-1",
 		"errors-new-divider",
 	]);
+});
+
+it("discloses suppressed errors from a flood while keeping the original trace accessible", () => {
+	const panel = new DebugErrorsPanel(
+		{} as IFramePoolManager,
+		{
+			loadErrors: () => ({
+				errors: [
+					{
+						id: 1,
+						timestamp: 100,
+						message: "menu error",
+						stack: "original trace",
+					},
+				],
+				isNew: () => true,
+				suppressedCount: 990,
+			}),
+		},
+		vi.fn(),
+		{ nextFrame: vi.fn(), delay: vi.fn() },
+	);
+	panel.onMount({} as Frame);
+	const rendered = rows.get("debug-errors-list") ?? [];
+	expect(rendered.find((row) => row.id === "errors-flood")?.label).toContain(
+		"990",
+	);
+	rendered.find((row) => row.id === "error-1")?.activate();
+	expect(frames.get("debug-error-detail-text")?.text).toContain(
+		"original trace",
+	);
 });

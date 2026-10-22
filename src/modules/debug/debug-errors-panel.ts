@@ -1,5 +1,6 @@
 import type { DebugClient } from "../../clients/debug-client";
 import type { LuaErrorRecord } from "../../clients/lua-error-history";
+import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { Frame } from "../../ui/components/frame";
 import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
@@ -25,6 +26,7 @@ export class DebugErrorsPanel implements IPanel {
 		pool: IFramePoolManager,
 		private readonly client: Pick<DebugClient, "loadErrors">,
 		private readonly close: () => void,
+		scheduler: ITaskScheduler,
 	) {
 		this.list = new ScrollList(
 			"debug-errors-list",
@@ -34,9 +36,9 @@ export class DebugErrorsPanel implements IPanel {
 			{
 				padding: 16,
 				preserveScrollOnRefresh: true,
-				onChanged: (complete) => {
-					if (complete) this.changed?.();
-				},
+				scheduler,
+				batchSize: 10,
+				onChanged: () => this.changed?.(),
 			},
 		);
 		this.window = new Frame("debug-error-detail-window", pool);
@@ -52,6 +54,13 @@ export class DebugErrorsPanel implements IPanel {
 		this.selected = undefined;
 		const snapshot = this.client.loadErrors();
 		const rows: ListRow[] = [];
+		if (snapshot.suppressedCount)
+			rows.push({
+				id: "errors-flood",
+				label: `|cffff3333Error flood: ${snapshot.suppressedCount} additional errors suppressed|r`,
+				heading: true,
+				activate: () => {},
+			});
 		const divider: ListRow = {
 			id: "errors-new-divider",
 			label: "|cffff3333──────── New since last view ────────|r",
@@ -74,7 +83,7 @@ export class DebugErrorsPanel implements IPanel {
 				activate: () => this.showDetails(error),
 			});
 		}
-		if (rows.length === 0)
+		if (snapshot.errors.length === 0)
 			rows.push({
 				id: "errors-empty",
 				label: "No Lua errors captured",

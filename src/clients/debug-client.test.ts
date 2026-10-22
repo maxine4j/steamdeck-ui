@@ -4,12 +4,13 @@ import { DebugClient } from "./debug-client";
 
 afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => {
+	vi.stubGlobal("GetTime", () => 0);
 	vi.stubGlobal("GetCallstackHeight", () => 10);
 	vi.stubGlobal("GetErrorCallstackHeight", () => null);
 	vi.stubGlobal("issecretvalue", () => false);
 });
 
-it("captures Lua errors with stacks, defers opening, preserves the previous handler and restores on shutdown", () => {
+it("captures Lua errors, opens debug once across frames, preserves the previous handler and restores on shutdown", () => {
 	const previous = vi.fn();
 	let handler: (message: string) => void = previous;
 	vi.stubGlobal("geterrorhandler", () => handler);
@@ -35,13 +36,19 @@ it("captures Lua errors with stacks, defers opening, preserves the previous hand
 	expect(client.diagnostics.report()).toContain("bad Lua\nstack trace");
 	expect(previous).toHaveBeenCalledWith("bad Lua");
 	expect(open).not.toHaveBeenCalled();
+	expect(pending).toHaveLength(1);
 	pending.shift()?.();
+	expect(open).toHaveBeenCalledOnce();
+	handler("repeated menu error");
+	expect(pending).toHaveLength(0);
 	expect(open).toHaveBeenCalledOnce();
 	client.shutdown();
 	expect(handler).toBe(previous);
 });
 
 it("persists every occurrence and stack, evicts oldest beyond 100, and reloads history", () => {
+	let clock = 0;
+	vi.stubGlobal("GetTime", () => clock++);
 	let handler = vi.fn() as (message: string) => void;
 	vi.stubGlobal("geterrorhandler", () => handler);
 	vi.stubGlobal("seterrorhandler", (next: typeof handler) => {
@@ -160,17 +167,22 @@ it("stores safe placeholders for secret error messages and stacks without inspec
 	});
 });
 
-it("records errors raised while opening the debug UI without recursively reopening it", () => {
-	let handler = vi.fn() as (message: string) => void;
+it("bounds expensive capture and previous-handler work during floods, counts suppression, recovers and opens debug only once", () => {
+	const previous = vi.fn();
+	let handler = previous as (message: string) => void;
 	vi.stubGlobal("geterrorhandler", () => handler);
 	vi.stubGlobal("seterrorhandler", (next: typeof handler) => {
 		handler = next;
 	});
 	vi.stubGlobal("GetServerTime", () => 100);
 	vi.stubGlobal("SteamDeckUIErrors", undefined);
-	vi.stubGlobal("debugstack", () => "stack");
+	const stack = vi.fn(() => "original menu error stack");
+	vi.stubGlobal("debugstack", stack);
+	let clock = 0;
+	vi.stubGlobal("GetTime", () => clock);
 	const events = createTestEventBus();
-	events.subscribe("DEBUG_OPEN_REQUESTED", () => handler("UI error"));
+	const open = vi.fn();
+	events.subscribe("DEBUG_OPEN_REQUESTED", open);
 	const pending: (() => void)[] = [];
 	const client = new DebugClient(events, {
 		nextFrame: (callback) => {
@@ -179,13 +191,25 @@ it("records errors raised while opening the debug UI without recursively reopeni
 		},
 	});
 	client.initialize();
-	handler("original");
+	for (let i = 0; i < 1000; i++) handler("repeated menu error");
+	expect(stack).toHaveBeenCalledTimes(10);
+	expect(previous).toHaveBeenCalledTimes(10);
+	expect(SteamDeckUIErrors?.errors).toHaveLength(10);
+	expect(SteamDeckUIErrors?.errors.at(0)?.stack).toBe(
+		"original menu error stack",
+	);
+	expect(SteamDeckUIErrors?.suppressedCount).toBe(990);
+	expect(pending).toHaveLength(1);
 	pending.shift()?.();
-	expect(SteamDeckUIErrors?.errors.map((error) => error.message)).toEqual([
-		"original",
-		"UI error",
-	]);
+	expect(open).toHaveBeenCalledOnce();
+	clock = 1;
+	for (let i = 0; i < 1000; i++) handler("repeated menu error");
+	expect(stack).toHaveBeenCalledTimes(20);
+	expect(previous).toHaveBeenCalledTimes(20);
+	expect(client.loadErrors().suppressedCount).toBe(1980);
+	expect(SteamDeckUIErrors?.lastSuppressedAt).toBe(100);
 	expect(pending).toHaveLength(0);
+	expect(open).toHaveBeenCalledOnce();
 });
 
 it("retains a readable report when Lua supplies a non-string error and no stack", () => {
