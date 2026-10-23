@@ -43,8 +43,6 @@ Use `yarn test:watch` to rerun tests as you edit. Test controller input and UI b
 
 ## Lua error history
 
-Automatic capture and opening are temporarily disabled while diagnosing login/menu freezes. Blizzard's error handler remains active. Existing saved history is retained and can still be viewed through `/sdui debug`. The behavior below describes capture when enabled again.
-
 The first captured error each session automatically opens **Errors**; later errors do not reopen the window. `/sdui debug` also opens this tab directly. The list runs oldest to newest; the red divider marks errors captured since the previous visit. Select an error to view its complete message and stack trace, or select the details for copying. Returning from details preserves the list's viewed boundary; reopening the Errors tab loads a fresh snapshot and saves a new viewed timestamp.
 
 `SteamDeckUIErrors` stores the latest 100 captured occurrences (including repeated errors), with an ID, Unix timestamp, message and stack trace. Older occurrences are discarded. Flood protection permits a burst of 10 captures and refills at 10 per second; excess errors increment `suppressedCount` and update `lastSuppressedAt` without generating stacks or invoking the previous error handler. The Errors tab shows the suppressed count. Capture starts when SteamDeckUI loads; errors from before its handler was installed cannot be recovered.
