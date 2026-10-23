@@ -5,6 +5,57 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("supports a larger title and detail text with border-only reusable groups", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("readable", pool, "Options", vi.fn(), {
+		titleFontSize: 18,
+	});
+	const row = {
+		id: "choice",
+		label: "Choice",
+		detail: "Description",
+		detailFontSize: 15,
+		group: { id: "choices" },
+		activate: vi.fn(),
+	};
+	list.setRows([row]);
+	list.mount(new Frame("parent", pool));
+	expect(frames.get("readable")?.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Options",
+		"TOP",
+		0,
+		-6,
+		18,
+	);
+	expect(frames.get("readable-row-0")?.setLabel).toHaveBeenCalledWith(
+		"detail",
+		"Description",
+		"BOTTOMLEFT",
+		8,
+		6,
+		15,
+		440,
+	);
+	expect(frames.get("readable-group-0")?.setColor).toHaveBeenCalledWith(
+		0,
+		0,
+		0,
+		0,
+	);
+	expect(frames.get("readable-group-0")?.setBorder).toHaveBeenCalled();
+	list.updateRows([{ ...row, detailFontSize: undefined }]);
+	expect(frames.get("readable-row-0")?.setLabel).toHaveBeenLastCalledWith(
+		"detail",
+		"Description",
+		"BOTTOMLEFT",
+		8,
+		6,
+		12,
+		440,
+	);
+});
+
 it("renders radio markers and reusable sliders with clamped directional adjustments", () => {
 	const pool = {} as IFramePoolManager;
 	const change = vi.fn();

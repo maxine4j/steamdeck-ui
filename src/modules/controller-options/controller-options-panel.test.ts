@@ -16,6 +16,16 @@ const state = vi.hoisted(() => ({
 	width: 0,
 	listOptions: {} as { columns?: number; gap?: number },
 	viewportWidth: 1200,
+	frames: new Map<
+		string,
+		{
+			layout: ReturnType<typeof vi.fn>;
+			setColor: ReturnType<typeof vi.fn>;
+			setLabel: ReturnType<typeof vi.fn>;
+			setFocusBorder: ReturnType<typeof vi.fn>;
+			setWindowBackground: ReturnType<typeof vi.fn>;
+		}
+	>(),
 	resized: undefined as (() => void) | undefined,
 }));
 beforeEach(() => {
@@ -25,6 +35,18 @@ beforeEach(() => {
 });
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
+		constructor(id: string) {
+			state.frames.set(id, this);
+		}
+		layout = vi.fn();
+		setColor = vi.fn();
+		setLabel = vi.fn();
+		setFocusBorder = vi.fn();
+		setWindowBackground = vi.fn();
+		setParent() {}
+		setTooltip() {}
+		onClick() {}
+		setFocused() {}
 		fill() {}
 		show() {}
 		hide() {}
@@ -81,7 +103,7 @@ vi.mock("../../ui/components/scroll-list", () => ({
 	},
 }));
 
-it("fits the fullscreen viewport and updates row width when the window resizes", () => {
+it("centers a narrower window and fits its focus outline when the viewport resizes", () => {
 	const panel = new ControllerOptionsPanel(
 		{} as IFramePoolManager,
 		{ getOptions: () => [], set: vi.fn(), reset: vi.fn() },
@@ -89,10 +111,21 @@ it("fits the fullscreen viewport and updates row width when the window resizes",
 	);
 	panel.onMount({} as IUIComponent);
 	expect(state.listOptions).toMatchObject({ columns: 2, gap: 16 });
-	expect(state.width).toBe(1200);
+	expect(state.width).toBe(792);
+	expect(
+		state.frames.get("controller-options-window")?.setWindowBackground,
+	).toHaveBeenCalledOnce();
+	expect(state.listOptions).toMatchObject({ background: false });
+	expect(
+		state.frames.get("controller-options-window")?.layout,
+	).toHaveBeenLastCalledWith(792, 720, "CENTER", expect.anything());
+	panel.onActiveChanged(true);
+	expect(
+		state.frames.get("controller-options-window")?.setFocusBorder,
+	).toHaveBeenLastCalledWith(true);
 	state.viewportWidth = 950;
 	state.resized?.();
-	expect(state.width).toBe(950);
+	expect(state.width).toBe(627);
 	panel.onUnmount();
 	expect(state.resized).toBeUndefined();
 	state.viewportWidth = 1200;
@@ -150,6 +183,17 @@ it("shows inline radio groups and sensitivity sliders, saves immediately and res
 	expect(radios()).toHaveLength(3);
 	expect(radios().every((row) => row.radio)).toBe(true);
 	expect(
+		radios().every(
+			(row) => row.fontSize === 20 && row.group?.id === "travelStyle",
+		),
+	).toBe(true);
+	expect(
+		state.rows
+			.filter((row) => row.heading)
+			.every((row) => row.fontSize === 27 && row.detailFontSize === 15),
+	).toBe(true);
+	expect(state.listOptions).toMatchObject({ titleFontSize: 18 });
+	expect(
 		radios()
 			.filter((row) => row.checked)
 			.map((row) => row.label),
@@ -163,6 +207,8 @@ it("shows inline radio groups and sensitivity sliders, saves immediately and res
 	).toEqual(["Strafe, then face stick"]);
 	const slider = state.rows.find((row) => row.id === "option-yawSpeed");
 	expect(slider?.fullWidth).toBe(true);
+	expect(slider?.fontSize).toBe(21.25);
+	expect(slider?.background).toBe(false);
 	expect(
 		state.rows.find((row) => row.id === "option-pitchSpeed")?.fullWidth,
 	).toBe(true);
@@ -180,10 +226,30 @@ it("shows inline radio groups and sensitivity sliders, saves immediately and res
 	expect(
 		state.rows.find((row) => row.id === "option-pitchSpeed")?.enabled,
 	).toBe(false);
-	state.rows.find((row) => row.id === "options-reset")?.activate();
+	expect(
+		state.rows.some(
+			(row) => row.id === "options-reset" || row.id === "options-close",
+		),
+	).toBe(false);
+	expect(
+		state.frames.get("controller-options-reset")?.setColor,
+	).toHaveBeenCalledWith(0.5, 0.08, 0.08);
+	expect(
+		state.frames.get("controller-options-reset")?.layout,
+	).toHaveBeenCalledWith(280, 44, "TOPRIGHT", expect.anything(), -24, -36);
+	expect(
+		state.frames.get("controller-options-reset")?.setLabel,
+	).toHaveBeenCalledWith(
+		"label",
+		"Reset controller defaults",
+		"CENTER",
+		0,
+		0,
+		17.5,
+	);
+	panel.getNavGrid().at(0)?.at(0)?.onInteract();
 	expect(client.reset).toHaveBeenCalledOnce();
-	state.rows.find((row) => row.id === "options-close")?.activate();
-	expect(close).toHaveBeenCalledOnce();
+	expect(close).not.toHaveBeenCalled();
 	panel.destroy();
 });
 

@@ -25,7 +25,7 @@ export interface ListRow {
 	/** Shared artwork container for consecutive rows in a section. */
 	readonly group?: {
 		readonly id: string;
-		readonly texture: number | string;
+		readonly texture?: number | string;
 		readonly cover?: TextureRegion;
 	};
 	readonly spell?: number;
@@ -58,6 +58,7 @@ export interface ListRow {
 	readonly checkPlacement?: "label" | "secondary";
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
+	readonly detailFontSize?: number;
 	readonly wrapLabel?: boolean;
 	readonly wrapDetail?: boolean;
 	readonly indent?: number;
@@ -123,6 +124,7 @@ export class ScrollList {
 		_onClose: () => void,
 		private readonly options: {
 			readonly width?: number;
+			readonly titleFontSize?: number;
 			readonly autoHeight?: boolean;
 			readonly padding?: number;
 			readonly viewportRight?: number;
@@ -166,7 +168,8 @@ export class ScrollList {
 	}
 	setTitle(title: string): void {
 		this.title = title;
-		if (this.mounted) setWindowTitle(this.frame, title);
+		if (this.mounted)
+			setWindowTitle(this.frame, title, this.options.titleFontSize);
 	}
 	resetScroll(): void {
 		this.scroll.resetScroll();
@@ -223,7 +226,7 @@ export class ScrollList {
 			throw new Error("List requires a frame parent");
 		this.frame.fill(parent);
 		if (this.options.background !== false) this.frame.setWindowBackground();
-		setWindowTitle(this.frame, this.title);
+		setWindowTitle(this.frame, this.title, this.options.titleFontSize);
 		const padding = this.options.padding;
 		this.scroll.inset(
 			this.frame,
@@ -328,7 +331,7 @@ export class ScrollList {
 			{
 				top: number;
 				bottom: number;
-				texture: number | string;
+				texture?: number | string;
 				cover?: TextureRegion;
 			}
 		>();
@@ -362,7 +365,8 @@ export class ScrollList {
 				0,
 				-layout.top,
 			);
-			if (layout.cover)
+			if (layout.texture === undefined) frame.setColor(0, 0, 0, 0);
+			else if (layout.cover)
 				frame.setCoverTextureBackground(layout.texture, layout.cover);
 			else frame.setTextureBackground(layout.texture, [0, 1, 0, 1]);
 			frame.setBorder([0.45, 0.4, 0.3, 1], 1);
@@ -1010,7 +1014,7 @@ export class ScrollList {
 			layout.point,
 			layout.x,
 			layout.y,
-			12,
+			row.detailFontSize ?? 12,
 			layout.width,
 		);
 	}
