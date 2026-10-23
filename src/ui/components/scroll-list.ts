@@ -36,6 +36,7 @@ export interface ListRow {
 		/** Use this button as the row's sole mouse and controller action. */
 		onlyAction?: boolean;
 		tooltip?: string;
+		background?: readonly [number, number, number];
 		activate(): void;
 	};
 	readonly detail?: string;
@@ -55,6 +56,7 @@ export interface ListRow {
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
 	readonly wrapLabel?: boolean;
+	readonly wrapDetail?: boolean;
 	readonly indent?: number;
 	/** Extra space above a full-width heading. */
 	readonly marginTop?: number;
@@ -574,7 +576,9 @@ export class ScrollList {
 						actionOnly ? -horizontalPadding : -4,
 						actionOnly ? 0 : -4,
 					);
-					button.secondary.setButtonBackground();
+					if (row.secondary.background)
+						button.secondary.setColor(...row.secondary.background);
+					else button.secondary.setButtonBackground();
 					button.secondary.setOpacity(
 						row.secondary.enabled === false ? 0.35 : 1,
 					);
@@ -808,7 +812,10 @@ export class ScrollList {
 					width: textWidth - (row.animatedIconOnDetail ? 28 : 0),
 				};
 				this.updateDetail(index);
-				button.frame.setLabelWordWrap("detail", columns === 1);
+				button.frame.setLabelWordWrap(
+					"detail",
+					row.wrapDetail ?? columns === 1,
+				);
 				if (this.options.textColor) {
 					button.frame.setLabelStyle("label", this.options.textColor);
 					button.frame.setLabelStyle("detail", this.options.textColor);
@@ -995,6 +1002,11 @@ export class ScrollList {
 		const columns = this.columns ?? this.options.columns ?? 1;
 		if (this.mounted && columns > 1) {
 			const grid: INavigable[][] = [];
+			const stride = this.rows.some(
+				(row) => row.secondary && !row.secondary.onlyAction,
+			)
+				? 2
+				: 1;
 			let line: INavigable[] = [];
 			let column = 0;
 			for (let index = 0; index < this.renderedRows; index++) {
@@ -1019,8 +1031,16 @@ export class ScrollList {
 					const nav = row?.secondary?.onlyAction
 						? button.secondaryNav
 						: button.nav;
-					nav.navColumn = column;
+					nav.navColumn = column * stride;
 					line.push(nav);
+					if (
+						row?.secondary &&
+						!row.secondary.onlyAction &&
+						row.secondary.enabled !== false
+					) {
+						button.secondaryNav.navColumn = column * stride + 1;
+						line.push(button.secondaryNav);
+					}
 				}
 				column++;
 				if (row?.fullWidth || column === columns) {

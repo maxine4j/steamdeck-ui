@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
 	mounts: 0,
 	destroys: 0,
 	width: 0,
+	listOptions: {} as { columns?: number; gap?: number },
 	viewportWidth: 1200,
 	resized: undefined as (() => void) | undefined,
 }));
@@ -35,6 +36,15 @@ vi.mock("../../ui/components/frame", () => ({
 }));
 vi.mock("../../ui/components/scroll-list", () => ({
 	ScrollList: class {
+		constructor(
+			_id: string,
+			_pool: IFramePoolManager,
+			_title: string,
+			_close: () => void,
+			options: typeof state.listOptions,
+		) {
+			state.listOptions = options;
+		}
 		updateRows(rows: readonly ListRow[]) {
 			state.rows = rows;
 		}
@@ -63,6 +73,7 @@ it("fits the fullscreen viewport and updates row width when the window resizes",
 		vi.fn(),
 	);
 	panel.onMount({} as IUIComponent);
+	expect(state.listOptions).toMatchObject({ columns: 2, gap: 16 });
 	expect(state.width).toBe(1200);
 	state.viewportWidth = 950;
 	state.resized?.();
@@ -113,6 +124,11 @@ it("edits and reverses every supported option with controller actions, refreshes
 		close,
 	);
 	panel.onMount({} as IUIComponent);
+	expect(state.rows.find((row) => row.id === "option-facing")).toMatchObject({
+		background: [0.075, 0.075, 0.075],
+		wrapDetail: true,
+		secondary: { background: [0.12, 0.12, 0.12] },
+	});
 	panel
 		.getNavGrid()
 		.find((row) => row.at(0)?.navId === "option-facing")

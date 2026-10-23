@@ -30,7 +30,8 @@ export class ControllerOptionsPanel implements IPanel {
 			close,
 			{
 				padding: 24,
-				autoHeight: true,
+				columns: 2,
+				gap: 16,
 				preserveScrollOnRefresh: true,
 				onChanged: (complete) => {
 					if (complete) this.changed?.();
@@ -56,6 +57,7 @@ export class ControllerOptionsPanel implements IPanel {
 				detail:
 					"Select a setting to advance its value; Previous goes backward. Changes apply immediately and are saved for your next login.",
 				heading: true,
+				wrapDetail: true,
 				height: 84,
 				activate: () => {},
 			},
@@ -81,14 +83,18 @@ export class ControllerOptionsPanel implements IPanel {
 				detail: option.supported
 					? option.description
 					: "Unavailable in this version of World of Warcraft.",
-				height: 88,
+				height: 152,
 				fontSize: 17,
 				wrapLabel: true,
+				wrapDetail: true,
+				background: [0.075, 0.075, 0.075],
 				enabled: option.supported,
 				activate: () => this.edit(option, 1),
 				secondary: {
 					label: "Previous",
 					width: 110,
+					height: 32,
+					background: [0.12, 0.12, 0.12],
 					enabled: option.supported,
 					activate: () => this.edit(option, -1),
 				},
@@ -100,6 +106,9 @@ export class ControllerOptionsPanel implements IPanel {
 			detail:
 				"Reset movement and sensitivity. Other camera settings return to their values before this login; saved overrides are removed.",
 			height: 80,
+			fullWidth: true,
+			wrapDetail: true,
+			background: [0.075, 0.075, 0.075],
 			activate: () => {
 				this.client.reset();
 				this.refresh();
@@ -110,6 +119,8 @@ export class ControllerOptionsPanel implements IPanel {
 			label: "Done",
 			detail: "Preferences are already saved.",
 			height: 56,
+			fullWidth: true,
+			background: [0.12, 0.12, 0.12],
 			activate: this.close,
 		});
 		this.list.updateRows(rows);

@@ -5,6 +5,78 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("keeps primary and secondary actions reachable across two columns", () => {
+	const pool = {} as IFramePoolManager;
+	const previous = vi.fn();
+	const list = new ScrollList("settings-nav", pool, "", vi.fn(), {
+		columns: 2,
+	});
+	list.setRows(
+		["left", "right"].map((id) => ({
+			id,
+			label: id,
+			activate: vi.fn(),
+			secondary: { label: "Previous", activate: previous },
+		})),
+	);
+	list.mount(new Frame("parent", pool));
+	const line = list.getNavGrid().at(0);
+	expect(line?.map((node) => [node.navId, node.navColumn])).toEqual([
+		["left", 0],
+		["left-favourite", 1],
+		["right", 2],
+		["right-favourite", 3],
+	]);
+	line?.at(3)?.onInteract();
+	expect(previous).toHaveBeenCalledOnce();
+});
+
+it("renders neutral secondary buttons and restores their default style on reuse", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("quiet-actions", pool, "", vi.fn());
+	const row = { id: "setting", label: "Setting", activate: vi.fn() };
+	list.setRows([
+		{
+			...row,
+			secondary: {
+				label: "Previous",
+				background: [0.12, 0.12, 0.12],
+				activate: vi.fn(),
+			},
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("quiet-actions-secondary-0")?.setColor,
+	).toHaveBeenCalledWith(0.12, 0.12, 0.12);
+	list.setRows([
+		{ ...row, secondary: { label: "Previous", activate: vi.fn() } },
+	]);
+	expect(
+		frames.get("quiet-actions-secondary-0")?.setButtonBackground,
+	).toHaveBeenCalled();
+});
+
+it("wraps descriptions when requested in a two-column list", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("wrapped-settings", pool, "", vi.fn(), {
+		columns: 2,
+	});
+	list.setRows([
+		{
+			id: "setting",
+			label: "Setting",
+			detail: "Long description",
+			wrapDetail: true,
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("wrapped-settings-row-0")?.setLabelWordWrap,
+	).toHaveBeenCalledWith("detail", true);
+});
+
 it.each([12, 16, 20, 30])(
 	"keeps the scrollbar 11px from the panel edge with %ipx content padding",
 	(padding) => {
