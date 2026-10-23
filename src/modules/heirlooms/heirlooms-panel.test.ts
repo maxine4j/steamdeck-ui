@@ -126,6 +126,60 @@ it("offers creation for collected items, item tooltips for all entries and guard
 	expect(client.create).toHaveBeenCalledTimes(1);
 	expect(owned?.tooltipItem?.()).toBeUndefined();
 });
+it("shows collected heirloom level caps using the pet count badge design", () => {
+	const { panel, parent, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([heirloom(1), heirloom(2, false)]);
+	flush();
+	const labels = vi.mocked(Frame.prototype.setLabel);
+	const badgeCalls = labels.mock.calls.flatMap((call, index) =>
+		call.at(0) === "level"
+			? [{ frame: labels.mock.contexts.at(index)?.id, call }]
+			: [],
+	);
+	expect(badgeCalls).toEqual([
+		{
+			frame: "heirloom-item-1",
+			call: ["level", "70", "BOTTOMRIGHT", -1, 1, 10],
+		},
+		{
+			frame: "heirloom-item-2",
+			call: ["level", "", "BOTTOMRIGHT", -1, 1, 10],
+		},
+	]);
+});
+
+it("updates and clears level badges on reused heirloom controls", () => {
+	const { panel, parent, publish, flush } = setup();
+	panel.onMount(parent);
+	publish([heirloom(1)]);
+	flush();
+	const labels = vi.mocked(Frame.prototype.setLabel);
+	const badgeFrame = () =>
+		labels.mock.contexts.at(
+			labels.mock.calls.findIndex((call) => call.at(0) === "level"),
+		);
+	const first = badgeFrame();
+	for (const { row, label } of [
+		{ row: { ...heirloom(1), maxLevel: 80 }, label: "80" },
+		{ row: heirloom(1, false), label: "" },
+		{ row: { ...heirloom(1), maxLevel: 0 }, label: "" },
+	]) {
+		labels.mockClear();
+		publish([row]);
+		flush();
+		expect(labels).toHaveBeenCalledWith(
+			"level",
+			label,
+			"BOTTOMRIGHT",
+			-1,
+			1,
+			10,
+		);
+		expect(badgeFrame()).toBe(first);
+	}
+});
+
 it("batches rendering, reports progress, reuses controls and cancels hidden subscriptions", () => {
 	const { panel, parent, publish, client, flush } = setup();
 	panel.onMount(parent);
