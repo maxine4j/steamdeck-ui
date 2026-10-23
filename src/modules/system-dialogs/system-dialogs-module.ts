@@ -8,6 +8,7 @@ export class SystemDialogsModule implements IModule {
 	private ids: string[] = [];
 	private readonly refresh = () => {
 		const dialogs = this.client.getDialogs();
+		const previousIds = this.ids;
 		let shared = 0;
 		while (
 			shared < this.ids.length &&
@@ -20,7 +21,12 @@ export class SystemDialogsModule implements IModule {
 		}
 		this.ids = dialogs.map((dialog) => dialog.id);
 		for (const dialog of dialogs)
-			this.navigation.pushModal(dialog.id, dialog.grid, dialog.cancel);
+			this.navigation.pushModal(
+				dialog.id,
+				dialog.grid,
+				dialog.cancel,
+				previousIds.includes(dialog.id) ? undefined : dialog.defaultFocusId,
+			);
 	};
 	constructor(
 		private readonly client: INativeDialogsClient,

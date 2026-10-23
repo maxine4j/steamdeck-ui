@@ -27,6 +27,36 @@ function dialog(id: string): NativeDialog {
 	};
 }
 
+it("uses a preferred action on each opening while preserving selection on refresh and popup dismissal", () => {
+	const events = createTestEventBus();
+	const nav = new NavigationManager(events);
+	const menu = { ...dialog("menu"), defaultFocusId: "menu-decline" };
+	const popup = { ...dialog("popup"), defaultFocusId: "popup-decline" };
+	let dialogs: NativeDialog[] = [menu];
+	const module = new SystemDialogsModule(
+		{ initialize: vi.fn(), shutdown: vi.fn(), getDialogs: () => dialogs },
+		events,
+		nav,
+	);
+	module.initialize();
+	expect(nav.focusedId).toBe("menu-decline");
+	events.emit("NAV_LEFT");
+	events.emit("NATIVE_DIALOGS_CHANGED");
+	expect(nav.focusedId).toBe("menu-accept");
+	dialogs = [menu, popup];
+	events.emit("NATIVE_DIALOGS_CHANGED");
+	expect(nav.focusedId).toBe("popup-decline");
+	dialogs = [menu];
+	events.emit("NATIVE_DIALOGS_CHANGED");
+	expect(nav.focusedId).toBe("menu-accept");
+	dialogs = [];
+	events.emit("NATIVE_DIALOGS_CHANGED");
+	dialogs = [menu];
+	events.emit("NATIVE_DIALOGS_CHANGED");
+	expect(nav.focusedId).toBe("menu-decline");
+	module.shutdown();
+});
+
 it("traps popup input, restores menu focus, and restores the prior addon modal on shutdown", () => {
 	const events = createTestEventBus();
 	const nav = new NavigationManager(events);

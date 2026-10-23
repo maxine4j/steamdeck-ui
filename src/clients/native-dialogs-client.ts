@@ -10,6 +10,7 @@ import type { ITaskScheduler } from "./task-scheduler";
 export interface NativeDialog {
 	readonly id: string;
 	readonly grid: NavGrid;
+	readonly defaultFocusId?: string;
 	cancel(): void;
 }
 export interface NativeGameMenuAction {
@@ -222,7 +223,7 @@ export class NativeDialogsClient implements INativeDialogsClient {
 			.map(
 				([frame, dialog]): NativeDialog => ({
 					id: dialog.id,
-					grid: this.dialogGrid(dialog.id, frame, dialog.menu),
+					...this.dialogGrid(dialog.id, frame, dialog.menu),
 					cancel: () => {
 						const globals = _G as unknown as {
 							GameMenuFrame_EscapePressed(this: void): void;
@@ -274,35 +275,74 @@ export class NativeDialogsClient implements INativeDialogsClient {
 		id: string,
 		frame: NativeDialogFrame,
 		menu: boolean,
-	): NavGrid {
+	): Pick<NativeDialog, "grid" | "defaultFocusId"> {
 		if (menu) {
-			let grid = this.controls.grid(id, frame, true);
+			let defaultFocusId: string | undefined;
+			const globals = _G as unknown as { GAMEMENU_OPTIONS?: string };
+			let grid = this.controls.grid(id, frame, true, (button, node) => {
+				const text = (
+					button as NativeDialogFrame & { GetText?(): string }
+				).GetText?.();
+				if (
+					globals.GAMEMENU_OPTIONS !== undefined &&
+					text === globals.GAMEMENU_OPTIONS
+				)
+					defaultFocusId = node.navId;
+			});
 			for (const source of this.sources)
 				grid = source.decorateGameMenu?.(grid) ?? grid;
-			return grid;
+			return { grid, defaultFocusId };
+		}
+		if (id === "native-LFGDungeonReadyPopup") {
+			const globals = _G as unknown as {
+				LFGDungeonReadyDialog?: {
+					enterButton: NativeDialogFrame;
+					leaveButton: NativeDialogFrame;
+				};
+			};
+			const prompt = globals.LFGDungeonReadyDialog;
+			const row = prompt
+				? (
+						[
+							["enter", prompt.enterButton],
+							["leave", prompt.leaveButton],
+						] as const
+					).flatMap(([action, button]) => {
+						this.controls.watch(button, () => this.changed(frame));
+						return button.IsVisible() && button.IsEnabled()
+							? [this.controls.control(`${id}:${action}`, button)]
+							: [];
+					})
+				: [];
+			return {
+				grid: row.length > 0 ? [row] : [],
+				defaultFocusId: `${id}:enter`,
+			};
 		}
 		const grid =
 			id === "native-AddonList"
 				? this.addonsGrid(id, frame as AddonsDialogFrame)
 				: this.controls.grid(id, frame, menu);
-		if (id !== "native-AddonList") return grid;
-		return grid.map((row) =>
-			row.map(
-				(node): INavigable => ({
-					...node,
-					onInteract: () => {
-						node.onInteract();
-						this.changed(frame);
-					},
-					onContext: node.onContext
-						? () => {
-								node.onContext?.();
-								this.changed(frame);
-							}
-						: undefined,
-				}),
+		if (id !== "native-AddonList") return { grid };
+		return {
+			grid: grid.map((row) =>
+				row.map(
+					(node): INavigable => ({
+						...node,
+						onInteract: () => {
+							node.onInteract();
+							this.changed(frame);
+						},
+						onContext: node.onContext
+							? () => {
+									node.onContext?.();
+									this.changed(frame);
+								}
+							: undefined,
+					}),
+				),
 			),
-		);
+		};
 	}
 	shutdown(): void {
 		this.active = false;
