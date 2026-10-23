@@ -5,6 +5,32 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("preserves translucent row fills and borders through focus and clears them on reuse", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("subtle", pool, "", vi.fn());
+	list.setRows([
+		{
+			id: "recent",
+			label: "Recent",
+			background: [1, 0.82, 0, 0.08],
+			border: [1, 0.82, 0, 0.25],
+			activate: vi.fn(),
+		},
+	]);
+	list.mount(new Frame("parent", pool));
+	const row = frames.get("subtle-row-0");
+	expect(row?.setColor).toHaveBeenLastCalledWith(1, 0.82, 0, 0.08);
+	expect(row?.setBorder).toHaveBeenLastCalledWith([1, 0.82, 0, 0.25], 1);
+	const node = list.getNavGrid().at(0)?.at(0);
+	node?.onFocus();
+	node?.onBlur();
+	expect(row?.setColor).toHaveBeenLastCalledWith(1, 0.82, 0, 0.08);
+	expect(row?.setBorder).toHaveBeenLastCalledWith([1, 0.82, 0, 0.25], 1);
+	list.updateRows([{ id: "normal", label: "Normal", activate: vi.fn() }]);
+	expect(row?.setBorder).toHaveBeenLastCalledWith([0, 0, 0, 0]);
+	expect(row?.setButtonBackground).toHaveBeenCalledWith(false);
+});
+
 it("supports a larger title and detail text with border-only reusable groups", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("readable", pool, "Options", vi.fn(), {

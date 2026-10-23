@@ -65,7 +65,8 @@ export interface ListRow {
 	/** Extra space above a full-width heading. */
 	readonly marginTop?: number;
 	readonly marginBottom?: number;
-	readonly background?: readonly [number, number, number] | false;
+	readonly background?: readonly [number, number, number, number?] | false;
+	readonly border?: readonly [number, number, number, number];
 	readonly backgroundAtlas?: string;
 	readonly backgroundTexture?: {
 		readonly file: number | string;
@@ -97,6 +98,7 @@ export class ScrollList {
 		slider?: Frame;
 		animation?: Frame;
 		animatedFocus?: boolean;
+		bordered?: boolean;
 		focused?: boolean;
 		hovered?: boolean;
 		detailLayout?: { point: string; x: number; y: number; width: number };
@@ -967,8 +969,16 @@ export class ScrollList {
 	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
-		const frame = this.buttons.at(index)?.frame;
+		const button = this.buttons.at(index);
+		const frame = button?.frame;
 		frame?.setFocused(false);
+		if (row?.border && button) {
+			frame?.setBorder(row.border, 1);
+			button.bordered = true;
+		} else if (button?.bordered) {
+			frame?.setBorder([0, 0, 0, 0]);
+			button.bordered = false;
+		}
 		if (
 			row?.heading ||
 			(row?.checked !== undefined &&

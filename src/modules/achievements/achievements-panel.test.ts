@@ -358,7 +358,12 @@ it("puts recent achievements before categories and opens their exact achievement
 		label: "Recent Achievements",
 		heading: true,
 	});
-	expect(rows.at(1)).toMatchObject({ label: "Achievement 6", icon: 1 });
+	expect(rows.at(1)).toMatchObject({
+		label: "Achievement 6",
+		icon: 1,
+		background: [1, 0.82, 0, 0.08],
+		border: [1, 0.82, 0, 0.25],
+	});
 	const changed = vi.fn();
 	panel.setNavigationChanged(changed);
 	activate("recent-achievement-6");

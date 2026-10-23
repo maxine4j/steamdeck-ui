@@ -514,6 +514,8 @@ export class AchievementsPanel implements IPanel {
 							label: achievement.name,
 							icon: achievement.icon,
 							fullWidth: true,
+							background: [1, 0.82, 0, 0.08] as const,
+							border: [1, 0.82, 0, 0.25] as const,
 							wrapLabel: true,
 							tooltip: this.tooltip(achievement),
 							trailingLabel: `${formatAchievementNumber(achievement.points)} points`,
@@ -872,12 +874,14 @@ export class AchievementsPanel implements IPanel {
 							const node = cell.icon.navigationNode(
 								`achievement-${achievement.id}`,
 								activate,
-								() =>
+								() => {
+									this.selectedAchievement = achievement.id;
 									this.viewport.revealVerticalRange(
 										cellTop,
 										cellTop + 42,
 										this.contentHeight,
-									),
+									);
+								},
 							);
 							const rowNodes = grid[row];
 							const oldIndex =
@@ -998,6 +1002,23 @@ export class AchievementsPanel implements IPanel {
 					(job.bottom >= top && job.top <= bottom) ||
 					job.navId === this.pendingFocus),
 		);
+		// Prepare the destination and its spatial neighbors first so controller
+		// movement works immediately, before the remaining viewport batches finish.
+		const target = this.pendingFocus
+			? jobs.find((job) => job.navId === this.pendingFocus)
+			: undefined;
+		if (target?.top !== undefined) {
+			const targetTop = target.top;
+			jobs.sort((a, b) => {
+				if (a === b) return 0;
+				if (a === target) return -1;
+				if (b === target) return 1;
+				return (
+					Math.abs((a.top ?? targetTop) - targetTop) -
+					Math.abs((b.top ?? targetTop) - targetTop)
+				);
+			});
+		}
 		const generation = this.generation;
 		const revision = this.renderRevision;
 		let cursor = 0;
