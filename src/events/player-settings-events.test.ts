@@ -17,6 +17,7 @@ it("translates PvP, loot, difficulty, leadership, and instance state into player
 	bus.subscribe("PLAYER_SETTINGS_CHANGED", changed);
 	const events = [
 		"PLAYER_FLAGS_CHANGED",
+		"PVP_TIMER_UPDATE",
 		"PLAYER_LOOT_SPEC_UPDATED",
 		"PLAYER_DIFFICULTY_CHANGED",
 		"GROUP_ROSTER_UPDATE",

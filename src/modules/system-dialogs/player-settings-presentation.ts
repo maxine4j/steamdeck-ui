@@ -97,7 +97,12 @@ export class PlayerSettingsPresentation implements IPlayerSettingsPresentation {
 				0,
 				-top + 2,
 			);
-			group.setInsetBackground();
+			if (section.options.some((option) => option.kind === "radio"))
+				group.setInsetBackground();
+			else {
+				group.setColor(0, 0, 0, 0);
+				group.setBorder([0, 0, 0, 0]);
+			}
 			group.show();
 			for (const option of section.options) {
 				let row = this.rows.get(option.id);
@@ -127,8 +132,8 @@ export class PlayerSettingsPresentation implements IPlayerSettingsPresentation {
 					-(section.options.indexOf(option) * 22 + 2),
 				);
 				button.setOpacity(option.enabled ? 1 : 0.4);
-				if (option.kind === "button" || option.kind === "checkbox")
-					button.setButtonBackground();
+				if (option.kind === "button") button.setButtonBackground();
+				else button.setColor(0, 0, 0, 0);
 				button.setLabel(
 					"label",
 					option.label,

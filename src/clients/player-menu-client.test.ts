@@ -9,6 +9,7 @@ function setup() {
 		GameMenuFrame: game,
 		GetPVPDesired: vi.fn(() => false),
 		GetPVPTimer: () => 0,
+		IsPVPTimerRunning: vi.fn(() => false),
 		C_PvP: { SetPVP: vi.fn() },
 		UnitPopupSharedUtil: {
 			IsInWarModeState: vi.fn(() => false),
@@ -247,7 +248,19 @@ it("offers all valid class specs and reflects PvP disable countdown without pret
 	expect(s.globals.C_PvP.SetPVP).toHaveBeenCalledWith(undefined);
 	s.globals.GetPVPDesired.mockReturnValue(false);
 	s.globals.GetPVPTimer = () => 300000;
+	s.globals.IsPVPTimerRunning.mockReturnValue(true);
 	expect(s.sections().at(0)?.note).toContain("counting down");
+});
+
+it("does not report a countdown from a positive timer value when the PvP timer is not running", () => {
+	const s = setup();
+	s.globals.GetPVPTimer = () => 4294967295;
+	s.show();
+	expect(s.sections().at(0)?.note).toBeUndefined();
+	s.globals.IsPVPTimerRunning.mockReturnValue(true);
+	expect(s.sections().at(0)?.note).toContain("counting down");
+	s.globals.IsPVPTimerRunning.mockReturnValue(false);
+	expect(s.sections().at(0)?.note).toBeUndefined();
 });
 
 it("shows contextual conversion, leave and challenge reset actions with Blizzard permissions and confirmation paths", () => {

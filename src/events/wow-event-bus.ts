@@ -22,6 +22,7 @@ const lootEvents = [
 ];
 const playerSettingsEvents = [
 	"PLAYER_FLAGS_CHANGED",
+	"PVP_TIMER_UPDATE",
 	"PLAYER_LOOT_SPEC_UPDATED",
 	"PLAYER_DIFFICULTY_CHANGED",
 	"GROUP_ROSTER_UPDATE",

@@ -19,7 +19,7 @@ import type { ITaskScheduler } from "./task-scheduler";
 interface PlayerSettingsGlobals {
 	GameMenuFrame?: NativeDialogFrame;
 	GetPVPDesired(this: void): boolean;
-	GetPVPTimer(this: void): number;
+	IsPVPTimerRunning(this: void): boolean;
 	C_PvP: { SetPVP(this: void, enabled?: number): void };
 	UnitPopupSharedUtil: {
 		IsInWarModeState(this: void): boolean;
@@ -189,7 +189,7 @@ export class PlayerMenuClient implements INativeDialogsClient {
 			title: "PvP",
 			note: warMode
 				? "Controlled by War Mode"
-				: !pvp && g.GetPVPTimer() > 0
+				: !pvp && g.IsPVPTimerRunning()
 					? "PvP flag is counting down"
 					: undefined,
 			options: [

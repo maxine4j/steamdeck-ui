@@ -1,15 +1,23 @@
 import { expect, it, vi } from "vitest";
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import { PlayerSettingsPresentation } from "./player-settings-presentation";
+import {
+	PlayerSettingsPresentation,
+	type PlayerSettingsSection,
+} from "./player-settings-presentation";
 
-const { frames } = vi.hoisted(() => ({
+const { frames, byId } = vi.hoisted(() => ({
 	frames: [] as Record<string, ReturnType<typeof vi.fn>>[],
+	byId: new Map<string, Record<string, ReturnType<typeof vi.fn>>[]>(),
 }));
 vi.mock("../../ui/components/frame", () => ({
 	Frame: class {
-		constructor() {
+		constructor(id: string) {
 			frames.push(this as unknown as Record<string, ReturnType<typeof vi.fn>>);
+			byId.set(id, [
+				...(byId.get(id) ?? []),
+				this as unknown as Record<string, ReturnType<typeof vi.fn>>,
+			]);
 		}
 		setParent = vi.fn();
 		layout = vi.fn();
@@ -41,6 +49,71 @@ vi.mock("../../ui/components/frame", () => ({
 		}));
 	},
 }));
+
+it("frames only radio groups and leaves the PvP checkbox without a red button background", () => {
+	byId.clear();
+	const presentation = new PlayerSettingsPresentation({} as IFramePoolManager);
+	const sections: PlayerSettingsSection[] = [
+		{
+			id: "pvp",
+			title: "PvP",
+			options: [
+				{
+					id: "pvp",
+					label: "PvP disabled",
+					kind: "checkbox",
+					checked: false,
+					enabled: true,
+					activate: vi.fn(),
+				},
+			],
+		},
+		{
+			id: "loot",
+			title: "Loot specialization",
+			options: [
+				{
+					id: "loot:0",
+					label: "Current",
+					kind: "radio",
+					checked: true,
+					enabled: true,
+					activate: vi.fn(),
+				},
+			],
+		},
+		{
+			id: "reset",
+			title: "Instances",
+			options: [
+				{
+					id: "reset",
+					label: "Reset All Instances",
+					kind: "button",
+					checked: false,
+					enabled: true,
+					activate: vi.fn(),
+				},
+			],
+		},
+	];
+	presentation.render({} as WowFrame, sections);
+	expect(
+		byId.get("player-settings:pvp")?.at(0)?.setInsetBackground,
+	).not.toHaveBeenCalled();
+	expect(
+		byId.get("player-settings:reset")?.at(0)?.setInsetBackground,
+	).not.toHaveBeenCalled();
+	expect(
+		byId.get("player-settings:loot")?.at(0)?.setInsetBackground,
+	).toHaveBeenCalled();
+	expect(
+		byId.get("player-settings:pvp")?.at(1)?.setButtonBackground,
+	).not.toHaveBeenCalled();
+	expect(
+		byId.get("player-settings:reset")?.at(1)?.setButtonBackground,
+	).toHaveBeenCalled();
+});
 
 it("reuses pooled custom controls, separates section headings, and distinguishes radio from checkbox artwork", () => {
 	frames.length = 0;
