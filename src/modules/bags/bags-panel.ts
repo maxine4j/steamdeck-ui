@@ -274,7 +274,10 @@ export class BagsPanel implements IPanel {
 						current() ? (source?.hyperlink ?? item.itemId) : undefined,
 					);
 					secureItems.push(() =>
-						icon.setItem(usesSecureItem() ? source : undefined),
+						icon.setItem(
+							usesSecureItem() ? source : undefined,
+							source?.useEffect,
+						),
 					);
 					const top =
 						groupTop + 28 + Math.floor(itemIndex / itemsPerRow) * itemSpacing;

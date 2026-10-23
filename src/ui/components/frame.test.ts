@@ -516,7 +516,12 @@ it("uses a physical bag slot through secure right clicks and resets pooled actio
 		new FramePoolManager({ createFrame: () => native }),
 		"SecureButton",
 	);
+	frame.setItem({ bagId: 0, slotId: 3 }, true);
+	expect(native.SetAttribute).toHaveBeenCalledWith("type2", "macro");
+	expect(native.SetAttribute).toHaveBeenCalledWith("macrotext2", "/use 0 3");
+	expect(native.SetAttribute).toHaveBeenLastCalledWith("item2", undefined);
 	frame.setItem({ bagId: 0, slotId: 3 });
+	expect(native.SetAttribute).toHaveBeenCalledWith("macrotext2", undefined);
 	expect(native.SetAttribute).toHaveBeenCalledWith("type2", "item");
 	expect(native.SetAttribute).toHaveBeenCalledWith("item2", "0 3");
 	expect(native.SetAttribute).toHaveBeenCalledWith("useOnKeyDown", false);
@@ -533,6 +538,7 @@ it("uses a physical bag slot through secure right clicks and resets pooled actio
 	frame.destroy();
 	expect(native.SetAttribute).toHaveBeenCalledWith("type2", undefined);
 	expect(native.SetAttribute).toHaveBeenCalledWith("item2", undefined);
+	expect(native.SetAttribute).toHaveBeenCalledWith("macrotext2", undefined);
 });
 
 it("shows toy hover details and clears handlers on pooled icon release", () => {

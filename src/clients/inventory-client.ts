@@ -10,6 +10,8 @@ export interface InventoryItem {
 	readonly itemLevel?: number;
 	readonly stackable: boolean;
 	readonly hyperlink?: string;
+	/** Activate the item's collection effect instead of equipping it. */
+	readonly useEffect?: boolean;
 }
 export type ItemCategory =
 	| "Equipment"
@@ -174,6 +176,11 @@ export class ContainerItemReader {
 								? item.hyperlink
 								: item.itemID,
 						);
+					let useEffect: boolean | undefined;
+					if (C_Item.IsCosmeticItem?.(item.itemID)) {
+						const [, spellId] = C_Item.GetItemSpell(item.itemID);
+						if (spellId !== undefined && spellId > 0) useEffect = true;
+					}
 					items.push({
 						bagId,
 						slotId,
@@ -199,6 +206,7 @@ export class ContainerItemReader {
 						itemLevel: equipment && (level ?? 0) > 1 ? level : undefined,
 						stackable: (maxStack ?? 1) > 1,
 						hyperlink: item.hyperlink,
+						useEffect,
 					});
 				}
 			}

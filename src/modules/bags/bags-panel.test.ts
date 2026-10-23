@@ -155,7 +155,7 @@ it.each(["category", "expansion"] as const)(
 	},
 );
 
-it("renders outlines, counts, gear levels, toggles grouping and reuses controls", () => {
+it.each([false, true])("renders bags (use effect: %s)", (useEffect) => {
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("C_Texture", {
 		GetAtlasInfo: () => ({ width: 32, height: 128 }),
@@ -304,6 +304,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 		quality: 4,
 		itemLevel: 150,
 		stackable: false,
+		useEffect,
 	};
 	panel.setItems([
 		cloth,
@@ -315,6 +316,32 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 	panel.onMount(parent);
 	expect(panel.getNavGrid()).toEqual([]);
 	flush();
+	const gearNode = panel
+		.getNavGrid()
+		.flat()
+		.find((node) => node?.navId.includes("item-43"));
+	const gearIcon = gearNode?.secureActions?.().alternate;
+	expect(gearIcon).toBeDefined();
+	expect(gearNode?.secureActions?.().alternateButton).toBe("RightButton");
+	const gearNativeIndex = factory.createFrame.mock.results.findIndex(
+		({ value }) =>
+			vi
+				.mocked(value.SetAttribute)
+				.mock.calls.some(
+					([key, value]) =>
+						key === (useEffect ? "macrotext2" : "item2") &&
+						value === (useEffect ? "/use 0 4" : "0 4"),
+				),
+	);
+	expect(gearNativeIndex).toBeGreaterThanOrEqual(0);
+	const gearNative =
+		factory.createFrame.mock.results.at(gearNativeIndex)?.value;
+	expect(gearNative).toBeDefined();
+	gearNode?.onAlternate?.();
+	const gearScripts =
+		gearNativeIndex >= 0 ? handlers.at(gearNativeIndex) : undefined;
+	gearScripts?.get("PostClick")?.(undefined, "RightButton");
+	expect(actions.useItem).not.toHaveBeenCalled();
 	expect(actions.getCooldown).toHaveBeenCalledWith(cloth);
 	const cooldownFrames = () =>
 		factory.createFrame.mock.results

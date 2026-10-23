@@ -1,7 +1,36 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { InventoryClient } from "./inventory-client";
+import { ContainerItemReader, InventoryClient } from "./inventory-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("uses cosmetic collection effects without treating ordinary on-use equipment as collectibles", () => {
+	vi.stubGlobal("C_Container", {
+		GetContainerNumSlots: () => 3,
+		GetContainerItemInfo: (_bag: number, slot: number) => ({
+			itemID: slot,
+			iconFileID: 100,
+			hyperlink: `item:${slot}`,
+		}),
+	});
+	vi.stubGlobal("C_Item", {
+		GetItemInfo: () => ["Equipment"],
+		GetItemInfoInstant: () => [1, "", "", "INVTYPE_WAIST", 100, 4],
+		GetDetailedItemLevelInfo: () => [1],
+		IsCosmeticItem: (id: number) => id !== 2,
+		GetItemSpell: (id: number) => (id === 3 ? [] : ["Use effect", 123]),
+	});
+	const items = new ContainerItemReader().getItems([0]);
+	expect(items.map((item) => item.useEffect)).toEqual([
+		true,
+		undefined,
+		undefined,
+	]);
+	expect(items.map((item) => item.category)).toEqual([
+		"Equipment",
+		"Equipment",
+		"Equipment",
+	]);
+});
 
 it("routes bag use into auction selling while open and resumes ordinary use after close", () => {
 	let open = true;

@@ -1097,7 +1097,10 @@ export class Frame implements IUIComponent {
 		if (toy) this.configurePanAction();
 	}
 	/** Leave item activation to the secure template's hardware right-click handler. */
-	setItem(slot?: { readonly bagId: number; readonly slotId: number }): void {
+	setItem(
+		slot?: { readonly bagId: number; readonly slotId: number },
+		useEffect = false,
+	): void {
 		if (this.frameType !== "SecureButton")
 			throw new Error("Item requires a secure button");
 		if (InCombatLockdown()) return;
@@ -1106,10 +1109,18 @@ export class Frame implements IUIComponent {
 		};
 		native.RegisterForClicks("AnyUp");
 		native.SetAttribute("useOnKeyDown", slot ? false : undefined);
-		native.SetAttribute("type2", slot ? "item" : undefined);
+		// Retail's item action equips first; /use activates the physical slot directly.
+		native.SetAttribute(
+			"type2",
+			slot ? (useEffect ? "macro" : "item") : undefined,
+		);
+		native.SetAttribute(
+			"macrotext2",
+			slot && useEffect ? `/use ${slot.bagId} ${slot.slotId}` : undefined,
+		);
 		native.SetAttribute(
 			"item2",
-			slot ? `${slot.bagId} ${slot.slotId}` : undefined,
+			slot && !useEffect ? `${slot.bagId} ${slot.slotId}` : undefined,
 		);
 	}
 	/** Observe a secure action without replacing the template's OnClick handler. */
