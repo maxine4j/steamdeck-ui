@@ -212,7 +212,7 @@ it("renders outlines, counts, gear levels, toggles grouping and reuses controls"
 					return label;
 				},
 				SetHighlightAtlas: vi.fn(),
-				SetHighlightTexture: vi.fn(),
+				GetHighlightTexture: () => ({ SetColorTexture: vi.fn() }),
 				SetScript: (
 					script: string,
 					handler?: (frame: unknown, button: string) => void,

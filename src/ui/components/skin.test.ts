@@ -42,13 +42,17 @@ function setup() {
 		};
 	}
 	const mask = texture();
+	const highlight = texture();
 	const native = {
 		CreateMaskTexture: vi.fn(() => mask),
 		SetPoint: vi.fn(),
 		SetScript: vi.fn(),
 		IsMouseOver: vi.fn(() => true),
 		SetHighlightAtlas: vi.fn(),
-		SetHighlightTexture: vi.fn(),
+		SetHighlightTexture: vi.fn((asset: unknown) => {
+			if (asset === undefined) throw new Error("Highlight asset is required");
+		}),
+		GetHighlightTexture: () => highlight,
 		RegisterForClicks: vi.fn(),
 		RegisterForDrag: vi.fn(),
 		Show: vi.fn(),
@@ -65,11 +69,11 @@ function setup() {
 	} as unknown as WowFrame;
 	const pool = new FramePoolManager({ createFrame: () => native });
 	pool.acquire("Frame");
-	return { native, pool, textures, mask };
+	return { native, pool, textures, mask, highlight };
 }
 
 it("gives red buttons hover artwork and restores selected or normal artwork after release", () => {
-	const { pool, textures, native } = setup();
+	const { pool, textures, native, highlight } = setup();
 	const frame = new Frame("action", pool, "Button");
 	frame.setButtonBackground();
 	expect(native.SetHighlightAtlas).toHaveBeenCalledWith(
@@ -101,7 +105,7 @@ it("gives red buttons hover artwork and restores selected or normal artwork afte
 		false,
 	);
 	frame.setAtlasBackground("replacement");
-	expect(native.SetHighlightTexture).toHaveBeenLastCalledWith(undefined);
+	expect(highlight.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	send("OnMouseDown");
 	expect(textures.at(0)?.SetAtlas).toHaveBeenLastCalledWith(
 		"replacement",
@@ -281,6 +285,35 @@ it("uses Escape menu button atlases with proportional caps and distinct selected
 	);
 	expect(native.CreateTexture).toHaveBeenCalledTimes(3);
 });
+
+it.each(["button", "close"] as const)(
+	"clears %s highlights when restyling and releasing a pooled control",
+	(skin) => {
+		const { pool, native, textures, highlight } = setup();
+		const frame = new Frame("reused-row", pool, "Button");
+		const applySkin = () => {
+			if (skin === "button") frame.setButtonBackground();
+			else frame.setCloseButtonBackground();
+		};
+		applySkin();
+		expect(() => frame.setColor(0, 0, 0, 0)).not.toThrow();
+		expect(highlight.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+		applySkin();
+		expect(native.SetHighlightAtlas).toHaveBeenLastCalledWith(
+			skin === "button" ? "128-RedButton-Highlight" : "RedButton-Highlight",
+			"ADD",
+		);
+		highlight.SetColorTexture.mockClear();
+		expect(() => frame.destroy()).not.toThrow();
+		expect(highlight.SetColorTexture).toHaveBeenLastCalledWith(0, 0, 0, 0);
+		const textureCount = textures.length;
+		const reused = new Frame("next-dialog-row", pool, "Button");
+		if (skin === "button") reused.setButtonBackground();
+		else reused.setCloseButtonBackground();
+		expect(textures).toHaveLength(textureCount);
+		expect(() => reused.setColor(0, 0, 0, 0)).not.toThrow();
+	},
+);
 
 it("clears button caps when a reused list row becomes a heading", () => {
 	const { pool, textures } = setup();

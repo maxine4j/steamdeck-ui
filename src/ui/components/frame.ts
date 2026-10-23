@@ -847,11 +847,7 @@ export class Frame implements IUIComponent {
 		this.clearTextureTint();
 		this.acquire();
 		if (this.buttonSkinned || this.closeButtonSkinned) {
-			(
-				this.native as WowFrame & {
-					SetHighlightTexture(texture?: string): void;
-				}
-			).SetHighlightTexture(undefined);
+			this.clearButtonHighlight();
 			this.closeButtonSkinned = false;
 			this.buttonPressed = false;
 		}
@@ -1451,6 +1447,16 @@ export class Frame implements IUIComponent {
 		this.drawButtonState();
 		this.configureButtonFeedback("RedButton-Highlight");
 	}
+	private clearButtonHighlight(): void {
+		// Retail requires an asset for SetHighlightTexture; clear the artwork instead.
+		(
+			this.native as WowFrame & {
+				GetHighlightTexture(): WowTexture;
+			}
+		)
+			.GetHighlightTexture()
+			.SetColorTexture(0, 0, 0, 0);
+	}
 	private clearAtlasSlices(): void {
 		if (!this.atlasSliced || !this.texture) return;
 		(this.texture as SlicedTexture).ClearTextureSlice();
@@ -1532,11 +1538,7 @@ export class Frame implements IUIComponent {
 		this.pointerReleaseConfigured = false;
 		this.buttonFeedbackConfigured = false;
 		if (this.buttonSkinned || this.closeButtonSkinned)
-			(
-				this.native as WowFrame & {
-					SetHighlightTexture(texture?: string): void;
-				}
-			).SetHighlightTexture(undefined);
+			this.clearButtonHighlight();
 		this.closeButtonSkinned = false;
 		this.buttonPressed = false;
 		this.clearAtlasSlices();

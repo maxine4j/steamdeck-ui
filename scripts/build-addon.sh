@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+wow_install_location='/Applications/World of Warcraft/_retail_/Interface/AddOns/SteamDeckUI-dev'
+
 mkdir -p dist
 yarn build:lua
 toc_name="SteamDeckUI"
@@ -17,3 +19,6 @@ fi
 cp LICENSE dist/
 cp README.md dist/
 cp -R assets dist/
+
+rm -rf "$wow_install_location"
+cp -R dist/ "$wow_install_location"
