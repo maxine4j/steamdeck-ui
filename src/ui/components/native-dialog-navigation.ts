@@ -253,7 +253,7 @@ export class NativeDialogNavigation {
 					onInteract: () => {
 						const row = scroll.FindFrame(data);
 						const frame = row && (primary ? primary(row) : row);
-						if (frame) this.click(frame);
+						if (frame) this.control(navId, frame).onInteract();
 					},
 					onContext: context
 						? () => {
@@ -261,7 +261,11 @@ export class NativeDialogNavigation {
 								const frame = row && context(row);
 								if (frame) this.click(frame);
 							}
-						: undefined,
+						: () => {
+								const row = scroll.FindFrame(data);
+								const frame = row && (primary ? primary(row) : row);
+								if (frame) this.control(navId, frame).onContext?.();
+							},
 				},
 			]);
 		});

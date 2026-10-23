@@ -7,6 +7,7 @@ import {
 import { PlayerMenuClient } from "../../clients/player-menu-client";
 import { PreyMapClient } from "../../clients/prey-map-client";
 import { PreyTargetsClient } from "../../clients/prey-targets-client";
+import { SettingsClient } from "../../clients/settings-client";
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IEventBus } from "../../events/types";
 import { NativeDialogNavigation } from "../../ui/components/native-dialog-navigation";
@@ -36,6 +37,11 @@ export function registerSystemDialogs(
 				new NativeDialogNavigation(new NativeNavigation(pool)),
 				scheduler,
 				[
+					new SettingsClient(
+						events,
+						new NativeDialogNavigation(new NativeNavigation(pool)),
+						scheduler,
+					),
 					new DelvesClient(
 						events,
 						delveNavigation,

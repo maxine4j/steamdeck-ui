@@ -118,6 +118,37 @@ it("includes native sliders and adjusts them with select/context while clamping 
 	expect(value).toBe(100);
 });
 
+it("adjusts recycled sliders in virtual lists with select and context", () => {
+	const { adapter } = setup();
+	let value = 50;
+	const slider = {
+		...frame(),
+		IsObjectType: (type: string) => type === "Slider",
+		GetValue: () => value,
+		GetValueStep: () => 10,
+		GetMinMaxValues: () => [0, 100],
+		SetValue: (next: number) => {
+			value = next;
+		},
+	};
+	const node = adapter
+		.list(
+			"volume",
+			{
+				ForEachElementData: (callback) => callback("volume"),
+				ScrollToElementData: vi.fn(),
+				FindFrame: () => slider as unknown as NativeDialogFrame,
+			},
+			(id) => id,
+		)
+		.at(0)
+		?.at(0);
+	node?.onInteract();
+	expect(value).toBe(60);
+	node?.onContext?.();
+	expect(value).toBe(50);
+});
+
 it("does not observe focus decorations attached beneath native buttons", () => {
 	const { adapter } = setup();
 	const decoration = frame();
