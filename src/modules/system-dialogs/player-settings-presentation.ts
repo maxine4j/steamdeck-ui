@@ -1,5 +1,6 @@
 import type { WowFrame } from "../../types";
 import { Frame } from "../../ui/components/frame";
+import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { NavGrid } from "../../ui/navigation/types";
 
@@ -49,7 +50,7 @@ export class PlayerSettingsPresentation implements IPlayerSettingsPresentation {
 		for (const row of this.rows.values()) row.button.hide();
 		for (const group of this.groups.values()) group.hide();
 		this.window.setWindowBackground();
-		this.window.setLabel("title", "Player Settings", "TOP", 0, -14, 16);
+		setWindowTitle(this.window, "Player Settings");
 		this.viewport.setParent(this.window);
 		this.content.setParent(this.viewport);
 		if (!this.mounted) {

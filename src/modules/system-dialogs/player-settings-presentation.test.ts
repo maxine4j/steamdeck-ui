@@ -50,6 +50,22 @@ vi.mock("../../ui/components/frame", () => ({
 	},
 }));
 
+it("fits the player settings heading in the shared metal titlebar", () => {
+	byId.clear();
+	new PlayerSettingsPresentation({} as IFramePoolManager).render(
+		{} as WowFrame,
+		[],
+	);
+	expect(byId.get("player-settings")?.at(0)?.setLabel).toHaveBeenCalledWith(
+		"window-title",
+		"Player Settings",
+		"TOP",
+		0,
+		-6,
+		12,
+	);
+});
+
 it("frames only radio groups and leaves the PvP checkbox without a red button background", () => {
 	byId.clear();
 	const presentation = new PlayerSettingsPresentation({} as IFramePoolManager);

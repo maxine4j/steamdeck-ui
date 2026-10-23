@@ -100,7 +100,12 @@ export class NativeDialogNavigation {
 				hook(frame, method, notify);
 		}
 	}
-	grid(id: string, root: NativeDialogFrame, vertical = false): NavGrid {
+	grid(
+		id: string,
+		root: NativeDialogFrame,
+		vertical = false,
+		onControl?: (frame: NativeDialogFrame, node: INavigable) => void,
+	): NavGrid {
 		const buttons: NativeDialogFrame[] = [];
 		const visit = (frame: NativeDialogFrame) => {
 			this.observe(frame, root);
@@ -136,7 +141,9 @@ export class NativeDialogNavigation {
 				grid.push([]);
 				top = button.GetTop();
 			}
-			grid.at(-1)?.push(this.control(`${id}:${this.ids.get(button)}`, button));
+			const node = this.control(`${id}:${this.ids.get(button)}`, button);
+			grid.at(-1)?.push(node);
+			onControl?.(button, node);
 		}
 		return grid;
 	}

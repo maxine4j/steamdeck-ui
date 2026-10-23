@@ -43,6 +43,28 @@ function setup() {
 	return { native, adapter: new NativeDialogNavigation(native) };
 }
 
+it("reports the logical node for each discovered enabled control", () => {
+	const { adapter } = setup();
+	const enabled = frame(true),
+		disabled = frame(true);
+	disabled.IsEnabled.mockReturnValue(false);
+	const root = frame(false, 0, 0, [
+		enabled,
+		disabled,
+	] as unknown as NativeDialogFrame[]);
+	const discovered = vi.fn();
+	const grid = adapter.grid(
+		"menu",
+		root as unknown as NativeDialogFrame,
+		true,
+		discovered,
+	);
+	expect(discovered).toHaveBeenCalledExactlyOnceWith(
+		enabled,
+		grid.at(0)?.at(0),
+	);
+});
+
 it("activates mouse-down controls only while visible and enabled and dismisses flyouts", () => {
 	const { adapter } = setup();
 	const down = vi.fn();

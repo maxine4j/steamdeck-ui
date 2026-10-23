@@ -1,12 +1,76 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
-import type { NativeDialogFrame } from "../ui/components/native-dialog-navigation";
+import type {
+	NativeDialogFrame,
+	NativeDialogNavigation,
+} from "../ui/components/native-dialog-navigation";
+import type { NavGrid } from "../ui/navigation/types";
 import {
 	type NativeDialog,
 	NativeDialogsClient,
 } from "./native-dialogs-client";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("offers only enter and leave for a dungeon proposal, defaults to enter, and excludes unavailable actions", () => {
+	const s = setup();
+	const popup = dialog();
+	popup.IsVisible.mockReturnValue(true);
+	const enter = { IsVisible: vi.fn(() => true), IsEnabled: vi.fn(() => true) };
+	const leave = { IsVisible: vi.fn(() => true), IsEnabled: vi.fn(() => true) };
+	s.globals.LFGDungeonReadyPopup = popup;
+	s.globals.LFGDungeonReadyDialog = { enterButton: enter, leaveButton: leave };
+	s.client.initialize();
+	const state = s.client.getDialogs().at(0);
+	expect(state?.grid.map((row) => row.map((node) => node.navId))).toEqual([
+		["native-LFGDungeonReadyPopup:enter", "native-LFGDungeonReadyPopup:leave"],
+	]);
+	expect(state?.defaultFocusId).toBe("native-LFGDungeonReadyPopup:enter");
+	expect(s.controls.grid).not.toHaveBeenCalled();
+	s.flush();
+	s.changed.mockClear();
+	enter.IsEnabled.mockReturnValue(false);
+	s.observers.get(enter as unknown as NativeDialogFrame)?.();
+	s.flush();
+	expect(s.changed).toHaveBeenCalledOnce();
+	expect(
+		s.client
+			.getDialogs()
+			.at(0)
+			?.grid.flat()
+			.map((node) => node.navId),
+	).toEqual(["native-LFGDungeonReadyPopup:leave"]);
+	leave.IsVisible.mockReturnValue(false);
+	expect(s.client.getDialogs().at(0)?.grid).toEqual([]);
+});
+
+it("prefers the localized Options control over earlier menu entries and decorated player settings", () => {
+	const s = setup();
+	const menu = dialog();
+	menu.IsVisible.mockReturnValue(true);
+	s.globals.GameMenuFrame = menu;
+	s.globals.GAMEMENU_OPTIONS = "Opciones";
+	const earlier = s.controls.control("earlier");
+	const options = s.controls.control("options");
+	const pvp = s.controls.control("player-settings:pvp");
+	s.additional.decorateGameMenu.mockImplementation((grid) => [
+		[pvp, ...(grid.at(0) ?? [])],
+		...grid.slice(1),
+	]);
+	s.controls.grid.mockImplementation((_id, _frame, _vertical, onControl) => {
+		onControl?.(
+			{ GetText: () => "Event" } as unknown as NativeDialogFrame,
+			earlier,
+		);
+		onControl?.(
+			{ GetText: () => "Opciones" } as unknown as NativeDialogFrame,
+			options,
+		);
+		return [[earlier], [options]];
+	});
+	s.client.initialize();
+	expect(s.client.getDialogs().at(0)?.defaultFocusId).toBe("options");
+});
 
 it("inserts injected game menu actions alongside Reload once per menu rebuild and disables them on shutdown", () => {
 	const events = createTestEventBus();
@@ -33,7 +97,7 @@ it("inserts injected game menu actions alongside Reload once per menu rebuild an
 	);
 	const controls = {
 		watch: vi.fn(),
-		grid: vi.fn(() => []),
+		grid: vi.fn<NativeDialogNavigation["grid"]>(() => []),
 		release: vi.fn(),
 		addMenuAction: add,
 		control: vi.fn(),
@@ -122,7 +186,7 @@ function setup() {
 		watch: vi.fn((frame: NativeDialogFrame, callback: () => void) =>
 			observers.set(frame, callback),
 		),
-		grid: vi.fn(() => []),
+		grid: vi.fn<NativeDialogNavigation["grid"]>(() => []),
 		control: vi.fn((id: string) => ({
 			navId: id,
 			onFocus: vi.fn(),
@@ -155,6 +219,7 @@ function setup() {
 	const additional = {
 		initialize: vi.fn(),
 		getDialogs: vi.fn((): NativeDialog[] => []),
+		decorateGameMenu: vi.fn((grid: NavGrid) => grid),
 		shutdown: vi.fn(),
 	};
 	const client = new NativeDialogsClient(events, controls, scheduler, [
@@ -262,6 +327,7 @@ it("discovers menu, static and queue dialogs, orders popups above the menu, and 
 		"native-GameMenuFrame",
 		menu,
 		true,
+		expect.any(Function),
 	);
 	invite.IsVisible.mockReturnValue(false);
 	expect(s.client.getDialogs().map((dialog) => dialog.id)).not.toContain(
