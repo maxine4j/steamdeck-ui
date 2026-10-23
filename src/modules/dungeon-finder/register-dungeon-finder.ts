@@ -8,6 +8,7 @@ import { type IModalNavigation, Modal } from "../../ui/components/modal";
 import { NativeDialogNavigation } from "../../ui/components/native-dialog-navigation";
 import { NativeLayout } from "../../ui/components/native-layout";
 import { NativeNavigation } from "../../ui/components/native-navigation";
+import { NativeRowActions } from "../../ui/components/native-row-actions";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { ModuleManager } from "../module-manager";
@@ -46,6 +47,7 @@ export function registerDungeonFinder(
 			events,
 			new NativeLayout(scheduler),
 			new NativeDialogNavigation(new NativeNavigation(pool)),
+			new NativeRowActions(pool),
 		),
 	);
 	modules.register(new DungeonFinderModule(ui, events, panel, native));

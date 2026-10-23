@@ -31,7 +31,13 @@ function setup() {
 		generalPlaystyle: 0,
 		editMode: false,
 	};
-	const categories = { ...frame() };
+	const category = { ...frame(), categoryID: 2, filters: 4 };
+	const categories = {
+		...frame(),
+		CategoryButtons: [category],
+		FindGroupButton: frame(),
+		StartGroupButton: frame(),
+	};
 	const root = {
 		...frame(),
 		CategorySelection: categories,
@@ -74,6 +80,17 @@ function setup() {
 		DoesEntryTitleMatchPrebuiltTitle: matches,
 	});
 	const layout = { bind: vi.fn(), release: vi.fn() };
+	const actions = { bind: vi.fn(), release: vi.fn() };
+	const select = vi.fn();
+	const find = vi.fn();
+	const create = vi.fn();
+	const signup = vi.fn();
+	const clearCreation = vi.fn();
+	vi.stubGlobal("LFGListCategorySelection_SelectCategory", select);
+	vi.stubGlobal("LFGListCategorySelectionFindGroupButton_OnClick", find);
+	vi.stubGlobal("LFGListCategorySelectionStartGroupButton_OnClick", create);
+	vi.stubGlobal("LFGListSearchPanel_SignUp", signup);
+	vi.stubGlobal("LFGListEntryCreation_ClearAutoCreateMode", clearCreation);
 	const controls = {
 		watch: vi.fn(),
 		grid: vi.fn(() => [[{ navId: "native", onInteract: vi.fn() }]]),
@@ -86,7 +103,7 @@ function setup() {
 		release: vi.fn(),
 	};
 	const events = { emit: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() };
-	const client = new PremadeFinderClient(events, layout, controls);
+	const client = new PremadeFinderClient(events, layout, controls, actions);
 	const host = { getSize: () => ({ width: 448, height: 600 }) } as Frame;
 	return {
 		client,
@@ -103,6 +120,13 @@ function setup() {
 		controls,
 		setBase,
 		events,
+		actions,
+		category,
+		select,
+		find,
+		create,
+		signup,
+		clearCreation,
 	};
 }
 
@@ -126,7 +150,7 @@ it("opens PvP categories using Blizzard's PvP filter", () => {
 	expect(s.setBase).toHaveBeenCalledWith(s.root, 8);
 });
 
-it("keeps search text, stock filters, all virtual results and signup reachable", () => {
+it("keeps search controls reachable and applies to the selected result with X, refreshing with Y", () => {
 	const s = setup();
 	s.client.mount(s.host, false);
 	s.root.activePanel = s.search;
@@ -137,11 +161,57 @@ it("keeps search text, stock filters, all virtual results and signup reachable",
 	expect(ids).toContain("premade-search");
 	expect(ids).toContain("premade-filters");
 	expect(ids).toContain("result:123");
-	expect(ids).toContain("premade-signup");
+	expect(ids).not.toContain("premade-signup");
+	const result = s.client
+		.navigation()
+		.flat()
+		.find((node) => node.navId === "result:123");
+	result?.onInteract();
+	expect(s.signup).toHaveBeenCalledWith(s.search);
+	result?.onContext?.();
+	expect(s.search.RefreshButton.Click).toHaveBeenCalledOnce();
+	s.search.SignUpButton.IsEnabled.mockReturnValue(false);
+	result?.onInteract();
+	expect(s.signup).toHaveBeenCalledOnce();
+});
+
+it("hides stock category actions and binds immediate search and creation to category rows", () => {
+	const s = setup();
+	s.client.mount(s.host, false);
+	const node = s.client.navigation().flat().at(0);
+	node?.onInteract();
+	expect(s.select).toHaveBeenLastCalledWith(s.categories, 2, 4);
+	expect(s.find).toHaveBeenCalledWith(s.categories.FindGroupButton);
+	expect(s.clearCreation).toHaveBeenCalledWith(s.creation);
+	node?.onContext?.();
+	expect(s.create).toHaveBeenCalledWith(s.categories.StartGroupButton);
+	expect(s.actions.bind).toHaveBeenCalledWith(
+		s.category,
+		expect.any(Function),
+		"Start Group",
+		expect.any(Function),
+	);
+	for (const button of [
+		s.categories.FindGroupButton,
+		s.categories.StartGroupButton,
+	])
+		expect(s.layout.bind).toHaveBeenCalledWith(button, { visible: false });
+	s.categories.StartGroupButton.IsEnabled.mockReturnValue(false);
+	node?.onContext?.();
+	expect(s.create).toHaveBeenCalledOnce();
+	s.client.unmount();
+	expect(s.actions.release).toHaveBeenCalledOnce();
+});
+
+it("restores the native create-row policy after leaving the finder", () => {
+	const s = setup();
+	s.search.shouldAlwaysShowCreateGroupButton = true;
+	s.client.mount(s.host, false);
+	s.client.unmount();
 	expect(s.search.shouldAlwaysShowCreateGroupButton).toBe(true);
 });
 
-it("keeps creation reachable for empty searches and after returning to categories", () => {
+it("suppresses default creation controls in search and after native searches", () => {
 	const s = setup();
 	Object.assign(s.search.ScrollBox, { StartGroupButton: s.search.BackButton });
 	s.client.mount(s.host, false);
@@ -151,10 +221,13 @@ it("keeps creation reachable for empty searches and after returning to categorie
 			.navigation()
 			.flat()
 			.map((node) => node.navId),
-	).toContain("premade-create");
-	s.search.shouldAlwaysShowCreateGroupButton = false;
+	).not.toContain("premade-create");
+	s.search.shouldAlwaysShowCreateGroupButton = true;
 	s.hooks.get("LFGListCategorySelection_StartFindGroup")?.();
-	expect(s.search.shouldAlwaysShowCreateGroupButton).toBe(true);
+	expect(s.search.shouldAlwaysShowCreateGroupButton).toBe(false);
+	expect(s.layout.bind).toHaveBeenCalledWith(s.search.BackButton, {
+		visible: false,
+	});
 });
 
 it("returns to categories before leaving the premade page", () => {

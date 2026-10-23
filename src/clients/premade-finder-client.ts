@@ -10,6 +10,7 @@ import type {
 	NativeDialogNavigation,
 } from "../ui/components/native-dialog-navigation";
 import type { NativeLayout } from "../ui/components/native-layout";
+import type { NativeRowActions } from "../ui/components/native-row-actions";
 import type { NavGrid } from "../ui/navigation/types";
 
 export interface IPremadeFinderClient {
@@ -24,6 +25,7 @@ export interface IPremadeFinderClient {
 export class PremadeFinderClient implements IPremadeFinderClient {
 	private parent?: Frame;
 	private hooked = false;
+	private originalCreatePolicy?: boolean;
 	private readonly hookedDropdowns = new Set<PremadeControl>();
 	private readonly menus = new Set<NativeDialogMenu>();
 	private titleSelection?: readonly [
@@ -39,6 +41,7 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 			NativeDialogNavigation,
 			"watch" | "grid" | "menu" | "list" | "control" | "release"
 		>,
+		private readonly actions: Pick<NativeRowActions, "bind" | "release">,
 	) {}
 	private readonly changed = () => {
 		if (this.parent) this.events.emit("DUNGEON_FINDER_CHANGED");
@@ -47,6 +50,9 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 		(C_AddOns.LoadAddOn as unknown as (this: void, name: string) => void)(
 			"Blizzard_GroupFinder",
 		);
+		if (!this.parent)
+			this.originalCreatePolicy =
+				LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton;
 		this.parent = parent;
 		if (!this.hooked) {
 			this.hooked = true;
@@ -60,7 +66,7 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 			);
 			hook("LFGListCategorySelection_StartFindGroup", () => {
 				if (this.parent)
-					LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton = true;
+					LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton = false;
 			});
 		}
 		const filters = (
@@ -68,7 +74,7 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 		).Enum.LFGListFilter;
 		LFGListFrame_SetBaseFilters(LFGListFrame, pvp ? filters.PvP : filters.PvE);
 		LFGListFrame_FixPanelValid(LFGListFrame);
-		LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton = true;
+		LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton = false;
 		this.controls.watch(LFGListFrame, this.changed);
 		for (const dropdown of this.dropdowns()) this.watchDropdown(dropdown);
 		this.resize();
@@ -156,6 +162,37 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 			? [[this.controls.control(id, frame)]]
 			: [];
 	}
+	private categoryNavigation(): NavGrid {
+		const panel = LFGListFrame.CategorySelection;
+		for (const button of [panel.FindGroupButton, panel.StartGroupButton])
+			this.layout.bind(button, { visible: false });
+		return panel.CategoryButtons.filter(
+			(button) => button.IsVisible() && button.IsEnabled(),
+		).map((button) => {
+			const activate = (create: boolean) => {
+				LFGListCategorySelection_SelectCategory(
+					panel,
+					button.categoryID,
+					button.filters,
+				);
+				LFGListEntryCreation_ClearAutoCreateMode(LFGListFrame.EntryCreation);
+				const action = create ? panel.StartGroupButton : panel.FindGroupButton;
+				if (!action.IsEnabled()) return;
+				if (create) LFGListCategorySelectionStartGroupButton_OnClick(action);
+				else LFGListCategorySelectionFindGroupButton_OnClick(action);
+			};
+			const find = () => activate(false);
+			const create = () => activate(true);
+			this.actions.bind(button, find, "Start Group", create);
+			const node = this.controls.control(
+				`premade-category:${button.categoryID}:${button.filters}`,
+				button,
+			);
+			node.onInteract = () => find();
+			node.onContext = () => create();
+			return [node];
+		});
+	}
 	navigation(): NavGrid {
 		if (!this.parent) return [];
 		const dropdown = this.openMenu();
@@ -167,6 +204,8 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 			return this.controls.menu("premade-menu", menu);
 		}
 		const root = LFGListFrame;
+		if (root.activePanel === root.CategorySelection)
+			return this.categoryNavigation();
 		const activityFinder = root.EntryCreation.ActivityFinder;
 		if (
 			root.activePanel === root.EntryCreation &&
@@ -213,23 +252,37 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 		}
 		if (root.activePanel === root.SearchPanel) {
 			const search = root.SearchPanel;
-			return [
+			if (search.ScrollBox.StartGroupButton)
+				this.layout.bind(search.ScrollBox.StartGroupButton, { visible: false });
+			const results = this.controls
+				.list("premade-result", search.ScrollBox, (data) =>
+					data.startGroup ? "create" : `${data.resultID}`,
+				)
+				.filter((row) => row.at(0)?.navId !== "premade-result:create");
+			for (const row of results)
+				for (const node of row) {
+					const select = node.onInteract;
+					node.onInteract = () => {
+						select();
+						if (search.SignUpButton.IsEnabled())
+							LFGListSearchPanel_SignUp(search);
+					};
+				}
+			const grid = [
 				...this.row("premade-search", search.SearchBox),
 				...this.row("premade-filters", search.FilterButton),
 				...this.row("premade-refresh", search.RefreshButton),
-				...this.controls.list(
-					"premade-result",
-					search.ScrollBox,
-					(data) => (data.startGroup ? "create" : `${data.resultID}`),
-					(frame) =>
-						(frame as NativeDialogFrame & { CancelButton?: NativeDialogFrame })
-							.CancelButton,
-				),
-				...this.row("premade-create", search.ScrollBox.StartGroupButton),
+				...results,
 				...this.row("premade-back", search.BackButton),
 				...this.row("premade-back-to-group", search.BackToGroupButton),
-				...this.row("premade-signup", search.SignUpButton),
 			];
+			for (const row of grid)
+				for (const node of row)
+					node.onContext = () =>
+						this.controls
+							.control("premade-refresh", search.RefreshButton)
+							.onInteract();
+			return grid;
 		}
 		return this.controls.grid("premade", root.activePanel ?? root);
 	}
@@ -274,9 +327,12 @@ export class PremadeFinderClient implements IPremadeFinderClient {
 		if (!this.parent) return;
 		this.openMenu()?.CloseMenu?.();
 		this.parent = undefined;
+		LFGListFrame.SearchPanel.shouldAlwaysShowCreateGroupButton =
+			this.originalCreatePolicy;
 		this.menus.clear();
 		this.titleSelection = undefined;
 		this.controls.release();
+		this.actions.release();
 		this.layout.release();
 	}
 }
