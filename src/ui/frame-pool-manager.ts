@@ -5,6 +5,7 @@ type MaskableTexture = WowTexture & {
 	RemoveMaskTexture(mask: WowTexture): void;
 };
 export type FrameType =
+	| "Slider"
 	| "FilterDropdown"
 	| "FocusTimer"
 	| "GameTooltip"

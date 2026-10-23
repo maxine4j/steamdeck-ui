@@ -5,6 +5,49 @@ import { Frame } from "./frame";
 
 beforeEach(() => vi.stubGlobal("UIParent", {}));
 
+it("configures a stepped slider without reporting programmatic updates and clears callbacks on release", () => {
+	let callback: ((frame: WowFrame, value: number) => void) | undefined;
+	const native = {
+		SetScript: vi.fn((script: string, handler?: typeof callback) => {
+			if (script === "OnValueChanged") callback = handler;
+		}),
+		SetMinMaxValues: vi.fn(),
+		SetValueStep: vi.fn(),
+		SetObeyStepOnDrag: vi.fn(),
+		SetEnabled: vi.fn(),
+		SetValue: vi.fn((value: number) =>
+			callback?.(native as unknown as WowFrame, value),
+		),
+		SetParent: vi.fn(),
+		SetFrameStrata: vi.fn(),
+		Hide: vi.fn(),
+	};
+	const pool = {
+		acquire: () => native,
+		getBackground: () => ({ SetColorTexture: vi.fn() }),
+		release: vi.fn(),
+	} as unknown as import("../frame-pool-manager").IFramePoolManager;
+	const changed = vi.fn();
+	const slider = new Frame("slider", pool, "Slider");
+	slider.setSlider({
+		minimum: 0.5,
+		maximum: 4,
+		step: 0.25,
+		value: 1,
+		enabled: true,
+		change: changed,
+	});
+	expect(native.SetMinMaxValues).toHaveBeenCalledWith(0.5, 4);
+	expect(native.SetValueStep).toHaveBeenCalledWith(0.25);
+	expect(native.SetObeyStepOnDrag).toHaveBeenCalledWith(true);
+	expect(changed).not.toHaveBeenCalled();
+	callback?.(native as unknown as WowFrame, 1.5);
+	expect(changed).toHaveBeenCalledExactlyOnceWith(1.5);
+	slider.destroy();
+	expect(callback).toBeUndefined();
+	expect(pool.release).toHaveBeenCalledWith("Slider", native);
+});
+
 it("places an owned companion left of an existing frame and fits the viewport without changing its owner", () => {
 	const root = { GetHeight: () => 600 };
 	vi.stubGlobal("UIParent", root);

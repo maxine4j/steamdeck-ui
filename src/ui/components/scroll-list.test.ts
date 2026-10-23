@@ -5,6 +5,75 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("renders radio markers and reusable sliders with clamped directional adjustments", () => {
+	const pool = {} as IFramePoolManager;
+	const change = vi.fn();
+	const list = new ScrollList("controls", pool, "", vi.fn());
+	const radioRow = {
+		id: "radio",
+		label: "Choice",
+		checked: true,
+		radio: true,
+		activate: vi.fn(),
+	};
+	const sliderRow = {
+		id: "speed",
+		label: "Speed",
+		height: 100,
+		slider: { minimum: 0.5, maximum: 4, step: 0.25, value: 1, change },
+		activate: vi.fn(),
+	};
+	const rows = [radioRow, sliderRow];
+	list.setRows(rows);
+	list.mount(new Frame("parent", pool));
+	expect(
+		frames.get("controls-checkbox-0")?.setTextureBackground,
+	).toHaveBeenCalledWith(
+		"Interface\\Buttons\\UI-RadioButton",
+		[0.25, 0.5, 0, 1],
+	);
+	const slider = frames.get("controls-slider-1");
+	expect(slider?.setSlider).toHaveBeenCalledWith(
+		expect.objectContaining({ value: 1, enabled: true }),
+	);
+	const nav = list.getNavGrid().at(1)?.at(0);
+	nav?.onAdjust?.(1);
+	expect(change).toHaveBeenLastCalledWith(1.25);
+	list.updateRows([
+		radioRow,
+		{ ...sliderRow, slider: { ...sliderRow.slider, value: 0.5 } },
+	]);
+	nav?.onAdjust?.(-1);
+	expect(change).toHaveBeenCalledTimes(1);
+	list.updateRows([
+		radioRow,
+		{ ...sliderRow, slider: { ...sliderRow.slider, value: 4 } },
+	]);
+	nav?.onAdjust?.(1);
+	expect(change).toHaveBeenCalledTimes(1);
+	const count = frames.size;
+	list.unmount();
+	list.mount(new Frame("parent", pool));
+	expect(frames.size).toBe(count);
+	list.updateRows([
+		{ id: "plain", label: "Plain", activate: vi.fn() },
+		{
+			id: "disabled",
+			label: "Disabled",
+			enabled: false,
+			slider: sliderRow.slider,
+			activate: vi.fn(),
+		},
+	]);
+	expect(frames.get("controls-checkbox-0")?.hide).toHaveBeenCalled();
+	expect(slider?.setSlider).toHaveBeenLastCalledWith(
+		expect.objectContaining({ enabled: false }),
+	);
+	list.updateRows([{ id: "plain", label: "Plain", activate: vi.fn() }]);
+	list.destroy();
+	expect(slider?.destroy).toHaveBeenCalledOnce();
+});
+
 it("keeps primary and secondary actions reachable across two columns", () => {
 	const pool = {} as IFramePoolManager;
 	const previous = vi.fn();
@@ -1417,6 +1486,7 @@ vi.mock("./frame", () => ({
 		setIcon = vi.fn();
 		setIconRing = vi.fn();
 		setTextureBackground = vi.fn();
+		setSlider = vi.fn();
 		setCoverTextureBackground = vi.fn();
 		setTooltip = vi.fn();
 		clearTooltip = vi.fn();

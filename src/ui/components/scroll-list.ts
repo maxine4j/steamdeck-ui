@@ -5,6 +5,7 @@ import {
 	type AnimatedAtlas,
 	Frame,
 	type IconRing,
+	type SliderValue,
 	type TextureRegion,
 } from "./frame";
 import { SCROLL_VIEWPORT_RIGHT } from "./scroll-indicator";
@@ -51,6 +52,8 @@ export interface ListRow {
 	readonly animatedIcon?: AnimatedAtlas;
 	readonly animatedIconOnDetail?: boolean;
 	readonly checked?: boolean;
+	readonly radio?: boolean;
+	readonly slider?: SliderValue;
 	readonly checkAtlas?: string;
 	readonly checkPlacement?: "label" | "secondary";
 	readonly enabled?: boolean;
@@ -90,6 +93,7 @@ export class ScrollList {
 		secondary: Frame;
 		checkbox?: Frame;
 		check?: Frame;
+		slider?: Frame;
 		animation?: Frame;
 		animatedFocus?: boolean;
 		focused?: boolean;
@@ -509,6 +513,34 @@ export class ScrollList {
 					row.height ?? (row.heading ? 28 : row.progress ? 60 : 48);
 				const horizontalPadding = this.options.contentPadding?.horizontal ?? 8;
 				const verticalPadding = this.options.contentPadding?.vertical ?? 6;
+				button.nav.onAdjust = row.slider
+					? (direction) => this.adjustSlider(index, direction)
+					: undefined;
+				if (row.slider) {
+					button.slider ??= new Frame(
+						`${this.id}-slider-${index}`,
+						this.pool,
+						"Slider",
+					);
+					button.slider.setParent(button.frame);
+					button.slider.layout(
+						rowWidth - 32,
+						20,
+						"BOTTOMLEFT",
+						button.frame,
+						16,
+						14,
+					);
+					button.slider.setSlider({
+						...row.slider,
+						enabled: row.enabled !== false,
+						change: (value) => {
+							if (this.isReady(index))
+								this.rows.at(index)?.slider?.change(value);
+						},
+					});
+					button.slider.show();
+				} else button.slider?.hide();
 				const actionOnly = row.secondary?.onlyAction === true;
 				const checkByAction =
 					row.checkPlacement === "secondary" && row.secondary !== undefined;
@@ -645,14 +677,19 @@ export class ScrollList {
 							checkboxLeft,
 							-(rowHeight - 20.3) / 2,
 						);
-						button.checkbox.setAtlasBackground("checkbox-minimal");
+						if (row.radio)
+							button.checkbox.setTextureBackground(
+								"Interface\\Buttons\\UI-RadioButton",
+								row.checked ? [0.25, 0.5, 0, 1] : [0, 0.25, 0, 1],
+							);
+						else button.checkbox.setAtlasBackground("checkbox-minimal");
 					}
 					button.check.fill(button.checkbox);
 					button.check.setAtlasBackground(
 						row.checkAtlas ?? "checkmark-minimal",
 					);
 					button.checkbox.show();
-					if (row.checked) button.check.show();
+					if (row.checked && !row.radio) button.check.show();
 					else button.check.hide();
 				} else button.checkbox?.hide();
 				const dimmed = row.enabled === false;
@@ -907,6 +944,23 @@ export class ScrollList {
 		const delta = top - this.scroll.getVisibleVerticalRange().top;
 		if (delta !== 0) this.scroll.scrollBy(delta);
 	}
+	private adjustSlider(index: number, direction: -1 | 1): void {
+		if (!this.isReady(index)) return;
+		const slider = this.rows.at(index)?.slider;
+		if (!slider) return;
+		const value = Math.max(
+			slider.minimum,
+			Math.min(
+				slider.maximum,
+				slider.minimum +
+					Math.round(
+						(slider.value - slider.minimum) / slider.step + direction,
+					) *
+						slider.step,
+			),
+		);
+		if (value !== slider.value) slider.change(value);
+	}
 	private style(index: number): void {
 		const row = this.rows.at(index);
 		const frame = this.buttons.at(index)?.frame;
@@ -1085,6 +1139,7 @@ export class ScrollList {
 		this.unmount();
 		for (const button of this.buttons) {
 			button.animation?.destroy();
+			button.slider?.destroy();
 			button.check?.destroy();
 			button.checkbox?.destroy();
 			button.progress.destroy();

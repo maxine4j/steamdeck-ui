@@ -11,6 +11,19 @@ it("creates focus animation timers as plain native frames", () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("creates a horizontal slider with Blizzard's minimal slider skin", () => {
+	vi.stubGlobal("UIParent", {});
+	const create = vi.fn();
+	vi.stubGlobal("CreateFrame", create);
+	new WowFrameFactory().createFrame("Slider");
+	expect(create).toHaveBeenCalledWith(
+		"Slider",
+		undefined,
+		UIParent,
+		"MinimalSliderTemplate",
+	);
+});
+
 it("creates Blizzard's native search box including its icon and clear button", () => {
 	vi.stubGlobal("UIParent", {});
 	const create = vi.fn();

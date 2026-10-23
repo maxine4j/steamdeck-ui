@@ -16,12 +16,14 @@ it("offers only the five requested settings and three movement styles", () => {
 	]);
 	for (const option of client
 		.getOptions()
-		.filter((option) => option.id.endsWith("Style")))
+		.filter((option) => option.id.endsWith("Style"))) {
+		expect(option.category).toBe("Movement");
 		expect(option.choices.map((choice) => choice.value)).toEqual([
 			"face",
 			"backpedal",
 			"mixed",
 		]);
+	}
 });
 
 it("enforces analog movement and fixed mixed angles at login despite old saved settings", () => {

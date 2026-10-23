@@ -1,6 +1,6 @@
 # Controller options (Retail)
 
-Open **SteamDeck UI options** from the Escape game menu. The fullscreen window uses the shared metal window skin and pooled controls. Select a setting to open its values, then select the value you want directly. The current value has a checkmark. D-pad navigates the choices; Back or controller cancel returns without changing anything. Changes apply immediately and persist in `SteamDeckUIConfig.controllerOptions`.
+Open **SteamDeck UI options** from the Escape game menu. The fullscreen window uses the shared metal window skin and pooled controls. The **Movement** section shows separate radio groups for movement outside and inside combat. Camera turning also uses radio buttons. Horizontal and vertical sensitivity use sliders with the current numeric value: drag with the mouse, or focus a slider and use D-pad left/right. D-pad up/down moves to another control. Changes apply immediately and persist in `SteamDeckUIConfig.controllerOptions`.
 
 ## Available settings
 
@@ -24,4 +24,4 @@ Camera follow, temporary camera look, inversion, camera comfort, walk/run thresh
 - The same ConsolePort source checks `gamepadInvertPitch` availability at runtime and documents negative camera speed as inversion when separate inversion CVars are absent. A missing inversion CVar does not establish that vertical inversion itself is impossible.
 - Blizzard `.libraries/wow-ui-source/Interface/AddOns/Blizzard_GameMenu/Shared/GameMenuFrame.lua`: the native menu closes through `HideUIPanel`; the injected menu action closes Escape before requesting options.
 
-Unsupported CVars remain unavailable. Tests cover direct selection, cancellation, navigation scope cleanup, persistence, fixed login settings, combat camera modes, restoration, resizing and panel reuse. In-game layout and hardware movement need verification in Retail.
+Unsupported CVars remain unavailable. Tests cover radio selection, slider adjustment and limits, vertical navigation, native slider callbacks, persistence, fixed login settings, combat camera modes, restoration, resizing and control reuse. In-game layout and hardware movement need verification in Retail.

@@ -57,7 +57,7 @@ const movementDescription =
 const definitions: readonly Definition[] = [
 	{
 		id: "travelStyle",
-		category: "Player control",
+		category: "Movement",
 		label: "Movement outside combat",
 		description: movementDescription,
 		choices: styles,
@@ -65,7 +65,7 @@ const definitions: readonly Definition[] = [
 	},
 	{
 		id: "combatStyle",
-		category: "Player control",
+		category: "Movement",
 		label: "Movement in combat",
 		description: movementDescription,
 		choices: styles,

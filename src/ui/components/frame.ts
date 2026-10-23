@@ -57,6 +57,25 @@ export interface TextureRegion {
 	readonly height: number;
 	readonly coords?: readonly [number, number, number, number];
 }
+export interface SliderValue {
+	readonly minimum: number;
+	readonly maximum: number;
+	readonly step: number;
+	readonly value: number;
+	readonly enabled?: boolean;
+	change(value: number): void;
+}
+type NativeSlider = WowFrame & {
+	SetMinMaxValues(minimum: number, maximum: number): void;
+	SetValueStep(step: number): void;
+	SetObeyStepOnDrag(obey: boolean): void;
+	SetValue(value: number): void;
+	SetEnabled(enabled: boolean): void;
+	SetScript(
+		script: "OnValueChanged",
+		handler?: (this: void, frame: WowFrame, value: number) => void,
+	): void;
+};
 interface FlipbookAnimation {
 	SetDuration(seconds: number): void;
 	SetOrder(order: number): void;
@@ -143,6 +162,7 @@ export class Frame implements IUIComponent {
 		public readonly id: string,
 		private readonly pool: IFramePoolManager,
 		private readonly frameType:
+			| "Slider"
 			| "FilterDropdown"
 			| "GameTooltip"
 			| "Frame"
@@ -1476,7 +1496,24 @@ export class Frame implements IUIComponent {
 		this.acquire().SetParent(parent.acquire());
 		this.parent = parent;
 	}
+	setSlider(options: SliderValue): void {
+		const slider = this.acquire() as NativeSlider;
+		slider.SetScript("OnValueChanged", undefined);
+		slider.SetMinMaxValues(options.minimum, options.maximum);
+		slider.SetValueStep(options.step);
+		slider.SetObeyStepOnDrag(true);
+		slider.SetValue(options.value);
+		slider.SetEnabled(options.enabled !== false);
+		slider.SetScript("OnValueChanged", (_frame, value) => {
+			if (options.enabled !== false) options.change(value);
+		});
+	}
 	destroy(): void {
+		if (this.native && this.frameType === "Slider") {
+			const slider = this.native as NativeSlider;
+			slider.SetScript("OnValueChanged", undefined);
+			slider.SetEnabled(true);
+		}
 		this.navigationFocus = undefined;
 		if (this.native) {
 			const pointer = this.native as WowFrame & {

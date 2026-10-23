@@ -1,7 +1,4 @@
-import type {
-	ControllerOption,
-	IControllerOptionsClient,
-} from "../../clients/controller-options-client";
+import type { IControllerOptionsClient } from "../../clients/controller-options-client";
 import { Frame } from "../../ui/components/frame";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
@@ -14,13 +11,6 @@ export class ControllerOptionsPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly viewport: Frame;
 	private changed?: () => void;
-	private editing?: string;
-	private readonly choiceScope = {
-		cancel: () => {
-			this.editing = undefined;
-			this.refresh();
-		},
-	};
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: Pick<
@@ -46,53 +36,14 @@ export class ControllerOptionsPanel implements IPanel {
 			},
 		);
 	}
-	private showChoices(option: ControllerOption): void {
-		this.list.updateRows([
-			{
-				id: "choices-heading",
-				label: option.label,
-				detail: option.description,
-				heading: true,
-				wrapDetail: true,
-				height: 84,
-				activate: () => {},
-			},
-			...option.choices.map(
-				(choice): ListRow => ({
-					id: `choice-${option.id}-${choice.value}`,
-					label: choice.label,
-					checked: choice.value === option.value,
-					height: 56,
-					fontSize: 17,
-					wrapLabel: true,
-					activate: () => {
-						this.client.set(option.id, choice.value);
-						this.choiceScope.cancel();
-					},
-				}),
-			),
-			{
-				id: "choices-back",
-				label: "Back",
-				height: 56,
-				fullWidth: true,
-				activate: this.choiceScope.cancel,
-			},
-		]);
-	}
 	private refresh(): void {
 		const options = this.client.getOptions();
-		const editing = options.find((option) => option.id === this.editing);
-		if (editing) {
-			this.showChoices(editing);
-			return;
-		}
 		const rows: ListRow[] = [
 			{
 				id: "options-help",
 				label: "Player and camera preferences",
 				detail:
-					"Select a setting, then choose a value. Changes apply immediately and are saved for your next login.",
+					"Choose movement with radio buttons. Drag sensitivity sliders or use D-pad left/right. Changes are saved immediately.",
 				heading: true,
 				wrapDetail: true,
 				height: 84,
@@ -111,28 +62,58 @@ export class ControllerOptionsPanel implements IPanel {
 					activate: () => {},
 				});
 			}
-			const label =
-				option.choices.find((choice) => choice.value === option.value)?.label ??
-				`Current: ${option.value}`;
+			if (option.id === "yawSpeed" || option.id === "pitchSpeed") {
+				rows.push({
+					id: `option-${option.id}`,
+					fullWidth: true,
+					label: `${option.label}: ${option.supported ? `${option.value}×` : "Unavailable"}`,
+					height: 84,
+					fontSize: 17,
+					tooltip: option.description,
+					enabled: option.supported,
+					background: [0.075, 0.075, 0.075],
+					slider: {
+						minimum: Number(option.choices.at(0)?.value ?? "0.5"),
+						maximum: Number(option.choices.at(-1)?.value ?? "4"),
+						step: 0.25,
+						value: Number(option.value),
+						change: (value) => {
+							if (!option.supported) return;
+							this.client.set(option.id, `${value}`);
+							this.refresh();
+						},
+					},
+					activate: () => {},
+				});
+				continue;
+			}
 			rows.push({
 				id: `option-${option.id}`,
-				label: `${option.label}: ${option.supported ? label : "Unavailable"}`,
+				label: option.label,
 				detail: option.supported
 					? option.description
 					: "Unavailable in this version of World of Warcraft.",
-				height: 120,
-				fontSize: 17,
-				wrapLabel: true,
+				heading: true,
+				height: 70,
 				wrapDetail: true,
-				background: [0.075, 0.075, 0.075],
-				enabled: option.supported,
-				activate: () => {
-					if (!option.supported) return;
-					this.editing = option.id;
-					this.list.resetScroll();
-					this.refresh();
-				},
+				activate: () => {},
 			});
+			for (const choice of option.choices)
+				rows.push({
+					id: `choice-${option.id}-${choice.value}`,
+					label: choice.label,
+					radio: true,
+					checked: choice.value === option.value,
+					enabled: option.supported,
+					height: 44,
+					fontSize: 16,
+					wrapLabel: true,
+					activate: () => {
+						if (!option.supported) return;
+						this.client.set(option.id, choice.value);
+						this.refresh();
+					},
+				});
 		}
 		rows.push({
 			id: "options-reset",
@@ -169,17 +150,12 @@ export class ControllerOptionsPanel implements IPanel {
 		this.viewport.show();
 	}
 	onUnmount(): void {
-		this.editing = undefined;
 		this.viewport.onSizeChanged();
 		this.list.unmount();
 		this.viewport.hide();
 	}
 	getNavGrid() {
-		const grid = this.list.getNavGrid();
-		for (const row of grid)
-			for (const node of row)
-				node.navigationScope = this.editing ? this.choiceScope : undefined;
-		return grid;
+		return this.list.getNavGrid();
 	}
 	setNavigationChanged(changed?: () => void): void {
 		this.changed = changed;

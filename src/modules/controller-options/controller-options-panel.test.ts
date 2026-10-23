@@ -98,41 +98,44 @@ it("fits the fullscreen viewport and updates row width when the window resizes",
 	state.viewportWidth = 1200;
 });
 
-it("opens direct choices, selects a value, cancels without edits, resets and closes", () => {
-	let current = "never";
-	const choices = [
-		{ value: "never", label: "Never" },
-		{ value: "combat", label: "In combat" },
-		{ value: "always", label: "Always" },
-		{ value: "outOfCombat", label: "Outside combat" },
-	];
+it("shows inline radio groups and sensitivity sliders, saves immediately and resets", () => {
+	let movement = "face";
+	let speed = "1";
 	const client = {
 		getOptions: (): ControllerOption[] => [
 			{
-				id: "facing",
-				label: "Camera turns character",
-				description: "When to face",
-				category: "Camera control",
-				choices,
-				value: current,
+				id: "travelStyle",
+				category: "Movement",
+				label: "Movement outside combat",
+				description: "Choose movement",
+				choices: [
+					{ value: "face", label: "Face movement stick" },
+					{ value: "backpedal", label: "Strafe and backpedal" },
+					{ value: "mixed", label: "Strafe, then face stick" },
+				],
+				value: movement,
 				supported: true,
 			},
-			{
-				id: "missing",
-				label: "Unavailable option",
-				description: "Missing",
+			...["yawSpeed", "pitchSpeed"].map((id) => ({
+				id,
 				category: "Camera control",
-				choices,
-				value: current,
-				supported: false,
-			},
+				label: id,
+				description: "Sensitivity",
+				choices: [
+					{ value: "0.5", label: "0.5" },
+					{ value: "0.75", label: "0.75" },
+					{ value: "1", label: "1" },
+					{ value: "1.25", label: "1.25" },
+				],
+				value: speed,
+				supported: id === "yawSpeed",
+			})),
 		],
-		set: vi.fn((_id: string, value: string) => {
-			current = value;
+		set: vi.fn((id: string, value: string) => {
+			if (id === "travelStyle") movement = value;
+			else speed = value;
 		}),
-		reset: vi.fn(() => {
-			current = "never";
-		}),
+		reset: vi.fn(),
 	};
 	const close = vi.fn();
 	const panel = new ControllerOptionsPanel(
@@ -141,60 +144,47 @@ it("opens direct choices, selects a value, cancels without edits, resets and clo
 		close,
 	);
 	panel.onMount({} as IUIComponent);
+	expect(state.rows.some((row) => row.label === "Movement")).toBe(true);
+	const radios = () =>
+		state.rows.filter((row) => row.id.startsWith("choice-travelStyle"));
+	expect(radios()).toHaveLength(3);
+	expect(radios().every((row) => row.radio)).toBe(true);
 	expect(
-		state.rows.find((row) => row.id === "option-facing")?.secondary,
-	).toBeUndefined();
-	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.some((node) => node.navId === "option-missing"),
-	).toBe(false);
-	state.rows.find((row) => row.id === "option-missing")?.activate();
-	expect(client.set).not.toHaveBeenCalled();
-	state.rows.find((row) => row.id === "option-facing")?.activate();
-	expect(client.set).not.toHaveBeenCalled();
-	expect(
-		state.rows
-			.filter((row) => row.id.startsWith("choice-"))
+		radios()
+			.filter((row) => row.checked)
 			.map((row) => row.label),
-	).toEqual(choices.map((choice) => choice.label));
+	).toEqual(["Face movement stick"]);
+	state.rows.find((row) => row.id === "choice-travelStyle-mixed")?.activate();
+	expect(client.set).toHaveBeenLastCalledWith("travelStyle", "mixed");
 	expect(
-		state.rows.find((row) => row.id === "choice-facing-never")?.checked,
-	).toBe(true);
-	panel
-		.getNavGrid()
-		.flat()
-		.find((node) => node.navId === "choice-facing-outOfCombat")
-		?.onInteract();
-	expect(client.set).toHaveBeenCalledExactlyOnceWith("facing", "outOfCombat");
-	expect(state.rows.find((row) => row.id === "option-facing")?.label).toContain(
-		"Outside combat",
-	);
-	state.rows.find((row) => row.id === "option-facing")?.activate();
-	panel.getNavGrid().at(0)?.at(0)?.navigationScope?.cancel();
-	expect(client.set).toHaveBeenCalledTimes(1);
-	expect(state.rows.some((row) => row.id === "option-facing")).toBe(true);
+		radios()
+			.filter((row) => row.checked)
+			.map((row) => row.label),
+	).toEqual(["Strafe, then face stick"]);
+	const slider = state.rows.find((row) => row.id === "option-yawSpeed");
+	expect(slider?.fullWidth).toBe(true);
 	expect(
-		panel
-			.getNavGrid()
-			.flat()
-			.every((node) => node.navigationScope === undefined),
+		state.rows.find((row) => row.id === "option-pitchSpeed")?.fullWidth,
 	).toBe(true);
-	state.rows.find((row) => row.id === "option-facing")?.activate();
-	state.rows.find((row) => row.id === "choices-back")?.activate();
-	expect(client.set).toHaveBeenCalledTimes(1);
+	expect(slider?.slider).toMatchObject({
+		minimum: 0.5,
+		maximum: 1.25,
+		step: 0.25,
+		value: 1,
+	});
+	slider?.slider?.change(1.25);
+	expect(client.set).toHaveBeenLastCalledWith("yawSpeed", "1.25");
+	expect(
+		state.rows.find((row) => row.id === "option-yawSpeed")?.slider?.value,
+	).toBe(1.25);
+	expect(
+		state.rows.find((row) => row.id === "option-pitchSpeed")?.enabled,
+	).toBe(false);
 	state.rows.find((row) => row.id === "options-reset")?.activate();
 	expect(client.reset).toHaveBeenCalledOnce();
 	state.rows.find((row) => row.id === "options-close")?.activate();
 	expect(close).toHaveBeenCalledOnce();
-	state.rows.find((row) => row.id === "option-facing")?.activate();
-	panel.onUnmount();
-	panel.onMount({} as IUIComponent);
-	expect(state.rows.some((row) => row.id === "option-facing")).toBe(true);
-	expect(state.mounts).toBe(2);
 	panel.destroy();
-	expect(state.destroys).toBe(1);
 });
 
 it("registers a fullscreen options window, opens on menu request and detaches on shutdown", () => {

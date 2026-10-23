@@ -25,6 +25,8 @@ export interface INavigable {
 	onAlternate?(): void; // X prefers this immediate action over selection.
 	/** Continuous controls consume directional input while retaining focus. */
 	onMove?(direction: NavDirection, pressed: boolean): void;
+	/** Adjust a value with left/right while up/down continues navigating. */
+	onAdjust?(direction: -1 | 1): void;
 }
 
 export interface NavigationScope {

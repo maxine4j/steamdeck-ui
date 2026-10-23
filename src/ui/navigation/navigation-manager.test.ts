@@ -12,6 +12,22 @@ const node = (navId: string): INavigable => ({
 	onInteract: vi.fn(),
 });
 
+it("adjusts a slider horizontally while keeping vertical navigation available", () => {
+	const manager = new NavigationManager(createTestEventBus());
+	const adjust = vi.fn();
+	manager.registerGrid("settings", [
+		[{ ...node("slider"), onAdjust: adjust }, node("other")],
+		[node("below")],
+	]);
+	manager.setActiveGrid("settings");
+	manager.moveRight();
+	manager.moveLeft();
+	expect(adjust.mock.calls).toEqual([[1], [-1]]);
+	expect(manager.focusedId).toBe("slider");
+	manager.moveDown();
+	expect(manager.focusedId).toBe("below");
+});
+
 it("activates one immediate action, falling back to regular selection", () => {
 	const events = createTestEventBus();
 	const manager = new NavigationManager(events);

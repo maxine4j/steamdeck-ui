@@ -205,6 +205,13 @@ export class NavigationManager implements INavManager {
 	private move(direction: NavDirection): void {
 		if (!this.active) return;
 		if (this.focused?.onMove) return;
+		if (
+			(direction === "left" || direction === "right") &&
+			this.focused?.onAdjust
+		) {
+			this.focused.onAdjust(direction === "left" ? -1 : 1);
+			return;
+		}
 		const next = this.focusedId
 			? this.graph.neighbor(this.focusedId, direction)
 			: undefined;
