@@ -8,6 +8,8 @@ export class ControllerOptionsMenuAction implements NativeGameMenuAction {
 			_G as unknown as { GameMenuFrame?: Parameters<typeof HideUIPanel>[0] }
 		).GameMenuFrame;
 		if (menu) HideUIPanel(menu);
+		// Release the hidden menu's modal input before the panel claims focus.
+		this.events.emit("NATIVE_DIALOGS_CHANGED");
 		this.events.emit("CONTROLLER_OPTIONS_OPEN_REQUESTED");
 	}
 }
