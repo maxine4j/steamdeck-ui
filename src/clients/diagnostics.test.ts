@@ -1,6 +1,36 @@
 import { expect, it, vi } from "vitest";
 import { Diagnostics } from "./diagnostics";
 
+it("attaches build identity to every persisted log line", () => {
+	const persist = vi.fn();
+	const diagnostics = new Diagnostics(
+		() => 100,
+		500,
+		persist,
+		"build=abc123-dirty",
+	);
+	diagnostics.log("info", "event NAV_INTERACT");
+	diagnostics.log("error", "failure");
+	expect(persist.mock.calls).toEqual([
+		["[100] INFO build=abc123-dirty event NAV_INTERACT"],
+		["[100] ERROR build=abc123-dirty failure"],
+	]);
+});
+
+it("persists formatted logs before notifying UI observers", () => {
+	const saved: string[] = [];
+	const diagnostics = new Diagnostics(
+		() => 100,
+		2,
+		(line) => saved.push(line),
+	);
+	diagnostics.subscribe(() => {
+		expect(saved.at(-1)).toBe("[100] INFO breadcrumb");
+	});
+	diagnostics.log("info", "breadcrumb");
+	expect(saved).toEqual(["[100] INFO breadcrumb"]);
+});
+
 it("retains bounded timestamped logs and publishes structured work progress without losing reasons", () => {
 	let time = 100;
 	const diagnostics = new Diagnostics(() => time, 2);

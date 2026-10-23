@@ -3,6 +3,23 @@ import type { WowEventFrame } from "../types";
 import { createTestEventBus } from "./test-event-bus";
 import { WowEventBus } from "./wow-event-bus";
 
+it("traces events before dispatch, including events whose handlers throw", () => {
+	const trace = vi.fn();
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: vi.fn(),
+	} as unknown as WowEventFrame;
+	const bus = new WowEventBus({ createEventFrame: () => frame }, trace);
+	bus.subscribe("NAV_INTERACT", () => {
+		expect(trace).toHaveBeenLastCalledWith("NAV_INTERACT");
+		throw new Error("broken interaction");
+	});
+	expect(() => bus.emit("NAV_INTERACT")).toThrow("broken interaction");
+	bus.emit("MAIL_SHOW");
+	expect(trace.mock.calls).toEqual([["NAV_INTERACT"], ["MAIL_SHOW"]]);
+});
+
 it("refreshes skyriding movement settings on mount display changes", () => {
 	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
 	const frame = {

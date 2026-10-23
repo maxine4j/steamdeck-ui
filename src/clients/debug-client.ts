@@ -1,5 +1,6 @@
 import type { IEventBus } from "../events/types";
 import { Diagnostics } from "./diagnostics";
+import type { ErrorEnvironment } from "./error-context-client";
 import { LuaErrorHistory, type LuaErrorSnapshot } from "./lua-error-history";
 import type { ITaskScheduler } from "./task-scheduler";
 
@@ -19,7 +20,6 @@ declare global {
 }
 
 export class DebugClient {
-	readonly diagnostics = new Diagnostics(() => GetServerTime());
 	private readonly errors = new LuaErrorHistory();
 	private previous?: (this: void, message: unknown) => void;
 	private handling = false;
@@ -67,7 +67,13 @@ export class DebugClient {
 			const stack = secret(rawStack)
 				? "Stack trace unavailable (secret value)"
 				: (rawStack ?? "Stack trace unavailable");
-			this.errors.capture(safeMessage, stack, GetServerTime());
+			this.errors.capture(
+				safeMessage,
+				stack,
+				GetServerTime(),
+				this.diagnostics.report().slice(-12000),
+				this.context?.capture(),
+			);
 			this.diagnostics.log("error", `${safeMessage}\n${stack}`);
 			if (!this.autoOpenRequested) {
 				// Keep this latched after dispatch, including when opening the UI
@@ -87,6 +93,8 @@ export class DebugClient {
 		private readonly events: IEventBus,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
 		private readonly captureErrors = true,
+		readonly diagnostics = new Diagnostics(() => GetServerTime()),
+		private readonly context?: { capture(): ErrorEnvironment },
 	) {}
 	loadErrors(): LuaErrorSnapshot {
 		return this.errors.load(GetServerTime());
@@ -98,8 +106,10 @@ export class DebugClient {
 		this.autoOpenRequested = false;
 		this.previous = geterrorhandler();
 		seterrorhandler(this.handleError);
+		this.diagnostics.log("info", "session started");
 	}
 	shutdown(): void {
+		if (this.previous) this.diagnostics.log("info", "session stopped");
 		this.cancelOpen?.();
 		this.cancelOpen = undefined;
 		if (this.previous && geterrorhandler() === this.handleError)

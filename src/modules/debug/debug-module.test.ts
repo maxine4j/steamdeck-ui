@@ -4,7 +4,7 @@ import { createTestEventBus } from "../../events/test-event-bus";
 import type { IPanel } from "../../ui/panel/types";
 import { DebugModule } from "./debug-module";
 
-it("opens the errors tab in its own left container on request, records collection events and detaches on shutdown", () => {
+it("opens the errors tab in its own left container on request and detaches on shutdown", () => {
 	const events = createTestEventBus();
 	const diagnostics = new Diagnostics(() => 100);
 	const client = { diagnostics, initialize: vi.fn(), shutdown: vi.fn() };
@@ -23,8 +23,6 @@ it("opens the errors tab in its own left container on request, records collectio
 	expect(ui.registerPanel).toHaveBeenCalledWith(errors, "left", "debug");
 	events.emit("DEBUG_OPEN_REQUESTED");
 	expect(ui.openPanel).toHaveBeenCalledWith("debug-errors", "left", "debug");
-	events.emit("MOUNTS_CHANGED", { id: 7, source: "new-mount" });
-	expect(diagnostics.report()).toContain("MOUNTS_CHANGED");
 	module.shutdown();
 	ui.openPanel.mockClear();
 	events.emit("DEBUG_OPEN_REQUESTED");

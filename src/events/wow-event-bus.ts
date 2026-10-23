@@ -265,12 +265,16 @@ export class WowEventBus implements IEventBus {
 			? [payload?: EventPayload<E>]
 			: [EventPayload<E>]
 	): void {
+		this.trace?.(event);
 		for (const handler of [...(this.handlers.get(event) ?? [])])
 			handler(args.at(0));
 	}
 
 	private readonly frame: WowEventFrame;
-	constructor(factory: EventFrameFactory) {
+	constructor(
+		factory: EventFrameFactory,
+		private readonly trace?: (event: ApplicationEvent) => void,
+	) {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
 		for (const event of [

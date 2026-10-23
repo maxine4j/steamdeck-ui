@@ -12,11 +12,14 @@
 		"build:release": "./scripts/build-addon.sh",
 		"lint": "biome check",
 		"format": "biome check --write",
-		"dev": "tstl --watch"
+		"dev": "tstl --watch",
+		"debug:extract": "node scripts/extract-debug.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",
+		"@types/luaparse": "^0",
 		"lua-types": "^2.14.1",
+		"luaparse": "^0.3.1",
 		"typescript": "6.0.2",
 		"typescript-to-lua": "^1.37.1",
 		"vite": "^8.3.4",

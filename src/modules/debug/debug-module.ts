@@ -1,5 +1,5 @@
 import type { DebugClient } from "../../clients/debug-client";
-import type { ApplicationEvent, IEventBus } from "../../events/types";
+import type { IEventBus } from "../../events/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IUIOrchestrator } from "../../ui/ui-orchestrator";
 import type { IModule } from "../types";
@@ -9,20 +9,6 @@ export class DebugModule implements IModule {
 	private registered = false;
 	private readonly open = () =>
 		this.ui.openPanel(this.errors.id, "left", "debug");
-	private readonly eventHandlers: [ApplicationEvent, () => void][] = [
-		"PLAYER_LOGIN",
-		"COMBAT_STARTED",
-		"COMBAT_ENDED",
-		"MOUNTS_CHANGED",
-		"MOUNTS_SEARCH_CHANGED",
-		"TOYS_CHANGED",
-		"PETS_CHANGED",
-		"APPEARANCES_CHANGED",
-		"ACHIEVEMENTS_CHANGED",
-	].map((event) => [
-		event as ApplicationEvent,
-		() => this.client.diagnostics.log("info", `event ${event}`),
-	]);
 	constructor(
 		private readonly ui: Pick<
 			IUIOrchestrator,
@@ -46,14 +32,10 @@ export class DebugModule implements IModule {
 			this.registered = true;
 		}
 		this.events.subscribe("DEBUG_OPEN_REQUESTED", this.open);
-		for (const [event, handler] of this.eventHandlers)
-			this.events.subscribe(event, handler);
 		this.client.initialize();
 	}
 	shutdown(): void {
 		this.events.unsubscribe("DEBUG_OPEN_REQUESTED", this.open);
-		for (const [event, handler] of this.eventHandlers)
-			this.events.unsubscribe(event, handler);
 		this.ui.closePanel("left", undefined, "debug");
 		this.client.shutdown();
 	}

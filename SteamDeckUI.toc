@@ -3,7 +3,7 @@
 ## Notes: All in one SteamDeck support
 ## Author: maxine4j
 ## Version: 0.0.1
-## SavedVariables: SteamDeckUIConfig, SteamDeckUIErrors
+## SavedVariables: SteamDeckUIConfig, SteamDeckUIErrors, SteamDeckUILogs
 ## LoadSavedVariablesFirst: 1
 
 main.lua

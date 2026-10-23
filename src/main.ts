@@ -1,3 +1,4 @@
+import { BUILD_COMMIT } from "./build-info";
 import { AchievementsClient } from "./clients/achievements-client";
 import { ActionBarClient } from "./clients/action-bar-client";
 import { AddonConfigClient } from "./clients/addon-config-client";
@@ -10,9 +11,11 @@ import { ControllerInputClient } from "./clients/controller-input-client";
 import { ControllerOptionsClient } from "./clients/controller-options-client";
 import { CurrencyClient } from "./clients/currency-client";
 import { DebugClient } from "./clients/debug-client";
+import { Diagnostics } from "./clients/diagnostics";
 import { DialogueCamera } from "./clients/dialogue-camera";
 import { DialogueClient } from "./clients/dialogue-client";
 import { DungeonFinderClient } from "./clients/dungeon-finder-client";
+import { ErrorContextClient } from "./clients/error-context-client";
 import { HeirloomsClient } from "./clients/heirlooms-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MailClient } from "./clients/mail-client";
@@ -22,6 +25,7 @@ import { PerformanceClient } from "./clients/performance-client";
 import { PetsClient } from "./clients/pets-client";
 import { PvpFinderClient } from "./clients/pvp-finder-client";
 import { ReputationClient } from "./clients/reputation-client";
+import { SavedLogHistory } from "./clients/saved-log-history";
 import { SlashCommandsClient } from "./clients/slash-commands-client";
 import { SpellbookClient } from "./clients/spellbook-client";
 import { TalentsClient } from "./clients/talents-client";
@@ -43,7 +47,16 @@ import { FramePoolManager } from "./ui/frame-pool-manager";
 import { WowFrameFactory } from "./ui/wow-frame-factory";
 
 const frameFactory = new WowFrameFactory();
-const events = new WowEventBus(frameFactory);
+const logHistory = new SavedLogHistory();
+const diagnostics = new Diagnostics(
+	() => GetServerTime(),
+	500,
+	(line) => logHistory.append(line),
+	`build=${BUILD_COMMIT}`,
+);
+const events = new WowEventBus(frameFactory, (event) =>
+	diagnostics.log("info", `event ${event}`),
+);
 const bank = new BankClient();
 const auctionHouse = new AuctionHouseClient(
 	events,
@@ -55,7 +68,13 @@ const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
 const scheduler = new TaskScheduler();
-const debug = new DebugClient(events, scheduler);
+const debug = new DebugClient(
+	events,
+	scheduler,
+	true,
+	diagnostics,
+	new ErrorContextClient(),
+);
 const collectionCache = new CollectionCache(scheduler, undefined, () =>
 	GetServerTime(),
 );

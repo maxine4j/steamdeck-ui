@@ -272,6 +272,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/luaparse@npm:^0":
+  version: 0.2.13
+  resolution: "@types/luaparse@npm:0.2.13"
+  checksum: 10c0/b5f0bd7f83090cac83497ebb4fd3e3d62e039e232a8f1b15fe7a27cda4263eb186681758cc4f7c0b08fc3b1262c9ec80e308a94cd760b89f2450c787b031bfda
+  languageName: node
+  linkType: hard
+
 "@typescript-to-lua/language-extensions@npm:1.19.0":
   version: 1.19.0
   resolution: "@typescript-to-lua/language-extensions@npm:1.19.0"
@@ -592,6 +599,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"luaparse@npm:^0.3.1":
+  version: 0.3.1
+  resolution: "luaparse@npm:0.3.1"
+  bin:
+    luaparse: bin/luaparse
+  checksum: 10c0/c96c6152c7b5d73c98d4f51e28d700697a865edd8f5c28b16f0c4c34b91f7d0493212f181394384c02291300d453bc0d3ddc2cc52abc73c3be213520bec84c53
+  languageName: node
+  linkType: hard
+
 "magic-string@npm:^1.2.3":
   version: 1.4.3
   resolution: "magic-string@npm:1.4.3"
@@ -831,7 +847,9 @@ __metadata:
   resolution: "steamdeck-ui@workspace:."
   dependencies:
     "@biomejs/biome": "npm:2.5.15"
+    "@types/luaparse": "npm:^0"
     lua-types: "npm:^2.14.1"
+    luaparse: "npm:^0.3.1"
     typescript: "npm:6.0.2"
     typescript-to-lua: "npm:^1.37.1"
     vite: "npm:^8.3.4"

@@ -49,15 +49,40 @@ it("captures Lua errors, opens debug once across frames, preserves the previous 
 	const events = createTestEventBus();
 	const open = vi.fn();
 	events.subscribe("DEBUG_OPEN_REQUESTED", open);
-	const client = new DebugClient(events, {
-		nextFrame: (callback) => {
-			pending.push(callback);
-			return vi.fn();
+	const client = new DebugClient(
+		events,
+		{
+			nextFrame: (callback) => {
+				pending.push(callback);
+				return vi.fn();
+			},
 		},
-	});
+		true,
+		undefined,
+		{
+			capture: () => ({
+				buildCommit: "abc123",
+				details: { zone: "Dornogal", groupSize: 3 },
+				unavailableFields: [],
+			}),
+		},
+	);
 	client.initialize();
 	client.initialize();
+	client.diagnostics.log("info", "event NAV_INTERACT");
 	handler("bad Lua");
+	expect(SteamDeckUIErrors?.errors.at(-1)?.environment).toMatchObject({
+		buildCommit: "abc123",
+		details: { zone: "Dornogal", groupSize: 3 },
+	});
+	expect(SteamDeckUIErrors?.errors.at(-1)?.context).toContain(
+		"event NAV_INTERACT",
+	);
+	client.diagnostics.log("info", "later event");
+	expect(SteamDeckUIErrors?.errors.at(-1)?.context).not.toContain(
+		"later event",
+	);
+	expect(client.diagnostics.report()).toContain("session started");
 	expect(client.diagnostics.report()).toContain("bad Lua\nstack trace");
 	expect(previous).toHaveBeenCalledWith("bad Lua");
 	expect(open).not.toHaveBeenCalled();
@@ -68,6 +93,7 @@ it("captures Lua errors, opens debug once across frames, preserves the previous 
 	expect(pending).toHaveLength(0);
 	expect(open).toHaveBeenCalledOnce();
 	client.shutdown();
+	expect(client.diagnostics.report()).toContain("session stopped");
 	expect(handler).toBe(previous);
 });
 

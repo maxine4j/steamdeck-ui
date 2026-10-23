@@ -26,6 +26,7 @@ export class UIOrchestrator implements IUIOrchestrator {
 			position: DockPosition,
 			containerId?: string,
 		) => PanelContainer,
+		private readonly trace?: (message: string) => void,
 	) {
 		this.getContainer("left");
 		this.getContainer("right");
@@ -56,6 +57,9 @@ export class UIOrchestrator implements IUIOrchestrator {
 		position: DockPosition,
 		containerId?: string,
 	): void {
+		this.trace?.(
+			`panel open id=${panelId} position=${position} container=${containerId ?? position}`,
+		);
 		const panel = this.panels.get(panelId);
 		if (!panel) throw new Error(`Unknown panel: ${panelId}`);
 		const target = this.getContainer(position, containerId);
@@ -75,6 +79,9 @@ export class UIOrchestrator implements IUIOrchestrator {
 		panelId?: string,
 		containerId: string = position,
 	): void {
+		this.trace?.(
+			`panel close id=${panelId ?? "active"} position=${position} container=${containerId}`,
+		);
 		const container = this.containers.get(containerId);
 		if (
 			container &&

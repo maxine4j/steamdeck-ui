@@ -1,8 +1,12 @@
+import type { ErrorEnvironment } from "./error-context-client";
+
 export interface LuaErrorRecord {
 	readonly id: number;
 	readonly timestamp: number;
 	readonly message: string;
 	readonly stack: string;
+	readonly context?: string;
+	readonly environment?: ErrorEnvironment;
 }
 
 export interface LuaErrorSnapshot {
@@ -33,10 +37,16 @@ export class LuaErrorHistory {
 			saved.errors.splice(0, saved.errors.length - 100);
 		return saved;
 	}
-	capture(message: string, stack: string, timestamp: number): void {
+	capture(
+		message: string,
+		stack: string,
+		timestamp: number,
+		context?: string,
+		environment?: ErrorEnvironment,
+	): void {
 		const saved = this.saved();
 		const id = (saved.errors.at(-1)?.id ?? 0) + 1;
-		saved.errors.push({ id, timestamp, message, stack });
+		saved.errors.push({ id, timestamp, message, stack, context, environment });
 		if (saved.errors.length > 100) saved.errors.shift();
 	}
 	suppress(timestamp: number): void {

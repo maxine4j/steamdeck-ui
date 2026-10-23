@@ -49,6 +49,24 @@ The first captured error each session automatically opens **Errors**; later erro
 
 WoW writes SavedVariables on `/reload` or normal logout. The file is `_retail_/WTF/Account/<account>/SavedVariables/SteamDeckUI-dev.lua` for development installs, or `SteamDeckUI.lua` for release installs. Both the error history and regular configuration live in this addon file. Changes are in memory until WoW flushes them; a crash may lose recent errors.
 
+## Exporting a playtest
+
+After testing, `/reload` or log out, then run:
+
+```sh
+yarn debug:extract > /tmp/steamdeck-ui-debug.json
+# Optional path for another account or installation:
+yarn debug:extract "/path/to/SavedVariables/SteamDeckUI-dev.lua"
+```
+
+The default path is `/Applications/World of Warcraft/_retail_/WTF/Account/TIMOTHYANDSIMON/SavedVariables/SteamDeckUI-dev.lua`. Stdout contains JSON only; failures go to stderr and exit nonzero. The exporter parses Lua data without executing it and includes `SteamDeckUIErrors`, `SteamDeckUILogs`, settings, source path and file modification time. It omits the large collection cache. Old saves without logs export `SteamDeckUILogs: null`.
+
+`SteamDeckUILogs` retains up to 10,000 log entries and 2,000,000 characters across reloads, with a `droppedCount` for evicted entries. It records application event names before dispatch, panel open/close requests, panel selection, session start/stop and existing scan/performance logs. Event payloads are excluded. This is rolling history; a busy hour may exceed the limit. The live Logs tab keeps its smaller session buffer.
+
+Each error also stores up to 12,000 characters of preceding logs in `context`, preserving breadcrumbs even after the rolling log evicts them. Its `environment` snapshot includes instance name/type/ID/difficulty and capacity, delve progress/tier, group size, party/raid status, zone/subzone/map ID, class/level/spec/role, combat/rest/death/mount/flight state, game build/interface version, locale, FPS and latency. Unavailable or secret values are omitted and listed in `unavailableFields`; context collection does not scan inventory or units.
+
+Every log line and error environment includes the short Git commit embedded at build time, suffixed with `-dirty` if the checkout had local changes. Run `yarn build` to refresh this identity along with the installed addon. Error flood protection still applies; suppressed occurrences have no individual snapshot. These exports provide evidence for debugging, but do not capture errors from before startup or guarantee that every bug raises a Lua error.
+
 ## License
 
 See [LICENSE](LICENSE). Third-party asset credits are listed in [assets/README.md](assets/README.md).

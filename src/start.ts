@@ -423,6 +423,10 @@ export function startSteamDeckUI(
 				new Frame(`container-${containerId}`, pool),
 				(id, button) => new Frame(id, pool, button ? "Button" : "Frame"),
 				(selected) => {
+					debug?.diagnostics.log(
+						"info",
+						`panel selected id=${selected.id} container=${containerId}`,
+					);
 					// Close talents before Blizzard can minimize it into the spellbook.
 					if (
 						position === "left" &&
@@ -462,6 +466,7 @@ export function startSteamDeckUI(
 				events,
 				(frame, position) => itemTooltip.setAnchor(frame, position),
 			),
+		(message) => debug?.diagnostics.log("info", message),
 	);
 	const grouping = new ItemGrouping();
 	const panel = new BagsPanel(

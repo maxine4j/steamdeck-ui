@@ -14,7 +14,7 @@ function createPanel(id: string) {
 	};
 }
 
-function createUI() {
+function createUI(trace?: (message: string) => void) {
 	return new UIOrchestrator(
 		(position, id = position) =>
 			new PanelContainer(id, position, {
@@ -23,8 +23,29 @@ function createUI() {
 				show: vi.fn(),
 				hide: vi.fn(),
 			} as unknown as Frame),
+		trace,
 	);
 }
+
+it("records panel and container before lifecycle code can fail", () => {
+	const trace = vi.fn();
+	const ui = createUI(trace);
+	const panel = createPanel("broken");
+	panel.onMount.mockImplementation(() => {
+		expect(trace).toHaveBeenLastCalledWith(
+			"panel open id=broken position=left container=feature",
+		);
+		throw new Error("mount failed");
+	});
+	ui.registerPanel(panel);
+	expect(() => ui.openPanel("broken", "left", "feature")).toThrow(
+		"mount failed",
+	);
+	ui.closePanel("left", undefined, "feature");
+	expect(trace).toHaveBeenLastCalledWith(
+		"panel close id=active position=left container=feature",
+	);
+});
 
 it.each(["left", "right"] as const)(
 	"opening a %s panel closes the entire fullscreen stack before mounting",

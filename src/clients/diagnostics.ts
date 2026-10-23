@@ -16,14 +16,16 @@ export class Diagnostics {
 	constructor(
 		private readonly clock: () => number,
 		private readonly limit = 500,
+		private readonly persist?: (line: string) => void,
+		private readonly context = "",
 	) {}
 	now(): number {
 		return this.clock();
 	}
 	log(level: "info" | "error", message: string): void {
-		this.lines.push(
-			`[${this.now()}] ${level.toUpperCase()} ${message.slice(0, 12000)}`,
-		);
+		const line = `[${this.now()}] ${level.toUpperCase()} ${this.context.length > 0 ? `${this.context} ` : ""}${message.slice(0, 12000)}`;
+		this.persist?.(line);
+		this.lines.push(line);
 		while (
 			this.lines.length > this.limit ||
 			this.lines.join("\n").length > 120000
