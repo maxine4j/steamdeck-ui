@@ -434,11 +434,12 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		const { page, selected } = this.display;
 		const initialFocus =
 			!this.display.confirmation &&
-			page.kind === "rewards" &&
-			(page.choices.length === 0 ||
-				(page.choices.length === 1 &&
-					selected !== undefined &&
-					page.choices.at(0)?.index === selected))
+			(page.kind === "offer" ||
+				(page.kind === "rewards" &&
+					(page.choices.length === 0 ||
+						(page.choices.length === 1 &&
+							selected !== undefined &&
+							page.choices.at(0)?.index === selected))))
 				? "dialogue-primary"
 				: grid.at(0)?.at(0)?.navId;
 		this.navigation.pushModal(

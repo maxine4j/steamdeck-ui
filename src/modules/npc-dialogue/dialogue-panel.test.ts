@@ -219,6 +219,30 @@ it("keeps selected reward text legible against its highlight", () => {
 	]);
 });
 
+it("focuses accepting a quest with reward previews without accepting or choosing", () => {
+	const { actions, navigation } = setup(
+		display({ ...page, kind: "offer", autoAccepted: false }),
+	);
+	expect(navigation.pushModal.mock.lastCall?.at(3)).toBe("dialogue-primary");
+	expect(actions.primary).not.toHaveBeenCalled();
+	expect(actions.choose).not.toHaveBeenCalled();
+});
+
+it("preserves reward-preview focus on refresh and focuses acceptance for a new offer", () => {
+	const nav = new NavigationManager(createTestEventBus());
+	const panel = new DialoguePanel({} as IFramePoolManager, nav);
+	const d = display({ ...page, kind: "offer", autoAccepted: false });
+	panel.show(d);
+	panel.onMount(new Frame("parent-800", {} as IFramePoolManager));
+	expect(nav.focusedId).toBe("dialogue-primary");
+	nav.moveUp();
+	expect(nav.focusedId).toBe("choice:1");
+	panel.show({ ...d, resetReading: false, page: { ...d.page, revision: 2 } });
+	expect(nav.focusedId).toBe("choice:1");
+	panel.show({ ...d, page: { ...d.page, questID: 52, revision: 3 } });
+	expect(nav.focusedId).toBe("dialogue-primary");
+});
+
 it.each([
 	{ rewards: [] },
 	{ rewards: [{ id: "guaranteed", label: "100 XP" }] },
