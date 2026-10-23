@@ -1290,10 +1290,15 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 	expect(
 		app.ui.getContainer("fullscreen", "controller-options").activePanelId,
 	).toBe("controller-options");
-	expect(app.navigation.focusedId).toBe("option-facing");
+	expect(app.navigation.focusedId).toBe("options-reset");
+	flush();
+	events.emit("NAV_DOWN");
+	expect(app.navigation.focusedId).toBe("choice-facing-never");
+	events.emit("NAV_RIGHT");
+	expect(app.navigation.focusedId).toBe("choice-facing-always");
 	events.emit("NAV_INTERACT");
 	expect(controller.options.set).toHaveBeenLastCalledWith("facing", "always");
-	events.emit("NAV_RIGHT");
+	events.emit("NAV_LEFT");
 	events.emit("NAV_INTERACT");
 	expect(controller.options.set).toHaveBeenLastCalledWith("facing", "never");
 	const optionsFrames = frames.length;

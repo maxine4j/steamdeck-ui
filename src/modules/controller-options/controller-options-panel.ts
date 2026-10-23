@@ -16,6 +16,10 @@ export class ControllerOptionsPanel implements IPanel {
 	private readonly resetNavigation: INavigable;
 	private mounted = false;
 	private changed?: () => void;
+	private readonly reset = () => {
+		this.client.reset();
+		this.refresh();
+	};
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: Pick<
@@ -27,31 +31,12 @@ export class ControllerOptionsPanel implements IPanel {
 		this.viewport = new Frame("controller-options-viewport", pool);
 		this.window = new Frame("controller-options-window", pool);
 		this.resetButton = new Frame("controller-options-reset", pool, "Button");
-		const reset = () => {
-			this.client.reset();
-			this.refresh();
-		};
-		this.resetButton.setColor(0.5, 0.08, 0.08);
-		this.resetButton.setLabel(
-			"label",
-			"Reset controller defaults",
-			"CENTER",
-			0,
-			0,
-			17.5,
-		);
-		this.resetButton.setTooltip(
-			"Reset movement, camera turning and sensitivity to the controller defaults.",
-		);
-		this.resetButton.onClick((mouse) => {
-			if (mouse === "LeftButton") reset();
-		});
 		this.resetNavigation = {
 			navId: "options-reset",
 			mouseTarget: this.resetButton,
 			onFocus: () => this.resetButton.setFocused(true),
 			onBlur: () => this.resetButton.setFocused(false),
-			onInteract: () => reset(),
+			onInteract: () => this.reset(),
 		};
 		this.list = new ScrollList(
 			"controller-options-list",
@@ -175,6 +160,21 @@ export class ControllerOptionsPanel implements IPanel {
 		resize();
 		this.list.mount(this.window);
 		this.resetButton.setParent(this.window);
+		this.resetButton.setColor(0.5, 0.08, 0.08);
+		this.resetButton.setLabel(
+			"label",
+			"Reset controller defaults",
+			"CENTER",
+			0,
+			0,
+			17.5,
+		);
+		this.resetButton.setTooltip(
+			"Reset movement, camera turning and sensitivity to the controller defaults.",
+		);
+		this.resetButton.onClick((mouse) => {
+			if (mouse === "LeftButton") this.reset();
+		});
 		this.resetButton.layout(280, 44, "TOPRIGHT", this.window, -24, -36);
 		this.resetButton.show();
 		this.refresh();
