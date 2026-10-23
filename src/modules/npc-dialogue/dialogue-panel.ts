@@ -38,7 +38,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private focusFirst = true;
 	private code = "";
 	private readingWidth = 480;
-	private height = 620;
+	private height = 720;
 	private navigationChanged?: () => void;
 	private readonly ink = [0.7, 0.7, 0.7] as const;
 	private readonly headingColor = [0.9, 0.9, 0.9] as const;
@@ -114,7 +114,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			throw new Error("Dialogue requires a frame parent");
 		const available = parent.getSize();
 		const width = Math.min(520, available.width * 0.44);
-		const height = Math.min(620, available.height - 80);
+		const height = Math.min(720, available.height - 80);
 		this.height = height;
 		this.window.setParent(parent);
 		this.window.layout(width, height, "RIGHT", parent, -32, 0);

@@ -448,9 +448,28 @@ it("keeps confirmation input between prose and bottom options", () => {
 		(records.layouts.get("dialogue-reading-host")?.at(1) ?? 0);
 	const inputTop = -(records.anchors.get("dialogue-code")?.at(2) ?? 0);
 	const choicesTop =
-		620 - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
+		(records.layouts.get("dialogue-window")?.at(1) ?? 0) -
+		64 -
+		(records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
 	expect(inputTop).toBeGreaterThanOrEqual(readerBottom + 12);
 	expect(inputTop + 40).toBeLessThanOrEqual(choicesTop);
+});
+
+it("fits four guaranteed rewards without scrolling on an 800-pixel screen", () => {
+	setup(
+		display({
+			...page,
+			kind: "rewards",
+			rewards: Array.from({ length: 4 }, (_, i) => ({
+				id: `reward:${i}`,
+				label: "Reward",
+			})),
+			choices: [],
+		}),
+	);
+	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBe(
+		records.layouts.get("dialogue-choices-content")?.at(1),
+	);
 });
 
 it("fits rewards in two columns and grows upward before scrolling, reserving a third for prose", () => {
@@ -489,7 +508,9 @@ it("fits rewards in two columns and grows upward before scrolling, reserving a t
 	);
 	const tallReader = records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
 	expect(tallReader).toBeLessThan(shortReader);
-	expect(tallReader).toBeGreaterThanOrEqual(620 / 3);
+	expect(tallReader).toBeGreaterThanOrEqual(
+		(records.layouts.get("dialogue-window")?.at(1) ?? 0) / 3,
+	);
 	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBeLessThan(
 		records.layouts.get("dialogue-choices-content")?.at(1) ?? 0,
 	);

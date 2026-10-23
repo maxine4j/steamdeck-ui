@@ -43,7 +43,7 @@ Follow test-driven development: **red, green, refactor**.
 
 Test observable behaviour and architectural seams such as modules, clients, and the event bus. **Never write unit tests for TypeScript types**; rely on the compiler and `yarn typecheck` for type correctness.
 
-Before handing off a change, run the focused tests available for the changed behaviour and `yarn typecheck`. Always run `yarn build` after making changes for the user so the addon is built and ready for them to test. If the build fails, report the blocker explicitly.
+Before handing off a change, run the focused tests available for the changed behaviour and `yarn typecheck`. Always run `yarn build` after any changes, including documentation changes, so the addon is built and installed for the user to test. The build deletes and replaces `/Applications/World of Warcraft/_retail_/Interface/AddOns/SteamDeckUI-dev`; the user explicitly authorizes this install step as part of the required build workflow. If sandbox permissions block it, request escalation and run the build with the required access. Do not skip the build or substitute a compile-only command. If the build fails, report the blocker explicitly.
 
 ## Code reference
 
