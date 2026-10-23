@@ -86,12 +86,13 @@ export class DebugClient {
 	constructor(
 		private readonly events: IEventBus,
 		private readonly scheduler: Pick<ITaskScheduler, "nextFrame">,
+		private readonly captureErrors = true,
 	) {}
 	loadErrors(): LuaErrorSnapshot {
 		return this.errors.load(GetServerTime());
 	}
 	initialize(): void {
-		if (this.previous) return;
+		if (!this.captureErrors || this.previous) return;
 		this.allowance = 10;
 		this.lastErrorAt = undefined;
 		this.autoOpenRequested = false;

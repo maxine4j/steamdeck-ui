@@ -10,6 +10,31 @@ beforeEach(() => {
 	vi.stubGlobal("issecretvalue", () => false);
 });
 
+it("leaves Blizzard's error handler and saved history untouched when capture is disabled", () => {
+	const previous = vi.fn();
+	const getHandler = vi.fn(() => previous);
+	const setHandler = vi.fn();
+	vi.stubGlobal("geterrorhandler", getHandler);
+	vi.stubGlobal("seterrorhandler", setHandler);
+	const saved = {
+		version: 1,
+		errors: [
+			{ id: 1, timestamp: 10, message: "saved error", stack: "saved stack" },
+		],
+	};
+	vi.stubGlobal("SteamDeckUIErrors", saved);
+	const nextFrame = vi.fn();
+	const client = new DebugClient(createTestEventBus(), { nextFrame }, false);
+	client.initialize();
+	client.initialize();
+	client.shutdown();
+	expect(getHandler).not.toHaveBeenCalled();
+	expect(setHandler).not.toHaveBeenCalled();
+	expect(nextFrame).not.toHaveBeenCalled();
+	expect(SteamDeckUIErrors).toBe(saved);
+	expect(saved.errors).toHaveLength(1);
+});
+
 it("captures Lua errors, opens debug once across frames, preserves the previous handler and restores on shutdown", () => {
 	const previous = vi.fn();
 	let handler: (message: string) => void = previous;

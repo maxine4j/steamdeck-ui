@@ -55,7 +55,8 @@ const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
 const scheduler = new TaskScheduler();
-const debug = new DebugClient(events, scheduler);
+// Temporarily disable Lua error interception while diagnosing login/menu freezes.
+const debug = new DebugClient(events, scheduler, false);
 const collectionCache = new CollectionCache(scheduler, undefined, () =>
 	GetServerTime(),
 );
