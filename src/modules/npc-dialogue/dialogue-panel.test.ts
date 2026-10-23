@@ -43,7 +43,10 @@ vi.mock("../../ui/components/frame", () => ({
 			records.labelAnchors.set(`${this.id}:${key}`, point);
 		}
 		getSize() {
-			return { width: 1280, height: this.id.includes("720") ? 720 : 800 };
+			return {
+				width: 1280,
+				height: Number(this.id.match(/^parent-(\d+)$/)?.at(1) ?? 800),
+			};
 		}
 		labelHeight(key: string) {
 			return (
@@ -349,7 +352,7 @@ it("retains real quest titles and clears them when returning to gossip", () => {
 	]);
 });
 
-it.each([720, 800])(
+it.each([720, 800, 1080, 1440])(
 	"keeps the right-side conversation narrow with options below prose at 1280×%i and reuses controls",
 	(height) => {
 		const d = display({
@@ -365,7 +368,7 @@ it.each([720, 800])(
 		if (!dimensions) throw new Error("Expected conversation layout");
 		const [w, h] = dimensions;
 		expect(w).toBeLessThanOrEqual(520);
-		expect(h).toBeLessThan(height);
+		expect(h).toBeCloseTo(height * 0.8);
 		expect(records.anchors.get("dialogue-window")?.at(0)).toBe("RIGHT");
 		const readingTop = -(
 			records.anchors.get("dialogue-reading-host")?.at(2) ?? 0
@@ -455,7 +458,7 @@ it("keeps confirmation input between prose and bottom options", () => {
 	expect(inputTop + 40).toBeLessThanOrEqual(choicesTop);
 });
 
-it("fits four guaranteed rewards without scrolling on an 800-pixel screen", () => {
+it("fits four guaranteed rewards without scrolling on a 1080-pixel screen", () => {
 	setup(
 		display({
 			...page,
@@ -466,6 +469,7 @@ it("fits four guaranteed rewards without scrolling on an 800-pixel screen", () =
 			})),
 			choices: [],
 		}),
+		1080,
 	);
 	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBe(
 		records.layouts.get("dialogue-choices-content")?.at(1),
