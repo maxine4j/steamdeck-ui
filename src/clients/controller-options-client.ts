@@ -30,15 +30,10 @@ interface Definition {
 	cvar?: string;
 	default?: string;
 }
-const toggle: readonly ControllerChoice[] = [
-	{ value: "0", label: "Off" },
-	{ value: "1", label: "On" },
-];
 const styles: readonly ControllerChoice[] = [
 	{ value: "face", label: "Face movement stick" },
-	{ value: "mixed", label: "Strafe, then face stick" },
 	{ value: "backpedal", label: "Strafe and backpedal" },
-	{ value: "tank", label: "Tank turn and backpedal" },
+	{ value: "mixed", label: "Strafe, then face stick" },
 ];
 function range(
 	minimum: number,
@@ -58,7 +53,7 @@ function range(
 	return choices;
 }
 const movementDescription =
-	"Face stick turns toward travel. Strafe keeps facing and walks backward. Tank turns with the left stick. Set both travel and combat for always-on behaviour.";
+	"Face stick turns toward travel. Strafe and backpedal preserves facing. Strafe, then face stick turns toward movement beyond 120°.";
 const definitions: readonly Definition[] = [
 	{
 		id: "travelStyle",
@@ -75,63 +70,6 @@ const definitions: readonly Definition[] = [
 		description: movementDescription,
 		choices: styles,
 		default: "face",
-	},
-	{
-		id: "travelAngle",
-		category: "Player control",
-		label: "Travel strafe angle",
-		description:
-			"Used by the strafe-then-face style outside combat. Beyond this stick angle, turn toward movement. Zero always faces movement; 180 always strafes.",
-		choices: range(0, 180, 5, "°"),
-		default: "90",
-	},
-	{
-		id: "combatAngle",
-		category: "Player control",
-		label: "Combat strafe angle",
-		description:
-			"Used by the strafe-then-face style in combat. Beyond this stick angle, turn toward movement. Zero always faces movement; 180 always strafes.",
-		choices: range(0, 180, 5, "°"),
-		default: "90",
-	},
-	{
-		id: "skyridingStyle",
-		category: "Player control",
-		label: "Movement on skyriding mounts",
-		description:
-			"Overrides travel and combat while on a skyriding mount, including while standing on the ground. Other mounts use the normal styles.",
-		choices: [
-			{ value: "inherit", label: "Use travel / combat style" },
-			...styles,
-		],
-		default: "inherit",
-	},
-	{
-		id: "analog",
-		category: "Player control",
-		label: "Analog movement",
-		description:
-			"Use the full stick direction instead of discrete legacy movement.",
-		choices: toggle,
-		cvar: "GamePadAnalogMovement",
-		default: "1",
-	},
-	{
-		id: "runThreshold",
-		category: "Player control",
-		label: "Walk to run threshold",
-		description:
-			"Fraction of the movement stick radius needed to start running.",
-		choices: range(0, 1, 0.05),
-		cvar: "GamePadRunThreshold",
-	},
-	{
-		id: "tankSpeed",
-		category: "Player control",
-		label: "Tank turn speed",
-		description: "Left stick turn rate when a tank movement style is active.",
-		choices: range(0.25, 4, 0.25),
-		default: "1",
 	},
 	{
 		id: "turnWithCamera",
@@ -164,110 +102,17 @@ const definitions: readonly Definition[] = [
 		cvar: "GamePadCameraPitchSpeed",
 		default: "1",
 	},
-	{
-		id: "invertYaw",
-		category: "Camera control",
-		label: "Invert horizontal camera",
-		description: "Reverse left and right camera input.",
-		choices: toggle,
-		cvar: "gamepadInvertYaw",
-	},
-	{
-		id: "invertPitch",
-		category: "Camera control",
-		label: "Invert vertical camera",
-		description: "Reverse up and down camera input.",
-		choices: toggle,
-		cvar: "gamepadInvertPitch",
-	},
-	{
-		id: "centered",
-		category: "Camera comfort",
-		label: "Keep character centered",
-		description:
-			"Reduce motion sickness by centering your character. Incompatible with dynamic pitch and shoulder offset.",
-		choices: toggle,
-		cvar: "CameraKeepCharacterCentered",
-	},
-	{
-		id: "reduceMotion",
-		category: "Camera comfort",
-		label: "Reduce unexpected camera motion",
-		description: "Reduce unexpected movement of the camera.",
-		choices: toggle,
-		cvar: "CameraReduceUnexpectedMovement",
-	},
-	{
-		id: "dynamicPitch",
-		category: "Camera comfort",
-		label: "Dynamic pitch",
-		description:
-			"Experimental: pitch upward as you zoom out. Turn off character centering to use this.",
-		choices: toggle,
-		cvar: "test_cameraDynamicPitch",
-	},
-	{
-		id: "shoulder",
-		category: "Camera comfort",
-		label: "Shoulder offset",
-		description:
-			"Experimental: shift the camera sideways. Turn off character centering to use this.",
-		choices: range(-1, 1, 0.5),
-		cvar: "test_cameraOverShoulder",
-	},
-	{
-		id: "follow",
-		category: "Camera follow",
-		label: "Follow movement stick",
-		description:
-			"Automatically adjust the camera while moving with the left stick.",
-		choices: toggle,
-		cvar: "CameraFollowOnStick",
-	},
-	{
-		id: "followDelay",
-		category: "Camera follow",
-		label: "Follow delay",
-		description: "Idle camera time before automatic adjustment starts.",
-		choices: range(0, 5, 0.25, "s"),
-		cvar: "CameraFollowGamepadAdjustDelay",
-	},
-	{
-		id: "followEase",
-		category: "Camera follow",
-		label: "Follow ease in",
-		description:
-			"Time to ease from idle camera control into automatic adjustment.",
-		choices: range(0, 5, 0.25, "s"),
-		cvar: "CameraFollowGamepadAdjustEaseIn",
-	},
-	{
-		id: "lookYaw",
-		category: "Camera look",
-		label: "Temporary look horizontal limit",
-		description: "Maximum temporary camera yaw based on analog look input.",
-		choices: range(-180, 180, 15, "°"),
-		cvar: "GamePadCameraLookMaxYaw",
-	},
-	{
-		id: "lookPitch",
-		category: "Camera look",
-		label: "Temporary look vertical limit",
-		description: "Maximum temporary camera pitch based on analog look input.",
-		choices: range(0, 90, 5, "°"),
-		cvar: "GamePadCameraLookMaxPitch",
-	},
 ];
 const movementCVars = [
 	"GamePadFaceMovementMaxAngle",
 	"GamePadFaceMovementMaxAngleCombat",
 	"GamePadTankTurnSpeed",
 	"GamePadTurnWithCamera",
+	"GamePadAnalogMovement",
 ];
 const stateEvents: readonly ApplicationEvent[] = [
 	"COMBAT_STARTED",
 	"COMBAT_ENDED",
-	"SKYRIDING_STATE_CHANGED",
 ];
 
 /** Sole owner of player movement and camera CVars, including runtime conditionals. */
@@ -314,8 +159,6 @@ export class ControllerOptionsClient implements IControllerOptionsClient {
 		if (definition.cvar) return this.originals.has(definition.cvar);
 		if (definition.id === "turnWithCamera")
 			return this.originals.has("GamePadTurnWithCamera");
-		if (definition.id === "tankSpeed")
-			return this.originals.has("GamePadTankTurnSpeed");
 		return movementCVars.slice(0, 3).every((name) => this.originals.has(name));
 	}
 	getOptions(): readonly ControllerOption[] {
@@ -375,27 +218,18 @@ export class ControllerOptionsClient implements IControllerOptionsClient {
 			)
 				this.write(definition.cvar, this.value(definition));
 		const combat = InCombatLockdown();
-		let canGlide = false;
-		if (typeof C_PlayerInfo !== "undefined")
-			[, canGlide] = C_PlayerInfo.GetGlidingInfo();
-		const sky =
-			typeof IsMounted !== "undefined" &&
-			IsMounted() &&
-			canGlide &&
-			this.option("skyridingStyle") !== "inherit";
-		const travel = this.option(sky ? "skyridingStyle" : "travelStyle");
-		const fighting = this.option(sky ? "skyridingStyle" : "combatStyle");
-		const angle = (style: string, id: string) =>
-			style === "face" ? "0" : style === "mixed" ? this.option(id) : "180";
-		this.write("GamePadFaceMovementMaxAngle", angle(travel, "travelAngle"));
+		this.write("GamePadAnalogMovement", "1");
+		const angle = (style: string) =>
+			style === "face" ? "0" : style === "mixed" ? "120" : "180";
+		this.write(
+			"GamePadFaceMovementMaxAngle",
+			angle(this.option("travelStyle")),
+		);
 		this.write(
 			"GamePadFaceMovementMaxAngleCombat",
-			angle(fighting, "combatAngle"),
+			angle(this.option("combatStyle")),
 		);
-		this.write(
-			"GamePadTankTurnSpeed",
-			(combat ? fighting : travel) === "tank" ? this.option("tankSpeed") : "0",
-		);
+		this.write("GamePadTankTurnSpeed", "0");
 		const mode = this.option("turnWithCamera");
 		this.write(
 			"GamePadTurnWithCamera",

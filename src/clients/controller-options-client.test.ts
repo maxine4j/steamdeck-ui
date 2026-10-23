@@ -4,6 +4,62 @@ import { ControllerOptionsClient } from "./controller-options-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("offers only the five requested settings and three movement styles", () => {
+	const { client } = setup();
+	client.initialize();
+	expect(client.getOptions().map((option) => option.id)).toEqual([
+		"travelStyle",
+		"combatStyle",
+		"turnWithCamera",
+		"yawSpeed",
+		"pitchSpeed",
+	]);
+	for (const option of client
+		.getOptions()
+		.filter((option) => option.id.endsWith("Style")))
+		expect(option.choices.map((choice) => choice.value)).toEqual([
+			"face",
+			"backpedal",
+			"mixed",
+		]);
+});
+
+it("enforces analog movement and fixed mixed angles at login despite old saved settings", () => {
+	const { client, values, set } = setup();
+	SteamDeckUIConfig = {
+		controllerOptions: {
+			travelStyle: "mixed",
+			combatStyle: "mixed",
+			travelAngle: "45",
+			combatAngle: "135",
+			analog: "0",
+			skyridingStyle: "tank",
+			tankSpeed: "3",
+			follow: "1",
+			lookYaw: "90",
+			invertPitch: "1",
+		},
+	};
+	client.initialize();
+	expect(values.get("GamePadAnalogMovement")).toBe("1");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("120");
+	expect(values.get("GamePadFaceMovementMaxAngleCombat")).toBe("120");
+	expect(values.get("GamePadTankTurnSpeed")).toBe("0");
+	expect(set).not.toHaveBeenCalledWith(
+		"CameraFollowOnStick",
+		expect.anything(),
+	);
+	expect(set).not.toHaveBeenCalledWith(
+		"GamePadCameraLookMaxYaw",
+		expect.anything(),
+	);
+	expect(set).not.toHaveBeenCalledWith("gamepadInvertPitch", expect.anything());
+	client.set("travelAngle", "45");
+	client.set("analog", "0");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("120");
+	expect(values.get("GamePadAnalogMovement")).toBe("1");
+});
+
 function setup() {
 	const values = new Map<string, string>();
 	const set = vi.fn((name: string, value: string) => values.set(name, value));
@@ -40,9 +96,9 @@ it("persists edits across reload, reapplies them once and restores the original 
 	values.set("GamePadCameraYawSpeed", "2");
 	client.initialize();
 	client.set("yawSpeed", "1.5");
-	client.set("travelStyle", "tank");
+	client.set("travelStyle", "mixed");
 	expect(values.get("GamePadCameraYawSpeed")).toBe("1.5");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("1");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("120");
 	set.mockClear();
 	client.initialize();
 	expect(set).not.toHaveBeenCalled();
@@ -51,137 +107,86 @@ it("persists edits across reload, reapplies them once and restores the original 
 	const reloaded = new ControllerOptionsClient(events);
 	reloaded.initialize();
 	expect(values.get("GamePadCameraYawSpeed")).toBe("1.5");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("1");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("120");
 });
 
-it("uses editable travel and combat strafe angles for the mixed movement style", () => {
+it("uses fixed travel and combat strafe angles for the mixed movement style", () => {
 	const { client, values } = setup();
 	client.initialize();
 	client.set("travelStyle", "mixed");
 	client.set("combatStyle", "mixed");
 	client.set("travelAngle", "45");
 	client.set("combatAngle", "135");
-	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("45");
-	expect(values.get("GamePadFaceMovementMaxAngleCombat")).toBe("135");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("120");
+	expect(values.get("GamePadFaceMovementMaxAngleCombat")).toBe("120");
 	client.set("travelStyle", "face");
 	client.set("combatStyle", "backpedal");
 	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("0");
 	expect(values.get("GamePadFaceMovementMaxAngleCombat")).toBe("180");
 });
 
-it("supports the usual five-percent walk threshold steps and preserves explicitly selected camera comfort after reload", () => {
-	const { client, values, events } = setup();
+it("switches camera facing with combat and detaches on shutdown", () => {
+	const { client, events, values, combat, set } = setup();
 	client.initialize();
-	client.set("runThreshold", "0.55");
-	expect(
-		client
-			.getOptions()
-			.find((option) => option.id === "runThreshold")
-			?.choices.map((choice) => choice.value),
-	).toEqual([
-		"0",
-		"0.05",
-		"0.1",
-		"0.15",
-		"0.2",
-		"0.25",
-		"0.3",
-		"0.35",
-		"0.4",
-		"0.45",
-		"0.5",
-		"0.55",
-		"0.6",
-		"0.65",
-		"0.7",
-		"0.75",
-		"0.8",
-		"0.85",
-		"0.9",
-		"0.95",
-		"1",
-	]);
-	client.set("shoulder", "-0.5");
-	expect(values.get("GamePadRunThreshold")).toBe("0.55");
-	client.shutdown();
-	const reloaded = new ControllerOptionsClient(events);
-	reloaded.initialize();
-	expect(values.get("GamePadRunThreshold")).toBe("0.55");
-	expect(values.get("test_cameraOverShoulder")).toBe("-0.5");
-	reloaded.shutdown();
-	reloaded.initialize();
-	expect(values.get("test_cameraOverShoulder")).toBe("-0.5");
-});
-
-it("switches travel/combat tank behaviour and camera facing, with a distinct mounted skyriding override", () => {
-	const { client, events, values, combat, mount, set } = setup();
-	client.initialize();
-	client.set("travelStyle", "face");
-	client.set("combatStyle", "tank");
-	client.set("skyridingStyle", "backpedal");
+	client.set("turnWithCamera", "always");
+	expect(values.get("GamePadTurnWithCamera")).toBe("2");
+	client.set("turnWithCamera", "combat");
+	expect(values.get("GamePadTurnWithCamera")).toBe("1");
 	client.set("turnWithCamera", "outOfCombat");
 	expect(values.get("GamePadTurnWithCamera")).toBe("2");
 	combat(true);
 	events.emit("COMBAT_STARTED");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("1");
 	expect(values.get("GamePadTurnWithCamera")).toBe("0");
-	mount(true, false);
-	events.emit("SKYRIDING_STATE_CHANGED");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("1");
-	// Standing on a skyriding mount counts, even before gliding starts.
-	mount(true, true);
-	events.emit("SKYRIDING_STATE_CHANGED");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("0");
-	expect(values.get("GamePadFaceMovementMaxAngleCombat")).toBe("180");
-	mount(false, true);
-	events.emit("SKYRIDING_STATE_CHANGED");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("1");
 	combat(false);
 	events.emit("COMBAT_ENDED");
 	expect(values.get("GamePadTurnWithCamera")).toBe("2");
-	expect(values.get("GamePadTankTurnSpeed")).toBe("0");
 	client.shutdown();
 	set.mockClear();
 	events.emit("COMBAT_STARTED");
 	expect(set).not.toHaveBeenCalled();
 });
 
-it("preserves optional camera preferences until selected, validates saves and safely skips unavailable CVars", () => {
+it("rejects invalid and removed saves, skips unavailable CVars and resets defaults", () => {
 	const { client, values, set } = setup();
-	values.set("test_cameraDynamicPitch", "1");
-	values.set("test_cameraOverShoulder", "0.5");
 	SteamDeckUIConfig = {
-		controllerOptions: { yawSpeed: "invalid", unknown: "9" },
+		controllerOptions: {
+			yawSpeed: "invalid",
+			travelStyle: "tank",
+			unknown: "9",
+		},
 	};
 	vi.stubGlobal("C_CVar", {
 		GetCVar: (name: string) =>
-			name === "gamepadInvertYaw"
+			name === "GamePadCameraPitchSpeed"
 				? undefined
-				: name === "GamePadCameraLookMaxYaw"
+				: name === "GamePadAnalogMovement"
 					? null
 					: (values.get(name) ?? "0"),
 		SetCVar: set,
 	});
 	client.initialize();
+	expect(
+		client.getOptions().find((option) => option.id === "pitchSpeed")?.supported,
+	).toBe(false);
+	expect(
+		client.getOptions().find((option) => option.id === "travelStyle")?.value,
+	).toBe("face");
+	client.set("pitchSpeed", "2");
+	client.set("yawSpeed", "bad");
+	client.set("travelStyle", "tank");
 	expect(set).not.toHaveBeenCalledWith(
-		"test_cameraDynamicPitch",
+		"GamePadCameraPitchSpeed",
 		expect.anything(),
 	);
 	expect(set).not.toHaveBeenCalledWith(
-		"test_cameraOverShoulder",
+		"GamePadAnalogMovement",
 		expect.anything(),
 	);
 	expect(values.get("GamePadCameraYawSpeed")).toBe("1");
-	expect(
-		client.getOptions().find((option) => option.id === "invertYaw")?.supported,
-	).toBe(false);
-	client.set("invertYaw", "1");
-	client.set("yawSpeed", "bad");
-	expect(set).not.toHaveBeenCalledWith("gamepadInvertYaw", expect.anything());
-	client.set("dynamicPitch", "0");
-	expect(values.get("test_cameraDynamicPitch")).toBe("0");
+	client.set("yawSpeed", "2.25");
+	client.set("travelStyle", "mixed");
 	client.reset();
-	expect(values.get("test_cameraDynamicPitch")).toBe("1");
-	expect(values.get("test_cameraOverShoulder")).toBe("0.5");
+	expect(values.get("GamePadCameraYawSpeed")).toBe("1");
+	expect(values.get("GamePadFaceMovementMaxAngle")).toBe("0");
 	expect(SteamDeckUIConfig?.controllerOptions).toEqual({});
 });

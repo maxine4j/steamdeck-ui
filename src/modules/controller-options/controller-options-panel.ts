@@ -14,6 +14,13 @@ export class ControllerOptionsPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly viewport: Frame;
 	private changed?: () => void;
+	private editing?: string;
+	private readonly choiceScope = {
+		cancel: () => {
+			this.editing = undefined;
+			this.refresh();
+		},
+	};
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: Pick<
@@ -39,23 +46,53 @@ export class ControllerOptionsPanel implements IPanel {
 			},
 		);
 	}
-	private edit(option: ControllerOption, direction: -1 | 1): void {
-		const index = option.choices.findIndex(
-			(choice) => choice.value === option.value,
-		);
-		const next = option.choices.at(
-			(index + direction + option.choices.length) % option.choices.length,
-		);
-		if (next) this.client.set(option.id, next.value);
-		this.refresh();
+	private showChoices(option: ControllerOption): void {
+		this.list.updateRows([
+			{
+				id: "choices-heading",
+				label: option.label,
+				detail: option.description,
+				heading: true,
+				wrapDetail: true,
+				height: 84,
+				activate: () => {},
+			},
+			...option.choices.map(
+				(choice): ListRow => ({
+					id: `choice-${option.id}-${choice.value}`,
+					label: choice.label,
+					checked: choice.value === option.value,
+					height: 56,
+					fontSize: 17,
+					wrapLabel: true,
+					activate: () => {
+						this.client.set(option.id, choice.value);
+						this.choiceScope.cancel();
+					},
+				}),
+			),
+			{
+				id: "choices-back",
+				label: "Back",
+				height: 56,
+				fullWidth: true,
+				activate: this.choiceScope.cancel,
+			},
+		]);
 	}
 	private refresh(): void {
+		const options = this.client.getOptions();
+		const editing = options.find((option) => option.id === this.editing);
+		if (editing) {
+			this.showChoices(editing);
+			return;
+		}
 		const rows: ListRow[] = [
 			{
 				id: "options-help",
 				label: "Player and camera preferences",
 				detail:
-					"Select a setting to advance its value; Previous goes backward. Changes apply immediately and are saved for your next login.",
+					"Select a setting, then choose a value. Changes apply immediately and are saved for your next login.",
 				heading: true,
 				wrapDetail: true,
 				height: 84,
@@ -63,7 +100,7 @@ export class ControllerOptionsPanel implements IPanel {
 			},
 		];
 		let category = "";
-		for (const option of this.client.getOptions()) {
+		for (const option of options) {
 			if (category !== option.category) {
 				category = option.category;
 				rows.push({
@@ -83,20 +120,17 @@ export class ControllerOptionsPanel implements IPanel {
 				detail: option.supported
 					? option.description
 					: "Unavailable in this version of World of Warcraft.",
-				height: 152,
+				height: 120,
 				fontSize: 17,
 				wrapLabel: true,
 				wrapDetail: true,
 				background: [0.075, 0.075, 0.075],
 				enabled: option.supported,
-				activate: () => this.edit(option, 1),
-				secondary: {
-					label: "Previous",
-					width: 110,
-					height: 32,
-					background: [0.12, 0.12, 0.12],
-					enabled: option.supported,
-					activate: () => this.edit(option, -1),
+				activate: () => {
+					if (!option.supported) return;
+					this.editing = option.id;
+					this.list.resetScroll();
+					this.refresh();
 				},
 			});
 		}
@@ -104,7 +138,7 @@ export class ControllerOptionsPanel implements IPanel {
 			id: "options-reset",
 			label: "Reset controller defaults",
 			detail:
-				"Reset movement and sensitivity. Other camera settings return to their values before this login; saved overrides are removed.",
+				"Reset movement, camera turning and sensitivity to the controller defaults.",
 			height: 80,
 			fullWidth: true,
 			wrapDetail: true,
@@ -135,12 +169,17 @@ export class ControllerOptionsPanel implements IPanel {
 		this.viewport.show();
 	}
 	onUnmount(): void {
+		this.editing = undefined;
 		this.viewport.onSizeChanged();
 		this.list.unmount();
 		this.viewport.hide();
 	}
 	getNavGrid() {
-		return this.list.getNavGrid();
+		const grid = this.list.getNavGrid();
+		for (const row of grid)
+			for (const node of row)
+				node.navigationScope = this.editing ? this.choiceScope : undefined;
+		return grid;
 	}
 	setNavigationChanged(changed?: () => void): void {
 		this.changed = changed;

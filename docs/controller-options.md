@@ -1,27 +1,27 @@
 # Controller options (Retail)
 
-Open **SteamDeck UI options** from the Escape game menu. The fullscreen window uses the shared metal window skin and pooled controls. D-pad moves through settings; select advances a value and the adjacent **Previous** button goes backward. Changes apply immediately and persist in `SteamDeckUIConfig.controllerOptions`.
+Open **SteamDeck UI options** from the Escape game menu. The fullscreen window uses the shared metal window skin and pooled controls. Select a setting to open its values, then select the value you want directly. The current value has a checkmark. D-pad navigates the choices; Back or controller cancel returns without changing anything. Changes apply immediately and persist in `SteamDeckUIConfig.controllerOptions`.
 
 ## Available settings
 
-| Category | Settings |
+| Setting | Values |
 | --- | --- |
-| Player control | Independent travel/combat movement styles: face stick, strafe then face stick, strafe/backpedal, tank turn/backpedal; adjustable travel/combat strafe angles (0–180°, 5° steps); separate skyriding mount style; analog movement; walk/run stick threshold; tank turn speed |
-| Camera control | Camera turns character: never, in combat, always, outside combat; horizontal/vertical sensitivity; horizontal/vertical inversion |
-| Camera comfort | Keep character centered; reduce unexpected camera movement; experimental dynamic pitch and shoulder offset |
-| Camera follow | Follow movement stick; follow delay; follow ease in |
-| Camera look | Temporary horizontal/vertical look limits |
+| Movement outside combat | Face movement stick; strafe and backpedal; strafe, then face stick |
+| Movement in combat | Face movement stick; strafe and backpedal; strafe, then face stick |
+| Camera turns character | Never; in combat; always; outside combat |
+| Horizontal sensitivity | 0.5–4, in 0.25 steps |
+| Vertical sensitivity | 0.5–4, in 0.25 steps |
 
-Choose the same travel/combat style for always-on behaviour. Custom strafe angles apply to the strafe-then-face style; face stick always uses 0° and backpedal/tank always use 180°. Tank turn speed changes with combat state. The skyriding override uses mounted + can-glide state, including standing on the mount, and clears on dismount or switching to a mount that cannot glide. It does not override ordinary mounts.
+At login, analog movement is enabled and both mixed-style strafe angles are fixed at **120°**, ignoring old saved overrides. Face movement stick uses native angle 0°; strafe and backpedal uses 180°. Tank turning is disabled so it cannot interfere with these styles. Travel and combat selections also apply on mounts; there is no separate skyriding override.
 
-Movement and sensitivity retain the addon's previous defaults. Other camera preferences remain untouched until explicitly edited. Unsupported CVars appear as unavailable and cannot be changed. Dynamic pitch and shoulder offset conflict with character centering; the descriptions explain this without silently changing another preference. Reset clears saved overrides, restores movement/sensitivity defaults and returns optional camera settings to their pre-login values. Shutdown restores every CVar owned by this client while retaining saved selections for the next login.
+Camera follow, temporary camera look, inversion, camera comfort, walk/run threshold and tank controls are omitted. Previously saved values for removed settings are ignored. Reset clears saved overrides and restores face-stick movement, camera turning set to never, and sensitivity 1 on both axes. Shutdown restores the CVars this client changed to their pre-login values while retaining saved selections.
 
-## Verified sources and limits
+## Sources and limits
 
-- ConsolePort `.libraries/ConsolePort/ConsolePort/Model/Data/Variables.lua`, Movement section: analog movement, travel/combat angles, walk/run threshold and camera-facing modes. Its descriptions establish 0° as face movement and 180° as preserve facing.
-- ConsolePort `.libraries/ConsolePort/ConsolePort/Controller/Movement.lua`: maps those settings to native CVars. Its `GetTurnWithCameraValue` resolves outside-combat mode to native 0/2 on combat transitions; 3 is an addon pseudo-value and is never sent to the game here.
-- ConsolePort `.libraries/ConsolePort/ConsolePort/Model/Data/Console.lua`, Camera section: the full camera setting set above, documented ranges and centering conflicts. Its CVar descriptions establish nonzero `GamePadTankTurnSpeed` as tank movement.
-- Blizzard `.libraries/wow-ui-source/Interface/AddOns/Blizzard_APIDocumentationGenerated/PlayerInfoDocumentation.lua`: `C_PlayerInfo.GetGlidingInfo` returns is-gliding, can-glide and speed. `UnitDocumentation.lua` documents `PLAYER_MOUNT_DISPLAY_CHANGED`; the injected event bus combines that with can-glide/gliding changes and entering world.
-- Blizzard `.libraries/wow-ui-source/Interface/AddOns/Blizzard_GameMenu/Shared/GameMenuFrame.lua`: the menu closes through `HideUIPanel`. The generic native-menu adapter owns insertion/layout; the injected feature action closes Escape before requesting options, which also releases the portrait menu through its existing visibility hook.
+- ConsolePort `.libraries/ConsolePort/ConsolePort/Model/Data/Variables.lua`, Movement section: 0° faces movement and 180° preserves facing.
+- ConsolePort `.libraries/ConsolePort/ConsolePort/Controller/Movement.lua`: native movement CVar mapping and camera-facing modes. Outside-combat mode resolves to native 0/2 on combat transitions.
+- ConsolePort `.libraries/ConsolePort/ConsolePort/Model/Data/Console.lua`, Camera section: sensitivity ranges and temporary analog camera look. Camera look temporarily offsets the camera according to current analog look input; its yaw/pitch settings limit that offset. It does not change ordinary camera rotation speed.
+- The same ConsolePort source checks `gamepadInvertPitch` availability at runtime and documents negative camera speed as inversion when separate inversion CVars are absent. A missing inversion CVar does not establish that vertical inversion itself is impossible.
+- Blizzard `.libraries/wow-ui-source/Interface/AddOns/Blizzard_GameMenu/Shared/GameMenuFrame.lua`: the native menu closes through `HideUIPanel`; the injected menu action closes Escape before requesting options.
 
-ConsolePort-specific macro expressions, jump/casting/vehicle overrides and device mapping tools are outside this options panel. Camera look limits affect Retail's temporary analog-look feature; they do not convert the normal camera stick into a separate input mode. Native unsupported options are disabled rather than emulated. Automated tests cover persistence, conditional mappings, restoration, native menu coexistence, logical controller editing/cancel, resizing and frame reuse. In-game layout and hardware movement still need verification in Retail.
+Unsupported CVars remain unavailable. Tests cover direct selection, cancellation, navigation scope cleanup, persistence, fixed login settings, combat camera modes, restoration, resizing and panel reuse. In-game layout and hardware movement need verification in Retail.
