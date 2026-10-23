@@ -20,6 +20,22 @@ const lootEvents = [
 	"LOOT_SLOT_CHANGED",
 	"LOOT_SLOT_CLEARED",
 ];
+const playerSettingsEvents = [
+	"PLAYER_FLAGS_CHANGED",
+	"PLAYER_LOOT_SPEC_UPDATED",
+	"PLAYER_DIFFICULTY_CHANGED",
+	"GROUP_ROSTER_UPDATE",
+	"PARTY_LEADER_CHANGED",
+	"PLAYER_ENTERING_WORLD",
+	"WAR_MODE_STATUS_UPDATE",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"PLAYER_ROLES_ASSIGNED",
+	"ROLE_CHANGED_INFORM",
+	"GARRISON_USE_PARTY_GARRISON_CHANGED",
+	"CHALLENGE_MODE_START",
+	"CHALLENGE_MODE_COMPLETED",
+	"CHALLENGE_MODE_RESET",
+];
 const dialogueEvents = [
 	"GOSSIP_SHOW",
 	"GOSSIP_OPTIONS_REFRESHED",
@@ -319,6 +335,7 @@ export class WowEventBus implements IEventBus {
 			"MOUNT_EQUIPMENT_APPLY_RESULT",
 			...talentEvents,
 			...vendorEvents,
+			...playerSettingsEvents,
 			"PLAYER_SPECIALIZATION_CHANGED",
 		])
 			this.frame.RegisterEvent(event);
@@ -344,6 +361,11 @@ export class WowEventBus implements IEventBus {
 			if ((vendorEvents as readonly string[]).includes(event))
 				this.emit(event as (typeof vendorEvents)[number]);
 			const unit = args.at(0);
+			if (
+				playerSettingsEvents.includes(event) &&
+				(event !== "PLAYER_FLAGS_CHANGED" || unit === "player")
+			)
+				this.emit("PLAYER_SETTINGS_CHANGED");
 			if (
 				event === "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" &&
 				typeof unit === "number"

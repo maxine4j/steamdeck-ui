@@ -106,6 +106,7 @@ export class Frame implements IUIComponent {
 	private hoverTooltipConfigured = false;
 	private hoverTooltip?: Frame;
 	private docked = false;
+	private companion = false;
 	private mouseShield = false;
 	private closeName?: string;
 	private gamePadInputConfigured = false;
@@ -264,6 +265,33 @@ export class Frame implements IUIComponent {
 		return (
 			this.acquire() as WowFrame & { GetFrameLevel(): number }
 		).GetFrameLevel();
+	}
+	/** Own a companion frame without mutating the existing owner's layout. */
+	placeBeside(
+		owner: WowFrame,
+		width: number,
+		height: number,
+		gap = 24,
+	): number {
+		const native = this.acquire();
+		const viewport = UIParent as unknown as { GetHeight(): number };
+		const visibleHeight = Math.min(
+			height,
+			Math.max(1, viewport.GetHeight() - 32),
+		);
+		native.SetParent(UIParent);
+		native.SetFrameStrata(
+			(
+				owner as WowFrame & {
+					GetFrameStrata(): Parameters<WowFrame["SetFrameStrata"]>[0];
+				}
+			).GetFrameStrata(),
+		);
+		this.companion = true;
+		native.ClearAllPoints();
+		native.SetSize(width, visibleHeight);
+		native.SetPoint("RIGHT", owner, "LEFT", -gap, 0);
+		return visibleHeight;
 	}
 	/** Generic existing-frame hosting; domain code never receives our native frame. */
 	anchorExisting(
@@ -1657,6 +1685,12 @@ export class Frame implements IUIComponent {
 		if (this.docked) {
 			this.native.SetFrameStrata("PARENT");
 			this.docked = false;
+		}
+		if (this.companion) {
+			(
+				this.native as unknown as { SetFrameStrata(strata: "MEDIUM"): void }
+			).SetFrameStrata("MEDIUM");
+			this.companion = false;
 		}
 		this.pool.release(this.frameType, this.native);
 		this.native = undefined;

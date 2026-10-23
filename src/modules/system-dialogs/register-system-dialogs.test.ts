@@ -16,7 +16,7 @@ vi.mock("../../clients/player-menu-client", () => ({
 	},
 }));
 
-it("keeps the player portrait companion detached from Escape while it is disabled", () => {
+it("registers the custom player settings companion with Escape", () => {
 	registerSystemDialogs(
 		{} as IFramePoolManager,
 		new ModuleManager(),
@@ -24,5 +24,5 @@ it("keeps the player portrait companion detached from Escape while it is disable
 		{} as NavigationManager,
 		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
-	expect(playerMenuCreated).not.toHaveBeenCalled();
+	expect(playerMenuCreated).toHaveBeenCalledOnce();
 });

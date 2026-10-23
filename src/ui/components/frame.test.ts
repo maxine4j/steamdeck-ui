@@ -5,6 +5,43 @@ import { Frame } from "./frame";
 
 beforeEach(() => vi.stubGlobal("UIParent", {}));
 
+it("places an owned companion left of an existing frame and fits the viewport without changing its owner", () => {
+	const root = { GetHeight: () => 600 };
+	vi.stubGlobal("UIParent", root);
+	const native = {
+		SetParent: vi.fn(),
+		SetSize: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		SetPoint: vi.fn(),
+		SetScale: vi.fn(),
+		SetFrameStrata: vi.fn(),
+	};
+	const owner = {
+		SetParent: vi.fn(),
+		ClearAllPoints: vi.fn(),
+		GetFrameStrata: () => "DIALOG",
+	};
+	const pool = {
+		acquire: () => native,
+		getBackground: () => ({}),
+	} as unknown as import("../frame-pool-manager").IFramePoolManager;
+	expect(
+		new Frame("companion", pool).placeBeside(
+			owner as unknown as WowFrame,
+			280,
+			640,
+		),
+	).toBe(568);
+	expect(native.SetParent).toHaveBeenCalledWith(root);
+	expect(native.SetParent).not.toHaveBeenCalledWith(owner);
+	expect(native.SetFrameStrata).toHaveBeenCalledWith("DIALOG");
+	expect(native.SetPoint).toHaveBeenCalledWith("RIGHT", owner, "LEFT", -24, 0);
+	expect(native.SetSize).toHaveBeenCalledWith(280, 568);
+	expect(native.SetScale).not.toHaveBeenCalled();
+	expect(owner.SetParent).not.toHaveBeenCalled();
+	expect(owner.ClearAllPoints).not.toHaveBeenCalled();
+});
+
 it.each([
 	{ mountSpell: 42 },
 	{ pet: { id: "Pet-1", name: "Cat", collected: true, source: "Vendor" } },
