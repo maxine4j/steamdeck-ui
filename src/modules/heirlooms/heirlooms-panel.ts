@@ -288,6 +288,14 @@ export class HeirloomsPanel implements IPanel {
 					cell.button.setParent(cell.border);
 					cell.button.layout(38, 38, "CENTER", cell.border);
 					cell.button.setIcon(row.icon);
+					cell.button.setLabel(
+						"level",
+						row.collected && row.maxLevel > 0 ? String(row.maxLevel) : "",
+						"BOTTOMRIGHT",
+						-1,
+						1,
+						10,
+					);
 					cell.button.setBackgroundOpacity(row.collected ? 1 : 0.2);
 					const current = () =>
 						this.current(generation) &&
