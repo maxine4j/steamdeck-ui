@@ -47,14 +47,18 @@ Before handing off a change, run the focused tests available for the changed beh
 
 ## Code reference
 
-Error capture references: `.libraries/BugGrabber-source` (official CurseForge Subversion source downloaded over HTTPS), `.libraries/bug-grabber` (GitHub mirror tooling), and `.libraries/BugSack` (display source). `yarn setup` obtains these references. Do not embed either addon.
-
-You can find a few reference AddOns developed by other people under the .libraries directory, including ConsolePort, BetterBags, and the full official blizzard ui under wow-ui-source. Please use these as reference while working but remember we're writing TypeScript code and they are in lua.
-
-`yarn setup` also clones these reference addons. Run `./scripts/clone-reference-addons.sh` to obtain references without regenerating API declarations. Existing directories are skipped; references are not bundled with SteamDeck UI.
+`yarn setup` obtains the references below in `.libraries`. Run `./scripts/clone-reference-addons.sh` to obtain them without regenerating API declarations. Existing clone directories are skipped; references are not bundled with SteamDeck UI.
 
 | Reference | Relevant areas | Upstream |
 | --- | --- | --- |
+| `.libraries/ConsolePort` | Controller input, bindings, focus navigation, and gamepad UI | [seblindfors/ConsolePort](https://github.com/seblindfors/ConsolePort) |
+| `.libraries/BetterBags` | Bag organization, item categories, and inventory UI | [Cidan/BetterBags](https://github.com/Cidan/BetterBags) |
+| `.libraries/DialogueUI` | Quest and gossip dialogue presentation and gamepad interaction | [Peterodox/YUI-Dialogue](https://github.com/Peterodox/YUI-Dialogue) |
+| `.libraries/SimpleArmory` | Collection and achievement organization, pet acquisition expansion data | [kevinclement/SimpleArmory](https://github.com/kevinclement/SimpleArmory) |
+| `.libraries/wow-ui-source` | Official Blizzard UI implementations and API usage; only `Interface` is retained | [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) |
+| `.libraries/BugGrabber-source` | Error capture and handling; official Subversion source downloaded over HTTPS | [CurseForge BugGrabber source](https://repos.curseforge.com/wow/bug-grabber/trunk/) |
+| `.libraries/bug-grabber` | BugGrabber mirror tooling; does not contain the addon Lua source | [curseforge-mirror/bug-grabber](https://github.com/curseforge-mirror/bug-grabber) |
+| `.libraries/BugSack` | Captured error display and browsing | [funkydude/BugSack](https://github.com/funkydude/BugSack) |
 | `.libraries/PremadeGroupsFilter` | Premade group search, filtering, and group finder UI | [0xbs/premade-groups-filter](https://github.com/0xbs/premade-groups-filter) |
 | `.libraries/ItemEra` | Item expansion metadata, tooltips, and inventory filtering | [klaufel/ItemEra](https://github.com/klaufel/ItemEra) |
 | `.libraries/AlreadyKnown` | Known collectible detection and merchant/auction item indicators | [ahakola/AlreadyKnown](https://github.com/ahakola/AlreadyKnown) |
@@ -62,4 +66,4 @@ You can find a few reference AddOns developed by other people under the .librari
 | `.libraries/Vendor` | Inventory keep/sell rules, merchant selling, and repairs | [typicalzergling/vendor](https://github.com/typicalzergling/vendor) |
 | `.libraries/WaypointUI` | In-world waypoint presentation and navigation markers | [Adaptvx/Waypoint-UI](https://github.com/Adaptvx/Waypoint-UI) |
 
-Consult the relevant reference when working on these features; adapt its approach to our TypeScript architecture and client boundaries.
+Consult the relevant reference when working on these features; adapt Lua approaches to our TypeScript architecture and client boundaries. Do not embed BugGrabber or BugSack.
