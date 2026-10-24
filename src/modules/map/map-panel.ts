@@ -33,7 +33,7 @@ export class MapPanel implements IPanel {
 	private active = false;
 	private parent?: Frame;
 	private fitted?: { width: number; height: number };
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: (this: void, focusId?: string) => void;
 	private readonly cursorNode: INavigable = {
 		navId: "map-cursor",
 		onFocus: () => this.client.setCursorActive(true),
@@ -333,7 +333,9 @@ export class MapPanel implements IPanel {
 			},
 		);
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(
+		callback?: (this: void, focusId?: string) => void,
+	): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {
