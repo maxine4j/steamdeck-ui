@@ -77,6 +77,35 @@ it("traces native payloads before translation and delivery, including diagnostic
 	}
 });
 
+it("continues delivery after tracing fails and prevents recursive trace callbacks", () => {
+	let dispatch: (
+		frame: WowEventFrame,
+		event: string,
+		...args: unknown[]
+	) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const trace = vi.fn(() => {
+		bus.emit("MAIL_SHOW");
+		throw Error("trace failed");
+	});
+	const native = vi.fn(() => {
+		throw Error("native trace failed");
+	});
+	const bus = new WowEventBus({ createEventFrame: () => frame }, trace, native);
+	const login = vi.fn();
+	bus.subscribe("PLAYER_LOGIN", login);
+	expect(() => dispatch(frame, "PLAYER_LOGIN")).not.toThrow();
+	expect(login).toHaveBeenCalledOnce();
+	expect(trace).toHaveBeenCalledOnce();
+	expect(native).toHaveBeenCalledOnce();
+});
+
 it("refreshes skyriding movement settings on mount display changes", () => {
 	let dispatch: (frame: WowEventFrame, event: string) => void = () => {};
 	const frame = {

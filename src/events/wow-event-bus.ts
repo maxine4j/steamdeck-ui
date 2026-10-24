@@ -258,6 +258,19 @@ const mountEvents = [
 /** Owns the hidden event frame; modules only see IEventBus. */
 export class WowEventBus implements IEventBus {
 	private readonly handlers = new Map<ApplicationEvent, EventHandler[]>();
+	private tracing = false;
+
+	private recordTrace(record: () => void): void {
+		if (this.tracing) return;
+		this.tracing = true;
+		try {
+			record();
+		} catch {
+			// Trace failures must never stop event delivery or trace themselves.
+		} finally {
+			this.tracing = false;
+		}
+	}
 
 	subscribe<E extends ApplicationEvent>(
 		event: E,
@@ -285,7 +298,7 @@ export class WowEventBus implements IEventBus {
 			? [payload?: EventPayload<E>]
 			: [EventPayload<E>]
 	): void {
-		this.trace?.(event, args.at(0));
+		if (this.trace) this.recordTrace(() => this.trace?.(event, args.at(0)));
 		for (const handler of [...(this.handlers.get(event) ?? [])])
 			handler(args.at(0));
 	}
@@ -373,7 +386,8 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
-			this.nativeTrace?.(event, args);
+			if (this.nativeTrace)
+				this.recordTrace(() => this.nativeTrace?.(event, args));
 			if (
 				event === "PLAYER_IS_GLIDING_CHANGED" ||
 				event === "PLAYER_CAN_GLIDE_CHANGED" ||

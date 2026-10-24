@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { BUILD_COMMIT } from "../build-info";
 import { createTestEventBus } from "../events/test-event-bus";
 import { DebugClient } from "./debug-client";
+import { Diagnostics } from "./diagnostics";
 
 afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => {
@@ -8,6 +10,176 @@ beforeEach(() => {
 	vi.stubGlobal("GetCallstackHeight", () => 10);
 	vi.stubGlobal("GetErrorCallstackHeight", () => null);
 	vi.stubGlobal("issecretvalue", () => false);
+});
+
+function captureHarness() {
+	const previous = vi.fn();
+	let handler: (message: unknown) => void = previous;
+	vi.stubGlobal("geterrorhandler", () => handler);
+	vi.stubGlobal("seterrorhandler", (next: typeof handler) => {
+		handler = next;
+	});
+	vi.stubGlobal("GetServerTime", () => 100);
+	vi.stubGlobal("debugstack", () => "original stack");
+	vi.stubGlobal("SteamDeckUIErrors", undefined);
+	const diagnostics = new Diagnostics(() => 100);
+	const context = {
+		capture: vi.fn(() => ({
+			buildCommit: "test",
+			details: {},
+			unavailableFields: [],
+		})),
+	};
+	const callbacks: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: vi.fn((callback: () => void) => {
+			callbacks.push(callback);
+			return vi.fn();
+		}),
+	};
+	const events = createTestEventBus();
+	const client = new DebugClient(events, scheduler, true, diagnostics, context);
+	client.initialize();
+	return {
+		previous,
+		diagnostics,
+		context,
+		scheduler,
+		callbacks,
+		events,
+		client,
+		report: (message: unknown) => handler(message),
+	};
+}
+
+it.each([
+	"stack",
+	"context",
+	"report",
+	"log",
+	"scheduler",
+	"previous",
+	"storage",
+	"clock",
+	"secret",
+	"message",
+])(
+	"contains a failing %s stage and releases the recursion guard for later errors",
+	(stage) => {
+		const harness = captureHarness();
+		const fail = () => {
+			throw Error("capture itself failed");
+		};
+		if (stage === "stack") vi.stubGlobal("debugstack", fail);
+		if (stage === "context") harness.context.capture.mockImplementation(fail);
+		if (stage === "report")
+			vi.spyOn(harness.diagnostics, "report").mockImplementation(fail);
+		if (stage === "log")
+			vi.spyOn(harness.diagnostics, "log").mockImplementation(fail);
+		if (stage === "scheduler")
+			harness.scheduler.nextFrame.mockImplementation(fail);
+		if (stage === "previous")
+			harness.previous.mockImplementation(() => {
+				harness.report("recursive");
+				fail();
+			});
+		if (stage === "storage")
+			vi.stubGlobal("SteamDeckUIErrors", new Proxy({}, { get: fail }));
+		if (stage === "clock") {
+			vi.stubGlobal("GetTime", fail);
+			vi.stubGlobal("GetServerTime", fail);
+		}
+		if (stage === "secret") vi.stubGlobal("issecretvalue", fail);
+		const message =
+			stage === "message" ? { toString: fail } : "original failure";
+		expect(() => harness.report(message)).not.toThrow();
+		expect(harness.previous).toHaveBeenCalledExactlyOnceWith(message);
+		if (stage !== "storage")
+			expect(SteamDeckUIErrors?.errors.at(-1)?.environment?.buildCommit).toBe(
+				stage === "context" ? BUILD_COMMIT : "test",
+			);
+		if (!["storage", "secret", "message"].includes(stage))
+			expect(SteamDeckUIErrors?.errors).toHaveLength(1);
+		vi.restoreAllMocks();
+		vi.stubGlobal("GetTime", () => 1);
+		vi.stubGlobal("GetServerTime", () => 101);
+		vi.stubGlobal("issecretvalue", () => false);
+		vi.stubGlobal("debugstack", () => "recovered stack");
+		vi.stubGlobal("SteamDeckUIErrors", undefined);
+		harness.previous.mockImplementation(() => {});
+		harness.context.capture.mockImplementation(() => ({
+			buildCommit: "test",
+			details: {},
+			unavailableFields: [],
+		}));
+		expect(() => harness.report("later failure")).not.toThrow();
+		expect(SteamDeckUIErrors?.errors.at(-1)?.message).toBe("later failure");
+	},
+);
+
+it("contains deferred debug UI failures and never schedules another auto-open", () => {
+	const harness = captureHarness();
+	harness.events.subscribe("DEBUG_OPEN_REQUESTED", () => {
+		harness.report("UI recursive failure");
+		throw Error("debug UI failed");
+	});
+	harness.report("original failure");
+	expect(() => harness.callbacks.shift()?.()).not.toThrow();
+	harness.report("next failure");
+	expect(harness.scheduler.nextFrame).toHaveBeenCalledOnce();
+	expect(harness.callbacks).toHaveLength(0);
+});
+
+it("returns an empty snapshot if saved error history cannot be read", () => {
+	const harness = captureHarness();
+	vi.stubGlobal(
+		"SteamDeckUIErrors",
+		new Proxy(
+			{},
+			{
+				get: () => {
+					throw Error("unreadable history");
+				},
+			},
+		),
+	);
+	expect(() => harness.client.loadErrors()).not.toThrow();
+	expect(harness.client.loadErrors().errors).toEqual([]);
+});
+
+it("contains initialization failures and permits a later successful retry", () => {
+	const previous = vi.fn();
+	let handler: (message: unknown) => void = previous;
+	const set = vi.fn((_next: typeof handler) => {
+		throw Error("hook unavailable");
+	});
+	vi.stubGlobal("geterrorhandler", () => handler);
+	vi.stubGlobal("seterrorhandler", set);
+	vi.stubGlobal("GetServerTime", () => 100);
+	const client = new DebugClient(createTestEventBus(), {
+		nextFrame: () => vi.fn(),
+	});
+	expect(() => client.initialize()).not.toThrow();
+	set.mockImplementation((next) => {
+		handler = next;
+	});
+	client.initialize();
+	expect(handler).not.toBe(previous);
+	client.shutdown();
+	expect(handler).toBe(previous);
+});
+
+it("restores the previous error handler even when shutdown logging and cancellation fail", () => {
+	const harness = captureHarness();
+	harness.scheduler.nextFrame.mockImplementation(() => () => {
+		throw Error("cancel failed");
+	});
+	harness.report("original failure");
+	vi.spyOn(harness.diagnostics, "log").mockImplementation(() => {
+		throw Error("logging failed");
+	});
+	expect(() => harness.client.shutdown()).not.toThrow();
+	expect(geterrorhandler()).toBe(harness.previous);
 });
 
 it("leaves Blizzard's error handler and saved history untouched when capture is disabled", () => {

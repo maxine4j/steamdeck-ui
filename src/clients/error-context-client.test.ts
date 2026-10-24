@@ -39,7 +39,20 @@ it("snapshots instance, delve, party, player, zone and runtime state", () => {
 		GetZoneText: () => "The Ringing Deeps",
 		GetSubZoneText: () => "The Dread Pit",
 		GetRealZoneText: () => "The Dread Pit",
-		C_Map: { GetBestMapForUnit: () => 2347 },
+		C_Map: {
+			GetBestMapForUnit: () => 2347,
+			GetPlayerMapPosition: () => ({ x: 0.25, y: 0.75 }),
+		},
+		UnitFullName: () => ["Deckmage", "Aman'Thul"],
+		UnitName: (unit: string) => [
+			unit === "npc" ? "Quest Giver" : "Target",
+			"Aman'Thul",
+		],
+		UnitGUID: (unit: string) => `${unit}-GUID`,
+		GetRealmName: () => "Aman'Thul",
+		UnitRace: () => ["Human", "Human", 1],
+		UnitSex: () => 3,
+		UnitPosition: () => [100, 200, 30, 2664],
 		UnitClass: () => ["Mage", "MAGE", 8],
 		UnitLevel: () => 90,
 		C_SpecializationInfo: {
@@ -72,6 +85,23 @@ it("snapshots instance, delve, party, player, zone and runtime state", () => {
 		zone: "The Ringing Deeps",
 		subZone: "The Dread Pit",
 		mapID: 2347,
+		playerName: "Deckmage",
+		playerRealm: "Aman'Thul",
+		playerGUID: "player-GUID",
+		realmName: "Aman'Thul",
+		raceName: "Human",
+		playerRace: "Human",
+		raceID: 1,
+		playerSex: 3,
+		positionX: 100,
+		positionY: 200,
+		positionZ: 30,
+		positionMapID: 2664,
+		mapPositionX: 0.25,
+		mapPositionY: 0.75,
+		targetName: "Target",
+		npcName: "Quest Giver",
+		npcGUID: "npc-GUID",
 		playerClass: "MAGE",
 		classID: 8,
 		level: 90,
@@ -84,6 +114,45 @@ it("snapshots instance, delve, party, player, zone and runtime state", () => {
 		latencyWorld: 50,
 	});
 	expect(result.unavailableFields).toEqual([]);
+});
+
+it("redacts secret identity and position values before inspection and preserves safe fields", () => {
+	const secret = new Proxy(
+		{},
+		{
+			get: () => {
+				throw Error("secret inspected");
+			},
+		},
+	);
+	vi.stubGlobal("issecretvalue", (value: unknown) => value === secret);
+	vi.stubGlobal("_G", {
+		UnitFullName: () => [secret, "Realm"],
+		UnitRace: () => [secret, "Human", 1],
+		UnitPosition: () => [secret, 200, 30, 2664],
+		C_Map: {
+			GetBestMapForUnit: () => 2347,
+			GetPlayerMapPosition: () => secret,
+		},
+	});
+	const result = new ErrorContextClient().capture();
+	expect(result.details).toMatchObject({
+		playerRealm: "Realm",
+		playerRace: "Human",
+		raceID: 1,
+		positionY: 200,
+		positionZ: 30,
+	});
+	expect(result.unavailableFields).toEqual(
+		expect.arrayContaining([
+			"playerName",
+			"raceName",
+			"positionX",
+			"mapPositionX",
+			"mapPositionY",
+		]),
+	);
+	expect(() => JSON.stringify(result)).not.toThrow();
 });
 
 it("omits secret and failing API fields without losing the remaining context or inspecting secret values", () => {

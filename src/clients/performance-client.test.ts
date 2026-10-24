@@ -4,6 +4,24 @@ import { PerformanceClient, WorkMeasurement } from "./performance-client";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("contains failures in profiling and fallback chat logging without recursive output", () => {
+	vi.stubGlobal("debugprofilestop", () => {
+		throw Error("profiler failed");
+	});
+	const client = new PerformanceClient();
+	const output = vi.fn(() => {
+		client.log("recursive");
+		throw Error("chat failed");
+	});
+	vi.stubGlobal("print", output);
+	expect(client.now()).toBe(0);
+	expect(() => client.log("original")).not.toThrow();
+	expect(output).toHaveBeenCalledOnce();
+	output.mockImplementation(() => {});
+	client.log("recovered");
+	expect(output).toHaveBeenCalledTimes(2);
+});
+
 it("marks failed work in diagnostics and preserves the exception for WoW's error handler", () => {
 	vi.stubGlobal("debugprofilestop", () => 0);
 	const diagnostics = new Diagnostics(() => 100);

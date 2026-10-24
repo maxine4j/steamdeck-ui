@@ -1,3 +1,4 @@
+import { BUILD_COMMIT } from "../build-info";
 import type { IEventBus } from "../events/types";
 import { Diagnostics } from "./diagnostics";
 import type { ErrorEnvironment } from "./error-context-client";
@@ -19,6 +20,15 @@ declare global {
 	): string;
 }
 
+/** TSTL emits pcall; failures in diagnostics must never be reported recursively. */
+function attempt<T>(read: () => T): T | undefined {
+	try {
+		return read();
+	} catch {
+		return undefined;
+	}
+}
+
 export class DebugClient {
 	private readonly errors = new LuaErrorHistory();
 	private previous?: (this: void, message: unknown) => void;
@@ -32,60 +42,82 @@ export class DebugClient {
 	) => {
 		if (this.handling) return;
 		this.handling = true;
+		let forward = true;
 		try {
 			// Bound stack generation, diagnostics and Blizzard's previous handler.
 			// A 100-record storage cap alone does not bound work during a flood.
-			const now = GetTime();
+			const now = attempt(() => GetTime()) ?? this.lastErrorAt ?? 0;
 			this.allowance = Math.min(
 				10,
 				this.allowance + Math.max(0, now - (this.lastErrorAt ?? now)) * 10,
 			);
 			this.lastErrorAt = now;
 			if (this.allowance < 1) {
+				forward = false;
 				this.errors.suppress(GetServerTime());
 				return;
 			}
 			this.allowance--;
-			// Retail exposes the original failure's stack height even while this
-			// handler is executing through TSTL's pcall wrapper.
-			const currentHeight = GetCallstackHeight();
-			const errorHeight = GetErrorCallstackHeight();
-			const rawStack = debugstack(
-				errorHeight ? currentHeight - (errorHeight - 1) : 2,
-				100,
-				100,
-			);
 			// The generated API declaration only accepts numbers; Retail accepts
 			// arbitrary values. Never concatenate or persist secret strings.
 			const secret = issecretvalue as unknown as (
 				this: void,
 				value: unknown,
 			) => boolean;
-			const safeMessage = secret(message)
-				? "Lua error message unavailable (secret value)"
-				: String(message);
-			const stack = secret(rawStack)
-				? "Stack trace unavailable (secret value)"
-				: (rawStack ?? "Stack trace unavailable");
-			this.errors.capture(
-				safeMessage,
-				stack,
-				GetServerTime(),
-				this.diagnostics.report().slice(-12000),
-				this.context?.capture(),
+			const safeMessage =
+				attempt(() =>
+					secret(message)
+						? "Lua error message unavailable (secret value)"
+						: String(message),
+				) ?? "Lua error message unavailable";
+			const stack =
+				attempt(() => {
+					// Measure and read the stack inside the same pcall callback so
+					// its extra stack frames are included in Retail's error offset.
+					const currentHeight = GetCallstackHeight();
+					const errorHeight = GetErrorCallstackHeight();
+					const rawStack = debugstack(
+						errorHeight ? currentHeight - (errorHeight - 1) : 2,
+						100,
+						100,
+					);
+					return secret(rawStack)
+						? "Stack trace unavailable (secret value)"
+						: rawStack;
+				}) ?? "Stack trace unavailable";
+			const timestamp = attempt(() => GetServerTime()) ?? 0;
+			const context = attempt(() => this.diagnostics.report().slice(-12000));
+			const environment = attempt(() => this.context?.capture()) ?? {
+				buildCommit: BUILD_COMMIT,
+				details: {},
+				unavailableFields: ["environment"],
+			};
+			attempt(() =>
+				this.errors.capture(
+					safeMessage,
+					stack,
+					timestamp,
+					context,
+					environment,
+				),
 			);
-			this.diagnostics.log("error", `${safeMessage}\n${stack}`);
+			attempt(() => this.diagnostics.log("error", `${safeMessage}\n${stack}`));
 			if (!this.autoOpenRequested) {
 				// Keep this latched after dispatch, including when opening the UI
 				// itself raises errors. Later frames must not reopen that same UI.
 				this.autoOpenRequested = true;
-				this.cancelOpen = this.scheduler.nextFrame(() => {
-					this.cancelOpen = undefined;
-					this.events.emit("DEBUG_OPEN_REQUESTED");
-				});
+				this.cancelOpen = attempt(() =>
+					this.scheduler.nextFrame(() => {
+						this.cancelOpen = undefined;
+						attempt(() => this.events.emit("DEBUG_OPEN_REQUESTED"));
+					}),
+				);
 			}
-			this.previous?.(message);
+		} catch {
+			// Last-resort boundary for the capture pipeline itself. Do not log
+			// this failure through the same diagnostics/error handler.
 		} finally {
+			if (forward) attempt(() => this.previous?.(message));
 			this.handling = false;
 		}
 	};
@@ -97,23 +129,37 @@ export class DebugClient {
 		private readonly context?: { capture(): ErrorEnvironment },
 	) {}
 	loadErrors(): LuaErrorSnapshot {
-		return this.errors.load(GetServerTime());
+		return (
+			attempt(() => this.errors.load(GetServerTime())) ?? {
+				errors: [],
+				isNew: () => false,
+			}
+		);
 	}
 	initialize(): void {
 		if (!this.captureErrors || this.previous) return;
 		this.allowance = 10;
 		this.lastErrorAt = undefined;
 		this.autoOpenRequested = false;
-		this.previous = geterrorhandler();
-		seterrorhandler(this.handleError);
-		this.diagnostics.log("info", "session started");
+		attempt(() => {
+			const previous = geterrorhandler();
+			seterrorhandler(this.handleError);
+			this.previous = previous;
+		});
+		if (this.previous)
+			attempt(() => this.diagnostics.log("info", "session started"));
 	}
 	shutdown(): void {
-		if (this.previous) this.diagnostics.log("info", "session stopped");
-		this.cancelOpen?.();
+		if (this.previous)
+			attempt(() => this.diagnostics.log("info", "session stopped"));
+		const cancel = this.cancelOpen;
 		this.cancelOpen = undefined;
-		if (this.previous && geterrorhandler() === this.handleError)
-			seterrorhandler(this.previous);
-		this.previous = undefined;
+		attempt(() => cancel?.());
+		const released = attempt(() => {
+			if (this.previous && geterrorhandler() === this.handleError)
+				seterrorhandler(this.previous);
+			return true;
+		});
+		if (released) this.previous = undefined;
 	}
 }

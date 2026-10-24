@@ -12,16 +12,34 @@ export const quietPerformance: IPerformanceClient = {
 
 /** Central diagnostics with local chat fallback; never resets the profiler. */
 export class PerformanceClient implements IPerformanceClient {
+	private reporting = false;
 	constructor(private readonly diagnostics?: Diagnostics) {}
 	now(): number {
-		return debugprofilestop();
+		try {
+			return debugprofilestop();
+		} catch {
+			return 0;
+		}
 	}
 	log(message: string): void {
-		if (this.diagnostics) this.diagnostics.log("info", message);
-		else print(`[SteamDeckUI performance] ${message}`);
+		this.report(() => {
+			if (this.diagnostics) this.diagnostics.log("info", message);
+			else print(`[SteamDeckUI performance] ${message}`);
+		});
 	}
 	work(progress: WorkProgress): void {
-		this.diagnostics?.work(progress);
+		this.report(() => this.diagnostics?.work(progress));
+	}
+	private report(write: () => void): void {
+		if (this.reporting) return;
+		this.reporting = true;
+		try {
+			write();
+		} catch {
+			// Instrumentation must never replace the failure being measured.
+		} finally {
+			this.reporting = false;
+		}
 	}
 }
 

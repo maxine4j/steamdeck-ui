@@ -224,6 +224,39 @@ it("records an unavailable placeholder if an entire payload table cannot be insp
 	expect(diagnostics.report()).toContain("<unavailable>");
 });
 
+it("isolates context, serialization, persistence and hook failures without recursive logging", () => {
+	const { client, context, diagnostics } = setup();
+	context.capture.mockImplementation(() => {
+		throw Error("context failed");
+	});
+	expect(() => client.native("ZONE_CHANGED", [42])).not.toThrow();
+	expect(diagnostics.report()).toContain("native ZONE_CHANGED arg1=42");
+	expect(diagnostics.report()).toContain("environment=<unavailable>");
+	vi.stubGlobal("issecretvalue", () => {
+		throw Error("secret check failed");
+	});
+	expect(() => client.application("broken", "payload")).not.toThrow();
+	vi.stubGlobal("issecretvalue", () => false);
+	const log = vi.spyOn(diagnostics, "log").mockImplementation(() => {
+		client.application("recursive", "payload");
+		throw Error("persistence failed");
+	});
+	expect(() => client.native("arbitrary", [])).not.toThrow();
+	expect(log).toHaveBeenCalledOnce();
+	let decline = () => {};
+	const hook = vi.fn((_name: string, _callback: () => void) => {
+		throw Error("hook failed");
+	});
+	vi.stubGlobal("hooksecurefunc", hook);
+	expect(() => client.initialize()).not.toThrow();
+	hook.mockImplementation((_name, callback) => {
+		decline = callback;
+	});
+	client.initialize();
+	expect(hook).toHaveBeenCalledTimes(2);
+	expect(() => decline()).not.toThrow();
+});
+
 it("retains every quest field when a snapshot exceeds the individual log line cap", () => {
 	vi.stubGlobal("C_QuestLog", {
 		GetNumQuestLogEntries: () => [1, 1],

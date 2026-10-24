@@ -120,6 +120,7 @@ function describe(value: unknown): string {
 
 export class EventLogClient {
 	private initialized = false;
+	private recording = false;
 	private pendingQuests = false;
 	private offeredQuest = "questID=<unavailable>";
 	constructor(
@@ -128,20 +129,38 @@ export class EventLogClient {
 	) {}
 	initialize(): void {
 		if (this.initialized) return;
-		this.initialized = true;
 		// Declining has no native event. A secure post-hook observes both our UI
 		// and Blizzard's without replacing the protected function.
-		hooksecurefunc("DeclineQuest", () =>
-			this.write("quest declined", this.offeredQuest),
-		);
+		this.record(() => {
+			hooksecurefunc("DeclineQuest", () =>
+				this.record(() => this.write("quest declined", this.offeredQuest)),
+			);
+			this.initialized = true;
+		});
 	}
 	application(event: string, payload?: unknown): void {
-		this.write(
-			`event ${event}`,
-			!secret(payload) && payload === undefined ? "" : describe(payload),
+		this.record(() =>
+			this.write(
+				`event ${event}`,
+				!secret(payload) && payload === undefined ? "" : describe(payload),
+			),
 		);
 	}
 	native(event: string, args: readonly unknown[]): void {
+		this.record(() => this.recordNative(event, args));
+	}
+	private record(record: () => void): void {
+		if (this.recording) return;
+		this.recording = true;
+		try {
+			record();
+		} catch {
+			// Never feed failures in logging back into the error grabber.
+		} finally {
+			this.recording = false;
+		}
+	}
+	private recordNative(event: string, args: readonly unknown[]): void {
 		const fields = args.map(
 			(value, index) =>
 				`${nativeFields[event]?.at(index) ?? `arg${index + 1}`}=${describe(value)}`,
@@ -211,12 +230,16 @@ export class EventLogClient {
 			event.startsWith("PLAYER_REGEN_") ||
 			event === "PLAYER_DIFFICULTY_CHANGED";
 		if (world) {
-			const environment = this.context.capture();
-			// Environment is already sanitized by the context client.
-			for (const [key, value] of Object.entries(environment.details))
-				fields.push(`${key}=${describe(value)}`);
-			if (environment.unavailableFields.length > 0)
-				fields.push(`unavailable=${environment.unavailableFields.join(",")}`);
+			try {
+				const environment = this.context.capture();
+				// Environment is already sanitized by the context client.
+				for (const [key, value] of Object.entries(environment.details))
+					fields.push(`${key}=${describe(value)}`);
+				if (environment.unavailableFields.length > 0)
+					fields.push(`unavailable=${environment.unavailableFields.join(",")}`);
+			} catch {
+				fields.push("environment=<unavailable>");
+			}
 		}
 		this.write(`native ${event}`, fields.join(" "));
 		if (event === "PLAYER_LOGIN") this.pendingQuests = true;

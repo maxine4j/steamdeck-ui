@@ -38,7 +38,24 @@ interface ContextGlobals {
 	GetZoneText(this: void): string;
 	GetSubZoneText(this: void): string;
 	GetRealZoneText(this: void): string;
-	C_Map: { GetBestMapForUnit(this: void, unit: string): number | undefined };
+	C_Map: {
+		GetBestMapForUnit(this: void, unit: string): number | undefined;
+		GetPlayerMapPosition(
+			this: void,
+			mapID: number,
+			unit: string,
+		): { x: number; y: number } | undefined;
+	};
+	UnitFullName(this: void, unit: string): LuaMultiReturn<[string, string]>;
+	UnitName(this: void, unit: string): LuaMultiReturn<[string, string]>;
+	UnitGUID(this: void, unit: string): string | undefined;
+	GetRealmName(this: void): string;
+	UnitRace(this: void, unit: string): LuaMultiReturn<[string, string, number]>;
+	UnitSex(this: void, unit: string): number;
+	UnitPosition(
+		this: void,
+		unit: string,
+	): LuaMultiReturn<[number, number, number, number]>;
 	UnitClass(this: void, unit: string): LuaMultiReturn<[string, string, number]>;
 	UnitLevel(this: void, unit: string): number;
 	C_SpecializationInfo: {
@@ -157,6 +174,34 @@ export class ErrorContextClient {
 		collect(["subZone"], () => [g.GetSubZoneText()]);
 		collect(["realZone"], () => [g.GetRealZoneText()]);
 		collect(["mapID"], () => [g.C_Map.GetBestMapForUnit("player")]);
+		collect(["mapPositionX", "mapPositionY"], () => {
+			if (typeof details.mapID !== "number") return [];
+			const position = g.C_Map.GetPlayerMapPosition(details.mapID, "player");
+			if (secret(position) || !position) return [];
+			return [position.x, position.y];
+		});
+		collect(["positionX", "positionY", "positionZ", "positionMapID"], () => {
+			const [x, y, z, mapID] = g.UnitPosition("player");
+			return [x, y, z, mapID];
+		});
+		collect(["playerName", "playerRealm"], () => {
+			const [name, realm] = g.UnitFullName("player");
+			return [name, realm];
+		});
+		collect(["realmName"], () => [g.GetRealmName()]);
+		collect(["playerGUID"], () => [g.UnitGUID("player")]);
+		for (const unit of ["target", "npc"]) {
+			collect([`${unit}Name`], () => {
+				const [name] = g.UnitName(unit);
+				return [name];
+			});
+			collect([`${unit}GUID`], () => [g.UnitGUID(unit)]);
+		}
+		collect(["raceName", "playerRace", "raceID"], () => {
+			const [name, token, id] = g.UnitRace("player");
+			return [name, token, id];
+		});
+		collect(["playerSex"], () => [g.UnitSex("player")]);
 		collect(["className", "playerClass", "classID"], () => {
 			const [name, token, id] = g.UnitClass("player");
 			return [name, token, id];
