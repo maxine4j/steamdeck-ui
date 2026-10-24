@@ -34,6 +34,7 @@ beforeEach(() => {
 	vi.stubGlobal("InCombatLockdown", () => false);
 	vi.stubGlobal("UnitGUID", () => "npc-1");
 	vi.stubGlobal("UnitName", () => ["Keeper"]);
+	vi.stubGlobal("issecretvalue", () => false);
 	for (const [name, result] of Object.entries({
 		GetQuestID: 51,
 		GetTitleText: "Quest",
@@ -89,6 +90,43 @@ beforeEach(() => {
 		vi.stubGlobal(name, vi.fn());
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("keeps restricted NPC names out of dialogue presentation", () => {
+	const secret = "restricted name";
+	vi.stubGlobal("issecretvalue", (value: unknown) => value === secret);
+	vi.stubGlobal("UnitName", () => [secret]);
+	const client = new DialogueClient();
+	expect(client.read("gossip").speaker).toBe("Quest");
+	expect(client.read("shared", undefined, 81, secret).speaker).toBe("Quest");
+	vi.stubGlobal("UnitName", (unit: string) => [
+		unit === "questnpc" ? secret : "Keeper",
+	]);
+	expect(client.read("gossip").speaker).toBe("Keeper");
+});
+
+it("uses conversation sessions for restricted identities without exposing GUIDs", () => {
+	let guid = "restricted GUID 1";
+	vi.stubGlobal("UnitGUID", () => guid);
+	vi.stubGlobal("issecretvalue", (value: unknown) => value === guid);
+	const client = new DialogueClient();
+	const first = client.read("gossip");
+	expect(first.source).toBeDefined();
+	expect(first.source).not.toBe(guid);
+	// Secrets are opaque: a fresh API result must not be compared to the snapshot.
+	guid = "restricted GUID 2";
+	const refreshed = client.refresh(first);
+	expect(refreshed?.session).toBe(first.session);
+	if (!refreshed) throw new Error("Expected refreshed conversation");
+	expect(client.select(first, "option:401").ok).toBe(false);
+	expect(client.select(refreshed, "option:401").ok).toBe(true);
+	expect(client.select(refreshed, "option:401").ok).toBe(false);
+	client.end();
+	expect(client.refresh(refreshed)).toBeUndefined();
+	const reopened = client.read("gossip");
+	expect(reopened.session).not.toBe(first.session);
+	expect(client.select(refreshed, "option:401").ok).toBe(false);
+	expect(client.select(reopened, "option:401").ok).toBe(true);
+});
 
 it("supplies complete item, currency and spell links for reward inspection", () => {
 	vi.stubGlobal("GetNumQuestRewards", () => 1);

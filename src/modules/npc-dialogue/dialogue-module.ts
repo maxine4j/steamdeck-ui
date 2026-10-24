@@ -356,6 +356,8 @@ export class DialogueModule implements IModule, DialogueActions {
 		this.finish(true);
 	}
 	private finish(immediate = false): void {
+		// Invalidate actions and opaque NPC identity now; only defer visual cleanup.
+		this.client.end();
 		this.page = undefined;
 		this.selectedReward = undefined;
 		this.confirmation = undefined;
@@ -366,7 +368,6 @@ export class DialogueModule implements IModule, DialogueActions {
 		const end = () => {
 			this.cancelEnd = undefined;
 			if (this.page) return;
-			this.client.end();
 			this.camera.end();
 			this.view.hide();
 			this.ui.closePanel("fullscreen", this.id);

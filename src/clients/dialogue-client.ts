@@ -216,6 +216,16 @@ const offerAPI = () =>
 		): ReputationReward[] | undefined;
 	};
 
+function isSecret(value: unknown): boolean {
+	return (issecretvalue as unknown as (this: void, value: unknown) => boolean)(
+		value,
+	);
+}
+
+function readableName(value: string | undefined): string | undefined {
+	return isSecret(value) ? undefined : value;
+}
+
 export { formatMoney as dialogueMoney } from "../utils/money";
 
 /** Authoritative snapshots and guarded original API actions. No native UI visibility state. */
@@ -225,6 +235,8 @@ export class DialogueClient implements IDialogueClient {
 	private current?: DialoguePage;
 	private submitted = false;
 	private pending?: { page: DialoguePage; prompt: DialoguePrompt };
+	private restrictedSource?: string;
+	private sourceSequence = 0;
 	isInCombat(): boolean {
 		return InCombatLockdown();
 	}
@@ -236,7 +248,16 @@ export class DialogueClient implements IDialogueClient {
 			this: void,
 			unit: string,
 		) => string | undefined;
-		return guid("questnpc") ?? guid("npc");
+		for (const unit of ["questnpc", "npc"]) {
+			const value = guid(unit);
+			// Opaque identity is scoped to the interaction, never compared or exposed.
+			if (isSecret(value)) {
+				this.restrictedSource ??= `interaction:${++this.sourceSequence}`;
+				return this.restrictedSource;
+			}
+			if (value !== undefined) return value;
+		}
+		return undefined;
 	}
 	read(
 		kind: DialogueKind,
@@ -259,10 +280,10 @@ export class DialogueClient implements IDialogueClient {
 			revision: ++this.revision,
 			source,
 			speaker:
-				speaker ??
+				readableName(speaker) ??
 				(kind === "remote" || kind === "shared" || startItem
 					? "Quest"
-					: (npcName ?? gossipName)) ??
+					: (readableName(npcName) ?? readableName(gossipName))) ??
 				"Quest",
 		};
 		let page: DialoguePage;
@@ -708,6 +729,7 @@ export class DialogueClient implements IDialogueClient {
 	}
 	end(): void {
 		this.current = undefined;
+		this.restrictedSource = undefined;
 		this.pending = undefined;
 		this.submitted = true;
 		this.session++;

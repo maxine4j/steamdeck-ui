@@ -124,6 +124,25 @@ it("B cancels the current confirmation before closing the conversation", () => {
 	s.module.cancel();
 	expect(s.client.close).toHaveBeenCalledOnce();
 });
+it.each(["gossip", "offer"] as const)(
+	"invalidates a closed %s session before a same-frame reopen",
+	(kind) => {
+		const s = setup();
+		if (kind === "gossip") s.events.emit("GOSSIP_SHOW");
+		else s.events.emit("QUEST_DETAIL", {});
+		s.flush();
+		if (kind === "gossip")
+			s.events.emit("GOSSIP_CLOSED", { continuing: false });
+		else s.events.emit("QUEST_FINISHED");
+		expect(s.client.end).toHaveBeenCalledOnce();
+		if (kind === "gossip") s.events.emit("GOSSIP_SHOW");
+		else s.events.emit("QUEST_DETAIL", {});
+		s.flush();
+		expect(s.client.end).toHaveBeenCalledOnce();
+		expect(s.module.page?.kind).toBe(kind);
+		expect(s.view.hide).not.toHaveBeenCalled();
+	},
+);
 it("keeps selected rewards through item refresh and clears them for a new quest", () => {
 	const s = setup();
 	s.events.emit("QUEST_COMPLETE");
