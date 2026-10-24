@@ -57,7 +57,6 @@ Before handing off a change, run the focused tests available for the changed beh
 | `.libraries/SimpleArmory` | Collection and achievement organization, pet acquisition expansion data | [kevinclement/SimpleArmory](https://github.com/kevinclement/SimpleArmory) |
 | `.libraries/wow-ui-source` | Official Blizzard UI implementations and API usage; only `Interface` is retained | [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) |
 | `.libraries/BugGrabber-source` | Error capture and handling; official Subversion source downloaded over HTTPS | [CurseForge BugGrabber source](https://repos.curseforge.com/wow/bug-grabber/trunk/) |
-| `.libraries/bug-grabber` | BugGrabber mirror tooling; does not contain the addon Lua source | [curseforge-mirror/bug-grabber](https://github.com/curseforge-mirror/bug-grabber) |
 | `.libraries/BugSack` | Captured error display and browsing | [funkydude/BugSack](https://github.com/funkydude/BugSack) |
 | `.libraries/PremadeGroupsFilter` | Premade group search, filtering, and group finder UI | [0xbs/premade-groups-filter](https://github.com/0xbs/premade-groups-filter) |
 | `.libraries/ItemEra` | Item expansion metadata, tooltips, and inventory filtering | [klaufel/ItemEra](https://github.com/klaufel/ItemEra) |

@@ -29,11 +29,10 @@ clone_reference https://github.com/typicalzergling/vendor .libraries/Vendor
 clone_reference https://github.com/Adaptvx/Waypoint-UI .libraries/WaypointUI
 
 # Error capture and display references only; never bundled with the addon.
-clone_reference https://github.com/curseforge-mirror/bug-grabber .libraries/bug-grabber
 clone_reference https://github.com/funkydude/BugSack .libraries/BugSack
 
-# The GitHub mirror contains tooling, not Lua. CurseForge's official source
-# repository is Subversion, with these source files available over HTTPS.
+# CurseForge's official BugGrabber source repository is Subversion,
+# with these source files available over HTTPS.
 mkdir -p .libraries/BugGrabber-source
 for file in BugGrabber.lua '!BugGrabber.toc' load.xml .pkgmeta .luacheckrc; do
   if [[ ! -s ".libraries/BugGrabber-source/$file" ]]; then

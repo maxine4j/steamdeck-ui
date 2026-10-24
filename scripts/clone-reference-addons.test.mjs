@@ -27,7 +27,6 @@ test("clones the additional addon references once and removes their Git metadata
 		for (const name of [
 			"ConsolePort",
 			"BetterBags",
-			"bug-grabber",
 			"BugSack",
 			"DialogueUI",
 			"SimpleArmory",
