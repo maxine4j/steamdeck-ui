@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createTestEventBus } from "../events/test-event-bus";
 import { NativeDialogNavigation } from "../ui/components/native-dialog-navigation";
+import { NavigationManager } from "../ui/navigation/navigation-manager";
 import { DelvesClient } from "./delves-client";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -51,6 +52,7 @@ function setup() {
 	const difficulty = {
 		...frame(false, [dropdown, enter, close]),
 		Dropdown: dropdown,
+		EnterDelveButton: enter,
 		CloseButton: close,
 	};
 	const option = frame();
@@ -146,7 +148,37 @@ function setup() {
 	};
 }
 
-it("navigates difficulty controls and excludes disabled entry actions", () => {
+it("defaults to Enter Delve and navigates vertically between entry and difficulty only", () => {
+	const s = setup();
+	const reward = frame();
+	s.difficulty.GetChildren = () => [s.dropdown, reward, s.enter, s.close];
+	s.client.initialize();
+	const dialog = s.client.getDialogs().at(0);
+	expect(dialog?.grid.map((row) => row.map((node) => node.navId))).toEqual([
+		["delve:difficulty:dropdown"],
+		["delve:difficulty:enter"],
+	]);
+	expect(dialog?.defaultFocusId).toBe("delve:difficulty:enter");
+	const manager = new NavigationManager(createTestEventBus());
+	if (!dialog) throw new Error("Expected difficulty dialog");
+	manager.pushModal(
+		dialog.id,
+		dialog.grid,
+		dialog.cancel,
+		dialog.defaultFocusId,
+	);
+	manager.interact();
+	expect(s.enter.Click).toHaveBeenCalledOnce();
+	manager.moveUp();
+	manager.interact();
+	expect(s.dropdown.OpenMenu).toHaveBeenCalledOnce();
+	manager.moveDown();
+	expect(manager.focusedId).toBe("delve:difficulty:enter");
+	expect(reward.Click).not.toHaveBeenCalled();
+	manager.destroy();
+});
+
+it("navigates difficulty controls and excludes disabled or hidden entry actions", () => {
 	const s = setup();
 	s.client.initialize();
 	const dialog = s.client.getDialogs().at(0);
@@ -154,7 +186,10 @@ it("navigates difficulty controls and excludes disabled entry actions", () => {
 	dialog?.grid.flat().at(0)?.onInteract();
 	expect(s.dropdown.OpenMenu).toHaveBeenCalledOnce();
 	s.enter.IsEnabled.mockReturnValue(false);
-	expect(s.client.getDialogs().at(0)?.grid.flat()).toHaveLength(2);
+	expect(s.client.getDialogs().at(0)?.grid.flat()).toHaveLength(1);
+	s.enter.IsEnabled.mockReturnValue(true);
+	s.enter.IsVisible.mockReturnValue(false);
+	expect(s.client.getDialogs().at(0)?.grid.flat()).toHaveLength(1);
 	dialog?.cancel();
 	expect(s.close.Click).toHaveBeenCalledWith("LeftButton");
 });

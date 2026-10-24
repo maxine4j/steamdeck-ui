@@ -29,6 +29,7 @@ interface DelveHost extends NativeDialogFrame {
 }
 interface DifficultyFrame extends DelveHost {
 	Dropdown: DelveDropdown;
+	EnterDelveButton: NativeDialogFrame;
 }
 const slotNames = [
 	"CompanionCombatRoleSlot",
@@ -122,6 +123,7 @@ export class DelvesClient implements INativeDialogsClient {
 				"UpdateDropdownState",
 			]);
 			this.watchDropdown(difficulty.Dropdown);
+			this.watch(difficulty.EnterDelveButton);
 		}
 		const config = globals.DelvesCompanionConfigurationFrame;
 		if (config) {
@@ -251,12 +253,14 @@ export class DelvesClient implements INativeDialogsClient {
 			grid: () => NavGrid,
 			dropdown?: DelveDropdown,
 			config?: CompanionFrame,
+			defaultFocusId?: string,
 		) => {
 			if (!host?.IsVisible()) return;
 			const menu = this.openMenus(dropdown).at(-1);
 			dialogs.push({
 				id,
 				grid: menu ? this.controls.menu(`${id}:menu`, menu) : grid(),
+				defaultFocusId: menu ? undefined : defaultFocusId,
 				cancel: () => {
 					if (!this.active || !host.IsVisible()) return;
 					const menus = this.openMenus(dropdown);
@@ -280,8 +284,19 @@ export class DelvesClient implements INativeDialogsClient {
 			"native-delve-difficulty",
 			difficulty,
 			() =>
-				this.controls.grid("delve:difficulty", difficulty as DifficultyFrame),
+				(
+					[
+						["dropdown", difficulty?.Dropdown],
+						["enter", difficulty?.EnterDelveButton],
+					] as const
+				).flatMap(([id, frame]) =>
+					frame?.IsVisible() && frame.IsEnabled()
+						? [[this.controls.control(`delve:difficulty:${id}`, frame)]]
+						: [],
+				),
 			difficulty?.Dropdown,
+			undefined,
+			"delve:difficulty:enter",
 		);
 		const config = globals.DelvesCompanionConfigurationFrame;
 		add(
