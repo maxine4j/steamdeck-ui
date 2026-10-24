@@ -663,6 +663,7 @@ it("docks full-height side containers and refreshes a grouped, pooled one-bag gr
 		new AuctionHouseClient(events),
 		appearances,
 		heirlooms,
+		{ selectNext: vi.fn(), toggle: vi.fn() },
 	);
 	expect(frames).toHaveLength(6);
 	expect(frames.at(0)?.SetSize).toHaveBeenCalledWith(500, 0);

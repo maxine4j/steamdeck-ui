@@ -17,7 +17,10 @@ class ControllerInputClient extends InputClient {
 		surface: IGamePadInput,
 		options: IControllerOptionsClient = new ControllerOptionsClient(events),
 	) {
-		super(events, surface, options);
+		super(events, surface, options, {
+			nextFrame: vi.fn(),
+			delay: () => vi.fn(),
+		});
 	}
 }
 

@@ -28,6 +28,8 @@ Generate updated WoW API declarations with `yarn setup` when needed.
 
 Use a Steam Input layout that sends native gamepad inputs.
 
+Outside combat, tap **View / Select / Back** (`PADBACK`) to select the next displayed quest objective, wrapping to the first. Hold it for **3 seconds** to collapse or expand the objective tracker; releasing after a hold does not change the selected quest. Quest cycling includes campaign, regular, bonus, and world quests; achievement and scenario entries are skipped. **B** continues to cancel addon panels.
+
 For a release build, run `yarn build:release` and copy the contents of `dist/` into `Interface/AddOns/SteamDeckUI/` instead.
 
 ## Testing

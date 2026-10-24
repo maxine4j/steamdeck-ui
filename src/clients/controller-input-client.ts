@@ -6,6 +6,7 @@ import type {
 	SecureNavigationActions,
 } from "../ui/navigation/types";
 import type { IControllerOptionsClient } from "./controller-options-client";
+import type { ITaskScheduler } from "./task-scheduler";
 
 // Undocumented globals used by Blizzard's UIParentPanelManager/Game.lua.
 declare global {
@@ -95,7 +96,17 @@ export class ControllerInputClient implements IControllerInputClient {
 	private readonly capturedKeys = new Map<string, string>();
 	private readonly captureModifiers = new Set<string>();
 	private readonly usedCaptureModifiers = new Set<string>();
+	private backHeld = false;
+	private backToggled = false;
+	private cancelBackHold?: () => void;
+	private releaseBack(): void {
+		this.cancelBackHold?.();
+		this.cancelBackHold = undefined;
+		this.backHeld = false;
+		this.backToggled = false;
+	}
 	setBindingCapture(callback?: (this: void, key: string) => void): void {
+		this.releaseBack();
 		this.capture = callback;
 		this.capturedKeys.clear();
 		this.captureModifiers.clear();
@@ -142,7 +153,7 @@ export class ControllerInputClient implements IControllerInputClient {
 	}
 	private syncBindings(): void {
 		const bindings: ClickBinding[] = [];
-		if (this.listening && !this.capture) {
+		if (this.listening && this.active && !this.capture) {
 			const target =
 				this.secureActions?.alternate ?? this.secureActions?.interact;
 			if (target) {
@@ -158,10 +169,12 @@ export class ControllerInputClient implements IControllerInputClient {
 		this.surface.setClickBindings(bindings);
 	}
 	private readonly sync = () => {
-		const listening = this.active && !InCombatLockdown();
-		if (listening === this.listening) return;
+		const listening = (this.configured || this.active) && !InCombatLockdown();
 		this.listening = listening;
-		if (!listening) this.releaseDirections();
+		if (!listening) {
+			this.releaseDirections();
+			this.releaseBack();
+		}
 		this.syncBindings();
 		this.syncModifiers();
 		this.surface.setGamePadInput(
@@ -172,6 +185,12 @@ export class ControllerInputClient implements IControllerInputClient {
 							this.captureUp(button);
 							return;
 						}
+						if (button === "PADBACK" && this.backHeld) {
+							const cycle = !this.backToggled;
+							this.releaseBack();
+							if (cycle) this.events.emit("OBJECTIVE_NEXT_REQUESTED");
+							return;
+						}
 						const direction = directions[button];
 						if (direction && this.heldDirections.delete(direction))
 							this.events.emit("NAV_DIRECTION_CHANGED", {
@@ -180,7 +199,7 @@ export class ControllerInputClient implements IControllerInputClient {
 							});
 					}
 				: undefined,
-			listening ? repeatOptions : undefined,
+			listening && this.active ? repeatOptions : undefined,
 		);
 	};
 	private syncModifiers(): void {
@@ -189,13 +208,14 @@ export class ControllerInputClient implements IControllerInputClient {
 			if (this.originalCVars.has(name))
 				C_CVar.SetCVar(
 					name,
-					this.listening ? "none" : controllerSettings[name],
+					this.listening && this.active ? "none" : controllerSettings[name],
 				);
 	}
 	constructor(
 		private readonly events: IEventBus,
 		private readonly surface: IGamePadInput,
 		readonly options: IControllerOptionsClient,
+		private readonly scheduler: ITaskScheduler,
 	) {
 		events.subscribe("COMBAT_STARTED", this.sync);
 		events.subscribe("COMBAT_ENDED", this.sync);
@@ -209,6 +229,16 @@ export class ControllerInputClient implements IControllerInputClient {
 	}
 	private handleButtonDown(button: string): boolean {
 		if (this.capture) return this.captureDown(button);
+		if (button === "PADBACK" && this.listening && !IsModifierKeyDown()) {
+			if (!this.backHeld) {
+				this.backHeld = true;
+				this.cancelBackHold = this.scheduler.delay(3, () => {
+					this.backToggled = true;
+					this.events.emit("OBJECTIVE_TRACKER_TOGGLE_REQUESTED");
+				});
+			}
+			return true;
+		}
 		if (!this.canHandleInput(button)) return false;
 		const event = buttons[button];
 		if (!event) return false;
@@ -254,9 +284,12 @@ export class ControllerInputClient implements IControllerInputClient {
 		if (this.listening) this.syncModifiers();
 		// Enabling the device must not put the right stick back into cursor mode.
 		SetGamePadCursorControl(false);
+		this.sync();
 	}
 	setActive(active: boolean): void {
+		if (active === this.active) return;
 		this.active = active;
+		if (!active) this.releaseDirections();
 		this.sync();
 	}
 	shutdown(): void {
@@ -265,7 +298,8 @@ export class ControllerInputClient implements IControllerInputClient {
 		this.configured = false;
 		this.events.unsubscribe("COMBAT_STARTED", this.sync);
 		this.events.unsubscribe("COMBAT_ENDED", this.sync);
-		this.setActive(false);
+		this.active = false;
+		this.sync();
 		this.surface.destroy();
 		for (const [name, value] of this.originalCVars) C_CVar.SetCVar(name, value);
 		this.originalCVars.clear();
