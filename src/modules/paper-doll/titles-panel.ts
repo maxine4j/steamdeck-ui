@@ -5,6 +5,7 @@ import { ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class TitlesPanel implements IPanel {
@@ -14,7 +15,7 @@ export class TitlesPanel implements IPanel {
 	private readonly list: ScrollList;
 	private readonly back: Frame;
 	private readonly update: DeferredRefresh;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private selectedId?: string;
 	private cancelInitialFocus?: () => void;
 	constructor(
@@ -94,7 +95,7 @@ export class TitlesPanel implements IPanel {
 			...this.list.getNavGrid(),
 		];
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

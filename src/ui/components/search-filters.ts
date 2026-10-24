@@ -1,6 +1,6 @@
 import type { ITaskScheduler } from "../../clients/task-scheduler";
 import type { IFramePoolManager } from "../frame-pool-manager";
-import type { NavGrid } from "../navigation/types";
+import type { NavGrid, NavigationChanged } from "../navigation/types";
 import { DebouncedInput } from "./debounced-input";
 import type { DropdownOption } from "./dropdown";
 import { Dropdown } from "./dropdown";
@@ -17,7 +17,7 @@ export class SearchFilters {
 		pool: IFramePoolManager,
 		private readonly searchChanged: (text: string) => void,
 		scheduler: ITaskScheduler,
-		navigationChanged?: (focusId?: string) => void,
+		navigationChanged?: NavigationChanged,
 	) {
 		this.search = new Frame(`${id}-search`, pool, "SearchBox");
 		this.filters = new Dropdown(`${id}-filters`, pool, navigationChanged);

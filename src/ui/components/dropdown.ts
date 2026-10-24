@@ -1,6 +1,6 @@
 import type { WowFrame } from "../../types";
 import type { IFramePoolManager } from "../frame-pool-manager";
-import type { INavigable } from "../navigation/types";
+import type { INavigable, NavigationChanged } from "../navigation/types";
 import { Frame } from "./frame";
 import type { NativeDropdownButton } from "./native-menu";
 
@@ -26,7 +26,7 @@ export class Dropdown {
 	constructor(
 		id: string,
 		pool: IFramePoolManager,
-		private readonly navigationChanged?: (focusId?: string) => void,
+		private readonly navigationChanged?: NavigationChanged,
 	) {
 		this.button = new Frame(id, pool, "FilterDropdown");
 	}

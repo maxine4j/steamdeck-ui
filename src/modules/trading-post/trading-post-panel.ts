@@ -5,6 +5,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class TradingPostPanel implements IPanel {
@@ -14,7 +15,7 @@ export class TradingPostPanel implements IPanel {
 	private readonly host: Frame;
 	private readonly update: DeferredRefresh;
 	private parent?: Frame;
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: Pick<
@@ -89,7 +90,7 @@ export class TradingPostPanel implements IPanel {
 		if (this.client.dismissMenus()) this.refresh();
 		else this.close();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

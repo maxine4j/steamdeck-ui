@@ -705,8 +705,14 @@ it("optimistically changes both favourite copies without reloading, including du
 	const mounts = Array.from({ length: 45 }, (_, i) => mount(i + 1));
 	load?.[0](mounts.slice(0, 20), { collected: 20, total: 20 }, false);
 	flush();
+	const nav = new NavigationManager(createTestEventBus());
+	nav.registerGrid(panel.id, () => panel.getNavGrid());
+	nav.setActiveGrid(panel.id);
+	nav.refreshGrid(panel.id, "mount-2");
+	panel.setNavigationChanged((focusId) => nav.refreshGrid(panel.id, focusId));
 	panel.toggleFavourite(1);
 	flush();
+	expect(nav.focusedId).toBe("mount-2");
 	expect(client.setFavourite).toHaveBeenCalledWith(
 		1,
 		true,
@@ -738,6 +744,8 @@ it("optimistically changes both favourite copies without reloading, including du
 			.flat()
 			.some((node) => node.navId === "mount-favourite-1"),
 	).toBe(true);
+	expect(nav.focusedId).toBe("mount-2");
+	nav.destroy();
 });
 
 it("rolls back rejected favourite requests and reconciles server disagreement using only the changed ID", () => {

@@ -17,6 +17,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type {
 	INavigable,
 	NavGrid,
+	NavigationChanged,
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -77,7 +78,7 @@ export class PetsPanel implements IPanel {
 	private grid: NavGrid = [];
 	private visibleIds = new Set<string>();
 	private contentHeight = 1;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.viewComplete && !this.cancelRender)
@@ -570,7 +571,7 @@ export class PetsPanel implements IPanel {
 		else if (this.dirty) this.render(this.generation);
 		else this.requestViewportRender();
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {

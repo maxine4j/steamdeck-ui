@@ -14,7 +14,11 @@ import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
+import type {
+	NavGrid,
+	NavigationChanged,
+	NavigationScroll,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { PreparedRanges } from "../../ui/prepared-ranges";
 import type { IToyActionMenu } from "./toy-action-menu";
@@ -74,7 +78,7 @@ export class ToysPanel implements IPanel {
 	private visibleIds = new Set<string>();
 	private contentHeight = 1;
 	private laidOutHeight?: number;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.viewComplete && !this.cancelRender)
@@ -625,7 +629,7 @@ export class ToysPanel implements IPanel {
 		else this.requestViewportRender();
 		this.refreshCooldowns();
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {

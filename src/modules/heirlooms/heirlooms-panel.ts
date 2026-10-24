@@ -11,7 +11,11 @@ import { SearchFilters } from "../../ui/components/search-filters";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationChanged,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { PreparedRanges } from "../../ui/prepared-ranges";
 
@@ -69,7 +73,7 @@ export class HeirloomsPanel implements IPanel {
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private cancelViewport?: () => void;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	constructor(
 		private readonly pool: IFramePoolManager,
 		private readonly client: IHeirloomsClient,
@@ -391,7 +395,7 @@ export class HeirloomsPanel implements IPanel {
 		if (!this.ready && this.parent) this.onMount(this.parent);
 		else this.render();
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {

@@ -7,6 +7,7 @@ import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IReputationActionMenu } from "./reputation-action-menu";
 
@@ -18,7 +19,7 @@ export class ReputationPanel implements IPanel {
 	readonly icon = 236683;
 	private readonly list: ScrollList;
 	private readonly update: DeferredRefresh;
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	private mounted = false;
 	constructor(
 		pool: IFramePoolManager,
@@ -172,7 +173,7 @@ export class ReputationPanel implements IPanel {
 	getNavGrid() {
 		return this.list.getNavGrid();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

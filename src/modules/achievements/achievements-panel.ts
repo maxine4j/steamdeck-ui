@@ -13,7 +13,11 @@ import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid, NavigationScroll } from "../../ui/navigation/types";
+import type {
+	NavGrid,
+	NavigationChanged,
+	NavigationScroll,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { PreparedRanges } from "../../ui/prepared-ranges";
 import {
@@ -92,7 +96,7 @@ export class AchievementsPanel implements IPanel {
 	private cancelScan?: () => void;
 	private cancelRender?: () => void;
 	private cancelViewport?: () => void;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.scanning || this.renderDirty) return;
@@ -1157,7 +1161,7 @@ export class AchievementsPanel implements IPanel {
 		};
 		return [[back, filter], ...this.grid];
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

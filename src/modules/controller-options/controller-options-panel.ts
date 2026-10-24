@@ -3,7 +3,7 @@ import { Frame } from "../../ui/components/frame";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable } from "../../ui/navigation/types";
+import type { INavigable, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 export class ControllerOptionsPanel implements IPanel {
 	readonly id = "controller-options";
@@ -15,7 +15,7 @@ export class ControllerOptionsPanel implements IPanel {
 	private readonly resetButton: Frame;
 	private readonly resetNavigation: INavigable;
 	private mounted = false;
-	private changed?: () => void;
+	private changed?: NavigationChanged;
 	private readonly reset = () => {
 		this.client.reset();
 		this.refresh();
@@ -200,7 +200,7 @@ export class ControllerOptionsPanel implements IPanel {
 	onActiveChanged(active: boolean): void {
 		this.window.setFocusBorder(active);
 	}
-	setNavigationChanged(changed?: () => void): void {
+	setNavigationChanged(changed?: NavigationChanged): void {
 		this.changed = changed;
 	}
 	destroy(): void {

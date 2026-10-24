@@ -17,6 +17,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type {
 	INavigable,
 	NavGrid,
+	NavigationChanged,
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -77,7 +78,7 @@ export class MountsPanel implements IPanel {
 		number,
 		{ previous: boolean; value: boolean; accepted: boolean }
 	>();
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction: "up" | "down") => {
 			if (this.snapshotComplete && !this.cancelRender)
@@ -537,7 +538,7 @@ export class MountsPanel implements IPanel {
 		this.laidOutHeight = this.contentHeight;
 		this.viewport.clampScroll();
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	onMount(parent: IUIComponent): void {

@@ -19,6 +19,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 const pages = [
@@ -161,7 +162,7 @@ export class DungeonFinderPanel implements IPanel {
 	private initialFocusPending = true;
 	private initialRenderComplete = false;
 	private readonly update: DeferredRefresh;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private pendingLeave?: () => void;
 	constructor(
 		pool: IFramePoolManager,
@@ -890,7 +891,7 @@ export class DungeonFinderPanel implements IPanel {
 				]
 			: [];
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 		if (this.initialRenderComplete) this.notifyNavigationChanged();
 	}

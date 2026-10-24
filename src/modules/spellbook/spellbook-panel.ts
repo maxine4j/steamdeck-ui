@@ -5,7 +5,7 @@ import { ItemGrid } from "../../ui/components/item-grid";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid } from "../../ui/navigation/types";
+import type { NavGrid, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { ISpellBindingPrompt } from "./spell-binding-prompt";
 export class SpellbookPanel implements IPanel {
@@ -15,7 +15,7 @@ export class SpellbookPanel implements IPanel {
 	private readonly frame: Frame;
 	private readonly grid: ItemGrid;
 	private mounted = false;
-	private changed?: () => void;
+	private changed?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: ISpellbookClient,
@@ -61,7 +61,7 @@ export class SpellbookPanel implements IPanel {
 	getNavGrid(): NavGrid {
 		return this.mounted ? this.grid.getNavGrid() : [];
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.changed = callback;
 	}
 	refresh(): void {

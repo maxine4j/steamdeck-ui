@@ -10,7 +10,7 @@ import { SCROLL_VIEWPORT_RIGHT } from "../../ui/components/scroll-indicator";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid } from "../../ui/navigation/types";
+import type { NavGrid, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { commaNumber, formatMoney } from "../../utils/money";
 import { groupItems } from "./bag-display";
@@ -62,7 +62,7 @@ export class BagsPanel implements IPanel {
 	private renderGeneration = 0;
 	private cancelRender?: () => void;
 	private navGrid: NavGrid = [];
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	private visibilityChanged?: (visible: boolean) => void;
 	refreshInteractions(): void {
 		if (!this.mounted) return;
@@ -416,7 +416,7 @@ export class BagsPanel implements IPanel {
 		if (!this.mounted) return;
 		this.grouping.toggle();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {

@@ -5,6 +5,7 @@ import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import { DeferredRefresh } from "../../ui/deferred-refresh";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class TalentTreePanel implements IPanel {
@@ -17,7 +18,7 @@ export class TalentTreePanel implements IPanel {
 	private parent?: Frame;
 	private mounted = false;
 	private active = false;
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: ITalentTreeClient,
@@ -95,7 +96,7 @@ export class TalentTreePanel implements IPanel {
 		if (this.client.dismissChoices()) this.refresh();
 		else this.close();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {

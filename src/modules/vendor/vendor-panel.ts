@@ -12,7 +12,11 @@ import {
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationChanged,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { formatMoney } from "../../utils/money";
 
@@ -32,7 +36,7 @@ export class VendorPanel implements IPanel {
 	}[];
 	private mounted = false;
 	private dirty = true;
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	private actions: VendorActions = {
 		repairCost: 0,
 		repair: false,
@@ -184,7 +188,7 @@ export class VendorPanel implements IPanel {
 	private colorCost(text: string, affordable: boolean): string {
 		return `|c${affordable ? "ffffffff" : "ffff0000"}${text}|r`;
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	onMount(parent: IUIComponent): void {

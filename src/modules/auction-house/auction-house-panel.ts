@@ -8,7 +8,11 @@ import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationChanged,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { formatMoney } from "../../utils/money";
 
@@ -35,7 +39,7 @@ export class AuctionHousePanel implements IPanel {
 	private duration = 2;
 	private sellItem?: AuctionSellItem;
 	private visibleControls: Control[][] = [];
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private generation = 0;
 	private layoutMode?: string;
 	private displayedTotal = 0;
@@ -109,7 +113,7 @@ export class AuctionHousePanel implements IPanel {
 				this.duration = hours === 12 ? 1 : hours === 24 ? 2 : 3;
 			});
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	private setText(input: Frame, text: string): void {

@@ -4,6 +4,7 @@ import type { ITaskScheduler } from "../../clients/task-scheduler";
 import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class CachePerformancePanel implements IPanel {
@@ -13,7 +14,7 @@ export class CachePerformancePanel implements IPanel {
 	private readonly list: ScrollList;
 	private mounted = false;
 	private cancel?: () => void;
-	private changed?: () => void;
+	private changed?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly diagnostics: Diagnostics,
@@ -96,7 +97,7 @@ export class CachePerformancePanel implements IPanel {
 	getNavGrid() {
 		return this.list.getNavGrid();
 	}
-	setNavigationChanged(changed?: () => void): void {
+	setNavigationChanged(changed?: NavigationChanged): void {
 		this.changed = changed;
 	}
 	destroy(): void {

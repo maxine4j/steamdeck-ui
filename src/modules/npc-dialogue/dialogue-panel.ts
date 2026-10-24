@@ -8,7 +8,7 @@ import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid } from "../../ui/navigation/types";
+import type { NavGrid, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type {
 	DialogueActions,
@@ -39,7 +39,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 	private code = "";
 	private readingWidth = 480;
 	private height = 0;
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly ink = [0.7, 0.7, 0.7] as const;
 	private readonly headingColor = [0.9, 0.9, 0.9] as const;
 	private readonly optionColor = [0.796, 0.784, 0.584] as const;
@@ -438,7 +438,7 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		);
 		this.navigationChanged?.();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {

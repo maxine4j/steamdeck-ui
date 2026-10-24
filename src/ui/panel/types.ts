@@ -1,5 +1,5 @@
 import type { IUIComponent } from "../components/types";
-import type { NavGrid } from "../navigation/types";
+import type { NavGrid, NavigationChanged } from "../navigation/types";
 
 export type DockPosition = "left" | "right" | "fullscreen";
 
@@ -24,7 +24,7 @@ export interface IPanel {
 	onContainerSwitch?(direction: "left" | "right"): void;
 	/** Panels with internal sections can own the active focus outline. */
 	onActiveChanged?(active: boolean): void;
-	setNavigationChanged?(callback?: (focusId?: string) => void): void;
+	setNavigationChanged?(callback?: NavigationChanged): void;
 }
 
 export interface IPanelContainer {
