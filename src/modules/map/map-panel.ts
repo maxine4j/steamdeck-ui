@@ -148,8 +148,8 @@ export class MapPanel implements IPanel {
 			this.pane.setLabel(
 				"hint",
 				this.section === "map"
-					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-					: `Quests · ${controllerIcon("X")} Select  ${controllerIcon("B")} Back  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+					? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LT")}/${controllerIcon("RT")} Quests`
+					: `Quests · ${controllerIcon("X")} Select  ${controllerIcon("B")} Back  ${controllerIcon("LT")}/${controllerIcon("RT")} Map`,
 				"BOTTOMLEFT",
 				12,
 				14,
@@ -167,8 +167,8 @@ export class MapPanel implements IPanel {
 		this.pane.setLabel(
 			"hint",
 			this.section === "map"
-				? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LB")}/${controllerIcon("RB")} Quests`
-				: `Quests · ${controllerIcon("X")} Details  ${controllerIcon("Y")} Options  ${controllerIcon("LB")}/${controllerIcon("RB")} Map`,
+				? `Map · ${controllerIcon("D-pad")} Move  ${controllerIcon("X")} Select / Pin  ${controllerIcon("Y")} Zoom out  ${controllerIcon("LT")}/${controllerIcon("RT")} Quests`
+				: `Quests · ${controllerIcon("X")} Details  ${controllerIcon("Y")} Options  ${controllerIcon("LT")}/${controllerIcon("RT")} Map`,
 			"BOTTOMLEFT",
 			12,
 			14,
@@ -196,8 +196,8 @@ export class MapPanel implements IPanel {
 				.reverse()
 				.map((row) => row.node.navId);
 	}
-	onPanelCycle(_direction: -1 | 1): void {
-		this.section = this.section === "map" ? "quests" : "map";
+	onContainerSwitch(direction: "left" | "right"): void {
+		this.section = direction === "left" ? "map" : "quests";
 		this.render();
 	}
 	showDetails(id?: number): void {

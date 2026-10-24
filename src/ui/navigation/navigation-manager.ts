@@ -18,6 +18,7 @@ export interface GridOptions extends GridNeighbors {
 	onCancel?: () => void;
 	onActiveChanged?: (active: boolean) => void;
 	onPanelCycle?: (direction: -1 | 1) => void;
+	onContainerSwitch?: (direction: "left" | "right") => void;
 }
 
 export interface INavManager {
@@ -228,7 +229,12 @@ export class NavigationManager implements INavManager {
 	}
 	private switchContainer(direction: "left" | "right"): void {
 		if (!this.active || this.modal || this.scope) return;
-		const neighbor = this.options.get(this.active)?.[direction];
+		const options = this.options.get(this.active);
+		if (options?.onContainerSwitch) {
+			options.onContainerSwitch(direction);
+			return;
+		}
+		const neighbor = options?.[direction];
 		if (neighbor) this.setActiveGrid(neighbor);
 	}
 	moveUp(): void {

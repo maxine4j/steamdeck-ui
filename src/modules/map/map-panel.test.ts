@@ -94,7 +94,7 @@ it("outlines only the active map or quest side and removes it while inactive", (
 		"TOPLEFT",
 		expect.anything(),
 	);
-	panel.onPanelCycle(1);
+	panel.onContainerSwitch("left");
 	expect(
 		state.frames.get("map-quests")?.setFocusBorder,
 	).toHaveBeenLastCalledWith(false);
@@ -105,7 +105,7 @@ it("outlines only the active map or quest side and removes it while inactive", (
 	expect(state.frames.get("map-side")?.setFocusBorder).toHaveBeenLastCalledWith(
 		false,
 	);
-	panel.onPanelCycle(-1);
+	panel.onContainerSwitch("right");
 	expect(
 		state.frames.get("map-quests")?.setFocusBorder,
 	).toHaveBeenLastCalledWith(false);
@@ -381,10 +381,21 @@ function setup() {
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));
 	return { panel, client, modal, close, changed, quests };
 }
-it("cycles map and quests with bumpers, retaining quest focus and routing map controls", () => {
+it("selects map and quests with triggers, retaining quest focus and routing map controls", () => {
 	const { panel, client, changed } = setup();
+	expect((panel as IPanel).onPanelCycle).toBeUndefined();
+	const expectTriggerHint = (side: "Map" | "Quests") => {
+		expect(
+			state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
+		).toContain(
+			`xbox_s_lt.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rt.blp:18:18|t ${side}`,
+		);
+	};
+	expectTriggerHint("Map");
 	panel.getNavGrid().at(2)?.at(0)?.onFocus();
-	panel.onPanelCycle(-1);
+	panel.onContainerSwitch("left");
+	panel.onContainerSwitch("left");
+	expectTriggerHint("Quests");
 	expect(
 		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
 	).toContain("xbox_r_x.blp:18:18|t Select / Pin");
@@ -401,20 +412,22 @@ it("cycles map and quests with bumpers, retaining quest focus and routing map co
 	expect(changed).toHaveBeenLastCalledWith("map-cursor");
 	cursor?.onBlur();
 	expect(client.setCursorActive).toHaveBeenLastCalledWith(false);
-	panel.onPanelCycle(1);
+	panel.onContainerSwitch("right");
+	panel.onContainerSwitch("right");
 	expect(changed).toHaveBeenLastCalledWith("map-quest-2");
-	panel.onPanelCycle(1);
+	panel.onContainerSwitch("left");
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	panel.showDetails(2);
 	expect(changed).toHaveBeenLastCalledWith("map-details-back");
-	panel.onPanelCycle(-1);
+	expectTriggerHint("Map");
+	panel.onContainerSwitch("left");
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-cursor");
 	expect(
 		state.frames.get("map-quests")?.setLabel.mock.lastCall?.at(1),
 	).toContain(
-		"xbox_s_lb.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rb.blp:18:18|t Quests",
+		"xbox_s_lt.blp:18:18|t/|TInterface\\AddOns\\SteamDeckUI\\assets\\controller\\xbox_s_rt.blp:18:18|t Quests",
 	);
-	panel.onPanelCycle(1);
+	panel.onContainerSwitch("right");
 	expect(panel.getNavGrid().at(0)?.at(0)?.navId).toBe("map-details-back");
 	panel.onUnmount();
 	panel.onMount(new Frame("parent", {} as IFramePoolManager));

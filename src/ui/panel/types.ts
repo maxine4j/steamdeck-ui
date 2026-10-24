@@ -20,6 +20,8 @@ export interface IPanel {
 	getNavGrid(): NavGrid;
 	onBack?(): void;
 	onPanelCycle?(direction: -1 | 1): void;
+	/** Internal left/right sections selected by the triggers. */
+	onContainerSwitch?(direction: "left" | "right"): void;
 	/** Panels with internal sections can own the active focus outline. */
 	onActiveChanged?(active: boolean): void;
 	setNavigationChanged?(callback?: (focusId?: string) => void): void;

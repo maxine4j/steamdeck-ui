@@ -261,6 +261,48 @@ it("lets a fullscreen feature cycle its own tabs with the bumpers", () => {
 	expect(frame.dock).toHaveBeenCalledWith("fullscreen", 500, 20);
 });
 
+it("routes triggers to a fullscreen panel's internal sides without routing bumpers", () => {
+	const events = createTestEventBus();
+	const navigation = new NavigationManager(events);
+	const frame = {
+		dock: vi.fn(),
+		onClose: vi.fn(),
+		show: vi.fn(),
+		setFocusBorder: vi.fn(),
+	} as unknown as Frame;
+	const container = new PanelContainer(
+		"fullscreen",
+		"fullscreen",
+		frame,
+		undefined,
+		undefined,
+		navigation,
+	);
+	const onContainerSwitch = vi.fn();
+	container.swapPanel({
+		id: "map",
+		title: "Map",
+		onMount: vi.fn(),
+		onUnmount: vi.fn(),
+		getNavGrid: () => [],
+		onContainerSwitch,
+	});
+	events.emit("NAV_PANEL_NEXT");
+	events.emit("NAV_PANEL_PREVIOUS");
+	expect(onContainerSwitch).not.toHaveBeenCalled();
+	events.emit("NAV_CONTAINER_LEFT");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(onContainerSwitch.mock.calls).toEqual([["left"], ["right"]]);
+	navigation.pushModal("menu", [], () => {});
+	events.emit("NAV_CONTAINER_LEFT");
+	events.emit("NAV_CONTAINER_RIGHT");
+	expect(onContainerSwitch).toHaveBeenCalledTimes(2);
+	navigation.popModal("menu");
+	events.emit("NAV_CONTAINER_LEFT");
+	expect(onContainerSwitch).toHaveBeenLastCalledWith("left");
+	expect(onContainerSwitch).toHaveBeenCalledTimes(3);
+});
+
 it("lets a sectioned panel own its active outline, including modal suspension and close", () => {
 	const navigation = new NavigationManager(createTestEventBus());
 	const frame = {
