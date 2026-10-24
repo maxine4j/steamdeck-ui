@@ -52,6 +52,40 @@ function captureHarness() {
 	};
 }
 
+it("clears persisted and live telemetry, resets flood suppression and captures fresh errors", () => {
+	const harness = captureHarness();
+	vi.stubGlobal("SteamDeckUILogs", {
+		version: 1,
+		entries: ["old log"],
+		droppedCount: 4,
+	});
+	for (let i = 0; i < 12; i++) harness.report("old failure");
+	harness.client.loadErrors();
+	harness.diagnostics.work({
+		id: 1,
+		label: "old scan",
+		reason: "login",
+		completed: 1,
+		total: 1,
+		state: "done",
+		elapsed: 1,
+	});
+	harness.client.clearAll();
+	expect(SteamDeckUILogs).toEqual({ version: 1, entries: [], droppedCount: 0 });
+	expect(harness.client.loadErrors()).toMatchObject({
+		errors: [],
+		suppressedCount: 0,
+	});
+	expect(harness.diagnostics.report()).toBe("");
+	expect(harness.diagnostics.jobs()).toEqual([]);
+	harness.report("fresh failure");
+	const fresh = harness.client.loadErrors();
+	expect(fresh.errors).toHaveLength(1);
+	expect(fresh.errors.at(0)?.message).toBe("fresh failure");
+	expect(fresh.errors.map(fresh.isNew)).toEqual([true]);
+	expect(harness.diagnostics.report()).not.toContain("old failure");
+});
+
 it.each([
 	"stack",
 	"context",

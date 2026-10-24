@@ -15,6 +15,7 @@ export class DebugLogsPanel implements IPanel {
 	private readonly scroll: Frame;
 	private readonly text: Frame;
 	private readonly select: Frame;
+	private readonly clear: Frame;
 	private readonly closeButton: Frame;
 	private detach?: () => void;
 	private cancelRefresh?: () => void;
@@ -26,14 +27,27 @@ export class DebugLogsPanel implements IPanel {
 		private readonly details: () => string,
 		private readonly close: () => void,
 		private readonly scheduler: Pick<ITaskScheduler, "delay">,
+		private readonly clearTelemetry: () => void,
 	) {
 		this.window = new Frame("debug-logs-window", pool);
 		this.scroll = new Frame("debug-logs-scroll", pool, "ScrollFrame");
 		this.text = new Frame("debug-log-text", pool, "EditBox");
 		this.select = new Frame("debug-select-logs", pool, "Button");
+		this.clear = new Frame("debug-clear-logs", pool, "Button");
+		this.clear.onClick(this.clearAll);
 		this.closeButton = new Frame("debug-logs-close", pool, "Button");
 		this.closeButton.onClick(close);
 	}
+	private readonly clearAll = () => {
+		this.clearTelemetry();
+		this.cancelRefresh?.();
+		this.cancelRefresh = undefined;
+		this.copying = false;
+		this.text.blurInput();
+		this.refresh();
+		this.scroll.resetScroll();
+		this.status();
+	};
 	private readonly selectAll = () => {
 		this.refresh();
 		this.copying = true;
@@ -83,6 +97,10 @@ export class DebugLogsPanel implements IPanel {
 			14,
 		);
 		this.select.onClick(this.selectAll);
+		this.clear.setParent(this.window);
+		this.clear.layout(120, 32, "TOPLEFT", this.window, 328, -42);
+		this.clear.setButtonBackground();
+		this.clear.setLabel("label", "Clear all", "CENTER", 0, 0, 14);
 		this.closeButton.setParent(this.window);
 		this.closeButton.layout(24, 24, "TOPRIGHT", this.window, -2, -2);
 		this.closeButton.setCloseButtonBackground();
@@ -107,6 +125,7 @@ export class DebugLogsPanel implements IPanel {
 			this.scroll,
 			this.text,
 			this.select,
+			this.clear,
 			this.closeButton,
 		])
 			frame.show();
@@ -137,6 +156,7 @@ export class DebugLogsPanel implements IPanel {
 			? [
 					[
 						this.select.navigationNode(this.select.id, this.selectAll),
+						this.clear.navigationNode(this.clear.id, this.clearAll),
 						this.closeButton.navigationNode(this.closeButton.id, this.close),
 					],
 				]
@@ -151,6 +171,7 @@ export class DebugLogsPanel implements IPanel {
 			this.text,
 			this.scroll,
 			this.select,
+			this.clear,
 			this.closeButton,
 			this.window,
 		])

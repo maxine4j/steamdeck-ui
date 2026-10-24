@@ -29,6 +29,9 @@ vi.mock("../../ui/components/frame", () => ({
 		setTooltip() {}
 		hideTooltip() {}
 		onClick() {}
+		navigationNode(navId: string, onInteract: () => void) {
+			return { navId, onInteract, onFocus() {}, onBlur() {} };
+		}
 		onSizeChanged() {}
 		blurInput() {}
 		revealVerticalRange() {}
@@ -53,6 +56,7 @@ it("spreads a full error history across frames, exposes navigation as rows becom
 	const panel = new DebugErrorsPanel(
 		pool,
 		{
+			clearAll: vi.fn(),
 			loadErrors: () => ({
 				errors: Array.from({ length: 100 }, (_, id) => ({
 					id,
@@ -69,10 +73,10 @@ it("spreads a full error history across frames, exposes navigation as rows becom
 	const changed = vi.fn();
 	panel.setNavigationChanged(changed);
 	panel.onMount(new Frame("parent", pool));
-	expect(panel.getNavGrid()).toHaveLength(0);
+	expect(panel.getNavGrid()).toHaveLength(1);
 	changed.mockClear();
 	pending.shift()?.();
-	expect(panel.getNavGrid()).toHaveLength(9);
+	expect(panel.getNavGrid()).toHaveLength(10);
 	expect(changed).toHaveBeenCalled();
 	panel.onUnmount();
 	const notifications = changed.mock.calls.length;

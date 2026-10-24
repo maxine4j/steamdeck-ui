@@ -32,6 +32,7 @@ export function registerDebug(
 				.join("\n"),
 		close,
 		scheduler,
+		() => client.clearAll(),
 	);
 	const cache = new CachePerformancePanel(
 		pool,

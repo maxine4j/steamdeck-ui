@@ -136,6 +136,16 @@ export class DebugClient {
 			}
 		);
 	}
+	clearAll(): void {
+		SteamDeckUIErrors = { version: 1, errors: [] };
+		SteamDeckUILogs = { version: 1, entries: [], droppedCount: 0 };
+		this.allowance = 10;
+		this.lastErrorAt = undefined;
+		this.cancelOpen?.();
+		this.cancelOpen = undefined;
+		this.autoOpenRequested = false;
+		this.diagnostics.clear();
+	}
 	initialize(): void {
 		if (!this.captureErrors || this.previous) return;
 		this.allowance = 10;

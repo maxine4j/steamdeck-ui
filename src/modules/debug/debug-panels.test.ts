@@ -78,6 +78,78 @@ vi.mock("../../ui/components/scroll-list", () => ({
 	},
 }));
 
+it.each(["mouse", "controller"])(
+	"clears all telemetry from Logs with %s and resumes live rendering after copying",
+	(input) => {
+		const diagnostics = new Diagnostics(() => 100);
+		diagnostics.log("error", "old failure");
+		const clearAll = vi.fn(() => diagnostics.clear());
+		const pending: (() => void)[] = [];
+		const panel = new DebugLogsPanel(
+			{} as IFramePoolManager,
+			diagnostics,
+			() => "",
+			vi.fn(),
+			{
+				delay: (_seconds, callback) => {
+					pending.push(callback);
+					return vi.fn();
+				},
+			},
+			clearAll,
+		);
+		panel.onMount({} as Frame);
+		frames.get("debug-select-logs")?.click?.();
+		if (input === "mouse") frames.get("debug-clear-logs")?.click?.();
+		else
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === "debug-clear-logs")
+				?.onInteract();
+		expect(clearAll).toHaveBeenCalledOnce();
+		expect(frames.get("debug-log-text")?.text).toContain("No logs recorded");
+		diagnostics.log("info", "fresh log");
+		while (pending.length) pending.shift()?.();
+		expect(frames.get("debug-log-text")?.text).toContain("fresh log");
+		panel.destroy();
+	},
+);
+
+it.each(["mouse", "controller"])(
+	"clears all telemetry from Errors with %s and refreshes the empty history",
+	(input) => {
+		let errors = [
+			{ id: 1, timestamp: 100, message: "old failure", stack: "trace" },
+		];
+		const clearAll = vi.fn(() => {
+			errors = [];
+		});
+		const panel = new DebugErrorsPanel(
+			{} as IFramePoolManager,
+			{ loadErrors: () => ({ errors, isNew: () => true }), clearAll },
+			vi.fn(),
+			{ nextFrame: vi.fn(), delay: vi.fn() },
+		);
+		panel.onMount({} as Frame);
+		if (input === "mouse") frames.get("debug-clear-errors")?.click?.();
+		else
+			panel
+				.getNavGrid()
+				.flat()
+				.find((node) => node.navId === "debug-clear-errors")
+				?.onInteract();
+		expect(clearAll).toHaveBeenCalledOnce();
+		expect(
+			rows.get("debug-errors-list")?.some((row) => row.id === "error-1"),
+		).toBe(false);
+		expect(
+			rows.get("debug-errors-list")?.some((row) => row.id === "errors-empty"),
+		).toBe(true);
+		panel.destroy();
+	},
+);
+
 it("selects a fresh full report on mouse or controller activation and preserves selection while logs arrive", () => {
 	const diagnostics = new Diagnostics(() => 100);
 	diagnostics.log("error", "traceback");
@@ -87,6 +159,7 @@ it("selects a fresh full report on mouse or controller activation and preserves 
 		() => "mounts: 42 records",
 		vi.fn(),
 		{ delay: vi.fn() },
+		vi.fn(),
 	);
 	panel.onMount({} as Frame);
 	expect(insets).toHaveBeenCalledWith(expect.anything(), 12, 110, 8, 12);
@@ -117,6 +190,7 @@ it("defers and coalesces live log rendering outside the Lua error handler and ca
 				return cancelled;
 			},
 		},
+		vi.fn(),
 	);
 	panel.onMount({} as Frame);
 	diagnostics.log("error", "deferred error");
@@ -196,7 +270,7 @@ it("loads errors on opening, separates seen from new chronologically, opens full
 	const close = vi.fn();
 	const panel = new DebugErrorsPanel(
 		{} as IFramePoolManager,
-		{ loadErrors },
+		{ loadErrors, clearAll: vi.fn() },
 		close,
 		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
@@ -246,7 +320,7 @@ it("shows an empty error history and places the new boundary after all seen erro
 	}));
 	const panel = new DebugErrorsPanel(
 		{} as IFramePoolManager,
-		{ loadErrors },
+		{ loadErrors, clearAll: vi.fn() },
 		vi.fn(),
 		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
@@ -270,6 +344,7 @@ it("discloses suppressed errors from a flood while keeping the original trace ac
 	const panel = new DebugErrorsPanel(
 		{} as IFramePoolManager,
 		{
+			clearAll: vi.fn(),
 			loadErrors: () => ({
 				errors: [
 					{

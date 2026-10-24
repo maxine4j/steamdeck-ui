@@ -74,6 +74,12 @@ export class Diagnostics {
 	report(): string {
 		return this.lines.join("\n");
 	}
+	clear(): void {
+		this.lines.length = 0;
+		this.workItems.clear();
+		this.notify("log");
+		this.notify("work");
+	}
 	subscribe(changed: (kind: "log" | "work") => void): () => void {
 		this.observers.add(changed);
 		return () => {

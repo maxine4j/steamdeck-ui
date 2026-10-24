@@ -19,12 +19,13 @@ export class DebugErrorsPanel implements IPanel {
 	private readonly text: Frame;
 	private readonly back: Frame;
 	private readonly select: Frame;
+	private readonly clear: Frame;
 	private parent?: IUIComponent;
 	private selected?: LuaErrorRecord;
 	private changed?: (focusId?: string) => void;
 	constructor(
 		pool: IFramePoolManager,
-		private readonly client: Pick<DebugClient, "loadErrors">,
+		private readonly client: Pick<DebugClient, "loadErrors" | "clearAll">,
 		private readonly close: () => void,
 		scheduler: ITaskScheduler,
 	) {
@@ -35,6 +36,7 @@ export class DebugErrorsPanel implements IPanel {
 			close,
 			{
 				padding: 16,
+				top: 86,
 				preserveScrollOnRefresh: true,
 				scheduler,
 				batchSize: 10,
@@ -46,9 +48,18 @@ export class DebugErrorsPanel implements IPanel {
 		this.text = new Frame("debug-error-detail-text", pool, "EditBox");
 		this.back = new Frame("debug-error-back", pool, "Button");
 		this.select = new Frame("debug-error-select", pool, "Button");
+		this.clear = new Frame("debug-clear-errors", pool, "Button");
+		this.clear.onClick(this.clearAll);
 		this.back.onClick(() => this.onBack());
 		this.select.onClick(() => this.text.selectInputText());
 	}
+	private readonly clearAll = () => {
+		this.client.clearAll();
+		if (!this.parent) return;
+		this.list.unmount();
+		this.onMount(this.parent);
+		this.changed?.(this.clear.id);
+	};
 	onMount(parent: IUIComponent): void {
 		this.parent = parent;
 		this.selected = undefined;
@@ -93,11 +104,17 @@ export class DebugErrorsPanel implements IPanel {
 		else if (!divided) rows.push(divider);
 		this.list.setRows(rows);
 		this.list.mount(parent);
+		this.clear.setParent(parent as Frame);
+		this.clear.layout(120, 32, "TOPLEFT", parent as Frame, 16, -42);
+		this.clear.setButtonBackground();
+		this.clear.setLabel("label", "Clear all", "CENTER", 0, 0, 14);
+		this.clear.show();
 	}
 	private showDetails(error: LuaErrorRecord): void {
 		if (!this.parent) return;
 		this.selected = error;
 		this.list.unmount();
+		this.clear.hide();
 		this.window.fill(this.parent as Frame);
 		this.window.setWindowBackground();
 		setWindowTitle(this.window, `Lua error #${error.id}`);
@@ -153,6 +170,7 @@ export class DebugErrorsPanel implements IPanel {
 		this.window.hide();
 	}
 	onUnmount(): void {
+		this.clear.hide();
 		this.parent = undefined;
 		this.selected = undefined;
 		this.list.unmount();
@@ -172,7 +190,10 @@ export class DebugErrorsPanel implements IPanel {
 						),
 					],
 				]
-			: this.list.getNavGrid();
+			: [
+					[this.clear.navigationNode(this.clear.id, this.clearAll)],
+					...this.list.getNavGrid(),
+				];
 	}
 	onBack(): void {
 		if (!this.selected || !this.parent) {
@@ -183,11 +204,13 @@ export class DebugErrorsPanel implements IPanel {
 		this.selected = undefined;
 		this.hideDetails();
 		this.list.mount(this.parent);
+		this.clear.show();
 		this.changed?.(focus);
 	}
 	destroy(): void {
 		this.onUnmount();
 		this.list.destroy();
+		this.clear.destroy();
 		for (const frame of [
 			this.text,
 			this.scroll,
