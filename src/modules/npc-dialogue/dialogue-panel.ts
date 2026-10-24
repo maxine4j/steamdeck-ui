@@ -67,8 +67,8 @@ export class DialoguePanel implements IPanel, IDialogueView {
 				viewportRight: SCROLL_VIEWPORT_RIGHT - 28,
 				top: 0,
 				bottom: 0,
-				gap: 6,
-				contentPadding: { horizontal: 12, vertical: 10 },
+				gap: 12,
+				contentPadding: { horizontal: 12, vertical: 14 },
 				centerSingleLine: true,
 				textColor: this.optionColor,
 				background: false,
@@ -210,14 +210,10 @@ export class DialoguePanel implements IPanel, IDialogueView {
 			}
 			rows.push({
 				...entry,
-				label:
-					entry.id === "dialogue-cancel"
-						? `|T${dialogueArt}CloseButton.png:24:24:0:0:256:128:16:48:80:112|t ${entry.label}`
-						: entry.label,
 				icon,
 				iconSize: reward ? 28 : typeof icon === "string" ? 24 : undefined,
 				fullWidth: !reward,
-				height: reward ? 56 : undefined,
+				height: 56,
 				wrapLabel: true,
 				selected,
 				fontSize: reward ? 16 : 17,
@@ -338,17 +334,6 @@ export class DialoguePanel implements IPanel, IDialogueView {
 					() => this.actions?.primary(page),
 				);
 		}
-		add(
-			{
-				id: "dialogue-cancel",
-				label: display.confirmation
-					? "Cancel"
-					: page.kind === "offer" && !page.autoAccepted
-						? "Decline"
-						: "Close",
-			},
-			() => this.actions?.cancel(),
-		);
 		this.choices.setColumns(
 			!display.confirmation &&
 				(page.kind === "offer" || page.kind === "rewards")
@@ -379,20 +364,23 @@ export class DialoguePanel implements IPanel, IDialogueView {
 		const inputHeight = display.confirmation?.code ? 52 : 0;
 		const readingTop = this.pageTitle() !== "" ? 76 : 48;
 		const minimumReader = Math.ceil(this.height / 3);
-		const available = this.height - readingTop - 64 - 24 - inputHeight;
+		const choicesBottom = 40;
+		const available =
+			this.height - readingTop - choicesBottom - 24 - inputHeight;
 		const choicesHeight = Math.min(
 			this.choices.getContentHeight(),
 			available - minimumReader,
 		);
-		const readerHeight = available - choicesHeight;
-		const choicesTop = this.height - 64 - choicesHeight;
+		// Reserve the lower half for actions instead of expanding prose for short lists.
+		const readerHeight = Math.min(available - choicesHeight, this.height / 2);
+		const choicesTop = this.height - choicesBottom - choicesHeight;
 		this.choicesHost.layout(
 			this.readingWidth,
 			choicesHeight,
 			"BOTTOMLEFT",
 			this.window,
 			28,
-			64,
+			choicesBottom,
 		);
 		this.readingHost.layout(
 			this.readingWidth,

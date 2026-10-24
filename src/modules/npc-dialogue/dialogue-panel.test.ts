@@ -92,6 +92,7 @@ vi.mock("../../ui/components/frame", () => ({
 		clampScroll = vi.fn();
 		resetScroll = vi.fn();
 		revealVerticalRange = vi.fn();
+		scrollToEdge = vi.fn();
 		scrollBy = () => ({ offset: 0, range: 0 });
 	},
 }));
@@ -145,6 +146,34 @@ const display = (p: DialogueDisplay["page"]): DialogueDisplay => ({
 	resetReading: true,
 });
 
+it.each([
+	display({ ...page, kind: "gossip", entries: [] }),
+	display({ ...page, kind: "greeting", entries: [] }),
+	display({ ...page, kind: "offer", autoAccepted: false }),
+	display({ ...page, kind: "progress", requirements: [], completable: false }),
+	display({ ...page, kind: "rewards" }),
+	display({ ...page, kind: "remote" }),
+	display({ ...page, kind: "shared", eligible: true }),
+	{
+		...display({ ...page, kind: "gossip", entries: [] }),
+		confirmation: { text: "Confirm?", code: false },
+	},
+])("omits close controls and keeps modal cancellation on $page.kind", (d) => {
+	const { panel, actions, navigation } = setup(d);
+	expect(
+		panel
+			.getNavGrid()
+			.flat()
+			.map((node) => node.navId),
+	).not.toContain("dialogue-cancel");
+	const labels = [...records.labels.values()].flatMap((values) => [
+		...values.values(),
+	]);
+	expect(labels.some((label) => label.includes("CloseButton.png"))).toBe(false);
+	navigation.pushModal.mock.lastCall?.at(2)?.();
+	expect(actions.cancel).toHaveBeenCalledOnce();
+});
+
 it("shows controller graphics beside conversation actions", () => {
 	setup(display(page));
 	expect(records.labels.get("dialogue-surface")?.get("hint")).toContain(
@@ -153,6 +182,29 @@ it("shows controller graphics beside conversation actions", () => {
 	expect(records.labels.get("dialogue-surface")?.get("hint")).not.toContain(
 		"Read",
 	);
+});
+
+it("moves options down and gives buttons more room without enlarging prose", () => {
+	setup(
+		display({
+			...page,
+			kind: "gossip",
+			title: "Conversation",
+			entries: [{ id: "talk", label: "Talk" }],
+		}),
+	);
+	expect(records.anchors.get("dialogue-choices-host")).toEqual([
+		"BOTTOMLEFT",
+		28,
+		40,
+	]);
+	expect(
+		records.layouts.get("dialogue-choices-row-0")?.at(1),
+	).toBeGreaterThanOrEqual(56);
+	// Previously one option and Close left 396px for prose in this 640px window.
+	expect(
+		records.layouts.get("dialogue-reading-host")?.at(1),
+	).toBeLessThanOrEqual(396);
 });
 
 it("focuses the first option on each new page and confirmation without navigating prose", () => {
@@ -400,12 +452,12 @@ it.each([720, 800, 1080, 1440])(
 		const readingHeight =
 			records.layouts.get("dialogue-reading-host")?.at(1) ?? 0;
 		const choicesTop =
-			h - 64 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
+			h - 40 - (records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
 		expect(choicesTop).toBeGreaterThanOrEqual(readingTop + readingHeight);
 		expect(records.anchors.get("dialogue-choices-host")).toEqual([
 			"BOTTOMLEFT",
 			28,
-			64,
+			40,
 		]);
 		expect(readingHeight).toBeGreaterThanOrEqual(h / 3);
 		expect(records.skins.get("dialogue-window")).toBe("metal-window");
@@ -436,7 +488,7 @@ it("keeps options at the bottom and the reader spacious when prose is short", ()
 	panel.show({ ...d, page: { ...d.page, text: "Hello." }, resetReading: true });
 	expect(records.layouts.get("dialogue-reading-host")).toEqual(reading);
 	expect(records.anchors.get("dialogue-choices-host")).toEqual(options);
-	expect(options).toEqual(["BOTTOMLEFT", 28, 64]);
+	expect(options).toEqual(["BOTTOMLEFT", 28, 40]);
 });
 
 it("uses crisp speech artwork while preserving service and reward icons", () => {
@@ -476,7 +528,7 @@ it("keeps confirmation input between prose and bottom options", () => {
 	const inputTop = -(records.anchors.get("dialogue-code")?.at(2) ?? 0);
 	const choicesTop =
 		(records.layouts.get("dialogue-window")?.at(1) ?? 0) -
-		64 -
+		40 -
 		(records.layouts.get("dialogue-choices-host")?.at(1) ?? 0);
 	expect(inputTop).toBeGreaterThanOrEqual(readerBottom + 12);
 	expect(inputTop + 40).toBeLessThanOrEqual(choicesTop);
@@ -511,11 +563,7 @@ it("fits rewards in two columns and grows upward before scrolling, reserving a t
 	expect(records.insets.get("dialogue-choices-scroll")).toEqual([0, 0, -20, 0]);
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
-	).toEqual([
-		["reward:0", "reward:1"],
-		["dialogue-primary"],
-		["dialogue-cancel"],
-	]);
+	).toEqual([["reward:0", "reward:1"], ["dialogue-primary"]]);
 	const contentHeight =
 		records.layouts.get("dialogue-choices-content")?.at(1) ?? 0;
 	expect(records.layouts.get("dialogue-choices-host")?.at(1)).toBe(
@@ -555,7 +603,7 @@ it("keeps reward choices paired and confirmation actions full width", () => {
 	});
 	expect(
 		panel.getNavGrid().map((row) => row.map((node) => node.navId)),
-	).toEqual([["dialogue-confirm"], ["dialogue-cancel"]]);
+	).toEqual([["dialogue-confirm"]]);
 });
 
 it.each([
@@ -577,9 +625,6 @@ it.each([
 	);
 	expect(records.icons.get("dialogue-choices-icon-0")).toBe(
 		`Interface\\AddOns\\SteamDeckUI\\assets\\dialogue\\${icon}`,
-	);
-	expect(records.labels.get("dialogue-choices-row-1")?.get("label")).toContain(
-		"CloseButton.png:24:24:0:0:256:128:16:48:80:112",
 	);
 });
 
@@ -605,7 +650,7 @@ it("adds available and active quest markers to greeting options", () => {
 		"IncompleteQuest.png",
 	);
 });
-it("makes reward selection, claiming and closing separate reachable controls", () => {
+it("makes reward selection and claiming separate reachable controls", () => {
 	const d = display({ ...page, kind: "rewards" });
 	const { panel, actions } = setup(d);
 	const graph = new NavigationGrid(panel.getNavGrid());
@@ -624,13 +669,7 @@ it("makes reward selection, claiming and closing separate reachable controls", (
 		}
 	}
 	expect(visited).toEqual(
-		new Set([
-			"xp",
-			"choice:1",
-			"choice:2",
-			"dialogue-primary",
-			"dialogue-cancel",
-		]),
+		new Set(["xp", "choice:1", "choice:2", "dialogue-primary"]),
 	);
 	graph.get("choice:2")?.onInteract();
 	expect(actions.choose).toHaveBeenCalledWith(d.page, 2);
@@ -638,7 +677,7 @@ it("makes reward selection, claiming and closing separate reachable controls", (
 	graph.get("dialogue-primary")?.onInteract();
 	expect(actions.primary).toHaveBeenCalledWith(d.page);
 });
-it("exposes owned code input, confirm and cancel with exclusive B handling", () => {
+it("exposes owned code input and confirmation with exclusive B handling", () => {
 	const d = {
 		...display({ ...page, kind: "gossip", entries: [] }),
 		confirmation: { text: "Enter code", code: true },
@@ -722,7 +761,6 @@ it("uses vertical navigation and aligns plain options inside their padded rows",
 	);
 	expect(panel.getNavGrid().map((row) => row.map((n) => n.navId))).toEqual([
 		["talk"],
-		["dialogue-cancel"],
 	]);
 	expect(records.labelAnchors.get("dialogue-choices-row-0:label")).toBe("LEFT");
 });
