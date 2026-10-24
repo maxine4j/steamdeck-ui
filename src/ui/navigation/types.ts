@@ -1,3 +1,6 @@
+/** A panel refresh sends only its optional preferred focus, never a Lua self. */
+export type NavigationChanged = (this: void, focusId?: string) => void;
+
 /** Explicitly type wrappers so TSTL preserves Frame's Lua self argument. */
 export interface NavigationScroll {
 	scrollToEdge(direction: "up" | "down"): void;

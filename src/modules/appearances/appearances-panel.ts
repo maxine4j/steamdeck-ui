@@ -13,6 +13,7 @@ import type { IFramePoolManager } from "../../ui/frame-pool-manager";
 import type {
 	INavigable,
 	NavGrid,
+	NavigationChanged,
 	NavigationScroll,
 } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
@@ -70,7 +71,7 @@ export class AppearancesPanel implements IPanel {
 	private cancelLoad?: () => void;
 	private cancelRender?: () => void;
 	private cancelViewport?: () => void;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly navigationScroll: NavigationScroll = {
 		scrollToEdge: (direction) => {
 			if (this.complete && !this.cancelRender)
@@ -555,7 +556,7 @@ export class AppearancesPanel implements IPanel {
 		this.mounted = false;
 		this.frame.hide();
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	getNavGrid(): NavGrid {

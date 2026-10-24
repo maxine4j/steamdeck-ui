@@ -5,7 +5,7 @@ import { Frame } from "../../ui/components/frame";
 import type { IModal } from "../../ui/components/modal";
 import type { IUIComponent } from "../../ui/components/types";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { NavGrid } from "../../ui/navigation/types";
+import type { NavGrid, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { formatMoney } from "../../utils/money";
 import { BagsPanel } from "../bags/bags-panel";
@@ -25,7 +25,7 @@ export class BankPanel implements IPanel {
 	private readonly options: BankOptions;
 	private mounted = false;
 	private footerGrid: NavGrid = [];
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	constructor(
 		readonly kind: BankKind,
 		pool: IFramePoolManager,
@@ -197,7 +197,7 @@ export class BankPanel implements IPanel {
 		this.footer.show();
 		this.navigationChanged?.();
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	onUnmount(): void {

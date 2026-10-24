@@ -10,7 +10,7 @@ import { Frame } from "../../ui/components/frame";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable } from "../../ui/navigation/types";
+import type { INavigable, NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import type { IEquipmentActionMenu } from "./equipment-action-menu";
 import { TitlesPanel } from "./titles-panel";
@@ -54,7 +54,7 @@ export class PaperDollPanel implements IPanel {
 	readonly title = "Equipment";
 	readonly iconPortrait = "player";
 	private mounted = false;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private parent?: IUIComponent;
 	private titlesOpen = false;
 	private readonly titles: TitlesPanel;
@@ -157,7 +157,7 @@ export class PaperDollPanel implements IPanel {
 			this.navigationChanged?.();
 		}
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	setStats(stats: readonly CharacterStat[]): void {

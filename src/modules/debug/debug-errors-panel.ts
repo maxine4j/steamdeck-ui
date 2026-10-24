@@ -7,6 +7,7 @@ import { type ListRow, ScrollList } from "../../ui/components/scroll-list";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
+import type { NavigationChanged } from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class DebugErrorsPanel implements IPanel {
@@ -22,7 +23,7 @@ export class DebugErrorsPanel implements IPanel {
 	private readonly clear: Frame;
 	private parent?: IUIComponent;
 	private selected?: LuaErrorRecord;
-	private changed?: (focusId?: string) => void;
+	private changed?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: Pick<DebugClient, "loadErrors" | "clearAll">,
@@ -176,7 +177,7 @@ export class DebugErrorsPanel implements IPanel {
 		this.list.unmount();
 		this.hideDetails();
 	}
-	setNavigationChanged(changed?: (focusId?: string) => void): void {
+	setNavigationChanged(changed?: NavigationChanged): void {
 		this.changed = changed;
 	}
 	getNavGrid() {

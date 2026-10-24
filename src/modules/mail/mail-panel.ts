@@ -11,7 +11,11 @@ import { ScrollText } from "../../ui/components/scroll-text";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationChanged,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 import { formatMoney } from "../../utils/money";
 import { formatMailBody } from "./mail-body";
@@ -40,7 +44,7 @@ export class MailInboxPanel implements IPanel {
 	private readonly actions: ScrollList;
 	private mounted = false;
 	private selected?: MailMessage;
-	private navigationChanged?: (focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private collecting = false;
 	private cancelCollection?: () => void;
 	constructor(
@@ -62,7 +66,7 @@ export class MailInboxPanel implements IPanel {
 			background: false,
 		});
 	}
-	setNavigationChanged(callback?: (focusId?: string) => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	refresh(): void {
@@ -362,7 +366,7 @@ export class MailSendPanel implements IPanel {
 	};
 	private mounted = false;
 	private status = "";
-	private navigationChanged?: () => void;
+	private navigationChanged?: NavigationChanged;
 	constructor(
 		pool: IFramePoolManager,
 		private readonly client: IMailClient,
@@ -441,7 +445,7 @@ export class MailSendPanel implements IPanel {
 			},
 		};
 	}
-	setNavigationChanged(callback?: () => void): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	getDraft(): Readonly<MailDraft> {

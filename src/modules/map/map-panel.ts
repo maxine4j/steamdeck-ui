@@ -11,7 +11,11 @@ import type { IModal, ModalOption } from "../../ui/components/modal";
 import type { IUIComponent } from "../../ui/components/types";
 import { setWindowTitle } from "../../ui/components/window-title";
 import type { IFramePoolManager } from "../../ui/frame-pool-manager";
-import type { INavigable, NavGrid } from "../../ui/navigation/types";
+import type {
+	INavigable,
+	NavGrid,
+	NavigationChanged,
+} from "../../ui/navigation/types";
 import type { IPanel } from "../../ui/panel/types";
 
 export class MapPanel implements IPanel {
@@ -33,7 +37,7 @@ export class MapPanel implements IPanel {
 	private active = false;
 	private parent?: Frame;
 	private fitted?: { width: number; height: number };
-	private navigationChanged?: (this: void, focusId?: string) => void;
+	private navigationChanged?: NavigationChanged;
 	private readonly cursorNode: INavigable = {
 		navId: "map-cursor",
 		onFocus: () => this.client.setCursorActive(true),
@@ -333,9 +337,7 @@ export class MapPanel implements IPanel {
 			},
 		);
 	}
-	setNavigationChanged(
-		callback?: (this: void, focusId?: string) => void,
-	): void {
+	setNavigationChanged(callback?: NavigationChanged): void {
 		this.navigationChanged = callback;
 	}
 	destroy(): void {
