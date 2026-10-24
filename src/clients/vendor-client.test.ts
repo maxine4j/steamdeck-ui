@@ -31,6 +31,10 @@ function setup() {
 		"Tokens",
 	]);
 	vi.stubGlobal("CanAffordMerchantItem", () => money >= 100);
+	vi.stubGlobal("C_CurrencyInfo", {
+		GetCurrencyInfoFromLink: () => ({ quantity: 4 }),
+	});
+	vi.stubGlobal("C_Item", { GetItemCount: () => 3 });
 	vi.stubGlobal("GetNumBuybackItems", () => 1);
 	vi.stubGlobal("GetBuybackItemInfo", () => ["Sword", 4, 500, 1]);
 	vi.stubGlobal("GetBuybackItemLink", () => "item:99");
@@ -79,10 +83,31 @@ it("maps vendor offers and buyback with prices, bundle sizes, stock and addition
 			count: 1,
 			available: 1,
 			purchasable: true,
+			moneyAffordable: true,
 			hyperlink: "item:99",
 			costs: [],
 		},
 	]);
+});
+
+it("reports affordability separately for money, currencies and item tokens", () => {
+	const { client, money } = setup();
+	client.setOpen(true);
+	vi.stubGlobal("GetMerchantItemCostInfo", () => 3);
+	vi.stubGlobal("GetMerchantItemCostItem", (_index: number, cost: number) =>
+		cost === 1
+			? [3, 4, "currency:1", "Tokens"]
+			: cost === 2
+				? [4, 5, "item:2"]
+				: [5, 1, undefined],
+	);
+	expect(client.getItems().at(0)).toMatchObject({
+		moneyAffordable: true,
+		costs: [{ affordable: true }, { affordable: false }, { affordable: false }],
+	});
+	money(99);
+	expect(client.getItems().at(0)?.moneyAffordable).toBe(false);
+	expect(client.getBuyback().at(0)?.moneyAffordable).toBe(false);
 });
 
 it("revalidates purchases and buyback against the current merchant, stock, identity and money", () => {

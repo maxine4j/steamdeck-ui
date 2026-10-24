@@ -2,6 +2,7 @@ export interface VendorCost {
 	readonly icon: number;
 	readonly count: number;
 	readonly label: string;
+	readonly affordable: boolean;
 }
 export interface VendorItem {
 	readonly index: number;
@@ -11,6 +12,7 @@ export interface VendorItem {
 	readonly count: number;
 	readonly available: number;
 	readonly purchasable: boolean;
+	readonly moneyAffordable: boolean;
 	readonly hyperlink?: string;
 	readonly costs: readonly VendorCost[];
 }
@@ -46,6 +48,28 @@ export class VendorClient implements IVendorClient {
 		) => MerchantItemInfo | undefined;
 		return getInfo(index);
 	}
+	private costAffordable(link: string | undefined, count: number): boolean {
+		if (!link) return false;
+		if (link.includes("currency:")) {
+			// Generated declarations flatten structured currency returns to number.
+			const currency = C_CurrencyInfo as unknown as {
+				GetCurrencyInfoFromLink(
+					this: void,
+					link: string,
+				): CurrencyInfo | undefined;
+			};
+			return (currency.GetCurrencyInfoFromLink(link)?.quantity ?? 0) >= count;
+		}
+		const getCount = C_Item.GetItemCount as unknown as (
+			this: void,
+			link: string,
+			includeBank: boolean,
+			includeUses: boolean,
+			includeReagentBank: boolean,
+			includeAccountBank: boolean,
+		) => number;
+		return getCount(link, false, false, true, false) >= count;
+	}
 	getItems(): VendorItem[] {
 		if (!this.open) return [];
 		const items: VendorItem[] = [];
@@ -60,13 +84,19 @@ export class VendorClient implements IVendorClient {
 						cost,
 					);
 					if (icon !== undefined)
-						costs.push({ icon, count, label: name ?? link ?? "Item" });
+						costs.push({
+							icon,
+							count,
+							label: name ?? link ?? "Item",
+							affordable: this.costAffordable(link, count),
+						});
 				}
 			items.push({
 				index,
 				name: info.name,
 				icon: info.texture,
 				price: info.price,
+				moneyAffordable: GetMoney() >= info.price,
 				count: info.stackCount,
 				available: info.numAvailable,
 				purchasable:
@@ -93,6 +123,7 @@ export class VendorClient implements IVendorClient {
 					count,
 					available: 1,
 					purchasable: GetMoney() >= price,
+					moneyAffordable: GetMoney() >= price,
 					hyperlink: GetBuybackItemLink(index),
 					costs: [],
 				});
