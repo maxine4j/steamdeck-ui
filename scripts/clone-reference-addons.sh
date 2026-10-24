@@ -20,6 +20,14 @@ clone_reference https://github.com/seblindfors/ConsolePort .libraries/ConsolePor
 # Clone BetterBags for reference.
 clone_reference https://github.com/Cidan/BetterBags .libraries/BetterBags
 
+# Group finder, item collection, inventory, and navigation references.
+clone_reference https://github.com/0xbs/premade-groups-filter .libraries/PremadeGroupsFilter
+clone_reference https://github.com/klaufel/ItemEra .libraries/ItemEra
+clone_reference https://github.com/ahakola/AlreadyKnown .libraries/AlreadyKnown
+clone_reference https://github.com/Peterodox/Plumber .libraries/Plumber
+clone_reference https://github.com/typicalzergling/vendor .libraries/Vendor
+clone_reference https://github.com/Adaptvx/Waypoint-UI .libraries/WaypointUI
+
 # Error capture and display references only; never bundled with the addon.
 clone_reference https://github.com/curseforge-mirror/bug-grabber .libraries/bug-grabber
 clone_reference https://github.com/funkydude/BugSack .libraries/BugSack

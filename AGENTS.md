@@ -50,3 +50,16 @@ Before handing off a change, run the focused tests available for the changed beh
 Error capture references: `.libraries/BugGrabber-source` (official CurseForge Subversion source downloaded over HTTPS), `.libraries/bug-grabber` (GitHub mirror tooling), and `.libraries/BugSack` (display source). `yarn setup` obtains these references. Do not embed either addon.
 
 You can find a few reference AddOns developed by other people under the .libraries directory, including ConsolePort, BetterBags, and the full official blizzard ui under wow-ui-source. Please use these as reference while working but remember we're writing TypeScript code and they are in lua.
+
+`yarn setup` also clones these reference addons. Run `./scripts/clone-reference-addons.sh` to obtain references without regenerating API declarations. Existing directories are skipped; references are not bundled with SteamDeck UI.
+
+| Reference | Relevant areas | Upstream |
+| --- | --- | --- |
+| `.libraries/PremadeGroupsFilter` | Premade group search, filtering, and group finder UI | [0xbs/premade-groups-filter](https://github.com/0xbs/premade-groups-filter) |
+| `.libraries/ItemEra` | Item expansion metadata, tooltips, and inventory filtering | [klaufel/ItemEra](https://github.com/klaufel/ItemEra) |
+| `.libraries/AlreadyKnown` | Known collectible detection and merchant/auction item indicators | [ahakola/AlreadyKnown](https://github.com/ahakola/AlreadyKnown) |
+| `.libraries/Plumber` | Expansion summaries, loot UI, and other quality of life features | [Peterodox/Plumber](https://github.com/Peterodox/Plumber) |
+| `.libraries/Vendor` | Inventory keep/sell rules, merchant selling, and repairs | [typicalzergling/vendor](https://github.com/typicalzergling/vendor) |
+| `.libraries/WaypointUI` | In-world waypoint presentation and navigation markers | [Adaptvx/Waypoint-UI](https://github.com/Adaptvx/Waypoint-UI) |
+
+Consult the relevant reference when working on these features; adapt its approach to our TypeScript architecture and client boundaries.
