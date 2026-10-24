@@ -19,6 +19,7 @@ import type { IInventoryClient } from "./clients/inventory-client";
 import type { IMailClient } from "./clients/mail-client";
 import type { IMapClient } from "./clients/map-client";
 import type { IMountsClient } from "./clients/mounts-client";
+import type { IObjectiveTrackerClient } from "./clients/objective-tracker-client";
 import {
 	type IPerformanceClient,
 	quietPerformance,
@@ -73,6 +74,7 @@ import { MountsPanel } from "./modules/mounts/mounts-panel";
 import { BuiltInDialogue } from "./modules/npc-dialogue/built-in-dialogue";
 import { DialogueModule } from "./modules/npc-dialogue/dialogue-module";
 import { DialoguePanel } from "./modules/npc-dialogue/dialogue-panel";
+import { ObjectiveTrackerModule } from "./modules/objective-tracker/objective-tracker-module";
 import { BuiltInPaperDoll } from "./modules/paper-doll/built-in-paper-doll";
 import { BuiltInTitles } from "./modules/paper-doll/built-in-titles";
 import { EquipmentActionMenu } from "./modules/paper-doll/equipment-action-menu";
@@ -392,6 +394,7 @@ export function startSteamDeckUI(
 	auctionHouse: IAuctionHouseClient,
 	appearances: IAppearancesClient,
 	heirlooms: IHeirloomsClient,
+	objectiveTracker: IObjectiveTrackerClient,
 	performance: IPerformanceClient = quietPerformance,
 	debug?: DebugClient,
 	cacheStats: () => readonly CacheStats[] = () => [],
@@ -617,6 +620,7 @@ export function startSteamDeckUI(
 		scheduler,
 	);
 	modules.register(new ControllerInputModule(controller));
+	modules.register(new ObjectiveTrackerModule(events, objectiveTracker));
 	const crossBar = new CrossBar(pool, actions);
 	const abilityRing = new AbilityRing(pool, actions);
 	modules.register(

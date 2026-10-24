@@ -22,6 +22,7 @@ import { InventoryClient } from "./clients/inventory-client";
 import { MailClient } from "./clients/mail-client";
 import { MapClient } from "./clients/map-client";
 import { MountsClient } from "./clients/mounts-client";
+import { ObjectiveTrackerClient } from "./clients/objective-tracker-client";
 import { PerformanceClient } from "./clients/performance-client";
 import { PetsClient } from "./clients/pets-client";
 import { PvpFinderClient } from "./clients/pvp-finder-client";
@@ -98,6 +99,7 @@ startSteamDeckUI(
 		events,
 		new Frame("navigation-input", new FramePoolManager(frameFactory)),
 		new ControllerOptionsClient(events),
+		scheduler,
 	),
 	scheduler,
 	new TalentsClient(),
@@ -129,6 +131,7 @@ startSteamDeckUI(
 	auctionHouse,
 	new AppearancesClient(scheduler, collectionCache, performance),
 	new HeirloomsClient(scheduler, collectionCache, performance),
+	new ObjectiveTrackerClient(),
 	performance,
 	debug,
 	() => collectionCache.stats(),
