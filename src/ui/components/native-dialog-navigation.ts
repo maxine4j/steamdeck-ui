@@ -105,6 +105,7 @@ export class NativeDialogNavigation {
 		root: NativeDialogFrame,
 		vertical = false,
 		onControl?: (frame: NativeDialogFrame, node: INavigable) => void,
+		includeControl?: (frame: NativeDialogFrame) => boolean,
 	): NavGrid {
 		const buttons: NativeDialogFrame[] = [];
 		const visit = (frame: NativeDialogFrame) => {
@@ -117,7 +118,8 @@ export class NativeDialogNavigation {
 					frame.IsObjectType("Slider") ||
 					frame.IsObjectType("EditBox"))
 			) {
-				if (frame.IsEnabled()) buttons.push(frame);
+				if (frame.IsEnabled() && (includeControl?.(frame) ?? true))
+					buttons.push(frame);
 				// Focus outlines and other button decorations are not controls.
 				return;
 			}

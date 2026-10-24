@@ -4,6 +4,7 @@ import {
 	NativeDialogsClient,
 	type NativeGameMenuAction,
 } from "../../clients/native-dialogs-client";
+import { PlayerChoiceClient } from "../../clients/player-choice-client";
 import { PlayerMenuClient } from "../../clients/player-menu-client";
 import { PreyMapClient } from "../../clients/prey-map-client";
 import { PreyTargetsClient } from "../../clients/prey-targets-client";
@@ -49,6 +50,11 @@ export function registerSystemDialogs(
 						scheduler,
 					),
 					new LootClient(
+						events,
+						new NativeDialogNavigation(new NativeNavigation(pool)),
+						scheduler,
+					),
+					new PlayerChoiceClient(
 						events,
 						new NativeDialogNavigation(new NativeNavigation(pool)),
 						scheduler,

@@ -5,8 +5,16 @@ import type { NavigationManager } from "../../ui/navigation/navigation-manager";
 import { ModuleManager } from "../module-manager";
 import { registerSystemDialogs } from "./register-system-dialogs";
 
-const { playerMenuCreated } = vi.hoisted(() => ({
+const { playerMenuCreated, playerChoiceCreated } = vi.hoisted(() => ({
 	playerMenuCreated: vi.fn(),
+	playerChoiceCreated: vi.fn(),
+}));
+vi.mock("../../clients/player-choice-client", () => ({
+	PlayerChoiceClient: class {
+		constructor() {
+			playerChoiceCreated();
+		}
+	},
 }));
 vi.mock("../../clients/player-menu-client", () => ({
 	PlayerMenuClient: class {
@@ -16,7 +24,7 @@ vi.mock("../../clients/player-menu-client", () => ({
 	},
 }));
 
-it("registers the custom player settings companion with Escape", () => {
+it("registers player settings and shared player choices as system dialogs", () => {
 	registerSystemDialogs(
 		{} as IFramePoolManager,
 		new ModuleManager(),
@@ -25,4 +33,5 @@ it("registers the custom player settings companion with Escape", () => {
 		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
 	expect(playerMenuCreated).toHaveBeenCalledOnce();
+	expect(playerChoiceCreated).toHaveBeenCalledOnce();
 });
