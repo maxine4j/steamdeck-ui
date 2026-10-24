@@ -1,0 +1,257 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { Diagnostics } from "./diagnostics";
+import { ErrorContextClient } from "./error-context-client";
+import { EventLogClient } from "./event-log-client";
+
+afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => vi.stubGlobal("issecretvalue", () => false));
+
+function setup() {
+	const diagnostics = new Diagnostics(() => 100);
+	const context = {
+		capture: vi.fn(() => ({
+			buildCommit: "test",
+			details: {
+				zone: "Dornogal",
+				inInstance: true,
+				instanceType: "party",
+				difficultyID: 2,
+				inLFGGroup: true,
+				instanceParty: true,
+				combatLockdown: true,
+				restrictionEncounter: 2,
+			},
+			unavailableFields: [],
+		})),
+	};
+	return {
+		diagnostics,
+		context,
+		client: new EventLogClient(diagnostics, context),
+	};
+}
+
+it("records application payloads, native fields and the NPC separately from the target", () => {
+	vi.stubGlobal("UnitName", (unit: string) => [
+		unit === "npc" ? "Quest Giver" : "Training Dummy",
+		"Realm",
+	]);
+	vi.stubGlobal("UnitGUID", (unit: string) => `Creature-${unit}`);
+	vi.stubGlobal("GetQuestID", () => 42);
+	vi.stubGlobal("GetTitleText", () => "An adventure");
+	const { client, diagnostics } = setup();
+	client.application("NAV_DIRECTION_CHANGED", {
+		direction: "left",
+		pressed: true,
+	});
+	client.native("QUEST_DETAIL", [123]);
+	client.native("PLAYER_TARGET_CHANGED", []);
+	expect(diagnostics.report()).toContain("direction=left");
+	expect(diagnostics.report()).toContain("pressed=true");
+	expect(diagnostics.report()).toContain("startItem=123");
+	expect(diagnostics.report()).toContain("npcName=Quest Giver");
+	expect(diagnostics.report()).toContain("targetName=Training Dummy");
+	expect(diagnostics.report()).toContain("npcGUID=Creature-npc");
+	expect(diagnostics.report()).toContain("questID=42");
+	expect(diagnostics.report()).toContain("questTitle=An adventure");
+});
+
+it("records world, group, combat and restriction transitions with current environment", () => {
+	const { client, diagnostics, context } = setup();
+	for (const event of [
+		"PLAYER_ENTERING_WORLD",
+		"ZONE_CHANGED",
+		"ZONE_CHANGED_INDOORS",
+		"ZONE_CHANGED_NEW_AREA",
+		"GROUP_ROSTER_UPDATE",
+		"LFG_UPDATE",
+		"PLAYER_REGEN_DISABLED",
+		"ADDON_RESTRICTION_STATE_CHANGED",
+		"ADDON_ACTION_BLOCKED",
+		"ENCOUNTER_START",
+		"CHALLENGE_MODE_START",
+	])
+		client.native(event, [1, 2]);
+	expect(context.capture).toHaveBeenCalledTimes(11);
+	expect(diagnostics.report()).toContain("zone=Dornogal");
+	expect(diagnostics.report()).toContain("inLFGGroup=true");
+	expect(diagnostics.report()).toContain("restrictionEncounter=2");
+	expect(diagnostics.report()).toContain("state=2");
+});
+
+it("snapshots every non-header quest at login, retries an initially empty log and logs quest lifecycle IDs and rewards", () => {
+	const info = vi.fn((index: number) =>
+		[
+			undefined,
+			{ isHeader: true, title: "Zone" },
+			{ questID: 42, title: "First quest", level: 80, isHidden: false },
+			{ questID: 43, title: "Hidden quest", isHidden: true },
+		].at(index),
+	);
+	const entries = vi.fn(() => [0, 0]);
+	vi.stubGlobal("C_QuestLog", {
+		GetNumQuestLogEntries: entries,
+		GetInfo: info,
+		GetTitleForQuestID: (id: number) =>
+			id === 42 ? "First quest" : "Hidden quest",
+	});
+	const { client, diagnostics } = setup();
+	client.native("PLAYER_LOGIN", []);
+	entries.mockReturnValue([3, 2]);
+	client.native("QUEST_LOG_UPDATE", []);
+	client.native("QUEST_LOG_UPDATE", []);
+	expect(info).toHaveBeenCalledTimes(3);
+	expect(diagnostics.report()).toContain("quest snapshot");
+	expect(diagnostics.report()).toContain("title=First quest");
+	expect(diagnostics.report()).toContain("title=Hidden quest");
+	expect(diagnostics.report()).not.toContain("title=Zone");
+	client.native("QUEST_ACCEPTED", [42]);
+	client.native("QUEST_REMOVED", [42, false]);
+	client.native("QUEST_TURNED_IN", [42, 100, 500]);
+	expect(diagnostics.report()).toContain("native QUEST_ACCEPTED questID=42");
+	expect(diagnostics.report()).toContain(
+		"native QUEST_REMOVED questID=42 wasReplayQuest=false",
+	);
+	expect(diagnostics.report()).toContain("xpReward=100 moneyReward=500");
+});
+
+it("records an explicit decline using the offered quest even after Blizzard clears the dialog", () => {
+	let decline = () => {};
+	vi.stubGlobal("hooksecurefunc", (_name: string, callback: () => void) => {
+		decline = callback;
+	});
+	vi.stubGlobal("GetQuestID", () => 42);
+	vi.stubGlobal("GetTitleText", () => "Offered quest");
+	const { client, diagnostics } = setup();
+	client.initialize();
+	client.initialize();
+	client.native("QUEST_DETAIL", []);
+	vi.stubGlobal("GetQuestID", () => 0);
+	decline();
+	expect(diagnostics.report()).toContain(
+		"quest declined questID=42 questTitle=Offered quest",
+	);
+	vi.stubGlobal("GetQuestID", () => 91);
+	vi.stubGlobal("GetTitleText", () => "Reward quest");
+	client.native("QUEST_COMPLETE", []);
+	decline();
+	expect(diagnostics.report()).toContain(
+		"quest declined questID=91 questTitle=Reward quest",
+	);
+});
+
+it("redacts secrets, bounds nested payloads and survives unavailable game APIs", () => {
+	const secret = {
+		toString: () => {
+			throw Error("secret inspected");
+		},
+	};
+	vi.stubGlobal("issecretvalue", (value: unknown) => value === secret);
+	vi.stubGlobal("UnitName", () => [secret]);
+	vi.stubGlobal("GetQuestID", () => {
+		throw Error("unavailable");
+	});
+	const { client, diagnostics } = setup();
+	const cycle: Record<string, unknown> = {};
+	cycle.self = cycle;
+	expect(() => {
+		client.application("DIALOGUE_ERROR", { message: secret });
+		client.application("nested", cycle);
+		client.native("QUEST_DETAIL", [secret]);
+	}).not.toThrow();
+	expect(diagnostics.report()).toContain("message=<secret>");
+	expect(diagnostics.report()).toContain("npcName=<secret>");
+	expect(diagnostics.report()).toContain("questID=<unavailable>");
+	expect(diagnostics.report().length).toBeLessThan(5000);
+});
+
+it("dumps all payload fields recursively instead of selecting a few fields or shallow levels", () => {
+	const { client, diagnostics } = setup();
+	const payload: Record<string, unknown> = {};
+	for (let index = 0; index < 30; index++) payload[`field${index}`] = index;
+	payload.nested = { deeper: { deepest: { value: "retained" } } };
+	payload.longText = "x".repeat(800);
+	client.application("arbitrary", payload);
+	client.native("arbitrary", [
+		payload,
+		...Array.from({ length: 25 }, (_, index) => index),
+	]);
+	expect(diagnostics.report()).toContain("field29=29");
+	expect(diagnostics.report()).toContain("value=retained");
+	expect(diagnostics.report()).toContain("x".repeat(800));
+	expect(diagnostics.report()).toContain("arg26=24");
+});
+
+it("preserves large payload tails in continuation records and marks cycles and truncation", () => {
+	const lines: string[] = [];
+	const client = new EventLogClient(
+		new Diagnostics(
+			() => 100,
+			500,
+			(line) => lines.push(line),
+		),
+		{
+			capture: () => ({
+				buildCommit: "test",
+				details: {},
+				unavailableFields: [],
+			}),
+		},
+	);
+	client.application("large", { text: `${"x".repeat(25000)}TAIL` });
+	expect(lines).toHaveLength(3);
+	expect(lines.at(-1)).toContain("part=3/3");
+	expect(lines.at(-1)).toContain("TAIL");
+	client.application("huge", "x".repeat(110000));
+	expect(lines.at(-1)).toContain("<truncated: 100000 character limit>");
+	const cycle: Record<string, unknown> = {};
+	cycle.self = cycle;
+	client.application("cycle", cycle);
+	expect(lines.at(-1)).toContain("<cycle>");
+});
+
+it("records an unavailable placeholder if an entire payload table cannot be inspected", () => {
+	const { client, diagnostics } = setup();
+	const blocked = new Proxy(
+		{},
+		{
+			ownKeys: () => {
+				throw Error("protected table");
+			},
+		},
+	);
+	expect(() => client.application("blocked", blocked)).not.toThrow();
+	expect(diagnostics.report()).toContain("<unavailable>");
+});
+
+it("retains every quest field when a snapshot exceeds the individual log line cap", () => {
+	vi.stubGlobal("C_QuestLog", {
+		GetNumQuestLogEntries: () => [1, 1],
+		GetInfo: () => ({
+			questID: 42,
+			title: "Long quest",
+			details: `${"x".repeat(20000)}QUEST_TAIL`,
+		}),
+	});
+	const { client, diagnostics } = setup();
+	client.native("PLAYER_LOGIN", []);
+	expect(diagnostics.report()).toContain("QUEST_TAIL");
+});
+
+it("captures LFG membership, instance party and restriction states in error environments", () => {
+	vi.stubGlobal("_G", {
+		IsPartyLFG: () => true,
+		LE_PARTY_CATEGORY_INSTANCE: 2,
+		IsInGroup: (category?: number) => category === 2,
+		C_RestrictedActions: {
+			GetAddOnRestrictionState: (type: number) => (type === 1 ? 2 : 0),
+		},
+		Enum: { AddOnRestrictionType: { Combat: 0, Encounter: 1 } },
+	});
+	expect(new ErrorContextClient().capture().details).toMatchObject({
+		inLFGGroup: true,
+		instanceParty: true,
+		restrictionCombat: 0,
+		restrictionEncounter: 2,
+	});
+});

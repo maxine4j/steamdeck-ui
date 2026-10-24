@@ -12,12 +12,69 @@ it("traces events before dispatch, including events whose handlers throw", () =>
 	} as unknown as WowEventFrame;
 	const bus = new WowEventBus({ createEventFrame: () => frame }, trace);
 	bus.subscribe("NAV_INTERACT", () => {
-		expect(trace).toHaveBeenLastCalledWith("NAV_INTERACT");
+		expect(trace).toHaveBeenLastCalledWith("NAV_INTERACT", undefined);
 		throw new Error("broken interaction");
 	});
 	expect(() => bus.emit("NAV_INTERACT")).toThrow("broken interaction");
 	bus.emit("MAIL_SHOW");
-	expect(trace.mock.calls).toEqual([["NAV_INTERACT"], ["MAIL_SHOW"]]);
+	expect(trace.mock.calls).toEqual([
+		["NAV_INTERACT", undefined],
+		["MAIL_SHOW", undefined],
+	]);
+});
+
+it("traces native payloads before translation and delivery, including diagnostic-only events", () => {
+	let dispatch: (
+		frame: WowEventFrame,
+		event: string,
+		...args: unknown[]
+	) => void = () => {};
+	const frame = {
+		Hide: vi.fn(),
+		RegisterEvent: vi.fn(),
+		SetScript: (_script: string, handler: typeof dispatch) => {
+			dispatch = handler;
+		},
+	} as unknown as WowEventFrame;
+	const trace = vi.fn();
+	const native = vi.fn();
+	const bus = new WowEventBus({ createEventFrame: () => frame }, trace, native);
+	bus.subscribe("DIALOGUE_ERROR", () => {
+		expect(native).toHaveBeenLastCalledWith("UI_ERROR_MESSAGE", [
+			123,
+			"blocked",
+		]);
+		expect(trace).toHaveBeenLastCalledWith("DIALOGUE_ERROR", {
+			message: "blocked",
+		});
+		throw Error("handler failed");
+	});
+	expect(() => dispatch(frame, "UI_ERROR_MESSAGE", 123, "blocked")).toThrow(
+		"handler failed",
+	);
+	for (const event of [
+		"PLAYER_TARGET_CHANGED",
+		"ZONE_CHANGED",
+		"ZONE_CHANGED_INDOORS",
+		"QUEST_ACCEPTED",
+		"QUEST_REMOVED",
+		"QUEST_TURNED_IN",
+		"QUEST_WATCH_UPDATE",
+		"ADDON_RESTRICTION_STATE_CHANGED",
+		"ADDON_ACTION_BLOCKED",
+		"ADDON_ACTION_FORBIDDEN",
+		"ENCOUNTER_START",
+		"ENCOUNTER_END",
+		"GROUP_JOINED",
+		"GROUP_LEFT",
+		"LFG_PROPOSAL_SHOW",
+		"LFG_PROPOSAL_SUCCEEDED",
+		"LFG_PROPOSAL_FAILED",
+	]) {
+		expect(frame.RegisterEvent).toHaveBeenCalledWith(event);
+		dispatch(frame, event, 42);
+		expect(native).toHaveBeenLastCalledWith(event, [42]);
+	}
 });
 
 it("refreshes skyriding movement settings on mount display changes", () => {

@@ -28,7 +28,13 @@ interface ContextGlobals {
 	C_DelvesUI: { GetActiveDelveTier(this: void): number };
 	GetNumGroupMembers(this: void): number;
 	IsInRaid(this: void): boolean;
-	IsInGroup(this: void): boolean;
+	IsInGroup(this: void, category?: number): boolean;
+	IsPartyLFG(this: void): boolean;
+	LE_PARTY_CATEGORY_INSTANCE: number;
+	Enum: { AddOnRestrictionType: Record<string, number> };
+	C_RestrictedActions: {
+		GetAddOnRestrictionState(this: void, type: number): number;
+	};
 	GetZoneText(this: void): string;
 	GetSubZoneText(this: void): string;
 	GetRealZoneText(this: void): string;
@@ -130,6 +136,23 @@ export class ErrorContextClient {
 			details.groupSize = Math.max(1, details.groupSize);
 		collect(["inRaid"], () => [g.IsInRaid()]);
 		collect(["inGroup"], () => [g.IsInGroup()]);
+		collect(["inLFGGroup"], () => [g.IsPartyLFG()]);
+		collect(["instanceParty"], () => [
+			g.IsInGroup(g.LE_PARTY_CATEGORY_INSTANCE),
+		]);
+		for (const restriction of [
+			"Combat",
+			"Encounter",
+			"ChallengeMode",
+			"PvPMatch",
+			"Map",
+			"Chat",
+		])
+			collect([`restriction${restriction}`], () => [
+				g.C_RestrictedActions.GetAddOnRestrictionState(
+					g.Enum.AddOnRestrictionType[restriction],
+				),
+			]);
 		collect(["zone"], () => [g.GetZoneText()]);
 		collect(["subZone"], () => [g.GetSubZoneText()]);
 		collect(["realZone"], () => [g.GetRealZoneText()]);

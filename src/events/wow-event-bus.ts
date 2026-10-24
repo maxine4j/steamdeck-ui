@@ -7,6 +7,26 @@ import type {
 	IEventBus,
 } from "./types";
 
+const diagnosticEvents = [
+	"PLAYER_TARGET_CHANGED",
+	"ZONE_CHANGED",
+	"ZONE_CHANGED_INDOORS",
+	"QUEST_ACCEPTED",
+	"QUEST_REMOVED",
+	"QUEST_TURNED_IN",
+	"QUEST_WATCH_UPDATE",
+	"ADDON_RESTRICTION_STATE_CHANGED",
+	"ADDON_ACTION_BLOCKED",
+	"ADDON_ACTION_FORBIDDEN",
+	"ENCOUNTER_START",
+	"ENCOUNTER_END",
+	"GROUP_JOINED",
+	"GROUP_LEFT",
+	"LFG_PROPOSAL_SHOW",
+	"LFG_PROPOSAL_SUCCEEDED",
+	"LFG_PROPOSAL_FAILED",
+] as const;
+
 const petEvents = [
 	"PET_JOURNAL_LIST_UPDATE",
 	"NEW_PET_ADDED",
@@ -265,7 +285,7 @@ export class WowEventBus implements IEventBus {
 			? [payload?: EventPayload<E>]
 			: [EventPayload<E>]
 	): void {
-		this.trace?.(event);
+		this.trace?.(event, args.at(0));
 		for (const handler of [...(this.handlers.get(event) ?? [])])
 			handler(args.at(0));
 	}
@@ -273,10 +293,18 @@ export class WowEventBus implements IEventBus {
 	private readonly frame: WowEventFrame;
 	constructor(
 		factory: EventFrameFactory,
-		private readonly trace?: (event: ApplicationEvent) => void,
+		private readonly trace?: (
+			event: ApplicationEvent,
+			payload: unknown,
+		) => void,
+		private readonly nativeTrace?: (
+			event: string,
+			args: readonly unknown[],
+		) => void,
 	) {
 		this.frame = factory.createEventFrame();
 		this.frame.Hide();
+		for (const event of diagnosticEvents) this.frame.RegisterEvent(event);
 		for (const event of [
 			"PLAYER_IS_GLIDING_CHANGED",
 			"PLAYER_CAN_GLIDE_CHANGED",
@@ -345,6 +373,7 @@ export class WowEventBus implements IEventBus {
 		])
 			this.frame.RegisterEvent(event);
 		this.frame.SetScript("OnEvent", (_frame, event, ...args) => {
+			this.nativeTrace?.(event, args);
 			if (
 				event === "PLAYER_IS_GLIDING_CHANGED" ||
 				event === "PLAYER_CAN_GLIDE_CHANGED" ||

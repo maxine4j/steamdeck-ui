@@ -16,6 +16,7 @@ import { DialogueCamera } from "./clients/dialogue-camera";
 import { DialogueClient } from "./clients/dialogue-client";
 import { DungeonFinderClient } from "./clients/dungeon-finder-client";
 import { ErrorContextClient } from "./clients/error-context-client";
+import { EventLogClient } from "./clients/event-log-client";
 import { HeirloomsClient } from "./clients/heirlooms-client";
 import { InventoryClient } from "./clients/inventory-client";
 import { MailClient } from "./clients/mail-client";
@@ -54,8 +55,13 @@ const diagnostics = new Diagnostics(
 	(line) => logHistory.append(line),
 	`build=${BUILD_COMMIT}`,
 );
-const events = new WowEventBus(frameFactory, (event) =>
-	diagnostics.log("info", `event ${event}`),
+const errorContext = new ErrorContextClient();
+const eventLog = new EventLogClient(diagnostics, errorContext);
+eventLog.initialize();
+const events = new WowEventBus(
+	frameFactory,
+	(event, payload) => eventLog.application(event, payload),
+	(event, args) => eventLog.native(event, args),
 );
 const bank = new BankClient();
 const auctionHouse = new AuctionHouseClient(
@@ -73,7 +79,7 @@ const debug = new DebugClient(
 	scheduler,
 	true,
 	diagnostics,
-	new ErrorContextClient(),
+	errorContext,
 );
 const collectionCache = new CollectionCache(scheduler, undefined, () =>
 	GetServerTime(),
