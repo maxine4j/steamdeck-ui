@@ -357,10 +357,12 @@ it("puts recent achievements before categories and opens their exact achievement
 	expect(rows.at(0)).toMatchObject({
 		label: "Recent Achievements",
 		heading: true,
+		labelOffsetY: 8,
 	});
 	expect(rows.at(1)).toMatchObject({
 		label: "Achievement 6",
 		icon: 1,
+		iconOffsetY: 8,
 		background: [1, 0.82, 0, 0.08],
 		border: [1, 0.82, 0, 0.25],
 	});

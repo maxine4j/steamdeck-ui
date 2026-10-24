@@ -5,6 +5,95 @@ import { NavigationManager } from "../navigation/navigation-manager";
 import { Frame } from "./frame";
 import { ScrollList } from "./scroll-list";
 
+it("offsets icons and heading labels without moving row backgrounds or other text", () => {
+	const pool = {} as IFramePoolManager;
+	const list = new ScrollList("offsets", pool, "", vi.fn(), {
+		contentPadding: { horizontal: 18, vertical: 16 },
+	});
+	const heading = {
+		id: "heading",
+		label: "Heading",
+		heading: true,
+		labelOffsetY: 8,
+		activate: vi.fn(),
+	};
+	const row = {
+		id: "item",
+		label: "Item",
+		icon: 1,
+		iconOffsetY: 8,
+		trailingLabel: "10 points",
+		activate: vi.fn(),
+	};
+	list.setRows([heading, row]);
+	list.mount(new Frame("parent", pool));
+	const item = frames.get("offsets-row-1");
+	expect(frames.get("offsets-icon-1")?.layout).toHaveBeenLastCalledWith(
+		36,
+		36,
+		"TOPLEFT",
+		item,
+		18,
+		-8,
+	);
+	expect(frames.get("offsets-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Heading",
+		"TOPLEFT",
+		18,
+		-8,
+		18,
+		expect.any(Number),
+	);
+	expect(item?.layout).toHaveBeenLastCalledWith(
+		456,
+		48,
+		"TOPLEFT",
+		expect.anything(),
+		0,
+		-32,
+	);
+	expect(item?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Item",
+		"LEFT",
+		62,
+		0,
+		14,
+		expect.any(Number),
+	);
+	expect(item?.setLabel).toHaveBeenCalledWith(
+		"trailing",
+		"10 points",
+		"RIGHT",
+		-18,
+		0,
+		14,
+		expect.any(Number),
+	);
+	list.updateRows([
+		{ ...heading, labelOffsetY: undefined },
+		{ ...row, iconOffsetY: undefined },
+	]);
+	expect(frames.get("offsets-icon-1")?.layout).toHaveBeenLastCalledWith(
+		36,
+		36,
+		"TOPLEFT",
+		item,
+		18,
+		-16,
+	);
+	expect(frames.get("offsets-row-0")?.setLabel).toHaveBeenCalledWith(
+		"label",
+		"Heading",
+		"TOPLEFT",
+		18,
+		-16,
+		18,
+		expect.any(Number),
+	);
+});
+
 it("preserves translucent row fills and borders through focus and clears them on reuse", () => {
 	const pool = {} as IFramePoolManager;
 	const list = new ScrollList("subtle", pool, "", vi.fn());

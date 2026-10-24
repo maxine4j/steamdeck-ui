@@ -21,6 +21,8 @@ export interface ListRow {
 	readonly fullWidth?: boolean;
 	readonly icon?: number | string;
 	readonly iconSize?: number;
+	/** Vertical icon adjustment; positive values move upward. */
+	readonly iconOffsetY?: number;
 	readonly iconRing?: IconRing;
 	/** Shared artwork container for consecutive rows in a section. */
 	readonly group?: {
@@ -58,6 +60,8 @@ export interface ListRow {
 	readonly checkPlacement?: "label" | "secondary";
 	readonly enabled?: boolean;
 	readonly fontSize?: number;
+	/** Vertical primary-label adjustment; positive values move upward. */
+	readonly labelOffsetY?: number;
 	readonly detailFontSize?: number;
 	readonly wrapLabel?: boolean;
 	readonly wrapDetail?: boolean;
@@ -594,7 +598,8 @@ export class ScrollList {
 						this.options.centerLabelsVertically ? "LEFT" : "TOPLEFT",
 						button.frame,
 						this.options.contentPadding?.horizontal ?? 6,
-						this.options.centerLabelsVertically ? 0 : -verticalPadding,
+						(this.options.centerLabelsVertically ? 0 : -verticalPadding) +
+							(row.iconOffsetY ?? 0),
 					);
 					button.icon.setIcon(row.icon);
 					button.icon.show();
@@ -806,7 +811,7 @@ export class ScrollList {
 							? -secondarySpace / 2
 							: 0
 						: textLeft,
-					verticallyCentered
+					(verticallyCentered
 						? stackedLabels
 							? 8
 							: 0
@@ -816,7 +821,7 @@ export class ScrollList {
 								: 0
 							: centeredLabel
 								? 0
-								: -verticalPadding,
+								: -verticalPadding) + (row.labelOffsetY ?? 0),
 					row.fontSize ?? (row.heading ? 18 : 14),
 					Math.max(
 						1,
