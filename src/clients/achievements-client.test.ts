@@ -8,6 +8,83 @@ import type { ITaskScheduler } from "./task-scheduler";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("summarizes category backfill timings instead of logging each successful category", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	vi.stubGlobal("debugprofilestop", () => 0);
+	const diagnostics = new Diagnostics(() => 100);
+	const client = new AchievementsClient(
+		scheduler,
+		new CollectionCache(scheduler, () => "player"),
+		undefined,
+		new PerformanceClient(diagnostics),
+	);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	expect(diagnostics.report()).toContain(
+		"achievements scan complete categories=4",
+	);
+	expect(diagnostics.report()).toContain("slowest=");
+	expect(diagnostics.report()).toContain("maxPage=0.00ms");
+	expect(diagnostics.report()).not.toMatch(
+		/achievements category \d+ (start|complete)/,
+	);
+});
+
+it("retains slow, failed and cancelled categories with a backfill outcome", () => {
+	vi.stubGlobal("SteamDeckUIConfig", {});
+	const pending: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: (callback: () => void) => {
+			pending.push(callback);
+			return () => {};
+		},
+	};
+	setup(scheduler);
+	let time = 0;
+	vi.stubGlobal("debugprofilestop", () => time);
+	vi.stubGlobal("GetCategoryNumAchievements", () => {
+		time += 25;
+		return [0, 0, 0];
+	});
+	const diagnostics = new Diagnostics(() => 100);
+	const client = new AchievementsClient(
+		scheduler,
+		new CollectionCache(scheduler, () => "player"),
+		undefined,
+		new PerformanceClient(diagnostics),
+	);
+	client.prefetch();
+	while (pending.length) pending.shift()?.();
+	expect(diagnostics.report()).toContain("achievements category 92 complete");
+	expect(diagnostics.report()).toContain("maxPage=25.00ms");
+	client.prefetch();
+	pending.shift()?.();
+	client.stop();
+	expect(diagnostics.report()).toContain("achievements category 92 cancelled");
+	expect(diagnostics.report()).toContain(
+		"achievements scan cancelled categories=0",
+	);
+	pending.length = 0;
+	vi.stubGlobal("GetCategoryNumAchievements", () => {
+		throw Error("journal failed");
+	});
+	client.prefetch();
+	pending.shift()?.();
+	expect(() => pending.shift()?.()).toThrow("journal failed");
+	expect(diagnostics.report()).toContain("achievements category 92 failed");
+	expect(diagnostics.report()).toContain(
+		"achievements scan failed categories=0",
+	);
+});
+
 it("reports category journal progress and cancels diagnostics with the scan", () => {
 	const pending: (() => void)[] = [];
 	const scheduler = {

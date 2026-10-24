@@ -57,7 +57,8 @@ const diagnostics = new Diagnostics(
 	`build=${BUILD_COMMIT}`,
 );
 const errorContext = new ErrorContextClient();
-const eventLog = new EventLogClient(diagnostics, errorContext);
+const scheduler = new TaskScheduler();
+const eventLog = new EventLogClient(diagnostics, errorContext, scheduler);
 eventLog.initialize();
 const events = new WowEventBus(
 	frameFactory,
@@ -74,7 +75,6 @@ const inventory = new InventoryClient(bank, auctionHouse);
 const character = new CharacterClient();
 const reputation = new ReputationClient();
 const titles = new TitlesClient();
-const scheduler = new TaskScheduler();
 const debug = new DebugClient(
 	events,
 	scheduler,

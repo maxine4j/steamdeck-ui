@@ -1,7 +1,9 @@
 import type { Diagnostics } from "./diagnostics";
 import type { ErrorEnvironment } from "./error-context-client";
+import type { ITaskScheduler } from "./task-scheduler";
 
 const nativeFields: Readonly<Record<string, readonly string[]>> = {
+	LFG_LIST_SEARCH_RESULT_UPDATED: ["resultID"],
 	PLAYER_ENTERING_WORLD: ["isInitialLogin", "isReloadingUi"],
 	QUEST_DETAIL: ["startItem"],
 	QUEST_ACCEPTED: ["questID"],
@@ -38,6 +40,31 @@ interface QuestInfo {
 	readonly [key: string]: unknown;
 	isHeader?: boolean;
 }
+
+// Full context belongs on situation changes, not every event in a namespace.
+const contextEvents = new Set([
+	"PLAYER_LOGIN",
+	"PLAYER_ENTERING_WORLD",
+	"ZONE_CHANGED",
+	"ZONE_CHANGED_INDOORS",
+	"ZONE_CHANGED_NEW_AREA",
+	"PLAYER_DIFFICULTY_CHANGED",
+	"GROUP_JOINED",
+	"GROUP_LEFT",
+	"LFG_PROPOSAL_SHOW",
+	"LFG_PROPOSAL_SUCCEEDED",
+	"LFG_PROPOSAL_FAILED",
+	"ENCOUNTER_START",
+	"ENCOUNTER_END",
+	"CHALLENGE_MODE_START",
+	"CHALLENGE_MODE_COMPLETED",
+	"CHALLENGE_MODE_RESET",
+	"PLAYER_REGEN_DISABLED",
+	"PLAYER_REGEN_ENABLED",
+	"ADDON_RESTRICTION_STATE_CHANGED",
+	"ADDON_ACTION_BLOCKED",
+	"ADDON_ACTION_FORBIDDEN",
+]);
 
 function secret(value: unknown): boolean {
 	return (issecretvalue as unknown as (this: void, value: unknown) => boolean)(
@@ -123,9 +150,13 @@ export class EventLogClient {
 	private recording = false;
 	private pendingQuests = false;
 	private offeredQuest = "questID=<unavailable>";
+	private itemSuccesses = 0;
+	private itemSuppressed = 0;
+	private cancelItemSummary?: () => void;
 	constructor(
 		private readonly diagnostics: Diagnostics,
 		private readonly context: { capture(): ErrorEnvironment },
+		private readonly scheduler: ITaskScheduler,
 	) {}
 	initialize(): void {
 		if (this.initialized) return;
@@ -139,6 +170,17 @@ export class EventLogClient {
 		});
 	}
 	application(event: string, payload?: unknown): void {
+		// These invalidations describe requests to refresh, not state transitions.
+		if (
+			[
+				"ITEM_DATA_LOAD_RESULT",
+				"ACTION_RING_CONTENTS_CHANGED",
+				"BAG_VISIBILITY_CHANGED",
+				"TALENTS_VISIBILITY_CHANGED",
+				"SPELLBOOK_VISIBILITY_CHANGED",
+			].includes(event)
+		)
+			return;
 		this.record(() =>
 			this.write(
 				`event ${event}`,
@@ -161,6 +203,21 @@ export class EventLogClient {
 		}
 	}
 	private recordNative(event: string, args: readonly unknown[]): void {
+		if (event === "PLAYER_LOGOUT") this.flushItemSummary();
+		if (
+			event === "ITEM_DATA_LOAD_RESULT" &&
+			!secret(args.at(1)) &&
+			args.at(1) === true
+		) {
+			this.itemSuccesses++;
+			const sampled = this.itemSuccesses === 1 || this.itemSuccesses % 50 === 0;
+			if (!sampled) this.itemSuppressed++;
+			this.cancelItemSummary ??= this.scheduler.delay(5, () => {
+				this.cancelItemSummary = undefined;
+				this.record(() => this.flushItemSummary());
+			});
+			if (!sampled) return;
+		}
 		const fields = args.map(
 			(value, index) =>
 				`${nativeFields[event]?.at(index) ?? `arg${index + 1}`}=${describe(value)}`,
@@ -218,18 +275,7 @@ export class EventLogClient {
 					this.read("questTitle", () => C_QuestLog.GetTitleForQuestID(id)),
 				);
 		}
-		const world =
-			event === "PLAYER_LOGIN" ||
-			event === "PLAYER_ENTERING_WORLD" ||
-			event.startsWith("ZONE_CHANGED") ||
-			event.startsWith("GROUP_") ||
-			event.startsWith("LFG_") ||
-			event.startsWith("ENCOUNTER_") ||
-			event.startsWith("CHALLENGE_MODE_") ||
-			event.startsWith("ADDON_") ||
-			event.startsWith("PLAYER_REGEN_") ||
-			event === "PLAYER_DIFFICULTY_CHANGED";
-		if (world) {
+		if (contextEvents.has(event)) {
 			try {
 				const environment = this.context.capture();
 				// Environment is already sanitized by the context client.
@@ -257,6 +303,17 @@ export class EventLogClient {
 		} catch {
 			return `${field}=<unavailable>`;
 		}
+	}
+	private flushItemSummary(): void {
+		this.cancelItemSummary?.();
+		this.cancelItemSummary = undefined;
+		if (this.itemSuccesses > 0)
+			this.write(
+				"item load summary",
+				`successes=${this.itemSuccesses} suppressed=${this.itemSuppressed}`,
+			);
+		this.itemSuccesses = 0;
+		this.itemSuppressed = 0;
 	}
 	private write(label: string, payload: string): void {
 		// Diagnostics caps individual lines at 12k. Split large payloads so the
@@ -292,7 +349,19 @@ export class EventLogClient {
 				)(index);
 				if (secret(info) || !info || secret(info.isHeader) || info.isHeader)
 					continue;
-				this.write(`quest snapshot index=${index}`, describe(info));
+				const fields: Record<string, unknown> = {};
+				for (const key of [
+					"questID",
+					"title",
+					"isHidden",
+					"isAutoComplete",
+					"isTask",
+					"isBounty",
+					"questClassification",
+				])
+					if (secret(info[key]) || info[key] !== undefined)
+						fields[key] = info[key];
+				this.write(`quest snapshot index=${index}`, describe(fields));
 			}
 			this.pendingQuests = false;
 		} catch {

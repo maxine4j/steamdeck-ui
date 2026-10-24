@@ -39,6 +39,48 @@ it("marks failed work in diagnostics and preserves the exception for WoW's error
 	expect(diagnostics.jobs().at(0)?.state).toBe("failed");
 });
 
+it("allows a scan owner to report completed metrics while preserving live progress and failures", () => {
+	let time = 0;
+	vi.stubGlobal("debugprofilestop", () => time);
+	const diagnostics = new Diagnostics(() => 100);
+	const report = vi.fn();
+	const scan = new WorkMeasurement(
+		new PerformanceClient(diagnostics),
+		"category",
+		"login",
+		report,
+	);
+	expect(diagnostics.report()).toBe("");
+	time = 12;
+	scan.page(0);
+	scan.finish("complete");
+	scan.finish("complete");
+	expect(report).toHaveBeenCalledExactlyOnceWith(
+		expect.objectContaining({
+			state: "complete",
+			elapsed: 12,
+			maxPage: 12,
+			pages: 1,
+			message: expect.stringContaining("category complete"),
+		}),
+	);
+	expect(diagnostics.jobs().at(0)?.state).toBe("complete");
+	const failed = new WorkMeasurement(
+		new PerformanceClient(diagnostics),
+		"category",
+		"login",
+		report,
+	);
+	expect(() =>
+		failed.measure("journal", () => {
+			throw Error("broken");
+		}),
+	).toThrow("broken");
+	expect(report).toHaveBeenLastCalledWith(
+		expect.objectContaining({ state: "failed" }),
+	);
+});
+
 it("routes logs and live work progress to central diagnostics including completion and cancellation", () => {
 	vi.stubGlobal("print", vi.fn());
 	let time = 0;

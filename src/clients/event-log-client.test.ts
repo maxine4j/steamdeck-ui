@@ -7,6 +7,16 @@ afterEach(() => vi.unstubAllGlobals());
 beforeEach(() => vi.stubGlobal("issecretvalue", () => false));
 
 function setup() {
+	const delayed: (() => void)[] = [];
+	const scheduler = {
+		nextFrame: vi.fn(() => () => {}),
+		delay: vi.fn((_seconds: number, callback: () => void) => {
+			delayed.push(callback);
+			return () => {
+				delayed.splice(delayed.indexOf(callback), 1);
+			};
+		}),
+	};
 	const diagnostics = new Diagnostics(() => 100);
 	const context = {
 		capture: vi.fn(() => ({
@@ -27,7 +37,8 @@ function setup() {
 	return {
 		diagnostics,
 		context,
-		client: new EventLogClient(diagnostics, context),
+		delayed,
+		client: new EventLogClient(diagnostics, context, scheduler),
 	};
 }
 
@@ -63,8 +74,8 @@ it("records world, group, combat and restriction transitions with current enviro
 		"ZONE_CHANGED",
 		"ZONE_CHANGED_INDOORS",
 		"ZONE_CHANGED_NEW_AREA",
-		"GROUP_ROSTER_UPDATE",
-		"LFG_UPDATE",
+		"GROUP_JOINED",
+		"LFG_PROPOSAL_SUCCEEDED",
 		"PLAYER_REGEN_DISABLED",
 		"ADDON_RESTRICTION_STATE_CHANGED",
 		"ADDON_ACTION_BLOCKED",
@@ -197,6 +208,7 @@ it("preserves large payload tails in continuation records and marks cycles and t
 				unavailableFields: [],
 			}),
 		},
+		{ nextFrame: vi.fn(), delay: vi.fn() },
 	);
 	client.application("large", { text: `${"x".repeat(25000)}TAIL` });
 	expect(lines).toHaveLength(3);
@@ -257,18 +269,124 @@ it("isolates context, serialization, persistence and hook failures without recur
 	expect(() => decline()).not.toThrow();
 });
 
-it("retains every quest field when a snapshot exceeds the individual log line cap", () => {
+it("keeps quest identity and relevant state without dumping unrelated API fields", () => {
 	vi.stubGlobal("C_QuestLog", {
 		GetNumQuestLogEntries: () => [1, 1],
 		GetInfo: () => ({
 			questID: 42,
 			title: "Long quest",
+			isHidden: true,
+			isAutoComplete: false,
 			details: `${"x".repeat(20000)}QUEST_TAIL`,
 		}),
 	});
 	const { client, diagnostics } = setup();
 	client.native("PLAYER_LOGIN", []);
-	expect(diagnostics.report()).toContain("QUEST_TAIL");
+	expect(diagnostics.report()).toContain(
+		"questID=42 title=Long quest isHidden=true isAutoComplete=false",
+	);
+	expect(diagnostics.report()).not.toContain("QUEST_TAIL");
+	expect(diagnostics.report()).not.toContain("details=");
+});
+
+it("samples successful item loads once, summarizes the tail, and preserves every failure", () => {
+	const { client, diagnostics, delayed } = setup();
+	for (let id = 1; id <= 53; id++) {
+		client.native("ITEM_DATA_LOAD_RESULT", [id, true]);
+		client.application("ITEM_DATA_LOAD_RESULT", { id, success: true });
+	}
+	client.native("ITEM_DATA_LOAD_RESULT", [99, false]);
+	client.application("ITEM_DATA_LOAD_RESULT", { id: 99, success: false });
+	expect(delayed).toHaveLength(1);
+	delayed.shift()?.();
+	const lines = diagnostics.report().split("\n");
+	expect(
+		lines.filter((line) => line.includes("event ITEM_DATA_LOAD_RESULT")),
+	).toHaveLength(0);
+	expect(
+		lines.filter((line) => line.includes("native ITEM_DATA_LOAD_RESULT")),
+	).toHaveLength(3);
+	expect(diagnostics.report()).toContain("arg1=1 arg2=true");
+	expect(diagnostics.report()).toContain("arg1=50 arg2=true");
+	expect(diagnostics.report()).toContain("arg1=99 arg2=false");
+	expect(diagnostics.report()).toContain(
+		"item load summary successes=53 suppressed=51",
+	);
+});
+
+it("flushes item-load counts on logout without repeating the delayed summary", () => {
+	const { client, diagnostics, delayed } = setup();
+	client.native("ITEM_DATA_LOAD_RESULT", [1, true]);
+	client.native("ITEM_DATA_LOAD_RESULT", [2, true]);
+	client.native("PLAYER_LOGOUT", []);
+	expect(diagnostics.report()).toContain(
+		"item load summary successes=2 suppressed=1",
+	);
+	expect(delayed).toHaveLength(0);
+});
+
+it("omits selected refresh notifications while retaining panel and input breadcrumbs", () => {
+	const { client, diagnostics } = setup();
+	for (const event of [
+		"ACTION_RING_CONTENTS_CHANGED",
+		"BAG_VISIBILITY_CHANGED",
+		"TALENTS_VISIBILITY_CHANGED",
+		"SPELLBOOK_VISIBILITY_CHANGED",
+	])
+		client.application(event);
+	client.application("NAV_DOWN");
+	client.application("NAV_DIRECTION_CHANGED", {
+		direction: "down",
+		pressed: true,
+	});
+	expect(diagnostics.report().split("\n")).toHaveLength(2);
+	expect(diagnostics.report()).toContain("event NAV_DOWN");
+	expect(diagnostics.report()).toContain("direction=down");
+});
+
+it("keeps LFG result IDs without recapturing the environment", () => {
+	const { client, diagnostics, context } = setup();
+	client.native("LFG_LIST_SEARCH_RESULT_UPDATED", [8]);
+	expect(diagnostics.report()).toContain(
+		"native LFG_LIST_SEARCH_RESULT_UPDATED resultID=8",
+	);
+	expect(context.capture).not.toHaveBeenCalled();
+});
+
+it("captures context for major situation changes but not routine addon, roster or LFG refreshes", () => {
+	const { client, context, diagnostics } = setup();
+	for (const event of [
+		"ADDON_LOADED",
+		"GROUP_ROSTER_UPDATE",
+		"LFG_UPDATE",
+		"LFG_LIST_SEARCH_RESULTS_RECEIVED",
+		"LFG_LIST_SEARCH_RESULT_UPDATED",
+		"CHALLENGE_MODE_MAPS_UPDATE",
+		"ENCOUNTER_LOOT_RECEIVED",
+	])
+		client.native(event, [8]);
+	expect(context.capture).not.toHaveBeenCalled();
+	expect(diagnostics.report()).toContain("native ADDON_LOADED arg1=8");
+	for (const event of [
+		"PLAYER_ENTERING_WORLD",
+		"ZONE_CHANGED_NEW_AREA",
+		"PLAYER_DIFFICULTY_CHANGED",
+		"GROUP_JOINED",
+		"GROUP_LEFT",
+		"LFG_PROPOSAL_SUCCEEDED",
+		"ENCOUNTER_START",
+		"ENCOUNTER_END",
+		"CHALLENGE_MODE_START",
+		"CHALLENGE_MODE_COMPLETED",
+		"CHALLENGE_MODE_RESET",
+		"PLAYER_REGEN_DISABLED",
+		"PLAYER_REGEN_ENABLED",
+		"ADDON_RESTRICTION_STATE_CHANGED",
+		"ADDON_ACTION_BLOCKED",
+		"ADDON_ACTION_FORBIDDEN",
+	])
+		client.native(event, []);
+	expect(context.capture).toHaveBeenCalledTimes(16);
 });
 
 it("captures LFG membership, instance party and restriction states in error environments", () => {

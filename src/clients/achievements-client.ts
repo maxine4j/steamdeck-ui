@@ -4,6 +4,7 @@ import {
 	type IPerformanceClient,
 	quietPerformance,
 	WorkMeasurement,
+	type WorkResult,
 } from "./performance-client";
 import type { SavedVariableCache } from "./saved-variable-cache";
 import type { ITaskScheduler } from "./task-scheduler";
@@ -77,6 +78,7 @@ export class AchievementsClient implements IAchievementsClient {
 	private readonly summaries?: SavedVariableCache<AchievementSummary>;
 	private readonly criterionRows?: SavedVariableCache<AchievementCriterion[]>;
 	private cancelBackfill?: () => void;
+	private finishBackfill?: (state: string) => void;
 	private cancelNotification?: () => void;
 	private generation = 0;
 	constructor(
@@ -94,6 +96,18 @@ export class AchievementsClient implements IAchievementsClient {
 	prefetch(): void {
 		if (!this.items || this.cancelBackfill) return;
 		const generation = this.generation;
+		const started = this.performance.now();
+		let completed = 0;
+		let categoryMs = 0;
+		let maxPage = 0;
+		let slowest: { id: number; elapsed: number }[] = [];
+		this.performance.log("achievements scan start reason=login");
+		this.finishBackfill = (state) => {
+			this.finishBackfill = undefined;
+			this.performance.log(
+				`achievements scan ${state} categories=${completed} elapsed=${(this.performance.now() - started).toFixed(2)}ms categoryTime=${categoryMs.toFixed(2)}ms maxPage=${maxPage.toFixed(2)}ms slowest=${slowest.map((row) => `${row.id}:${row.elapsed.toFixed(2)}ms`).join(",")}`,
+			);
+		};
 		let categories: AchievementCategory[] | undefined;
 		let index = 0;
 		const step = () => {
@@ -103,6 +117,7 @@ export class AchievementsClient implements IAchievementsClient {
 			const category = categories.at(index++);
 			if (!category) {
 				this.cancelBackfill = undefined;
+				this.finishBackfill?.("complete");
 				return;
 			}
 			this.cancelBackfill = this.scanCategory(
@@ -112,6 +127,18 @@ export class AchievementsClient implements IAchievementsClient {
 				},
 				undefined,
 				"login",
+				(result) => {
+					categoryMs += result.elapsed;
+					maxPage = Math.max(maxPage, result.maxPage);
+					if (result.state === "complete") completed++;
+					slowest.push({ id: category.id, elapsed: result.elapsed });
+					slowest.sort((a, b) => b.elapsed - a.elapsed);
+					slowest = slowest.slice(0, 3);
+					if (result.state === "failed") {
+						this.cancelBackfill = undefined;
+						this.finishBackfill?.("failed");
+					}
+				},
 			);
 		};
 		this.cancelBackfill = this.scheduler.nextFrame(step);
@@ -119,6 +146,7 @@ export class AchievementsClient implements IAchievementsClient {
 	stop(): void {
 		this.generation++;
 		this.cancelBackfill?.();
+		this.finishBackfill?.("cancelled");
 		this.cancelNotification?.();
 		this.cancelBackfill = undefined;
 		this.cancelNotification = undefined;
@@ -195,11 +223,22 @@ export class AchievementsClient implements IAchievementsClient {
 			rows: readonly Achievement[],
 		) => void,
 		reason = "empty-cache",
+		report?: (result: WorkResult) => void,
 	): () => void {
 		const measurement = new WorkMeasurement(
 			this.performance,
 			`achievements category ${category}`,
 			reason,
+			(result) => {
+				// Preserve exceptional categories; routine timings belong in the scan summary.
+				if (
+					result.state !== "complete" ||
+					result.elapsed >= 1000 ||
+					result.maxPage >= 20
+				)
+					this.performance.log(result.message);
+				report?.(result);
+			},
 		);
 		let cancelled = false;
 		let finished = false;

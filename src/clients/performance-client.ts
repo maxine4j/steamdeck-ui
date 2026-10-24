@@ -44,6 +44,13 @@ export class PerformanceClient implements IPerformanceClient {
 }
 
 let nextWorkId = 0;
+export interface WorkResult {
+	readonly state: string;
+	readonly elapsed: number;
+	readonly maxPage: number;
+	readonly pages: number;
+	readonly message: string;
+}
 export class WorkMeasurement {
 	private finished = false;
 	private readonly id = ++nextWorkId;
@@ -57,9 +64,10 @@ export class WorkMeasurement {
 		private readonly performance: IPerformanceClient,
 		private readonly label: string,
 		private readonly reason: string,
+		private readonly report?: (result: WorkResult) => void,
 	) {
 		this.started = performance.now();
-		performance.log(`${label} start reason=${reason}`);
+		if (!report) performance.log(`${label} start reason=${reason}`);
 		this.progress(0, 0);
 	}
 	progress(completed: number, total: number, state = "running"): void {
@@ -104,8 +112,16 @@ export class WorkMeasurement {
 		const stages = [...this.timings]
 			.map(([stage, milliseconds]) => `${stage}=${milliseconds.toFixed(2)}ms`)
 			.join(" ");
-		this.performance.log(
-			`${this.label} ${result} reason=${this.reason} pages=${this.pages} elapsed=${(this.performance.now() - this.started).toFixed(2)}ms ${stages} maxPage=${this.maxPage.toFixed(2)}ms`,
-		);
+		const elapsed = this.performance.now() - this.started;
+		const message = `${this.label} ${result} reason=${this.reason} pages=${this.pages} elapsed=${elapsed.toFixed(2)}ms ${stages} maxPage=${this.maxPage.toFixed(2)}ms`;
+		if (this.report)
+			this.report({
+				state: result,
+				elapsed,
+				maxPage: this.maxPage,
+				pages: this.pages,
+				message,
+			});
+		else this.performance.log(message);
 	}
 }
