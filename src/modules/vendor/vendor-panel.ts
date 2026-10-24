@@ -27,7 +27,7 @@ export class VendorPanel implements IPanel {
 		nav: INavigable;
 		key: "repair" | "guildRepair" | "sellJunk";
 		label: string;
-		icon: number;
+		icon: string;
 		action: () => void;
 	}[];
 	private mounted = false;
@@ -59,19 +59,19 @@ export class VendorPanel implements IPanel {
 			{
 				key: "repair" as const,
 				label: "Repair all",
-				icon: 134520,
+				icon: "SpellIcon-256x256-RepairAll",
 				action: () => client.repair(false),
 			},
 			{
 				key: "guildRepair" as const,
 				label: "Guild repair",
-				icon: 132060,
+				icon: "SpellIcon-256x256-RepairAllGuild",
 				action: () => client.repair(true),
 			},
 			{
 				key: "sellJunk" as const,
 				label: "Sell junk",
-				icon: 134400,
+				icon: "SpellIcon-256x256-SellJunk",
 				action: () => client.sellJunk(),
 			},
 		].map((control) => {
@@ -130,9 +130,10 @@ export class VendorPanel implements IPanel {
 		this.grid.setGroups(groups);
 		if (this.id === "vendor") {
 			this.actions = this.client.getActions();
+			const repairCost = formatMoney(this.actions.repairCost, true);
 			this.footer.setLabel(
 				"cost",
-				`Repair cost: ${formatMoney(this.actions.repairCost)}`,
+				`Repair cost: ${repairCost.length > 0 ? this.colorCost(repairCost, this.actions.repair) : "None"}`,
 				"TOPLEFT",
 				12,
 				-8,
@@ -158,22 +159,30 @@ export class VendorPanel implements IPanel {
 		this.navigationChanged?.();
 	}
 	private tile(item: VendorItem) {
-		const costs = item.costs
-			.map((cost) => `${cost.count}|T${cost.icon}:12:12|t`)
-			.join(" ");
-		const detail = `${formatMoney(item.price)}${costs.length > 0 ? ` + ${costs}` : ""}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
+		const costs = item.costs.map(
+			(cost) =>
+				`${this.colorCost(`${cost.count}`, cost.affordable)}|T${cost.icon}:12:12|t`,
+		);
+		if (item.price > 0)
+			costs.unshift(
+				this.colorCost(formatMoney(item.price, true), item.moneyAffordable),
+			);
+		const detail = `${costs.join(" + ")}${item.available >= 0 && this.id === "vendor" ? ` • ${item.available} left` : ""}`;
 		return {
 			id: `${this.id}-item-${item.index}`,
 			name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,
 			icon: item.icon,
 			hyperlink: item.hyperlink,
-			detail: item.purchasable ? detail : `|cff808080${detail}|r`,
+			detail,
 			activate: () => {
 				if (!this.mounted || !item.purchasable) return;
 				if (this.id === "vendor") this.client.buy(item);
 				else this.client.buyback(item);
 			},
 		};
+	}
+	private colorCost(text: string, affordable: boolean): string {
+		return `|c${affordable ? "ffffffff" : "ffff0000"}${text}|r`;
 	}
 	setNavigationChanged(callback?: () => void): void {
 		this.navigationChanged = callback;
@@ -199,7 +208,7 @@ export class VendorPanel implements IPanel {
 					12 + index * 148,
 					-50,
 				);
-				control.frame.setIcon(control.icon);
+				control.frame.setAtlasBackground(control.icon);
 				control.frame.onClick((button) => {
 					if (button === "LeftButton")
 						this.activate(control.key, control.action);

@@ -30,6 +30,7 @@ vi.mock("../../ui/components/frame", () => ({
 		setInsetBackground = vi.fn();
 		setCloseButtonBackground = vi.fn();
 		setIcon = vi.fn();
+		setAtlasBackground = vi.fn();
 		setColor = vi.fn();
 		setFocused = vi.fn();
 		setTooltip = vi.fn();
@@ -51,6 +52,7 @@ function setup() {
 		count: 2,
 		available: -1,
 		purchasable: true,
+		moneyAffordable: true,
 		costs: [],
 	}));
 	const client: IVendorClient = {
@@ -111,7 +113,7 @@ it("stacks vendor pages in two columns, exposes purchase actions and reuses cont
 	).not.toContain("vendor-close");
 	expect(labels.get("vendor-items-cell-0")).toHaveBeenCalledWith(
 		"detail",
-		"1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  23|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  45|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t",
+		"|cffffffff1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  23|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  45|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t|r",
 		"BOTTOMLEFT",
 		56,
 		6,
@@ -154,6 +156,117 @@ it("stacks vendor pages in two columns, exposes purchase actions and reuses cont
 	expect(layouts.size).toBe(count);
 	panel.onContainerClosed();
 	expect(close).toHaveBeenCalledOnce();
+});
+
+it.each([
+	[10000, "1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t"],
+	[100, "1|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t"],
+	[1, "1|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t"],
+	[0, ""],
+])("hides zero coin denominations for a price of %i", (price, expected) => {
+	const { pool, client, parent, items } = setup();
+	const first = items.at(0);
+	if (!first) throw new Error("Expected item");
+	vi.mocked(client.getItems).mockReturnValue([{ ...first, price }]);
+	new VendorPanel("vendor", pool, client, vi.fn()).onMount(parent);
+	expect(labels.get("vendor-items-cell-0")?.mock.calls.at(-1)?.at(1)).toBe(
+		expected ? `|cffffffff${expected}|r` : "",
+	);
+});
+
+it.each([true, false])(
+	"colors only unaffordable costs independently (money affordable: %s)",
+	(moneyAffordable) => {
+		const { pool, client, parent, items } = setup();
+		const first = items.at(0);
+		if (!first) throw new Error("Expected item");
+		vi.mocked(client.getItems).mockReturnValue([
+			{
+				...first,
+				moneyAffordable,
+				purchasable: false,
+				costs: [
+					{ icon: 3, count: 4, label: "Tokens", affordable: true },
+					{ icon: 4, count: 5, label: "Other tokens", affordable: false },
+				],
+			},
+		]);
+		const panel = new VendorPanel("vendor", pool, client, vi.fn());
+		panel.onMount(parent);
+		const detail = labels.get("vendor-items-cell-0")?.mock.calls.at(-1)?.at(1);
+		expect(detail).toBe(
+			`|c${moneyAffordable ? "ffffffff" : "ffff0000"}1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  23|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  45|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t|r + |cffffffff4|r|T3:12:12|t + |cffff00005|r|T4:12:12|t`,
+		);
+		panel.getNavGrid().at(0)?.at(0)?.onInteract();
+		expect(client.buy).not.toHaveBeenCalled();
+	},
+);
+
+it("shows only alternate currencies for currency-only offers", () => {
+	const { pool, client, parent, items } = setup();
+	const first = items.at(0);
+	if (!first) throw new Error("Expected item");
+	vi.mocked(client.getItems).mockReturnValue([
+		{
+			...first,
+			price: 0,
+			available: 2,
+			costs: [{ icon: 3, count: 4, label: "Tokens", affordable: true }],
+		},
+	]);
+	new VendorPanel("vendor", pool, client, vi.fn()).onMount(parent);
+	expect(labels.get("vendor-items-cell-0")?.mock.calls.at(-1)?.at(1)).toBe(
+		"|cffffffff4|r|T3:12:12|t • 2 left",
+	);
+});
+
+it("uses Blizzard merchant action atlases for every footer button", () => {
+	const { pool, client, parent } = setup();
+	const panel = new VendorPanel("vendor", pool, client, vi.fn());
+	panel.onMount(parent);
+	const controls = panel.getNavGrid().at(-1) ?? [];
+	["RepairAll", "RepairAllGuild", "SellJunk"].forEach((icon, index) => {
+		const frame = controls.at(index)?.mouseTarget as Frame;
+		expect(frame.setAtlasBackground).toHaveBeenCalledWith(
+			`SpellIcon-256x256-${icon}`,
+		);
+	});
+});
+
+it.each([true, false])(
+	"colors repair money as one cost (affordable: %s)",
+	(repair) => {
+		const { pool, client, parent } = setup();
+		vi.mocked(client.getActions).mockReturnValue({
+			repairCost: 10000,
+			repair,
+			guildRepair: true,
+			sellJunk: true,
+		});
+		new VendorPanel("vendor", pool, client, vi.fn()).onMount(parent);
+		expect(labels.get("vendor-footer")?.mock.calls.at(-4)?.at(1)).toBe(
+			`Repair cost: |c${repair ? "ffffffff" : "ffff0000"}1|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t|r`,
+		);
+	},
+);
+
+it("shows no coin denominations when no repairs are needed", () => {
+	const { pool, client, parent } = setup();
+	vi.mocked(client.getActions).mockReturnValue({
+		repairCost: 0,
+		repair: false,
+		guildRepair: false,
+		sellJunk: true,
+	});
+	new VendorPanel("vendor", pool, client, vi.fn()).onMount(parent);
+	expect(labels.get("vendor-footer")).toHaveBeenCalledWith(
+		"cost",
+		"Repair cost: None",
+		"TOPLEFT",
+		12,
+		-8,
+		12,
+	);
 });
 
 it("routes repair and junk controls, guards unavailable actions, and isolates buyback", () => {

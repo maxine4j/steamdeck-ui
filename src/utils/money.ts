@@ -8,6 +8,16 @@ export function commaNumber(value: number): string {
 	return result;
 }
 
-export function formatMoney(copper: number): string {
-	return `${commaNumber(Math.floor(copper / 10000))}|TInterface\\MoneyFrame\\UI-GoldIcon:14:14|t  ${Math.floor(copper / 100) % 100}|TInterface\\MoneyFrame\\UI-SilverIcon:14:14|t  ${copper % 100}|TInterface\\MoneyFrame\\UI-CopperIcon:14:14|t`;
+export function formatMoney(copper: number, hideZero = false): string {
+	return [
+		{ count: Math.floor(copper / 10000), icon: "Gold" },
+		{ count: Math.floor(copper / 100) % 100, icon: "Silver" },
+		{ count: copper % 100, icon: "Copper" },
+	]
+		.filter((coin) => !hideZero || coin.count > 0)
+		.map(
+			(coin) =>
+				`${commaNumber(coin.count)}|TInterface\\MoneyFrame\\UI-${coin.icon}Icon:14:14|t`,
+		)
+		.join("  ");
 }
